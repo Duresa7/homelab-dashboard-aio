@@ -2,9 +2,17 @@ import type { ReactNode } from 'react';
 import { Donut } from '../components/charts';
 import { GPUTile } from '../components/widgets';
 import type { DashboardState } from '../types';
+import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '../lib/units';
 
 interface Props {
   data: DashboardState;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(2)} TB`;
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(0)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
+  return `${bytes} B`;
 }
 
 function tempColor(tempC: number, warnAt: number, badAt: number) {
@@ -72,14 +80,17 @@ function TempCard({
   tempC,
   warnAt,
   badAt,
+  unit,
 }: {
   title: string;
   sub: string;
   tempC: number | null;
   warnAt: number;
   badAt: number;
+  unit: TempUnit;
 }) {
   const known = tempC != null;
+  const shownTemp = known ? Math.round(convertTemp(tempC, unit)) : '—';
   const color = !known
     ? 'var(--ink-3)'
     : tempC >= badAt
@@ -108,9 +119,11 @@ function TempCard({
             color,
           }}
         >
-          {known ? Math.round(tempC) : '—'}
+          {shownTemp}
         </div>
-        <div style={{ fontSize: 20, color: 'var(--ink-3)', fontWeight: 500 }}>°C</div>
+        <div style={{ fontSize: 20, color: 'var(--ink-3)', fontWeight: 500 }}>
+          {tempSuffix(unit)}
+        </div>
       </div>
       <div className="lbl" style={{ marginTop: 8 }}>
         {sub}
@@ -162,6 +175,7 @@ function MetricCard({
 }
 
 export function ProxmoxPage({ data }: Props) {
+  const { unit } = useTempUnit();
   const n = data.proxmox.node;
   const threads = n.cpuThreads || 0;
   const cpusBusy = (n.cpu / 100) * threads;
@@ -283,6 +297,7 @@ export function ProxmoxPage({ data }: Props) {
         tempC={data.sensors.systemTempC}
         warnAt={60}
         badAt={75}
+        unit={unit}
       />
       <TempCard
         title="CPU Temp"
@@ -290,6 +305,7 @@ export function ProxmoxPage({ data }: Props) {
         tempC={data.sensors.cpuTempC}
         warnAt={75}
         badAt={85}
+        unit={unit}
       />
       <TempCard
         title="GPU Temp"
@@ -297,6 +313,7 @@ export function ProxmoxPage({ data }: Props) {
         tempC={data.gpu.tempC || null}
         warnAt={75}
         badAt={85}
+        unit={unit}
       />
 
       {/* ─── Hardware Sensors (drives / memory / network / fans) ──── */}
@@ -312,8 +329,8 @@ export function ProxmoxPage({ data }: Props) {
               {data.sensors.disks.map((d) => (
                 <SensorChip
                   key={d.name}
-                  label={`${d.name}${d.type ? ` · ${d.type}` : ''}`}
-                  value={`${d.tempC.toFixed(0)}°C`}
+                  label={d.name}
+                  value={fmtTemp(d.tempC, unit)}
                   color={tempColor(d.tempC, 60, 70)}
                 />
               ))}
@@ -326,7 +343,7 @@ export function ProxmoxPage({ data }: Props) {
                 <SensorChip
                   key={m.name}
                   label={m.name}
-                  value={`${m.tempC.toFixed(0)}°C`}
+                  value={fmtTemp(m.tempC, unit)}
                   color={tempColor(m.tempC, 55, 70)}
                 />
               ))}
@@ -339,7 +356,7 @@ export function ProxmoxPage({ data }: Props) {
                 <SensorChip
                   key={nic.name}
                   label={nic.name}
-                  value={`${nic.tempC.toFixed(0)}°C`}
+                  value={fmtTemp(nic.tempC, unit)}
                   color={tempColor(nic.tempC, 70, 85)}
                 />
               ))}
@@ -359,6 +376,71 @@ export function ProxmoxPage({ data }: Props) {
                 ))}
             </SensorSection>
           )}
+        </div>
+      )}
+
+      {/* ─── Physical drives inventory ────────────────────────────── */}
+      {data.proxmox.disks.length > 0 && (
+        <div className="tile span-12">
+          <div className="t-title">
+            Drives{' '}
+            <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>
+              ({data.proxmox.disks.length} drives ·{' '}
+              {formatBytes(
+                data.proxmox.disks.reduce((sum, d) => sum + d.sizeBytes, 0),
+              )}{' '}
+              total)
+            </span>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Model</th>
+                <th>Type</th>
+                <th className="num">Size</th>
+                <th>Used by</th>
+                <th>Health</th>
+                <th className="num">Wear</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.proxmox.disks.map((d) => {
+                const healthColor =
+                  d.health === 'PASSED'
+                    ? 'var(--ok)'
+                    : d.health === 'FAILED'
+                      ? 'var(--bad)'
+                      : 'var(--ink-3)';
+                const typeLabel =
+                  d.type === 'nvme'
+                    ? 'NVMe'
+                    : d.type === 'ssd'
+                      ? 'SSD'
+                      : d.type === 'hdd'
+                        ? `HDD${d.rpm > 0 ? ` · ${d.rpm} RPM` : ''}`
+                        : d.type === 'usb'
+                          ? 'USB'
+                          : d.type.toUpperCase();
+                return (
+                  <tr key={d.devpath}>
+                    <td className="mono">{d.devpath}</td>
+                    <td>
+                      {d.vendor && <span className="muted">{d.vendor} </span>}
+                      {d.model || <span className="muted">unknown</span>}
+                    </td>
+                    <td className="muted">{typeLabel}</td>
+                    <td className="mono tnum num">{formatBytes(d.sizeBytes)}</td>
+                    <td className="muted">{d.used || '—'}</td>
+                    <td style={{ color: healthColor }}>{d.health || '—'}</td>
+                    <td className="mono tnum num">
+                      {d.wearout != null ? `${d.wearout}%` : <span className="muted">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 

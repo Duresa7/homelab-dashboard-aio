@@ -1,5 +1,6 @@
 import { Tile } from '../tile/Tile';
 import type { StorageData } from '../../types';
+import { convertTemp, fmtTemp, tempSuffix, useTempUnit } from '../../lib/units';
 
 interface Props {
   data: StorageData;
@@ -11,7 +12,11 @@ interface Props {
 export function SmartTile({ data, span, onExpand, expandable }: Props) {
   const ok = data.disks.filter((d) => d.smart === 'ok').length;
   const warn = data.disks.filter((d) => d.smart === 'warn').length;
-  const avgTemp = Math.round(data.disks.reduce((a, b) => a + b.tempC, 0) / data.disks.length);
+  const { unit } = useTempUnit();
+  const avgC = data.disks.length
+    ? data.disks.reduce((a, b) => a + b.tempC, 0) / data.disks.length
+    : 0;
+  const avgTemp = Math.round(convertTemp(avgC, unit));
   return (
     <Tile
       title="Disk Health"
@@ -32,7 +37,7 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
         </div>
         <div>
           <div className="t-big" style={{ fontSize: 22 }}>
-            {avgTemp}<small>°C</small>
+            {avgTemp}<small>{tempSuffix(unit)}</small>
           </div>
           <div className="t-sub">avg temp</div>
         </div>
@@ -43,7 +48,7 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
             <span className={`d ${d.smart === 'warn' ? 'warn' : ''}`} />
             <span className="name">{d.name}</span>
             <span className="meta">{d.model}</span>
-            <span className="val">{d.tempC}°C · {d.wear}%w</span>
+            <span className="val">{fmtTemp(d.tempC, unit)} · {d.wear}%w</span>
           </div>
         ))}
       </div>

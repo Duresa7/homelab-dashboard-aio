@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { Tile } from '../tile/Tile';
 import type { UnasData } from '../../types';
+import { fmtTemp, useTempUnit } from '../../lib/units';
 
 interface Props {
   data: UnasData;
@@ -10,10 +11,11 @@ interface Props {
 }
 
 export function UnasTile({ data, span, onExpand, expandable }: Props) {
+  const { unit } = useTempUnit();
   return (
     <Tile
       title="UniFi NAS 2"
-      sub={`${data.tempC}°C · ${data.fanRpm} rpm`}
+      sub={`${fmtTemp(data.tempC, unit)} · ${data.fanRpm} rpm`}
       span={span}
       onExpand={onExpand}
       expandable={expandable}

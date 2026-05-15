@@ -1,11 +1,13 @@
 import { SmartTile, StorageTile, UnasTile } from '../components/widgets';
 import type { DashboardState } from '../types';
+import { fmtTemp, useTempUnit } from '../lib/units';
 
 interface Props {
   data: DashboardState;
 }
 
 export function StoragePage({ data }: Props) {
+  const { unit } = useTempUnit();
   return (
     <div className="grid">
       <StorageTile data={data.storage} span={6} expandable={false} />
@@ -39,7 +41,7 @@ export function StoragePage({ data }: Props) {
                 </td>
                 <td className="mono">{d.name}</td>
                 <td>{d.model}</td>
-                <td className="mono tnum num">{d.tempC}°C</td>
+                <td className="mono tnum num">{fmtTemp(d.tempC, unit)}</td>
                 <td className="mono tnum num">{d.wear}%</td>
               </tr>
             ))}

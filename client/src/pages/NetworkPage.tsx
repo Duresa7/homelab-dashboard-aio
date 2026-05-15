@@ -1,6 +1,7 @@
 import { AreaChart } from '../components/charts';
 import { InternetTile, NetworkTile, TopTalkersTile } from '../components/widgets';
 import type { DashboardState } from '../types';
+import { fmtTemp, useTempUnit } from '../lib/units';
 
 interface Props {
   data: DashboardState;
@@ -8,6 +9,7 @@ interface Props {
 
 export function NetworkPage({ data }: Props) {
   const u = data.unifi;
+  const { unit } = useTempUnit();
   return (
     <div className="grid">
       <div className="tile span-4">
@@ -18,7 +20,7 @@ export function NetworkPage({ data }: Props) {
           <dt>Uptime</dt><dd>{u.gateway.uptime}</dd>
           <dt>CPU</dt><dd>{u.gateway.cpu.toFixed(0)}%</dd>
           <dt>RAM</dt><dd>{u.gateway.ram.toFixed(0)}%</dd>
-          <dt>Temp</dt><dd>{u.gateway.tempC}°C</dd>
+          <dt>Temp</dt><dd>{fmtTemp(u.gateway.tempC, unit)}</dd>
           <dt>Public IP</dt><dd>{u.wan.public}</dd>
           {u.appVersion && <><dt>App Version</dt><dd>{u.appVersion}</dd></>}
         </dl>

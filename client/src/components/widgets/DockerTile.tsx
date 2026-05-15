@@ -42,6 +42,7 @@ export function DockerTile({ data, span, onExpand, expandable }: Props) {
       {hosts.map((h) => {
         const list = containers.filter((c) => c.host === h.id);
         const up = list.filter((c) => c.state === 'running').length;
+        const hostOk = h.status === 'online';
         return (
           <div key={h.id} className="col" style={{ gap: 6, paddingTop: 6 }}>
             <div className="between">
@@ -49,14 +50,14 @@ export function DockerTile({ data, span, onExpand, expandable }: Props) {
                 <span
                   style={{
                     width: 6, height: 6, borderRadius: 50,
-                    background: 'var(--ok)', display: 'inline-block', marginRight: 6,
+                    background: hostOk ? 'var(--ok)' : 'var(--bad)', display: 'inline-block', marginRight: 6,
                   }}
                 />
                 {h.name}
                 <span className="t-tag" style={{ marginLeft: 6 }}>{h.addr}</span>
               </div>
               <div className="t-sub">
-                {up}/{list.length} up · cpu {h.cpu}% · ram {h.ram}%
+                {hostOk ? `${up}/${list.length} up · cpu ${h.cpu}% · ram ${h.ram}%` : 'offline'}
               </div>
             </div>
             <div className="containers" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>

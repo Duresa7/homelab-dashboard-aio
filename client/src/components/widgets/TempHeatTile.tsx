@@ -1,32 +1,40 @@
 import { Tile } from '../tile/Tile';
 import { Heatmap } from '../charts';
-import type { CPUData, Disk, GPUData } from '../../types';
+import type { CPUData, GPUData } from '../../types';
+import { fmtTemp, useTempUnit } from '../../lib/units';
+
+interface TempSensor {
+  name: string;
+  model?: string;
+  tempC: number;
+}
 
 interface Props {
   cpu: CPUData;
   gpu: GPUData;
-  disks: Disk[];
+  disks: TempSensor[];
   span?: number;
   onExpand?: () => void;
   expandable?: boolean;
 }
 
-export function TempHeatTile({ cpu, disks, span, onExpand, expandable }: Props) {
+export function TempHeatTile({ cpu, gpu, disks, span, onExpand, expandable }: Props) {
+  const { unit } = useTempUnit();
   const cols = 24;
+  const diskSeries = disks.slice(0, 3).map((d, idx) => {
+    const base = Number.isFinite(d.tempC) ? d.tempC : 0;
+    return {
+      name: d.model || d.name,
+      data: Array.from({ length: cols }, (_, i) => base + Math.sin((i + idx) / 3) * 1.5),
+    };
+  });
   const series = [
     { name: 'CPU', data: cpu.tempHistory.slice(-cols) },
-    { name: 'GPU', data: cpu.tempHistory.slice(-cols).map((v, i) => v - 8 + (i % 3)) },
     {
-      name: 'NVMe',
-      data: disks.slice(0, 1).flatMap(() =>
-        Array.from({ length: cols }, (_, i) => 38 + (i % 5) + Math.sin(i / 3) * 4),
-      ),
+      name: 'GPU',
+      data: Array.from({ length: cols }, (_, i) => (gpu.tempC || 0) + Math.sin(i / 4) * 1.5),
     },
-    {
-      name: 'HDD',
-      data: disks.slice(0, 1).flatMap(() => Array.from({ length: cols }, (_, i) => 36 + Math.cos(i / 4) * 3)),
-    },
-    { name: 'NAS', data: Array.from({ length: cols }, (_, i) => 34 + Math.sin(i / 5) * 2) },
+    ...diskSeries,
   ];
   return (
     <Tile
@@ -37,29 +45,40 @@ export function TempHeatTile({ cpu, disks, span, onExpand, expandable }: Props) 
       expandable={expandable}
     >
       <div className="col" style={{ gap: 4 }}>
-        {series.map((s) => (
+        {series.map((s, i) => (
           <div
-            key={s.name}
-            style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 8, alignItems: 'center' }}
+            key={`${s.name}-${i}`}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(72px, 120px) 1fr',
+              gap: 8,
+              alignItems: 'center',
+            }}
           >
-            <div className="t-sub mono" style={{ fontSize: 10 }}>{s.name}</div>
+            <div
+              className="t-sub mono"
+              style={{ fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              title={s.name}
+            >
+              {s.name}
+            </div>
             <Heatmap rows={1} cols={cols} data={s.data} max={85} />
           </div>
         ))}
       </div>
       <div className="legend">
         <div className="item">
-          <div className="swatch" style={{ background: 'var(--bg-3)' }} /> 30°C
+          <div className="swatch" style={{ background: 'var(--bg-3)' }} /> {fmtTemp(30, unit)}
         </div>
         <div className="item">
           <div
             className="swatch"
             style={{ background: 'color-mix(in oklab, var(--accent) 50%, var(--bg-3))' }}
           />{' '}
-          60°C
+          {fmtTemp(60, unit)}
         </div>
         <div className="item">
-          <div className="swatch" style={{ background: 'var(--accent)' }} /> 80°C+
+          <div className="swatch" style={{ background: 'var(--accent)' }} /> {fmtTemp(80, unit)}+
         </div>
       </div>
     </Tile>

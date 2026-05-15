@@ -132,10 +132,24 @@ export interface ProxmoxNode {
   version: string;
 }
 
+export interface PhysicalDisk {
+  devpath: string;
+  model: string;
+  vendor: string;
+  serial: string | null;
+  sizeBytes: number;
+  type: string;
+  used: string | null;
+  health: string | null;
+  wearout: number | null;
+  rpm: number;
+}
+
 export interface ProxmoxData {
   nodes: number;
   node: ProxmoxNode;
   vms: VM[];
+  disks: PhysicalDisk[];
   coresAllocated: number;
   coresTotal: number;
 }

@@ -67,7 +67,11 @@ export function tileData(id: TileId, d: DashboardState): unknown {
     case 'ups': return d.ups;
     case 'internet': return d.network;
     case 'topTalkers': return d.unifi.topTalkers;
-    case 'tempHeat': return { cpu: d.cpu, gpu: d.gpu, disks: d.storage.disks };
+    case 'tempHeat': return {
+      cpu: d.cpu,
+      gpu: d.gpu,
+      disks: d.sensors.disks.length ? d.sensors.disks : d.storage.disks,
+    };
     case 'nodes': return null;
     case 'events': return d.events;
   }

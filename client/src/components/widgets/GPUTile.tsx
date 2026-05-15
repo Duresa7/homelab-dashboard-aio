@@ -1,6 +1,7 @@
 import { Tile } from '../tile/Tile';
 import { AutoChart, Donut } from '../charts';
 import type { ChartKind, GPUData } from '../../types';
+import { fmtTemp, useTempUnit } from '../../lib/units';
 
 interface Props {
   data: GPUData;
@@ -13,6 +14,7 @@ interface Props {
 
 export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandable }: Props) {
   const { usage, tempC, fanPct, powerW, powerMaxW, memUsedGB, memTotalGB, history, model } = data;
+  const { unit } = useTempUnit();
   return (
     <Tile
       title="GPU"
@@ -20,7 +22,7 @@ export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
       span={span}
       onExpand={onExpand}
       expandable={expandable}
-      tag={{ label: `${tempC.toFixed(0)}°C`, kind: tempC > 75 ? 'bad' : tempC > 68 ? 'warn' : 'ok' }}
+      tag={{ label: fmtTemp(tempC, unit), kind: tempC > 75 ? 'bad' : tempC > 68 ? 'warn' : 'ok' }}
       chartKind={chartKind}
       onChartKind={onChartKind}
     >
@@ -39,7 +41,7 @@ export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
       <dl className="kv">
         <dt>Power</dt><dd>{powerW.toFixed(0)} W</dd>
         <dt>Fan</dt><dd>{fanPct.toFixed(0)}%</dd>
-        <dt>Temp</dt><dd>{tempC.toFixed(0)}°C</dd>
+        <dt>Temp</dt><dd>{fmtTemp(tempC, unit)}</dd>
       </dl>
     </Tile>
   );

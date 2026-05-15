@@ -1,6 +1,7 @@
 import { Tile } from '../tile/Tile';
 import { AutoChart, Donut } from '../charts';
 import type { ChartKind, CPUData } from '../../types';
+import { fmtTemp, useTempUnit } from '../../lib/units';
 
 interface Props {
   data: CPUData;
@@ -13,6 +14,7 @@ interface Props {
 
 export function CPUTile({ data, span, onExpand, chartKind, onChartKind, expandable }: Props) {
   const { usage, tempC, history, coreList, cores, threads, model } = data;
+  const { unit } = useTempUnit();
   const tempCls = tempC > 75 ? 'bad' : tempC > 65 ? 'warn' : '';
   return (
     <Tile
@@ -21,7 +23,7 @@ export function CPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
       span={span}
       onExpand={onExpand}
       expandable={expandable}
-      tag={{ label: `${tempC.toFixed(0)}°C`, kind: (tempCls || 'ok') as any }}
+      tag={{ label: fmtTemp(tempC, unit), kind: (tempCls || 'ok') as any }}
       chartKind={chartKind}
       onChartKind={onChartKind}
     >
@@ -30,7 +32,7 @@ export function CPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
         <div className="meta flex1">
           <div className="lbl mono">{model}</div>
           <div className="v">
-            {usage.toFixed(1)}% · {tempC.toFixed(0)}°C ·{' '}
+            {usage.toFixed(1)}% · {fmtTemp(tempC, unit)} ·{' '}
             {((usage / 100) * cores).toFixed(1)} cores busy
           </div>
           <AutoChart kind={chartKind ?? 'area'} data={history} height={40} />

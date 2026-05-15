@@ -70,6 +70,7 @@ export function DockerPage({ data }: Props) {
           {hosts.map((h) => {
             const list = c.filter((x) => x.host === h.id);
             const up = list.filter((x) => x.state === 'running').length;
+            const hostOk = h.status === 'online';
             return (
               <div
                 key={h.id}
@@ -85,12 +86,12 @@ export function DockerPage({ data }: Props) {
                     <span
                       style={{
                         width: 7, height: 7, borderRadius: 50,
-                        background: 'var(--ok)', display: 'inline-block', marginRight: 6,
+                        background: hostOk ? 'var(--ok)' : 'var(--bad)', display: 'inline-block', marginRight: 6,
                       }}
                     />
                     {h.name}
                   </div>
-                  <div className="t-sub mono">{h.addr}</div>
+                  <div className="t-sub mono">{hostOk ? h.addr : 'offline'}</div>
                 </div>
                 <div className="t-sub mono" style={{ fontSize: 10.5 }}>
                   {h.os} · engine {h.engine}

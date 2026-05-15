@@ -4,6 +4,7 @@ import type { DashboardState, UnifiData, NetworkData } from '../types';
 const N_HISTORY = 60;
 const UNIFI_POLL_MS = 500;
 const PROXMOX_POLL_MS = 5000;
+const DOCKER_POLL_MS = 10000;
 const GPU_POLL_MS = 5000;
 const SENSORS_POLL_MS = 5000;
 
@@ -104,6 +105,7 @@ function buildInit(): DashboardState {
         version: '—',
       },
       vms: [],
+      disks: [],
       coresAllocated: 0,
       coresTotal: 0,
     },
@@ -130,10 +132,12 @@ const subs = new Set<() => void>();
 
 let unifiDisabled = false;
 let proxmoxDisabled = false;
+let dockerDisabled = false;
 let gpuDisabled = false;
 let sensorsDisabled = false;
 let unifiTimer: ReturnType<typeof setInterval> | null = null;
 let proxmoxTimer: ReturnType<typeof setInterval> | null = null;
+let dockerTimer: ReturnType<typeof setInterval> | null = null;
 let gpuTimer: ReturnType<typeof setInterval> | null = null;
 let sensorsTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -224,6 +228,26 @@ async function fetchProxmox(): Promise<void> {
   }
 }
 
+async function fetchDocker(): Promise<void> {
+  try {
+    const res = await fetch('/api/docker');
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (payload.disabled) {
+      dockerDisabled = true;
+      if (dockerTimer) { clearInterval(dockerTimer); dockerTimer = null; }
+      return;
+    }
+    if (payload.error) return;
+    if (payload.docker) {
+      state.docker = payload.docker;
+      subs.forEach((fn) => fn());
+    }
+  } catch {
+    // backend not reachable — keep existing state
+  }
+}
+
 async function fetchGpu(): Promise<void> {
   try {
     const res = await fetch('/api/gpu');
@@ -285,6 +309,7 @@ function startTicker(): void {
   tickerStarted = true;
   fetchUnifi();
   fetchProxmox();
+  fetchDocker();
   fetchGpu();
   fetchSensors();
   unifiTimer = setInterval(() => {
@@ -295,6 +320,10 @@ function startTicker(): void {
     if (proxmoxDisabled) return;
     fetchProxmox();
   }, PROXMOX_POLL_MS);
+  dockerTimer = setInterval(() => {
+    if (dockerDisabled) return;
+    fetchDocker();
+  }, DOCKER_POLL_MS);
   gpuTimer = setInterval(() => {
     if (gpuDisabled) return;
     fetchGpu();
