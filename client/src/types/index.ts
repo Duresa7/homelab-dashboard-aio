@@ -38,6 +38,8 @@ export interface GPUData {
   powerW: number;
   powerMaxW: number;
   fanPct: number;
+  gpuClockMHz: number;
+  memClockMHz: number;
   history: number[];
 }
 
@@ -109,12 +111,23 @@ export interface VM {
   cpu: number;
   ram: number;
   disk: number;
+  ip: string | null;
 }
 
 export interface ProxmoxNode {
   name: string;
+  ip: string | null;
   cpu: number;
   ram: number;
+  ramUsedGB: number;
+  ramTotalGB: number;
+  ramAllocatedGB: number;
+  cpuModel: string;
+  cpuCores: number;
+  cpuThreads: number;
+  storageUsedTB: number;
+  storageTotalTB: number;
+  storagePct: number;
   uptime: string;
   version: string;
 }
@@ -282,6 +295,36 @@ export interface AlertEntry {
   ago: string;
 }
 
+export interface SensorTemp {
+  name: string;
+  tempC: number;
+  type?: string;
+}
+
+export interface SensorFan {
+  chip: string;
+  name: string;
+  rpm: number;
+}
+
+export interface SensorOther {
+  chip: string;
+  name: string;
+  tempC: number;
+}
+
+export interface SensorsData {
+  cpuTempC: number | null;
+  systemTempC: number | null;
+  systemTempLabel: string | null;
+  cores: SensorTemp[];
+  disks: SensorTemp[];
+  memory: SensorTemp[];
+  network: SensorTemp[];
+  fans: SensorFan[];
+  other: SensorOther[];
+}
+
 export interface DashboardState {
   now: number;
   cpu: CPUData;
@@ -298,4 +341,5 @@ export interface DashboardState {
   ups: UPSData;
   events: EventEntry[];
   alerts: AlertEntry[];
+  sensors: SensorsData;
 }

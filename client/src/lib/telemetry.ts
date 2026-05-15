@@ -4,6 +4,8 @@ import type { DashboardState, UnifiData, NetworkData } from '../types';
 const N_HISTORY = 60;
 const UNIFI_POLL_MS = 500;
 const PROXMOX_POLL_MS = 5000;
+const GPU_POLL_MS = 5000;
+const SENSORS_POLL_MS = 5000;
 
 function emptyUnifi(): UnifiData {
   return {
@@ -68,6 +70,8 @@ function buildInit(): DashboardState {
       powerW: 0,
       powerMaxW: 0,
       fanPct: 0,
+      gpuClockMHz: 0,
+      memClockMHz: 0,
       history: Array(N_HISTORY).fill(0),
     },
     fans: [],
@@ -82,7 +86,23 @@ function buildInit(): DashboardState {
     },
     proxmox: {
       nodes: 0,
-      node: { name: '—', cpu: 0, ram: 0, uptime: '—', version: '—' },
+      node: {
+        name: '—',
+        ip: null,
+        cpu: 0,
+        ram: 0,
+        ramUsedGB: 0,
+        ramTotalGB: 0,
+        ramAllocatedGB: 0,
+        cpuModel: '—',
+        cpuCores: 0,
+        cpuThreads: 0,
+        storageUsedTB: 0,
+        storageTotalTB: 0,
+        storagePct: 0,
+        uptime: '—',
+        version: '—',
+      },
       vms: [],
       coresAllocated: 0,
       coresTotal: 0,
@@ -101,6 +121,7 @@ function buildInit(): DashboardState {
     ups: { model: '—', loadW: 0, loadPct: 0, batteryPct: 0, runtimeMin: 0, status: '—' },
     events: [],
     alerts: [],
+    sensors: { cpuTempC: null, systemTempC: null, systemTempLabel: null, cores: [], disks: [], memory: [], network: [], fans: [], other: [] },
   };
 }
 
@@ -109,8 +130,12 @@ const subs = new Set<() => void>();
 
 let unifiDisabled = false;
 let proxmoxDisabled = false;
+let gpuDisabled = false;
+let sensorsDisabled = false;
 let unifiTimer: ReturnType<typeof setInterval> | null = null;
 let proxmoxTimer: ReturnType<typeof setInterval> | null = null;
+let gpuTimer: ReturnType<typeof setInterval> | null = null;
+let sensorsTimer: ReturnType<typeof setInterval> | null = null;
 
 async function fetchUnifi(): Promise<void> {
   try {
@@ -162,6 +187,91 @@ async function fetchProxmox(): Promise<void> {
     if (payload.error) return;
     if (payload.proxmox) {
       state.proxmox = payload.proxmox;
+      // Mirror Proxmox node telemetry into the global CPU / RAM tiles so the
+      // generic CPUTile / RAMTile widgets on the Proxmox page render real data.
+      const node = payload.proxmox.node;
+      const cpuUsage = node.cpu || 0;
+      state.cpu = {
+        ...state.cpu,
+        model: node.cpuModel || state.cpu.model,
+        cores: node.cpuCores || state.cpu.cores,
+        threads: node.cpuThreads || state.cpu.threads,
+        usage: cpuUsage,
+        target: cpuUsage,
+        tempC: 0,
+        tempTarget: 0,
+        history: state.cpu.history.slice(1).concat(cpuUsage),
+        tempHistory: state.cpu.tempHistory.slice(1).concat(0),
+        coreList: Array.from({ length: node.cpuCores || 0 }, (_, i) => ({
+          id: i,
+          pct: cpuUsage,
+          target: cpuUsage,
+        })),
+      };
+      const ramPct = node.ram || 0;
+      state.ram = {
+        ...state.ram,
+        totalGB: Math.round(node.ramTotalGB || 0),
+        usedGB: node.ramUsedGB || 0,
+        target: ramPct,
+        cachedGB: 0,
+        history: state.ram.history.slice(1).concat(ramPct),
+      };
+      subs.forEach((fn) => fn());
+    }
+  } catch {
+    // backend not reachable — keep existing state
+  }
+}
+
+async function fetchGpu(): Promise<void> {
+  try {
+    const res = await fetch('/api/gpu');
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (payload.disabled) {
+      gpuDisabled = true;
+      if (gpuTimer) { clearInterval(gpuTimer); gpuTimer = null; }
+      return;
+    }
+    if (payload.error) return;
+    if (payload.gpu) {
+      const incoming = payload.gpu;
+      state.gpu = {
+        ...state.gpu,
+        ...incoming,
+        history: state.gpu.history.slice(1).concat(incoming.usage || 0),
+      };
+      subs.forEach((fn) => fn());
+    }
+  } catch {
+    // backend not reachable — keep existing state
+  }
+}
+
+async function fetchSensors(): Promise<void> {
+  try {
+    const res = await fetch('/api/sensors');
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (payload.disabled) {
+      sensorsDisabled = true;
+      if (sensorsTimer) { clearInterval(sensorsTimer); sensorsTimer = null; }
+      return;
+    }
+    if (payload.error) return;
+    if (payload.sensors) {
+      state.sensors = payload.sensors;
+      // Mirror CPU temp into the global CPU widget so the CPU tile shows real temp
+      if (typeof payload.sensors.cpuTempC === 'number') {
+        const t = payload.sensors.cpuTempC;
+        state.cpu = {
+          ...state.cpu,
+          tempC: t,
+          tempTarget: t,
+          tempHistory: state.cpu.tempHistory.slice(1).concat(t),
+        };
+      }
       subs.forEach((fn) => fn());
     }
   } catch {
@@ -175,6 +285,8 @@ function startTicker(): void {
   tickerStarted = true;
   fetchUnifi();
   fetchProxmox();
+  fetchGpu();
+  fetchSensors();
   unifiTimer = setInterval(() => {
     if (unifiDisabled) return;
     fetchUnifi();
@@ -183,6 +295,14 @@ function startTicker(): void {
     if (proxmoxDisabled) return;
     fetchProxmox();
   }, PROXMOX_POLL_MS);
+  gpuTimer = setInterval(() => {
+    if (gpuDisabled) return;
+    fetchGpu();
+  }, GPU_POLL_MS);
+  sensorsTimer = setInterval(() => {
+    if (sensorsDisabled) return;
+    fetchSensors();
+  }, SENSORS_POLL_MS);
 }
 
 export function useDashData(): DashboardState {
