@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "server": "node server/index.js",
-    "build": "tsc -p tsconfig.json --noEmit && vite build",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "preview": "vite preview"
+    "dev": "vite --config client/vite.config.ts",
+    "server": "node server/src/index.js",
+    "build": "tsc -p client/tsconfig.json --noEmit && vite build --config client/vite.config.ts",
+    "typecheck": "tsc -p client/tsconfig.json --noEmit",
+    "preview": "vite preview --config client/vite.config.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

@@ -29,32 +29,35 @@ npm run dev          # http://localhost:5173
 ## Folder Structure
 
 ```
-├── src/                   Frontend (React + TypeScript)
-│   ├── components/
-│   │   ├── charts/        SVG primitives (Sparkline, AreaChart, Donut, Gauge)
-│   │   ├── icons/         Inline stroke icons
-│   │   ├── layout/        Sidebar, Topbar, Clock, AlertBanner
-│   │   ├── tile/          Tile chrome + ExpandOverlay focus modal
-│   │   └── widgets/       One file per dashboard tile + tile registry
-│   ├── lib/
-│   │   ├── telemetry.ts   Live data fetcher + useDashData hook
-│   │   └── tweaks.tsx     useTweaks + floating TweaksPanel + form controls
-│   ├── pages/             One per route: Overview, Proxmox, Network, Docker, Storage, Events, Alerts
-│   ├── styles/            globals.css (tokens, themes) + components.css
-│   ├── types/             Shared TypeScript interfaces
-│   ├── App.tsx            Shell: sidebar + topbar + routing + tweaks panel
-│   └── main.tsx           Entry point
+├── client/                    React + TypeScript SPA (Vite)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── charts/        SVG primitives (Sparkline, AreaChart, Donut, Gauge)
+│   │   │   ├── icons/         Inline stroke icons
+│   │   │   ├── layout/        Sidebar, Topbar, Clock, AlertBanner
+│   │   │   ├── tile/          Tile chrome + ExpandOverlay focus modal
+│   │   │   └── widgets/       One file per dashboard tile + tile registry
+│   │   ├── lib/
+│   │   │   ├── telemetry.ts   Live data fetcher + useDashData hook
+│   │   │   └── tweaks.tsx     useTweaks + floating TweaksPanel + form controls
+│   │   ├── pages/             Overview, Proxmox, Network, Docker, Storage, Events, Alerts
+│   │   ├── styles/            globals.css (tokens, themes) + components.css
+│   │   ├── types/             Shared TypeScript interfaces
+│   │   ├── App.tsx            Shell: sidebar + topbar + routing + tweaks panel
+│   │   └── main.tsx           Entry point
+│   ├── index.html             Vite HTML entry
+│   ├── vite.config.ts         Vite config (proxies /api to backend, reads .env from repo root)
+│   ├── tsconfig.json
+│   └── tsconfig.node.json
 │
-├── server/                Backend (Express)
-│   └── index.js           UniFi API proxy with caching + normalization
+├── server/                    Express API server
+│   └── src/
+│       └── index.js           UniFi API proxy with caching + normalization
 │
-├── docs/                  Reference documentation (UniFi API docs, screenshots)
+├── docs/                      Reference documentation (UniFi API docs, screenshots)
 │
-├── index.html             Vite entry
-├── vite.config.ts         Vite config (proxies /api to backend)
-├── tsconfig.json          TypeScript config
-├── package.json
-├── .env.example           Required environment variables template
+├── package.json               Single root package — scripts orchestrate both sides
+├── .env.example               Required environment variables template
 └── .gitignore
 ```
 

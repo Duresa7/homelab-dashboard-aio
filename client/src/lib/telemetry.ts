@@ -3,6 +3,7 @@ import type { DashboardState, UnifiData, NetworkData } from '../types';
 
 const N_HISTORY = 60;
 const UNIFI_POLL_MS = 500;
+const PROXMOX_POLL_MS = 5000;
 
 function emptyUnifi(): UnifiData {
   return {
@@ -106,11 +107,21 @@ function buildInit(): DashboardState {
 let state: DashboardState = buildInit();
 const subs = new Set<() => void>();
 
+let unifiDisabled = false;
+let proxmoxDisabled = false;
+let unifiTimer: ReturnType<typeof setInterval> | null = null;
+let proxmoxTimer: ReturnType<typeof setInterval> | null = null;
+
 async function fetchUnifi(): Promise<void> {
   try {
     const res = await fetch('/api/unifi');
     if (!res.ok) return;
     const payload = await res.json();
+    if (payload.disabled) {
+      unifiDisabled = true;
+      if (unifiTimer) { clearInterval(unifiTimer); unifiTimer = null; }
+      return;
+    }
     if (payload.error) return;
 
     if (payload.unifi) {
@@ -138,12 +149,40 @@ async function fetchUnifi(): Promise<void> {
   }
 }
 
+async function fetchProxmox(): Promise<void> {
+  try {
+    const res = await fetch('/api/proxmox');
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (payload.disabled) {
+      proxmoxDisabled = true;
+      if (proxmoxTimer) { clearInterval(proxmoxTimer); proxmoxTimer = null; }
+      return;
+    }
+    if (payload.error) return;
+    if (payload.proxmox) {
+      state.proxmox = payload.proxmox;
+      subs.forEach((fn) => fn());
+    }
+  } catch {
+    // backend not reachable — keep existing state
+  }
+}
+
 let tickerStarted = false;
 function startTicker(): void {
   if (tickerStarted) return;
   tickerStarted = true;
   fetchUnifi();
-  setInterval(fetchUnifi, UNIFI_POLL_MS);
+  fetchProxmox();
+  unifiTimer = setInterval(() => {
+    if (unifiDisabled) return;
+    fetchUnifi();
+  }, UNIFI_POLL_MS);
+  proxmoxTimer = setInterval(() => {
+    if (proxmoxDisabled) return;
+    fetchProxmox();
+  }, PROXMOX_POLL_MS);
 }
 
 export function useDashData(): DashboardState {

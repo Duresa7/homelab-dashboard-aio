@@ -7,9 +7,15 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
+function isEnabled(value, defaultEnabled = true) {
+  if (value === undefined || value === null || value === '') return defaultEnabled;
+  return !['false', '0', 'no', 'off', 'disabled'].includes(String(value).trim().toLowerCase());
+}
+
+const UNIFI_ENABLED = isEnabled(process.env.UNIFI_ENABLED);
 const BASE_URL = process.env.UNIFI_BASE_URL;
-if (!BASE_URL) {
-  console.error('UNIFI_BASE_URL is not set. Add it to your .env file.');
+if (UNIFI_ENABLED && !BASE_URL) {
+  console.error('UNIFI_BASE_URL is not set. Add it to your .env file, or set UNIFI_ENABLED=false.');
   process.exit(1);
 }
 const API_KEY = process.env.UNIFI_API_KEY || '';
@@ -297,6 +303,9 @@ async function fetchUnifiData() {
 }
 
 app.get('/api/unifi', async (_req, res) => {
+  if (!UNIFI_ENABLED) {
+    return res.json({ disabled: true });
+  }
   if (!API_KEY) {
     return res.status(503).json({
       error: 'UNIFI_API_KEY not configured. Add it to your .env file.',
@@ -312,13 +321,144 @@ app.get('/api/unifi', async (_req, res) => {
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, hasKey: !!API_KEY });
+  res.json({
+    ok: true,
+    unifi: { enabled: UNIFI_ENABLED, hasKey: !!API_KEY },
+    proxmox: {
+      enabled: PROXMOX_ENABLED,
+      configured: !!(PVE_BASE_URL && PVE_TOKEN_ID && PVE_TOKEN_SECRET),
+    },
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Proxmox VE
+// ---------------------------------------------------------------------------
+
+const PROXMOX_ENABLED = isEnabled(process.env.PROXMOX_ENABLED);
+const PVE_BASE_URL = process.env.PROXMOX_BASE_URL;
+const PVE_TOKEN_ID = process.env.PROXMOX_TOKEN_ID;
+const PVE_TOKEN_SECRET = process.env.PROXMOX_TOKEN_SECRET;
+const PVE_NODE_HINT = process.env.PROXMOX_NODE || '';
+const PVE_CACHE_TTL = Number(process.env.PROXMOX_POLL_INTERVAL) || 5000;
+
+let pveCache = { data: null, ts: 0 };
+
+async function pveFetch(path) {
+  const url = `${PVE_BASE_URL}${path}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `PVEAPIToken=${PVE_TOKEN_ID}=${PVE_TOKEN_SECRET}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Proxmox API ${res.status} ${res.statusText} — ${path} — ${body.slice(0, 200)}`);
+  }
+  const json = await res.json();
+  return json.data;
+}
+
+async function safePveFetch(path) {
+  try { return await pveFetch(path); } catch { return null; }
+}
+
+function mapVmState(s) {
+  if (s === 'running') return 'running';
+  if (s === 'paused' || s === 'suspended') return 'paused';
+  return 'stopped';
+}
+
+async function fetchProxmoxData() {
+  const now = Date.now();
+  if (pveCache.data && now - pveCache.ts < PVE_CACHE_TTL) return pveCache.data;
+
+  const nodes = (await pveFetch('/api2/json/nodes')) || [];
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    throw new Error('No Proxmox nodes returned');
+  }
+
+  const primary =
+    nodes.find((n) => n.node === PVE_NODE_HINT) ||
+    nodes.find((n) => n.status === 'online') ||
+    nodes[0];
+
+  const [nodeStatus, vmResources] = await Promise.all([
+    safePveFetch(`/api2/json/nodes/${primary.node}/status`),
+    safePveFetch('/api2/json/cluster/resources?type=vm'),
+  ]);
+
+  const totalCores = nodes.reduce((sum, n) => sum + (n.maxcpu || 0), 0);
+  const vms = Array.isArray(vmResources) ? vmResources : [];
+
+  const coresAllocated = vms
+    .filter((v) => v.status === 'running')
+    .reduce((sum, v) => sum + (v.maxcpu || 0), 0);
+
+  const memUsedPct = nodeStatus?.memory
+    ? (nodeStatus.memory.used / nodeStatus.memory.total) * 100
+    : primary.maxmem ? (primary.mem / primary.maxmem) * 100 : 0;
+
+  const cpuPct = (nodeStatus?.cpu ?? primary.cpu ?? 0) * 100;
+  const uptimeSec = nodeStatus?.uptime ?? primary.uptime ?? 0;
+  const pveVersion =
+    nodeStatus?.pveversion ||
+    nodeStatus?.['current-kernel']?.release ||
+    primary.level ||
+    'n/a';
+
+  const result = {
+    proxmox: {
+      nodes: nodes.length,
+      node: {
+        name: primary.node,
+        cpu: cpuPct,
+        ram: memUsedPct,
+        uptime: formatUptime(uptimeSec),
+        version: pveVersion,
+      },
+      vms: vms.map((v) => ({
+        id: v.vmid,
+        name: v.name || `vm-${v.vmid}`,
+        type: v.type === 'lxc' ? 'LXC' : 'VM',
+        state: mapVmState(v.status),
+        cpu: (v.cpu || 0) * 100,
+        ram: v.maxmem ? Math.round((v.mem / v.maxmem) * 100) : 0,
+        disk: v.maxdisk ? Math.round(v.maxdisk / (1024 ** 3)) : 0,
+      })),
+      coresAllocated,
+      coresTotal: totalCores,
+    },
+  };
+
+  pveCache = { data: result, ts: now };
+  return result;
+}
+
+app.get('/api/proxmox', async (_req, res) => {
+  if (!PROXMOX_ENABLED) {
+    return res.json({ disabled: true });
+  }
+  if (!PVE_BASE_URL || !PVE_TOKEN_ID || !PVE_TOKEN_SECRET) {
+    return res.status(503).json({
+      error: 'Proxmox not configured. Set PROXMOX_BASE_URL, PROXMOX_TOKEN_ID, PROXMOX_TOKEN_SECRET in .env',
+    });
+  }
+  try {
+    const data = await fetchProxmoxData();
+    res.json(data);
+  } catch (err) {
+    console.error('Proxmox API error:', err.message);
+    res.status(502).json({ error: err.message });
+  }
 });
 
 app.get('/api/debug', async (_req, res) => {
   if (process.env.NODE_ENV !== 'development') {
     return res.status(404).json({ error: 'Not found' });
   }
+  if (!UNIFI_ENABLED) return res.status(503).json({ error: 'UniFi disabled' });
   if (!API_KEY) return res.status(503).json({ error: 'No API key' });
   try {
     const siteId = await getSiteId();
@@ -357,8 +497,17 @@ app.get('/api/debug', async (_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`UniFi proxy listening on http://localhost:${PORT}`);
-  console.log(`Controller: ${BASE_URL}`);
-  console.log(`API Key configured: ${API_KEY ? 'yes' : 'NO — add UNIFI_API_KEY to .env'}`);
-  console.log(`Using official integration API: /proxy/network/integration/v1/`);
+  console.log(`Dashboard proxy listening on http://localhost:${PORT}`);
+  if (UNIFI_ENABLED) {
+    console.log(`UniFi: enabled — ${BASE_URL}`);
+    console.log(`UniFi API Key: ${API_KEY ? 'configured' : 'NO — add UNIFI_API_KEY to .env'}`);
+  } else {
+    console.log('UniFi: DISABLED (set UNIFI_ENABLED=true in .env to enable)');
+  }
+  if (PROXMOX_ENABLED) {
+    const pveOk = !!(PVE_BASE_URL && PVE_TOKEN_ID && PVE_TOKEN_SECRET);
+    console.log(`Proxmox: ${pveOk ? `enabled — ${PVE_BASE_URL}` : 'enabled but NOT configured — set PROXMOX_* in .env'}`);
+  } else {
+    console.log('Proxmox: DISABLED (set PROXMOX_ENABLED=true in .env to enable)');
+  }
 });
