@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { Sidebar, type Route } from './components/layout/Sidebar';
+import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
 import { AlertBanner } from './components/layout/AlertBanner';
 import { ExpandOverlay } from './components/tile/ExpandOverlay';
@@ -16,38 +16,38 @@ import { AlertsPage } from './pages/AlertsPage';
 
 import { useDashData } from './lib/telemetry';
 import {
-  TweakColor,
   TweakRadio,
   TweakSection,
-  TweakSelect,
   TweakToggle,
   TweaksPanel,
   useSystemTheme,
   useTweaks,
 } from './lib/tweaks';
+import {
+  DEFAULT_SUB,
+  SECTION_LABEL,
+  resolveSub,
+  saveRoute,
+  loadRoute,
+  subLabel,
+  type Route,
+  type Section,
+} from './lib/route';
 import type { ChartKind } from './types';
 
-type Aesthetic = 'minimal' | 'terminal' | 'editorial' | 'neon';
 type ThemeChoice = 'light' | 'dark' | 'system';
 type Density = 'compact' | 'regular' | 'comfy';
-type FontChoice = 'Inter' | 'IBM Plex Sans' | 'JetBrains Mono';
 
 interface TweakState {
-  aesthetic: Aesthetic;
   theme: ThemeChoice;
-  accent: string;
   density: Density;
-  font: FontChoice;
   showAlerts: boolean;
   overviewLayout: TileId[];
 }
 
 const DEFAULTS: TweakState = {
-  aesthetic: 'minimal',
-  theme: 'system',
-  accent: '#00ff88',
+  theme: 'light',
   density: 'regular',
-  font: 'Inter',
   showAlerts: true,
   overviewLayout: [
     'cpu', 'ram', 'gpu', 'unifi', 'proxmox', 'docker', 'storage', 'unas',
@@ -56,33 +56,10 @@ const DEFAULTS: TweakState = {
   ],
 };
 
-const ACCENT_OPTIONS = ['#00ff88', '#3b82f6', '#f97316', '#a78bfa', '#fafafa'];
-const AESTHETIC_OPTIONS = [
-  { value: 'minimal' as const, label: 'Refined Minimal' },
-  { value: 'terminal' as const, label: 'Terminal / Mono' },
-  { value: 'editorial' as const, label: 'Editorial Cards' },
-  { value: 'neon' as const, label: 'Neon / Cyberpunk' },
-];
-const FONT_OPTIONS = [
-  { value: 'Inter' as const, label: 'Inter' },
-  { value: 'IBM Plex Sans' as const, label: 'IBM Plex Sans' },
-  { value: 'JetBrains Mono' as const, label: 'JetBrains Mono' },
-];
-
-const TITLE_MAP: Record<Route, { title: string; subtitle: string }> = {
-  overview: { title: 'Overview', subtitle: 'all systems · live telemetry' },
-  proxmox: { title: 'Proxmox', subtitle: 'virtual machines & containers' },
-  unifi: { title: 'Network', subtitle: 'gateway, throughput, APs, switches' },
-  docker: { title: 'Docker', subtitle: 'compose stacks & containers' },
-  storage: { title: 'Storage', subtitle: 'pools, disks, SMART' },
-  events: { title: 'Events', subtitle: 'recent activity log' },
-  alerts: { title: 'Alerts', subtitle: 'active warnings & errors' },
-};
-
 export function App() {
   const [t, setTweak] = useTweaks<TweakState>(DEFAULTS);
   const data = useDashData();
-  const [route, setRoute] = useState<Route>('overview');
+  const [route, setRouteState] = useState<Route>(() => loadRoute());
   const [chartKinds, setChartKinds] = useState<Partial<Record<TileId, ChartKind>>>({});
   const [expanded, setExpanded] = useState<TileId | null>(null);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<number>>(new Set());
@@ -93,18 +70,8 @@ export function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute('data-theme', theme);
-    root.setAttribute('data-aesthetic', t.aesthetic);
     root.setAttribute('data-density', t.density);
-    root.style.setProperty('--accent', t.accent);
-    root.style.setProperty(
-      '--accent-soft',
-      `color-mix(in oklab, ${t.accent} 16%, transparent)`,
-    );
-    root.style.setProperty(
-      '--font-sans',
-      `'${t.font}', ui-sans-serif, system-ui, sans-serif`,
-    );
-  }, [theme, t.aesthetic, t.density, t.accent, t.font]);
+  }, [theme, t.density]);
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
@@ -114,27 +81,39 @@ export function App() {
     return () => window.removeEventListener('keydown', fn);
   }, []);
 
+  const setRoute = (section: Section, sub?: string) => {
+    const resolved: Route = { section, sub: resolveSub(section, sub ?? DEFAULT_SUB[section]) };
+    setRouteState(resolved);
+    saveRoute(resolved);
+  };
+
   const setChartKind = (id: TileId, k: ChartKind) =>
     setChartKinds((prev) => ({ ...prev, [id]: k }));
 
   const visibleAlerts = data.alerts.filter((_, i) => !dismissedAlerts.has(i));
   const dismiss = (i: number) => setDismissedAlerts((prev) => new Set(prev).add(i));
 
-  const tt = TITLE_MAP[route];
+  const activeSub = resolveSub(route.section, route.sub);
+  const pageTitle = activeSub ? subLabel(route.section, activeSub) : SECTION_LABEL[route.section];
 
   return (
     <div className="app">
-      <Sidebar route={route} setRoute={setRoute} alerts={visibleAlerts} />
+      <Sidebar
+        route={route}
+        setRoute={setRoute}
+        alerts={visibleAlerts}
+      />
       <main className="main">
         <Topbar
-          title={tt.title}
-          subtitle={tt.subtitle}
+          section={route.section}
+          activeSub={activeSub}
+          title={pageTitle}
           theme={theme}
           onToggleTheme={() => setTweak('theme', theme === 'dark' ? 'light' : 'dark')}
         />
         {t.showAlerts ? <AlertBanner alerts={visibleAlerts} onDismiss={dismiss} /> : null}
 
-        {route === 'overview' && (
+        {route.section === 'overview' && (
           <OverviewPage
             data={data}
             layout={t.overviewLayout}
@@ -143,12 +122,12 @@ export function App() {
             onExpand={setExpanded}
           />
         )}
-        {route === 'proxmox' && <ProxmoxPage data={data} />}
-        {route === 'unifi' && <NetworkPage data={data} />}
-        {route === 'docker' && <DockerPage data={data} />}
-        {route === 'storage' && <StoragePage data={data} />}
-        {route === 'events' && <EventsPage data={data} />}
-        {route === 'alerts' && <AlertsPage alerts={visibleAlerts} onDismiss={dismiss} />}
+        {route.section === 'proxmox' && <ProxmoxPage data={data} sub={activeSub ?? 'compute'} />}
+        {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
+        {route.section === 'docker'  && <DockerPage  data={data} sub={activeSub ?? 'hosts'} />}
+        {route.section === 'nas'     && <StoragePage data={data} sub={activeSub ?? 'pools'} />}
+        {route.section === 'events'  && <EventsPage  data={data} />}
+        {route.section === 'alerts'  && <AlertsPage  alerts={visibleAlerts} onDismiss={dismiss} />}
       </main>
 
       <ExpandOverlay
@@ -160,15 +139,9 @@ export function App() {
       />
 
       <TweaksPanel title="Tweaks">
-        <TweakSection label="Aesthetic" />
-        <TweakSelect
-          label="Theme"
-          value={t.aesthetic}
-          options={AESTHETIC_OPTIONS}
-          onChange={(v) => setTweak('aesthetic', v)}
-        />
+        <TweakSection label="Appearance" />
         <TweakRadio
-          label="Mode"
+          label="Theme"
           value={t.theme}
           options={[
             { value: 'light', label: 'light' },
@@ -176,18 +149,6 @@ export function App() {
             { value: 'system', label: 'auto' },
           ]}
           onChange={(v) => setTweak('theme', v)}
-        />
-        <TweakColor
-          label="Accent"
-          value={t.accent}
-          options={ACCENT_OPTIONS}
-          onChange={(v) => setTweak('accent', v)}
-        />
-        <TweakSelect
-          label="Font"
-          value={t.font}
-          options={FONT_OPTIONS}
-          onChange={(v) => setTweak('font', v)}
         />
         <TweakRadio
           label="Density"
@@ -211,7 +172,7 @@ export function App() {
           <div className="twk-lbl">
             <span>Tiles on overview</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
             {ALL_TILES.map((tile) => {
               const on = t.overviewLayout.includes(tile.id);
               return (

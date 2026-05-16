@@ -1,170 +1,108 @@
 /* =========================================================
-   Homelab Dashboard — design tokens, reset, theme + aesthetic variants.
-   Aesthetics: minimal | terminal | editorial | neon
-   Themes: light | dark
+   Homelab Dashboard — design tokens, reset, base.
+   One committed aesthetic: UniFi-led, dense, hairline borders,
+   sharp 4px radii, restrained blue accent, mono numerics.
+   Themes: light (default) | dark.
+   Density: compact | regular | comfy (spacing only).
    ========================================================= */
 
 :root {
-  --accent: #00ff88;
-  --accent-soft: rgba(0, 255, 136, 0.14);
-  --accent-ink: #0a0a0a;
+  /* ---- accent + status ---- */
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.10);
+  --accent-ink: #ffffff;
 
-  --warn: #f5a524;
-  --bad: #ff4d4f;
-  --ok: #00ff88;
-  --info: #5b9eff;
+  --ok:   #16a34a;
+  --warn: #d97706;
+  --bad:  #dc2626;
+  --info: #0ea5e9;
+  --idle: #8a93a0;
 
-  --bg: #fafaf9;
-  --bg-2: #f4f4f2;
-  --bg-3: #ececea;
-  --surface: #ffffff;
-  --surface-2: #fbfbfa;
-  --ink: #0e0e0c;
-  --ink-2: #3a3a36;
-  --ink-3: #6e6e68;
-  --ink-4: #a0a097;
-  --line: #e6e6e1;
-  --line-2: #d4d4cc;
+  /* ---- surfaces (light) ---- */
+  --bg:        #f6f7f9; /* page background behind tiles */
+  --bg-2:      #eef0f3;
+  --bg-3:      #e4e6ea;
+  --surface:   #ffffff; /* tile fill */
+  --surface-2: #fafbfc; /* subtle inset (e.g. cards inside tiles) */
 
-  --radius: 14px;
-  --radius-sm: 8px;
-  --radius-lg: 20px;
+  /* ---- ink ---- */
+  --ink:   #0f1115;
+  --ink-2: #4b5563;
+  --ink-3: #8a93a0;
+  --ink-4: #b6bcc6;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* ---- lines ---- */
+  --line:   #e4e6ea;
+  --line-2: #c9cdd3;
 
-  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.06);
+  /* ---- radii ---- */
+  --radius:     4px;
+  --radius-sm:  3px;
+  --radius-lg:  6px;
+  --radius-pill: 999px;
 
-  --pad: 14px;
-  --gap: 14px;
+  /* ---- spacing ---- */
+  --pad: 16px;
+  --gap: 12px;
+
+  /* ---- type ---- */
+  --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI', system-ui, ui-sans-serif, Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, Menlo, monospace;
+
+  /* ---- shadows (used sparingly: overlay only) ---- */
+  --shadow-overlay: 0 20px 50px -12px rgba(15, 17, 21, 0.18), 0 4px 16px rgba(15, 17, 21, 0.06);
+
+  /* layout */
+  --sidebar-w: 232px;
+  --sidebar-rail: 56px;
 }
 
 [data-theme='dark'] {
-  --bg: #0b0b0c;
-  --bg-2: #111114;
-  --bg-3: #16161a;
-  --surface: #131316;
-  --surface-2: #18181c;
-  --ink: #f4f4f1;
-  --ink-2: #c8c8c2;
-  --ink-3: #8a8a83;
-  --ink-4: #5a5a55;
-  --line: #232328;
-  --line-2: #2c2c33;
+  --bg:        #0a0c10;
+  --bg-2:      #0f1217;
+  --bg-3:      #161a21;
+  --surface:   #131720;
+  --surface-2: #181d27;
 
-  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
+  --ink:   #f1f3f7;
+  --ink-2: #b7bdc7;
+  --ink-3: #7a8190;
+  --ink-4: #4d5560;
 
-/* ---- aesthetic: terminal ---- */
-[data-aesthetic='terminal'] {
-  --font-sans: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  --radius: 2px;
-  --radius-sm: 0px;
-  --radius-lg: 4px;
-}
-[data-aesthetic='terminal'][data-theme='dark'] {
-  --bg: #050707;
-  --bg-2: #0a0d0c;
-  --bg-3: #0f1413;
-  --surface: #0a0d0c;
-  --surface-2: #0c1110;
-  --ink: #c7f5d9;
-  --ink-2: #8fd1aa;
-  --ink-3: #5a8a73;
-  --ink-4: #3a5a4c;
-  --line: #1a2622;
-  --line-2: #243530;
-}
-[data-aesthetic='terminal'][data-theme='light'] {
-  --bg: #f3f3ee;
-  --bg-2: #ebebe4;
-  --bg-3: #e2e2d9;
-  --surface: #ffffff;
-  --ink: #0a0a0a;
+  --line:   #1f242d;
+  --line-2: #2a313c;
+
+  --accent-soft: rgba(59, 130, 246, 0.16);
+  --shadow-overlay: 0 24px 60px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
-/* ---- aesthetic: editorial ---- */
-[data-aesthetic='editorial'] {
-  --radius: 18px;
-  --radius-sm: 12px;
-  --radius-lg: 26px;
-  --pad: 18px;
-  --gap: 18px;
-}
-[data-aesthetic='editorial'][data-theme='light'] {
-  --bg: #f7f5f0;
-  --bg-2: #efece4;
-  --surface: #ffffff;
-  --line: #ebe6db;
-  --shadow-2: 0 12px 40px rgba(60, 40, 10, 0.06);
-}
-[data-aesthetic='editorial'][data-theme='dark'] {
-  --bg: #161412;
-  --bg-2: #1c1a18;
-  --surface: #1f1d1b;
-  --line: #2a2724;
-}
-
-/* ---- aesthetic: neon ---- */
-[data-aesthetic='neon'] {
-  --radius: 4px;
-  --radius-sm: 2px;
-}
-[data-aesthetic='neon'][data-theme='dark'] {
-  --bg: #050308;
-  --bg-2: #08060f;
-  --bg-3: #0d0a18;
-  --surface: #0a0814;
-  --surface-2: #0e0c1c;
-  --ink: #e8e6ff;
-  --ink-2: #b8b4dc;
-  --ink-3: #7d7aa0;
-  --line: #1a163a;
-  --line-2: #251f4e;
-}
-[data-aesthetic='neon'][data-theme='light'] {
-  --bg: #f5f3ff;
-  --bg-2: #ece8fa;
-  --surface: #ffffff;
-  --line: #ddd6f3;
-}
-
-/* ---- density variants ---- */
 [data-density='compact'] {
-  --pad: 10px;
-  --gap: 10px;
+  --pad: 12px;
+  --gap: 8px;
+  --sidebar-w: 208px;
 }
 [data-density='comfy'] {
-  --pad: 18px;
-  --gap: 18px;
+  --pad: 20px;
+  --gap: 16px;
+  --sidebar-w: 256px;
 }
 
 /* =========================================================
    Reset + base
    ========================================================= */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-html,
-body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
 body {
   font-family: var(--font-sans);
   background: var(--bg);
   color: var(--ink);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 16px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'ss01', 'cv11';
-  letter-spacing: -0.005em;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'ss01';
 }
 button {
   font-family: inherit;
@@ -172,25 +110,98 @@ button {
   cursor: pointer;
 }
 
-/* aesthetic backdrops */
-[data-aesthetic='terminal'] body {
-  background-image: linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 32px 32px;
-  background-position: -1px -1px;
-}
-[data-aesthetic='editorial'] body {
-  background:
-    radial-gradient(1200px 600px at 100% -10%, color-mix(in oklab, var(--accent) 6%, transparent), transparent 60%),
-    var(--bg);
-}
-
-/* utility classes */
+/* =========================================================
+   Utility classes
+   ========================================================= */
 .muted { color: var(--ink-3); }
-.mono { font-family: var(--font-mono); }
-.tnum { font-variant-numeric: tabular-nums; }
-.row { display: flex; align-items: center; gap: 8px; }
+.mono  { font-family: var(--font-mono); }
+.tnum  { font-variant-numeric: tabular-nums; }
+.row   { display: flex; align-items: center; gap: 8px; }
 .between { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.col { display: flex; flex-direction: column; gap: 8px; }
+.col   { display: flex; flex-direction: column; gap: 8px; }
 .flex1 { flex: 1; min-width: 0; }
 .center { display: grid; place-items: center; }
+
+/* Status pill — outlined, mono label, used for state badges */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  line-height: 1.6;
+  text-transform: lowercase;
+  letter-spacing: 0;
+}
+.pill .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--idle);
+  flex: 0 0 6px;
+}
+.pill.ok   { color: var(--ok);   border-color: color-mix(in oklab, var(--ok) 30%, var(--line)); }
+.pill.ok   .dot { background: var(--ok); }
+.pill.warn { color: var(--warn); border-color: color-mix(in oklab, var(--warn) 30%, var(--line)); }
+.pill.warn .dot { background: var(--warn); }
+.pill.bad  { color: var(--bad);  border-color: color-mix(in oklab, var(--bad) 30%, var(--line)); }
+.pill.bad  .dot { background: var(--bad); }
+.pill.info { color: var(--info); border-color: color-mix(in oklab, var(--info) 30%, var(--line)); }
+.pill.info .dot { background: var(--info); }
+
+/* Status dot — used inline, sized via font/em context */
+.status-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--idle);
+  flex: 0 0 7px;
+  vertical-align: middle;
+}
+.status-dot.ok   { background: var(--ok); }
+.status-dot.warn { background: var(--warn); }
+.status-dot.bad  { background: var(--bad); }
+.status-dot.info { background: var(--info); }
+.status-dot.idle { background: var(--idle); }
+
+/* Hairline rule */
+.hairline {
+  display: block;
+  height: 1px;
+  background: var(--line);
+  border: 0;
+  margin: 0;
+}
+
+/* Section header used on detail pages — uppercase label + hairline */
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.section-head::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.section-head .count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+}

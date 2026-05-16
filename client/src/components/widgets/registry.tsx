@@ -32,7 +32,7 @@ export const ALL_TILES: TileDef[] = [
   { id: 'cpu', label: 'CPU', span: 6 },
   { id: 'ram', label: 'Memory', span: 3 },
   { id: 'gpu', label: 'GPU', span: 3 },
-  { id: 'storage', label: 'Storage Pools', span: 4 },
+  { id: 'storage', label: 'NAS Pools', span: 4 },
   { id: 'network', label: 'Network', span: 4 },
   { id: 'unifi', label: 'Network (UniFi)', span: 4 },
   { id: 'docker', label: 'Docker', span: 8 },

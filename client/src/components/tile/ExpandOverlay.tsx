@@ -77,7 +77,7 @@ export function ExpandOverlay({ id, data, chartKind, setChartKind, onClose }: Pr
         <div className="between" style={{ marginBottom: 18 }}>
           <div>
             <h2>{def ? def.label : id}</h2>
-            <div className="sub">expanded view · click outside or press Esc to close</div>
+            <div className="sub">esc to close</div>
           </div>
           <button className="icon-btn" onClick={onClose}>
             <Icon name="x" />

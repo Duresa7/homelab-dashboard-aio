@@ -98,6 +98,7 @@ function buildInit(): DashboardState {
       },
       vms: [],
       disks: [],
+      storages: [],
       coresAllocated: 0,
       coresTotal: 0,
     },
@@ -238,6 +239,26 @@ function applyGpu(payload: any): boolean {
 function applyUnas(payload: any): boolean {
   if (!payload.unas) return false;
   state.unas = payload.unas;
+  // Mirror UNAS pools and disks into the generic storage state so the
+  // StorageTile, SmartTile, and Storage page's All Disks table populate.
+  // If more storage sources are added later, this becomes a merge.
+  state.storage = {
+    pools: payload.unas.pools.map((p: any) => ({
+      name: p.name,
+      type: p.type,
+      totalTB: p.totalTB,
+      usedTB: p.usedTB,
+      status: p.status,
+      scrub: p.scrub?.lastRun ? p.scrub.lastRun : 'never',
+    })),
+    disks: payload.unas.disks.map((d: any) => ({
+      name: `Slot ${d.slot}`,
+      model: d.model,
+      tempC: d.tempC,
+      smart: d.smart,
+      wear: d.wear,
+    })),
+  };
   return true;
 }
 

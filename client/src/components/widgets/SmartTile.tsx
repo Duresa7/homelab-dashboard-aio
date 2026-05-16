@@ -28,15 +28,15 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
     >
       <div className="row" style={{ gap: 14 }}>
         <div>
-          <div className="t-big" style={{ fontSize: 22 }}>{ok}</div>
+          <div className="t-big" style={{ fontSize: 26 }}>{ok}</div>
           <div className="t-sub">healthy</div>
         </div>
         <div>
-          <div className="t-big" style={{ fontSize: 22, color: warn ? 'var(--warn)' : '' }}>{warn}</div>
+          <div className="t-big" style={{ fontSize: 26, color: warn ? 'var(--warn)' : '' }}>{warn}</div>
           <div className="t-sub">warning</div>
         </div>
         <div>
-          <div className="t-big" style={{ fontSize: 22 }}>
+          <div className="t-big" style={{ fontSize: 26 }}>
             {avgTemp}<small>{tempSuffix(unit)}</small>
           </div>
           <div className="t-sub">avg temp</div>

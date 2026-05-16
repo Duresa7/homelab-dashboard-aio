@@ -114,7 +114,7 @@ export function UnasTile({ data, span, onExpand, expandable }: Props) {
               <div className={`pbar ${cls === 'ok' ? '' : cls}`}>
                 <span style={{ width: `${pct}%` }} />
               </div>
-              <div className="t-sub" style={{ fontSize: 10.5 }}>
+              <div className="t-sub" style={{ fontSize: 12 }}>
                 Last scrub:{' '}
                 <span style={{ color: KIND_COLOR[scrub.kind] }}>{scrub.label}</span>
               </div>
@@ -162,7 +162,7 @@ export function UnasTile({ data, span, onExpand, expandable }: Props) {
       )}
 
       {allIncompat.length > 0 && (
-        <div className="t-sub" style={{ color: 'var(--warn)', fontSize: 10.5 }}>
+        <div className="t-sub" style={{ color: 'var(--warn)', fontSize: 12 }}>
           Mismatched drives: {allIncompat.join(', ')}
         </div>
       )}

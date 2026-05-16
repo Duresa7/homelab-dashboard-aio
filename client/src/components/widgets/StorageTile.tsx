@@ -11,7 +11,7 @@ interface Props {
 export function StorageTile({ data, span, onExpand, expandable }: Props) {
   return (
     <Tile
-      title="Storage Pools"
+      title="NAS Pools"
       sub={`${data.pools.length} pools`}
       span={span}
       onExpand={onExpand}
@@ -35,7 +35,7 @@ export function StorageTile({ data, span, onExpand, expandable }: Props) {
                   <span className="t-tag" style={{ marginLeft: 4 }}>{p.type}</span>
                 </div>
                 <div className="meta">
-                  {p.usedTB.toFixed(1)} / {p.totalTB} TB
+                  {p.usedTB.toFixed(2)} / {p.totalTB.toFixed(2)} TB
                 </div>
               </div>
               <div className={`pbar ${cls}`}>

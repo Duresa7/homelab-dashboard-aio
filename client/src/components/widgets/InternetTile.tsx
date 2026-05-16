@@ -19,7 +19,7 @@ export function InternetTile({ data, span, onExpand, expandable }: Props) {
           <div className="t-sub">uptime · 30d</div>
         </div>
         <div>
-          <div className="t-big" style={{ fontSize: 22 }}>
+          <div className="t-big" style={{ fontSize: 26 }}>
             {data.speedtest.ping}<small>ms</small>
           </div>
           <div className="t-sub">last ping</div>

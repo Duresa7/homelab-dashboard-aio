@@ -15,7 +15,7 @@ export function Donut({
   label,
   sub,
   color = 'var(--accent)',
-  thickness = 8,
+  thickness = 6,
 }: Props) {
   const r = (size - thickness) / 2;
   const c = 2 * Math.PI * r;
@@ -34,13 +34,29 @@ export function Donut({
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
       />
       <text
-        x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
-        style={{ fontSize: size * 0.22, fontWeight: 600, fill: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}
+        x="50%" y={sub ? '46%' : '50%'} textAnchor="middle" dominantBaseline="central"
+        style={{
+          fontSize: size * 0.22,
+          fontWeight: 600,
+          fill: 'var(--ink)',
+          fontVariantNumeric: 'tabular-nums',
+          fontFamily: 'var(--font-mono)',
+          letterSpacing: '-0.02em',
+        }}
       >
         {label}
       </text>
       {sub ? (
-        <text x="50%" y={size * 0.68} textAnchor="middle" style={{ fontSize: size * 0.1, fill: 'var(--ink-3)' }}>
+        <text
+          x="50%" y={size * 0.66} textAnchor="middle"
+          style={{
+            fontSize: size * 0.1,
+            fill: 'var(--ink-3)',
+            fontFamily: 'var(--font-mono)',
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+          }}
+        >
           {sub}
         </text>
       ) : null}

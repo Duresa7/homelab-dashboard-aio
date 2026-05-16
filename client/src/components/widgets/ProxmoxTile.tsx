@@ -24,7 +24,7 @@ export function ProxmoxTile({ data, span, onExpand, expandable }: Props) {
       <div className="row" style={{ gap: 14 }}>
         <div className="flex1">
           <div className="t-sub">Cores allocated</div>
-          <div className="t-big" style={{ fontSize: 24 }}>
+          <div className="t-big" style={{ fontSize: 28 }}>
             {coresAllocated}<small>/ {coresTotal}</small>
           </div>
           <div className="pbar" style={{ marginTop: 4 }}>
@@ -33,7 +33,7 @@ export function ProxmoxTile({ data, span, onExpand, expandable }: Props) {
         </div>
         <div className="flex1">
           <div className="t-sub">Node CPU</div>
-          <div className="t-big" style={{ fontSize: 24 }}>
+          <div className="t-big" style={{ fontSize: 28 }}>
             {node.cpu.toFixed(0)}<small>%</small>
           </div>
           <div className="pbar" style={{ marginTop: 4 }}>
@@ -42,7 +42,7 @@ export function ProxmoxTile({ data, span, onExpand, expandable }: Props) {
         </div>
         <div className="flex1">
           <div className="t-sub">Node RAM</div>
-          <div className="t-big" style={{ fontSize: 24 }}>
+          <div className="t-big" style={{ fontSize: 28 }}>
             {node.ram.toFixed(0)}<small>%</small>
           </div>
           <div className="pbar" style={{ marginTop: 4 }}>

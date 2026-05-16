@@ -5,7 +5,8 @@ export type IconName =
   | 'bell' | 'settings' | 'moon' | 'sun' | 'refresh' | 'expand'
   | 'chart_area' | 'chart_bar' | 'chart_line' | 'chart_donut' | 'chart_gauge'
   | 'play' | 'stop' | 'plus' | 'x' | 'drag' | 'fan' | 'bolt' | 'shield'
-  | 'globe' | 'activity' | 'check' | 'cloud' | 'layers' | 'cube' | 'history';
+  | 'globe' | 'activity' | 'check' | 'cloud' | 'layers' | 'cube' | 'history'
+  | 'chevron_right' | 'chevron_left';
 
 interface Props {
   name: IconName;
@@ -47,6 +48,8 @@ const PATHS: Record<IconName, ReactElement> = {
   layers: <><path d="M12 2 2 7l10 5 10-5z" /><path d="M2 12l10 5 10-5" /><path d="M2 17l10 5 10-5" /></>,
   cube: <><path d="M3 7l9-4 9 4v10l-9 4-9-4z" /><path d="M3 7l9 4 9-4M12 11v10" /></>,
   history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>,
+  chevron_right: <><path d="M9 6l6 6-6 6" /></>,
+  chevron_left:  <><path d="M15 6l-6 6 6 6" /></>,
 };
 
 export function Icon({ name, size = 14, className = 'ico' }: Props) {
@@ -57,7 +60,7 @@ export function Icon({ name, size = 14, className = 'ico' }: Props) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.6}
+      strokeWidth={1.75}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}

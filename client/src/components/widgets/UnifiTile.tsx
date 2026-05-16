@@ -22,19 +22,19 @@ export function UnifiTile({ data, span, onExpand, expandable }: Props) {
       <div className="row" style={{ gap: 14 }}>
         <div className="flex1">
           <div className="t-sub">Gateway CPU</div>
-          <div className="t-big" style={{ fontSize: 22 }}>
+          <div className="t-big" style={{ fontSize: 26 }}>
             {gateway.cpu.toFixed(0)}<small>%</small>
           </div>
         </div>
         <div className="flex1">
           <div className="t-sub">Gateway RAM</div>
-          <div className="t-big" style={{ fontSize: 22 }}>
+          <div className="t-big" style={{ fontSize: 26 }}>
             {gateway.ram.toFixed(0)}<small>%</small>
           </div>
         </div>
         <div className="flex1">
           <div className="t-sub">Uptime</div>
-          <div className="t-big mono" style={{ fontSize: 18 }}>{gateway.uptime}</div>
+          <div className="t-big mono" style={{ fontSize: 22 }}>{gateway.uptime}</div>
         </div>
       </div>
       <div className="netrate">

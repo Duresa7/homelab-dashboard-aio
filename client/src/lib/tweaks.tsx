@@ -21,14 +21,14 @@ const PANEL_STYLE = `
     -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
     border:.5px solid rgba(255,255,255,.6);border-radius:14px;
     box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
-    font:11.5px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
+    font:13px/1.45 var(--font-sans),ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
   [data-theme='dark'] .twk-panel{background:rgba(28,28,32,.82);color:#e8e8e3;
     border-color:rgba(255,255,255,.06)}
   .twk-hd{display:flex;align-items:center;justify-content:space-between;
     padding:10px 8px 10px 14px;cursor:move;user-select:none}
-  .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .twk-hd b{font-size:14px;font-weight:700;letter-spacing:0}
   .twk-x{appearance:none;border:0;background:transparent;color:inherit;opacity:.55;
-    width:22px;height:22px;border-radius:6px;cursor:pointer;font-size:13px;line-height:1}
+    width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:15px;line-height:1}
   .twk-x:hover{background:rgba(0,0,0,.08);opacity:1}
   .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
     overflow-y:auto;overflow-x:hidden;min-height:0}
@@ -37,10 +37,10 @@ const PANEL_STYLE = `
   .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;opacity:.78}
   .twk-lbl>span:first-child{font-weight:500}
   .twk-val{opacity:.5;font-variant-numeric:tabular-nums}
-  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  .twk-sect{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
     opacity:.5;padding:10px 0 0}
   .twk-sect:first-child{padding-top:0}
-  .twk-field{appearance:none;width:100%;height:26px;padding:0 8px;
+  .twk-field{appearance:none;width:100%;height:30px;padding:0 10px;
     border:.5px solid rgba(0,0,0,.1);border-radius:7px;
     background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
   [data-theme='dark'] .twk-field{background:rgba(0,0,0,.25);border-color:rgba(255,255,255,.1)}
@@ -54,7 +54,7 @@ const PANEL_STYLE = `
     transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
   [data-theme='dark'] .twk-seg-thumb{background:rgba(60,60,68,.95)}
   .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
-    background:transparent;color:inherit;font:inherit;font-weight:500;min-height:22px;
+    background:transparent;color:inherit;font:inherit;font-weight:600;min-height:26px;
     border-radius:6px;cursor:pointer;padding:4px 6px;line-height:1.2}
   .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
     background:rgba(0,0,0,.18);transition:background .15s;cursor:pointer;padding:0}

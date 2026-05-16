@@ -36,12 +36,12 @@ export function Gauge({ value, max = 100, label, sub, color = 'var(--accent)' }:
       />
       <text
         x="50%" y={h - 28} textAnchor="middle"
-        style={{ fontSize: 26, fontWeight: 600, fill: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}
+        style={{ fontSize: 30, fontWeight: 600, fill: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}
       >
         {label}
       </text>
       {sub ? (
-        <text x="50%" y={h - 8} textAnchor="middle" style={{ fontSize: 10, fill: 'var(--ink-3)' }}>
+        <text x="50%" y={h - 8} textAnchor="middle" style={{ fontSize: 12, fill: 'var(--ink-3)' }}>
           {sub}
         </text>
       ) : null}

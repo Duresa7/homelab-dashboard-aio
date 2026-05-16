@@ -721,12 +721,13 @@ async function fetchProxmoxData() {
     nodes.find((n) => n.status === 'online') ||
     nodes[0];
 
-  const [nodeStatus, vmResources, storageList, networks, physicalDisks] = await Promise.all([
+  const [nodeStatus, vmResources, storageList, networks, physicalDisks, zfsPools] = await Promise.all([
     safePveFetch(`/api2/json/nodes/${primary.node}/status`),
     safePveFetch('/api2/json/cluster/resources?type=vm'),
     safePveFetch(`/api2/json/nodes/${primary.node}/storage`),
     safePveFetch(`/api2/json/nodes/${primary.node}/network`),
     safePveFetch(`/api2/json/nodes/${primary.node}/disks/list`),
+    safePveFetch(`/api2/json/nodes/${primary.node}/disks/zfs`),
   ]);
 
   const totalCores = nodes.reduce((sum, n) => sum + (n.maxcpu || 0), 0);
@@ -763,6 +764,13 @@ async function fetchProxmoxData() {
       seenStorage.add(s.storage);
       storageUsed += s.used || 0;
       storageTotal += s.total || 0;
+    }
+  }
+
+  const zfsHealthByName = new Map();
+  if (Array.isArray(zfsPools)) {
+    for (const z of zfsPools) {
+      if (z?.name) zfsHealthByName.set(String(z.name), z.health || null);
     }
   }
 
@@ -814,18 +822,34 @@ async function fetchProxmoxData() {
         disk: v.maxdisk ? Math.round(v.maxdisk / GB) : 0,
         ip: vmIps[v.vmid] || null,
       })),
-      disks: (Array.isArray(physicalDisks) ? physicalDisks : []).map((d) => ({
-        devpath: d.devpath || '',
-        model: cleanDiskPart(d.model),
-        vendor: /^(ata|nvme)$/i.test(cleanDiskPart(d.vendor)) ? '' : cleanDiskPart(d.vendor),
-        serial: d.serial || null,
-        sizeBytes: Number(d.size) || 0,
-        type: (d.type || 'unknown').toLowerCase(), // nvme | ssd | hdd | usb
-        used: d.used || null,                       // "LVM", "ZFS", "partitions", null
-        health: d.health || null,                   // "PASSED", "FAILED", "UNKNOWN"
-        wearout: typeof d.wearout === 'number' ? d.wearout : null,
-        rpm: Number(d.rpm) || 0,
-      })),
+      disks: (Array.isArray(physicalDisks) ? physicalDisks : []).map((d) => {
+        const friendly = normalizeDiskParts(d);
+        return {
+          devpath: d.devpath || '',
+          model: friendly.model,
+          vendor: friendly.vendor,
+          serial: d.serial || null,
+          sizeBytes: Number(d.size) || 0,
+          type: (d.type || 'unknown').toLowerCase(), // nvme | ssd | hdd | usb
+          used: d.used || null,                       // "LVM", "ZFS", "partitions", null
+          health: d.health || null,                   // "PASSED", "FAILED", "UNKNOWN"
+          wearout: typeof d.wearout === 'number' ? d.wearout : null,
+          rpm: Number(d.rpm) || 0,
+        };
+      }),
+      storages: (Array.isArray(storageList) ? storageList : []).map((s) => {
+        const zfsKey = String(s.pool || s.storage || '');
+        return {
+          name: s.storage || '',
+          type: s.type || '',
+          content: s.content || '',
+          usedTB: (s.used || 0) / TB,
+          totalTB: (s.total || 0) / TB,
+          active: !!s.active,
+          shared: !!s.shared,
+          zfsHealth: zfsHealthByName.get(zfsKey) || zfsHealthByName.get(String(s.storage || '')) || null,
+        };
+      }),
       coresAllocated,
       coresTotal: totalCores,
     },
@@ -1106,13 +1130,88 @@ function cleanDiskPart(value) {
     .trim();
 }
 
-function diskDisplayName(disk) {
-  const model = cleanDiskPart(disk.model);
-  const rawVendor = cleanDiskPart(disk.vendor);
+function cleanUsefulDiskPart(value) {
+  const cleaned = cleanDiskPart(value);
+  return /^(unknown|n\/a|none|null|-+)$/i.test(cleaned) ? '' : cleaned;
+}
+
+function diskToken(...parts) {
+  return parts
+    .map(cleanUsefulDiskPart)
+    .filter(Boolean)
+    .join(' ')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+function capacityFromGb(gb) {
+  const n = Number(gb);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n >= 1000 && n % 1000 === 0) return `${n / 1000}TB`;
+  return `${n}GB`;
+}
+
+function wdCapacityFromModel(modelCode) {
+  const match = String(modelCode || '').match(/^WD(\d{2,3})/i);
+  if (!match) return '';
+  const raw = match[1];
+  const tb = raw.length === 2 ? Number(raw) / 10 : Math.floor(Number(raw) / 10);
+  return Number.isFinite(tb) && tb > 0 ? `${tb}TB` : '';
+}
+
+function normalizeDiskParts(disk) {
+  const model = cleanUsefulDiskPart(disk?.model);
+  const rawVendor = cleanUsefulDiskPart(disk?.vendor);
   const vendor = /^(ata|nvme)$/i.test(rawVendor) ? '' : rawVendor;
+  const token = diskToken(vendor, model);
+
+  const crucialP3 = token.match(/CT(\d+)P3(P?)SSD8/);
+  if (crucialP3) {
+    const capacity = capacityFromGb(crucialP3[1]);
+    const series = crucialP3[2] ? 'P3 Plus' : 'P3';
+    return {
+      vendor: 'Crucial',
+      model: [series, capacity, 'NVMe SSD'].filter(Boolean).join(' '),
+    };
+  }
+
+  const wdModel = token.match(/(?:^|WDC)(WD\d{2,3}[A-Z]{3,4})/);
+  if (wdModel) {
+    const code = wdModel[1];
+    const familyCode = code.slice(-4);
+    const capacity = wdCapacityFromModel(code);
+    const family = {
+      EFAX: 'Red',
+      EFRX: 'Red',
+      EFBX: 'Red Plus',
+      EFPX: 'Red Plus',
+      EFZX: 'Red Plus',
+      EFZZ: 'Red Plus',
+    }[familyCode] || 'Red';
+    return {
+      vendor: 'Western Digital',
+      model: [family, capacity, 'NAS HDD'].filter(Boolean).join(' '),
+    };
+  }
+
+  return { vendor, model };
+}
+
+function diskDisplayName(disk) {
+  const { model, vendor } = normalizeDiskParts(disk);
   if (!model) return vendor || null;
   if (!vendor || model.toLowerCase().includes(vendor.toLowerCase())) return model;
   return `${vendor} ${model}`;
+}
+
+function friendlySystemSensorLabel(chipKey, sensorName) {
+  const chip = String(chipKey || '').toLowerCase();
+  const sensor = String(sensorName || '').trim();
+  if (chip.startsWith('nct') || chip.startsWith('it86') || chip.startsWith('w836')) {
+    return /^chipset|pch$/i.test(sensor) ? 'Chipset' : 'Motherboard';
+  }
+  if (chip.startsWith('acpitz')) return 'ACPI thermal zone';
+  return sensor || 'Motherboard / chipset';
 }
 
 function diskKind(disk) {
@@ -1123,12 +1222,29 @@ function diskKind(disk) {
   return 'sata';
 }
 
+function deviceShortName(path) {
+  return String(path || '').split(/[\\/]/).filter(Boolean).pop() || '';
+}
+
+function withUniqueDiskDisplayNames(disks) {
+  const counts = disks.reduce((acc, d) => {
+    acc.set(d.name, (acc.get(d.name) || 0) + 1);
+    return acc;
+  }, new Map());
+
+  return disks.map((d, idx) => {
+    if ((counts.get(d.name) || 0) <= 1) return d;
+    const suffix = deviceShortName(d.path) || (d.serial ? String(d.serial).slice(-4) : `${idx + 1}`);
+    return { ...d, name: `${d.name} (${suffix})` };
+  });
+}
+
 async function fetchSensorDiskInventory() {
   try {
     const raw = await runLsblk();
     const json = JSON.parse(raw);
     const devices = Array.isArray(json.blockdevices) ? json.blockdevices : [];
-    return devices
+    const disks = devices
       .filter((d) => d?.type === 'disk')
       .map((d) => ({
         kind: diskKind(d),
@@ -1137,6 +1253,7 @@ async function fetchSensorDiskInventory() {
         serial: d.serial || null,
       }))
       .filter((d) => d.name);
+    return withUniqueDiskDisplayNames(disks);
   } catch {
     return [];
   }
@@ -1302,7 +1419,7 @@ function parseSensorsJson(raw, diskInventory = []) {
         // Promote a recognized system temp if we don't have one yet.
         if (systemTempC == null && SYSTEM_LABEL_PATTERNS.some((rx) => rx.test(sensorName))) {
           systemTempC = tempVal;
-          systemTempLabel = `${chipKey} · ${sensorName}`;
+          systemTempLabel = friendlySystemSensorLabel(chipKey, sensorName);
         }
       }
       if (fanVal != null) {
@@ -1319,7 +1436,7 @@ function parseSensorsJson(raw, diskInventory = []) {
   // Fall back to ACPI thermal zone if no labeled system temp was found.
   if (systemTempC == null && acpiTempC != null) {
     systemTempC = acpiTempC;
-    systemTempLabel = 'acpitz';
+    systemTempLabel = friendlySystemSensorLabel('acpitz');
   }
 
   return { cpuTempC, systemTempC, systemTempLabel, cores, disks, memory, network, fans, other };

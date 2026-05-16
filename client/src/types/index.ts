@@ -145,11 +145,23 @@ export interface PhysicalDisk {
   rpm: number;
 }
 
+export interface ProxmoxStorage {
+  name: string;
+  type: string;
+  content: string;
+  usedTB: number;
+  totalTB: number;
+  active: boolean;
+  shared: boolean;
+  zfsHealth: string | null;
+}
+
 export interface ProxmoxData {
   nodes: number;
   node: ProxmoxNode;
   vms: VM[];
   disks: PhysicalDisk[];
+  storages: ProxmoxStorage[];
   coresAllocated: number;
   coresTotal: number;
 }

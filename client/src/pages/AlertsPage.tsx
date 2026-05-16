@@ -8,15 +8,23 @@ interface Props {
 
 export function AlertsPage({ alerts, onDismiss }: Props) {
   return (
-    <div className="col" style={{ gap: 12 }}>
-      {alerts.length === 0 ? (
-        <div className="tile span-12">
-          <div className="t-title">No active alerts</div>
-          <div className="t-sub">Everything is healthy.</div>
+    <div className="grid">
+      <div className="tile span-12">
+        <div className="t-head">
+          <div className="t-title">
+            Active alerts <span className="t-sub">· {alerts.length}</span>
+          </div>
+          <span className={`pill ${alerts.length === 0 ? 'ok' : alerts.some((a) => a.kind === 'bad') ? 'bad' : 'warn'}`}>
+            <span className="dot" />
+            {alerts.length === 0 ? 'all clear' : `${alerts.length} active`}
+          </span>
         </div>
-      ) : (
-        <AlertBanner alerts={alerts} onDismiss={onDismiss} />
-      )}
+        {alerts.length === 0 ? (
+          <div className="page-empty">Everything is healthy.</div>
+        ) : (
+          <AlertBanner alerts={alerts} onDismiss={onDismiss} />
+        )}
+      </div>
     </div>
   );
 }

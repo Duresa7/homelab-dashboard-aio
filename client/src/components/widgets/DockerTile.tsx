@@ -21,21 +21,21 @@ export function DockerTile({ data, span, onExpand, expandable }: Props) {
     >
       <div className="row" style={{ gap: 14, paddingBottom: 6, borderBottom: '1px dashed var(--line)' }}>
         <div>
-          <div className="t-big" style={{ fontSize: 24 }}>{running}</div>
+          <div className="t-big" style={{ fontSize: 28 }}>{running}</div>
           <div className="t-sub">running</div>
         </div>
         <div>
-          <div className="t-big" style={{ fontSize: 24, color: stopped ? 'var(--warn)' : '' }}>
+          <div className="t-big" style={{ fontSize: 28, color: stopped ? 'var(--warn)' : '' }}>
             {stopped}
           </div>
           <div className="t-sub">stopped</div>
         </div>
         <div>
-          <div className="t-big" style={{ fontSize: 24 }}>{updates}</div>
+          <div className="t-big" style={{ fontSize: 28 }}>{updates}</div>
           <div className="t-sub">updates</div>
         </div>
         <div>
-          <div className="t-big" style={{ fontSize: 24 }}>{hosts.length}</div>
+          <div className="t-big" style={{ fontSize: 28 }}>{hosts.length}</div>
           <div className="t-sub">hosts</div>
         </div>
       </div>
@@ -46,7 +46,7 @@ export function DockerTile({ data, span, onExpand, expandable }: Props) {
         return (
           <div key={h.id} className="col" style={{ gap: 6, paddingTop: 6 }}>
             <div className="between">
-              <div className="t-title" style={{ fontSize: 11 }}>
+              <div className="t-title" style={{ fontSize: 12 }}>
                 <span
                   style={{
                     width: 6, height: 6, borderRadius: 50,

@@ -6,12 +6,13 @@ import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '..
 
 interface Props {
   data: DashboardState;
+  sub: string;
 }
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(2)} TB`;
-  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(0)} GB`;
-  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
+  if (bytes >= 1e9)  return `${(bytes / 1e9).toFixed(0)} GB`;
+  if (bytes >= 1e6)  return `${(bytes / 1e6).toFixed(0)} MB`;
   return `${bytes} B`;
 }
 
@@ -31,45 +32,18 @@ function SensorChip({
   color?: string;
 }) {
   return (
-    <div
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '6px 12px',
-        background: 'var(--bg-2)',
-        borderRadius: 6,
-        border: '1px solid var(--bg-3)',
-      }}
-    >
-      <span className="lbl" style={{ fontSize: 11 }}>
-        {label}
-      </span>
-      <span
-        className="mono tnum"
-        style={{ fontWeight: 600, fontSize: 12, color: color ?? 'var(--ink)' }}
-      >
-        {value}
-      </span>
+    <div className="sensor-chip">
+      <span className="lbl">{label}</span>
+      <span className="val" style={color ? { color } : undefined}>{value}</span>
     </div>
   );
 }
 
 function SensorSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div
-        className="lbl"
-        style={{
-          marginBottom: 8,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          fontSize: 10,
-        }}
-      >
-        {title}
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{children}</div>
+    <div className="sensor-section">
+      <div className="section-head">{title}</div>
+      <div className="sensor-chips">{children}</div>
     </div>
   );
 }
@@ -105,32 +79,31 @@ function TempCard({
       : tempC >= warnAt
         ? 'warm'
         : 'normal';
+  const pillKind = !known ? '' : tempC >= badAt ? 'bad' : tempC >= warnAt ? 'warn' : 'ok';
   return (
     <div className="tile span-4">
-      <div className="t-title">{title}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 10 }}>
+      <div className="t-head">
+        <div className="t-title">{title}</div>
+        <span className={`pill ${pillKind}`}><span className="dot" />{statusLabel}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 8 }}>
         <div
-          className="tnum"
+          className="tnum mono"
           style={{
             fontSize: 56,
-            fontWeight: 700,
+            fontWeight: 600,
             lineHeight: 1,
-            fontVariantNumeric: 'tabular-nums',
             color,
+            letterSpacing: '-0.02em',
           }}
         >
           {shownTemp}
         </div>
-        <div style={{ fontSize: 20, color: 'var(--ink-3)', fontWeight: 500 }}>
+        <div style={{ fontSize: 22, color: 'var(--ink-3)', fontWeight: 500 }}>
           {tempSuffix(unit)}
         </div>
       </div>
-      <div className="lbl" style={{ marginTop: 8 }}>
-        {sub}
-      </div>
-      <div className="lbl" style={{ marginTop: 2, color }}>
-        {statusLabel}
-      </div>
+      <div className="t-sub" style={{ marginTop: 4 }}>{sub}</div>
     </div>
   );
 }
@@ -166,7 +139,7 @@ function MetricCard({
           color={warn ? 'var(--warn)' : 'var(--accent)'}
         />
         <div className="meta flex1">
-          <div className="v" style={{ fontWeight: 600 }}>{primary}</div>
+          <div className="v">{primary}</div>
           {secondary && <div className="lbl">{secondary}</div>}
         </div>
       </div>
@@ -174,7 +147,7 @@ function MetricCard({
   );
 }
 
-export function ProxmoxPage({ data }: Props) {
+function Compute({ data }: { data: DashboardState }) {
   const { unit } = useTempUnit();
   const n = data.proxmox.node;
   const threads = n.cpuThreads || 0;
@@ -189,33 +162,29 @@ export function ProxmoxPage({ data }: Props) {
   return (
     <div className="grid">
       <div className="tile span-12">
-        <div
-          className="metric-row"
-          style={{ alignItems: 'center', gap: 32, flexWrap: 'wrap' }}
-        >
+        <div className="metric-row" style={{ alignItems: 'center', gap: 32, flexWrap: 'wrap' }}>
           <div>
             <div className="t-title">Node</div>
-            <div className="t-big" style={{ marginTop: 2 }}>{n.name}</div>
-            <div className="lbl mono" style={{ marginTop: 4 }}>{n.cpuModel}</div>
+            <div className="t-big" style={{ marginTop: 4 }}>{n.name}</div>
+            <div className="t-sub" style={{ marginTop: 4 }}>{n.cpuModel}</div>
           </div>
           <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
             <div>
-              <div className="lbl">IP address</div>
-              <div className="v mono">{n.ip ?? '—'}</div>
+              <div className="t-sub">IP address</div>
+              <div className="mono" style={{ fontSize: 14, marginTop: 4 }}>{n.ip ?? '—'}</div>
             </div>
             <div>
-              <div className="lbl">Version</div>
-              <div className="v">PVE {n.version}</div>
+              <div className="t-sub">Version</div>
+              <div className="mono" style={{ fontSize: 14, marginTop: 4 }}>PVE {n.version}</div>
             </div>
             <div>
-              <div className="lbl">Uptime</div>
-              <div className="v">{n.uptime}</div>
+              <div className="t-sub">Uptime</div>
+              <div className="mono" style={{ fontSize: 14, marginTop: 4 }}>{n.uptime}</div>
             </div>
             <div>
-              <div className="lbl">Guests</div>
-              <div className="v">
-                {runningCount} <span className="muted">running</span>{' '}
-                <span className="muted">/ {totalCount} total</span>
+              <div className="t-sub">Guests</div>
+              <div className="mono" style={{ fontSize: 14, marginTop: 4 }}>
+                {runningCount}<span style={{ color: 'var(--ink-3)' }}> running / {totalCount} total</span>
               </div>
             </div>
           </div>
@@ -241,7 +210,6 @@ export function ProxmoxPage({ data }: Props) {
         secondary={`${vCpuAllocPct.toFixed(0)}% allocated${vCpuAllocPct > 100 ? ' (overcommit)' : ''}`}
         warn={vCpuAllocPct > 100}
       />
-
       <MetricCard
         title="RAM Usage"
         value={n.ram}
@@ -263,28 +231,7 @@ export function ProxmoxPage({ data }: Props) {
         warn={ramAllocPct > 100}
       />
 
-      <div className="tile span-6">
-        <div className="t-title">Storage</div>
-        <div className="metric-row" style={{ alignItems: 'center', gap: 24 }}>
-          <Donut
-            value={n.storagePct}
-            max={100}
-            label={`${n.storagePct.toFixed(0)}%`}
-            sub="used"
-            color={n.storagePct > 90 ? 'var(--bad)' : n.storagePct > 75 ? 'var(--warn)' : 'var(--accent)'}
-          />
-          <div className="meta flex1">
-            <div className="v" style={{ fontWeight: 600, fontSize: 18 }}>
-              {n.storageUsedTB.toFixed(2)} TB <span className="muted">of</span>{' '}
-              {n.storageTotalTB.toFixed(2)} TB
-            </div>
-            <div className="lbl">
-              {(n.storageTotalTB - n.storageUsedTB).toFixed(2)} TB free across enabled storages
-            </div>
-          </div>
-        </div>
-      </div>
-      <GPUTile data={data.gpu} span={6} chartKind="area" expandable={false} />
+      <GPUTile data={data.gpu} span={12} chartKind="area" expandable={false} />
 
       <TempCard
         title="System Temp"
@@ -310,81 +257,169 @@ export function ProxmoxPage({ data }: Props) {
         badAt={85}
         unit={unit}
       />
+    </div>
+  );
+}
 
-      {(data.sensors.disks.length > 0 ||
-        data.sensors.memory.length > 0 ||
-        data.sensors.network.length > 0 ||
-        data.sensors.fans.some((f) => f.rpm > 0)) && (
-        <div className="tile span-12">
-          <div className="t-title">Hardware Sensors</div>
-
-          {data.sensors.disks.length > 0 && (
-            <SensorSection title="Drives">
-              {data.sensors.disks.map((d) => (
-                <SensorChip
-                  key={d.name}
-                  label={d.name}
-                  value={fmtTemp(d.tempC, unit)}
-                  color={tempColor(d.tempC, 60, 70)}
-                />
-              ))}
-            </SensorSection>
-          )}
-
-          {data.sensors.memory.length > 0 && (
-            <SensorSection title="Memory">
-              {data.sensors.memory.map((m) => (
-                <SensorChip
-                  key={m.name}
-                  label={m.name}
-                  value={fmtTemp(m.tempC, unit)}
-                  color={tempColor(m.tempC, 55, 70)}
-                />
-              ))}
-            </SensorSection>
-          )}
-
-          {data.sensors.network.length > 0 && (
-            <SensorSection title="Network">
-              {data.sensors.network.map((nic) => (
-                <SensorChip
-                  key={nic.name}
-                  label={nic.name}
-                  value={fmtTemp(nic.tempC, unit)}
-                  color={tempColor(nic.tempC, 70, 85)}
-                />
-              ))}
-            </SensorSection>
-          )}
-
-          {data.sensors.fans.some((f) => f.rpm > 0) && (
-            <SensorSection title="Fans">
-              {data.sensors.fans
-                .filter((f) => f.rpm > 0)
-                .map((f) => (
-                  <SensorChip
-                    key={`${f.chip}-${f.name}`}
-                    label={f.name}
-                    value={`${Math.round(f.rpm)} RPM`}
-                  />
-                ))}
-            </SensorSection>
-          )}
+function Guests({ data }: { data: DashboardState }) {
+  const vms = data.proxmox.vms;
+  const running = vms.filter((v) => v.state === 'running').length;
+  return (
+    <div className="grid">
+      <div className="tile span-12">
+        <div className="t-head">
+          <div className="t-title">VMs &amp; LXCs <span className="t-sub">· {running}/{vms.length} running</span></div>
         </div>
-      )}
+        {vms.length === 0 ? (
+          <div className="page-empty">No virtual machines or containers detected</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>State</th>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>IP</th>
+                <th className="num">CPU</th>
+                <th className="num">RAM</th>
+                <th className="num">Disk</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vms.map((v) => {
+                const stateClass = v.state === 'stopped' ? 'idle' : v.state === 'paused' ? 'warn' : 'ok';
+                const pillKind = v.state === 'stopped' ? '' : v.state === 'paused' ? 'warn' : 'ok';
+                return (
+                  <tr key={v.id}>
+                    <td>
+                      <span className={`pill ${pillKind}`}>
+                        <span className={`dot ${stateClass}`} />
+                        {v.state}
+                      </span>
+                    </td>
+                    <td className="mono">{v.id}</td>
+                    <td>{v.name}</td>
+                    <td className="muted">{v.type}</td>
+                    <td className="mono">{v.ip ?? <span className="muted">—</span>}</td>
+                    <td className="mono tnum num">{v.cpu.toFixed(1)}%</td>
+                    <td className="mono tnum num">{v.ram}%</td>
+                    <td className="mono tnum num">{v.disk} GB</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
 
-      {data.proxmox.disks.length > 0 && (
-        <div className="tile span-12">
-          <div className="t-title">
-            Drives{' '}
-            <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>
-              ({data.proxmox.disks.length} drives ·{' '}
-              {formatBytes(
-                data.proxmox.disks.reduce((sum, d) => sum + d.sizeBytes, 0),
-              )}{' '}
-              total)
-            </span>
+function zfsPillKind(health: string | null): '' | 'ok' | 'warn' | 'bad' {
+  if (!health) return '';
+  const normalized = health.toUpperCase();
+  if (normalized === 'ONLINE') return 'ok';
+  if (normalized === 'DEGRADED') return 'warn';
+  return 'bad';
+}
+
+function Storage({ data }: { data: DashboardState }) {
+  const n = data.proxmox.node;
+  const storages = data.proxmox.storages;
+  const disks = data.proxmox.disks;
+  const totalBytes = disks.reduce((sum, d) => sum + d.sizeBytes, 0);
+  return (
+    <div className="grid">
+      <div className="tile span-4">
+        <div className="t-title">Storage Usage</div>
+        <div className="metric-row" style={{ alignItems: 'center', gap: 24 }}>
+          <Donut
+            value={n.storagePct}
+            max={100}
+            label={`${n.storagePct.toFixed(0)}%`}
+            sub="used"
+            color={n.storagePct > 90 ? 'var(--bad)' : n.storagePct > 75 ? 'var(--warn)' : 'var(--accent)'}
+          />
+          <div className="meta flex1">
+            <div className="v" style={{ fontSize: 18 }}>
+              {n.storageUsedTB.toFixed(2)} TB <span style={{ color: 'var(--ink-3)' }}>of</span>{' '}
+              {n.storageTotalTB.toFixed(2)} TB
+            </div>
+            <div className="lbl">
+              {(n.storageTotalTB - n.storageUsedTB).toFixed(2)} TB free
+            </div>
           </div>
+        </div>
+      </div>
+
+      <div className="tile span-8">
+        <div className="t-head">
+          <div className="t-title">
+            Storage Backends <span className="t-sub">· {storages.length}</span>
+          </div>
+        </div>
+        {storages.length === 0 ? (
+          <div className="page-empty">No Proxmox storage backends reported</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Content</th>
+                <th>ZFS</th>
+                <th className="num">Used</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {storages.map((s) => {
+                const pct = s.totalTB > 0 ? (s.usedTB / s.totalTB) * 100 : 0;
+                const pillKind = s.active ? 'ok' : 'warn';
+                const zfsKind = zfsPillKind(s.zfsHealth);
+                return (
+                  <tr key={s.name}>
+                    <td className="mono">{s.name}</td>
+                    <td className="muted">{s.type}</td>
+                    <td>{s.content || <span className="muted">—</span>}</td>
+                    <td>
+                      {s.zfsHealth ? (
+                        <span className={`pill ${zfsKind}`}>
+                          <span className="dot" />
+                          {s.zfsHealth}
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td className="mono tnum num">
+                      {s.totalTB > 0 ? `${pct.toFixed(0)}%` : '—'}
+                    </td>
+                    <td>
+                      <span className={`pill ${pillKind}`}>
+                        <span className="dot" />
+                        {s.active ? 'active' : 'inactive'}
+                      </span>
+                      {s.shared ? <span className="t-tag" style={{ marginLeft: 6 }}>shared</span> : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="tile span-12">
+        <div className="t-head">
+          <div className="t-title">
+            Physical Drives <span className="t-sub">· {disks.length} drives · {formatBytes(totalBytes)} total</span>
+          </div>
+        </div>
+        {disks.length === 0 ? (
+          <div className="page-empty">No physical drives reported</div>
+        ) : (
           <table className="data-table">
             <thead>
               <tr>
@@ -398,13 +433,10 @@ export function ProxmoxPage({ data }: Props) {
               </tr>
             </thead>
             <tbody>
-              {data.proxmox.disks.map((d) => {
-                const healthColor =
-                  d.health === 'PASSED'
-                    ? 'var(--ok)'
-                    : d.health === 'FAILED'
-                      ? 'var(--bad)'
-                      : 'var(--ink-3)';
+              {disks.map((d) => {
+                const healthOk = d.health === 'PASSED';
+                const healthBad = d.health === 'FAILED';
+                const healthColor = healthOk ? 'var(--ok)' : healthBad ? 'var(--bad)' : 'var(--ink-3)';
                 const typeLabel =
                   d.type === 'nvme'
                     ? 'NVMe'
@@ -434,50 +466,87 @@ export function ProxmoxPage({ data }: Props) {
               })}
             </tbody>
           </table>
-        </div>
-      )}
-
-      <div className="tile span-12">
-        <div className="t-title">VMs &amp; LXCs</div>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>State</th>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Type</th>
-              <th>IP</th>
-              <th className="num">CPU</th>
-              <th className="num">RAM</th>
-              <th className="num">Disk</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.proxmox.vms.map((v) => {
-              const cls = v.state === 'stopped' ? 'idle' : v.state === 'paused' ? 'warn' : '';
-              const dotColor =
-                cls === 'idle' ? 'var(--ink-4)' : cls === 'warn' ? 'var(--warn)' : 'var(--ok)';
-              return (
-                <tr key={v.id}>
-                  <td>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ width: 7, height: 7, borderRadius: 50, background: dotColor }} />
-                      {v.state}
-                    </span>
-                  </td>
-                  <td className="mono">{v.id}</td>
-                  <td>{v.name}</td>
-                  <td className="muted">{v.type}</td>
-                  <td className="mono">{v.ip ?? <span className="muted">—</span>}</td>
-                  <td className="mono tnum num">{v.cpu.toFixed(1)}%</td>
-                  <td className="mono tnum num">{v.ram}%</td>
-                  <td className="mono tnum num">{v.disk} GB</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        )}
       </div>
     </div>
   );
+}
+
+function Sensors({ data }: { data: DashboardState }) {
+  const { unit } = useTempUnit();
+  const hasAny =
+    data.sensors.disks.length > 0 ||
+    data.sensors.memory.length > 0 ||
+    data.sensors.network.length > 0 ||
+    data.sensors.fans.some((f) => f.rpm > 0);
+
+  return (
+    <div className="grid">
+      <div className="tile span-12">
+        <div className="t-title">Hardware Sensors</div>
+        {!hasAny ? (
+          <div className="page-empty">No hardware sensors detected</div>
+        ) : (
+          <>
+            {data.sensors.disks.length > 0 && (
+              <SensorSection title="Drives">
+                {data.sensors.disks.map((d) => (
+                  <SensorChip
+                    key={d.name}
+                    label={d.name}
+                    value={fmtTemp(d.tempC, unit)}
+                    color={tempColor(d.tempC, 60, 70)}
+                  />
+                ))}
+              </SensorSection>
+            )}
+            {data.sensors.memory.length > 0 && (
+              <SensorSection title="Memory">
+                {data.sensors.memory.map((m) => (
+                  <SensorChip
+                    key={m.name}
+                    label={m.name}
+                    value={fmtTemp(m.tempC, unit)}
+                    color={tempColor(m.tempC, 55, 70)}
+                  />
+                ))}
+              </SensorSection>
+            )}
+            {data.sensors.network.length > 0 && (
+              <SensorSection title="Network">
+                {data.sensors.network.map((nic) => (
+                  <SensorChip
+                    key={nic.name}
+                    label={nic.name}
+                    value={fmtTemp(nic.tempC, unit)}
+                    color={tempColor(nic.tempC, 70, 85)}
+                  />
+                ))}
+              </SensorSection>
+            )}
+            {data.sensors.fans.some((f) => f.rpm > 0) && (
+              <SensorSection title="Fans">
+                {data.sensors.fans
+                  .filter((f) => f.rpm > 0)
+                  .map((f) => (
+                    <SensorChip
+                      key={`${f.chip}-${f.name}`}
+                      label={f.name}
+                      value={`${Math.round(f.rpm)} RPM`}
+                    />
+                  ))}
+              </SensorSection>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ProxmoxPage({ data, sub }: Props) {
+  if (sub === 'guests')  return <Guests  data={data} />;
+  if (sub === 'storage') return <Storage data={data} />;
+  if (sub === 'sensors') return <Sensors data={data} />;
+  return <Compute data={data} />;
 }
