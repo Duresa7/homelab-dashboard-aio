@@ -1,4 +1,3 @@
-// Build an SVG polyline path from a numeric series, scaled to the box.
 export function polylinePath(vals: number[], w: number, h: number, pad = 2): string {
   if (!vals.length) return '';
   const min = Math.min(...vals);

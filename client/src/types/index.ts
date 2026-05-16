@@ -254,18 +254,51 @@ export interface UnifiData {
   appVersion: string | null;
 }
 
-export interface UnasShare {
+export interface UnasScrub {
+  status: string;
+  scheduleEnabled: boolean;
+  lastRun: string | null;
+  nextRun: string | null;
+}
+
+export interface UnasPool {
   name: string;
-  sizeTB: number;
+  type: string;
+  usedTB: number;
+  totalTB: number;
+  status: string;
+  scrub: UnasScrub | null;
+  incompatibilities: string[];
+}
+
+export interface UnasSmartTest {
+  type: string;
+  status: string;
+  result: string;
+  finishedAt: string | null;
+}
+
+export interface UnasDisk {
+  slot: string;
+  model: string;
+  tempC: number;
+  sizeGB: number;
+  smart: 'ok' | 'warn' | 'bad';
+  powerOnHours: number;
+  rpm: number;
+  wear: number;
+  badSectors: number;
+  uncorrectableSectors: number;
+  lastSmartTest: UnasSmartTest | null;
 }
 
 export interface UnasData {
+  name: string;
   model: string;
   tempC: number;
-  fanRpm: number;
-  uptime: string;
-  pools: { name: string; type: string; usedTB: number; totalTB: number; status: string }[];
-  shares: UnasShare[];
+  fanProfile: string;
+  pools: UnasPool[];
+  disks: UnasDisk[];
 }
 
 export interface NetworkData {

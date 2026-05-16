@@ -1,5 +1,4 @@
 interface Props {
-  rows: number;
   cols: number;
   data: number[];
   max?: number;

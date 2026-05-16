@@ -1,6 +1,7 @@
+import type { CSSProperties } from 'react';
 import { Tile } from '../tile/Tile';
 import { AutoChart, Donut } from '../charts';
-import type { ChartKind, CPUData } from '../../types';
+import type { ChartKind, CPUData, Severity } from '../../types';
 import { fmtTemp, useTempUnit } from '../../lib/units';
 
 interface Props {
@@ -15,7 +16,7 @@ interface Props {
 export function CPUTile({ data, span, onExpand, chartKind, onChartKind, expandable }: Props) {
   const { usage, tempC, history, coreList, cores, threads, model } = data;
   const { unit } = useTempUnit();
-  const tempCls = tempC > 75 ? 'bad' : tempC > 65 ? 'warn' : '';
+  const tempKind: Severity = tempC > 75 ? 'bad' : tempC > 65 ? 'warn' : 'ok';
   return (
     <Tile
       title="CPU"
@@ -23,7 +24,7 @@ export function CPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
       span={span}
       onExpand={onExpand}
       expandable={expandable}
-      tag={{ label: fmtTemp(tempC, unit), kind: (tempCls || 'ok') as any }}
+      tag={{ label: fmtTemp(tempC, unit), kind: tempKind }}
       chartKind={chartKind}
       onChartKind={onChartKind}
     >
@@ -45,7 +46,7 @@ export function CPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
             <div
               key={c.id}
               className={`core ${cls}`}
-              style={{ ['--p' as any]: `${c.pct.toFixed(0)}%` }}
+              style={{ '--p': `${c.pct.toFixed(0)}%` } as CSSProperties}
             >
               <span>{c.pct.toFixed(0)}</span>
             </div>

@@ -14,7 +14,6 @@ export { EventsTile } from './EventsTile';
 export { SmartTile } from './SmartTile';
 export { InternetTile } from './InternetTile';
 export { TempHeatTile } from './TempHeatTile';
-export { NodesTile } from './NodesTile';
 export { TopTalkersTile } from './TopTalkersTile';
 export { ALL_TILES, tileData, renderTile } from './registry';
 export type { TileId, TileDef } from './registry';

@@ -42,7 +42,7 @@ export function Sidebar({ route, setRoute, alerts }: Props) {
       </div>
       {items.map((it, i) => {
         if ('sect' in it) return <div key={`s${i}`} className="sb-section">{it.sect}</div>;
-        const showBadge = it.badge != null && it.badge !== '' && it.badge !== 0;
+        const showBadge = Boolean(it.badge);
         return (
           <button
             key={it.id}

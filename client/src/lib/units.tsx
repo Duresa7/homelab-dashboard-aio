@@ -22,34 +22,35 @@ const UnitContext = createContext<Ctx>({
   toggle: () => {},
 });
 
+function readStoredUnit(): TempUnit {
+  if (typeof window === 'undefined') return 'F';
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) === 'C' ? 'C' : 'F';
+  } catch {
+    return 'F';
+  }
+}
+
+function writeStoredUnit(u: TempUnit): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, u);
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
 export function TempUnitProvider({ children }: { children: ReactNode }) {
-  const [unit, setUnitState] = useState<TempUnit>(() => {
-    if (typeof window === 'undefined') return 'F';
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      return raw === 'C' ? 'C' : 'F';
-    } catch {
-      return 'F';
-    }
-  });
+  const [unit, setUnitState] = useState<TempUnit>(readStoredUnit);
 
   const setUnit = useCallback((u: TempUnit) => {
     setUnitState(u);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, u);
-    } catch {
-      // ignore
-    }
+    writeStoredUnit(u);
   }, []);
 
   const toggle = useCallback(() => {
     setUnitState((prev) => {
       const next = prev === 'F' ? 'C' : 'F';
-      try {
-        window.localStorage.setItem(STORAGE_KEY, next);
-      } catch {
-        // ignore
-      }
+      writeStoredUnit(next);
       return next;
     });
   }, []);
@@ -89,9 +90,7 @@ export function fmtTemp(
   opts: { digits?: number; suffix?: boolean; placeholder?: string } = {},
 ): string {
   const { digits = 0, suffix = true, placeholder = '—' } = opts;
-  if (tempC == null || Number.isNaN(tempC)) {
-    return suffix ? `${placeholder}` : placeholder;
-  }
+  if (tempC == null || Number.isNaN(tempC)) return placeholder;
   const v = unit === 'F' ? cToF(tempC) : tempC;
   const num = v.toFixed(digits);
   return suffix ? `${num}°${unit}` : num;

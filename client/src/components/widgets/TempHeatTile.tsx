@@ -62,7 +62,7 @@ export function TempHeatTile({ cpu, gpu, disks, span, onExpand, expandable }: Pr
             >
               {s.name}
             </div>
-            <Heatmap rows={1} cols={cols} data={s.data} max={85} />
+            <Heatmap cols={cols} data={s.data} max={85} />
           </div>
         ))}
       </div>

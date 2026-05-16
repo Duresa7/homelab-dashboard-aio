@@ -52,7 +52,7 @@ const DEFAULTS: TweakState = {
   overviewLayout: [
     'cpu', 'ram', 'gpu', 'unifi', 'proxmox', 'docker', 'storage', 'unas',
     'network', 'fans', 'smart', 'ups', 'backups', 'internet', 'topTalkers',
-    'tempHeat', 'nodes', 'events',
+    'tempHeat', 'events',
   ],
 };
 
@@ -118,12 +118,7 @@ export function App() {
     setChartKinds((prev) => ({ ...prev, [id]: k }));
 
   const visibleAlerts = data.alerts.filter((_, i) => !dismissedAlerts.has(i));
-  const dismiss = (i: number) =>
-    setDismissedAlerts((prev) => {
-      const next = new Set(prev);
-      next.add(i);
-      return next;
-    });
+  const dismiss = (i: number) => setDismissedAlerts((prev) => new Set(prev).add(i));
 
   const tt = TITLE_MAP[route];
 

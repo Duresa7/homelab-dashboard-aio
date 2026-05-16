@@ -1,9 +1,16 @@
+import type { CSSProperties, ReactNode } from 'react';
 import { AreaChart } from '../charts';
 import { Icon } from '../icons/Icon';
 import { ALL_TILES, renderTile, tileData, type TileId } from '../widgets/registry';
 import { CPUTile } from '../widgets/CPUTile';
 import { TempHeatTile } from '../widgets/TempHeatTile';
-import type { ChartKind, DashboardState } from '../../types';
+import type { ChartKind, CPUData, DashboardState, GPUData } from '../../types';
+
+interface TempHeatData {
+  cpu: CPUData;
+  gpu: GPUData;
+  disks: { name: string; tempC: number }[];
+}
 
 interface Props {
   id: TileId | null;
@@ -18,9 +25,9 @@ export function ExpandOverlay({ id, data, chartKind, setChartKind, onClose }: Pr
   const def = ALL_TILES.find((t) => t.id === id);
   const td = tileData(id, data);
 
-  let content: React.ReactNode;
+  let content: ReactNode;
   if (id === 'tempHeat') {
-    const { cpu, gpu, disks } = td as { cpu: any; gpu: any; disks: any };
+    const { cpu, gpu, disks } = td as TempHeatData;
     content = <TempHeatTile cpu={cpu} gpu={gpu} disks={disks} span={12} expandable={false} />;
   } else if (id === 'cpu') {
     content = (
@@ -35,7 +42,7 @@ export function ExpandOverlay({ id, data, chartKind, setChartKind, onClose }: Pr
                 <div
                   key={c.id}
                   className={`core ${cls}`}
-                  style={{ ['--p' as any]: `${c.pct.toFixed(0)}%`, height: 36 }}
+                  style={{ '--p': `${c.pct.toFixed(0)}%`, height: 36 } as CSSProperties}
                 >
                   <span>{c.pct.toFixed(0)}</span>
                 </div>

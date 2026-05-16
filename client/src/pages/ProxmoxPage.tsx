@@ -188,7 +188,6 @@ export function ProxmoxPage({ data }: Props) {
 
   return (
     <div className="grid">
-      {/* ─── Header strip ─────────────────────────────────────────── */}
       <div className="tile span-12">
         <div
           className="metric-row"
@@ -223,7 +222,6 @@ export function ProxmoxPage({ data }: Props) {
         </div>
       </div>
 
-      {/* ─── CPU usage / CPU allocation ───────────────────────────── */}
       <MetricCard
         title="CPU Usage"
         value={n.cpu}
@@ -244,7 +242,6 @@ export function ProxmoxPage({ data }: Props) {
         warn={vCpuAllocPct > 100}
       />
 
-      {/* ─── RAM usage / RAM allocation ───────────────────────────── */}
       <MetricCard
         title="RAM Usage"
         value={n.ram}
@@ -266,7 +263,6 @@ export function ProxmoxPage({ data }: Props) {
         warn={ramAllocPct > 100}
       />
 
-      {/* ─── Storage + GPU row ─────────────────────────────────────── */}
       <div className="tile span-6">
         <div className="t-title">Storage</div>
         <div className="metric-row" style={{ alignItems: 'center', gap: 24 }}>
@@ -290,7 +286,6 @@ export function ProxmoxPage({ data }: Props) {
       </div>
       <GPUTile data={data.gpu} span={6} chartKind="area" expandable={false} />
 
-      {/* ─── Temperatures: System / CPU / GPU ──────────────────────── */}
       <TempCard
         title="System Temp"
         sub={data.sensors.systemTempLabel ?? 'motherboard / chipset'}
@@ -316,7 +311,6 @@ export function ProxmoxPage({ data }: Props) {
         unit={unit}
       />
 
-      {/* ─── Hardware Sensors (drives / memory / network / fans) ──── */}
       {(data.sensors.disks.length > 0 ||
         data.sensors.memory.length > 0 ||
         data.sensors.network.length > 0 ||
@@ -379,7 +373,6 @@ export function ProxmoxPage({ data }: Props) {
         </div>
       )}
 
-      {/* ─── Physical drives inventory ────────────────────────────── */}
       {data.proxmox.disks.length > 0 && (
         <div className="tile span-12">
           <div className="t-title">
@@ -444,7 +437,6 @@ export function ProxmoxPage({ data }: Props) {
         </div>
       )}
 
-      {/* ─── Guests table ─────────────────────────────────────────── */}
       <div className="tile span-12">
         <div className="t-title">VMs &amp; LXCs</div>
         <table className="data-table">

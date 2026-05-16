@@ -1,6 +1,6 @@
 import { Tile } from '../tile/Tile';
 import { AutoChart, Donut } from '../charts';
-import type { ChartKind, RAMData } from '../../types';
+import type { ChartKind, RAMData, Severity } from '../../types';
 
 interface Props {
   data: RAMData;
@@ -14,14 +14,14 @@ interface Props {
 export function RAMTile({ data, span, onExpand, chartKind, onChartKind, expandable }: Props) {
   const { totalGB, usedGB, history, cachedGB } = data;
   const pct = (usedGB / totalGB) * 100;
-  const cls = pct > 90 ? 'bad' : pct > 75 ? 'warn' : '';
+  const kind: Severity = pct > 90 ? 'bad' : pct > 75 ? 'warn' : 'ok';
   return (
     <Tile
       title="Memory"
       span={span}
       onExpand={onExpand}
       expandable={expandable}
-      tag={{ label: `${pct.toFixed(0)}%`, kind: (cls || 'ok') as any }}
+      tag={{ label: `${pct.toFixed(0)}%`, kind }}
       chartKind={chartKind}
       onChartKind={onChartKind}
     >

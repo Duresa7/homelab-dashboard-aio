@@ -1,8 +1,3 @@
-// Floating "Tweaks" panel + form-control primitives + persistent useTweaks hook.
-//
-// useTweaks reads/writes localStorage so user choices survive reloads.
-// The panel is mounted always-open; a small floating toggle button collapses it.
-
 import {
   useCallback,
   useEffect,
@@ -76,7 +71,6 @@ const PANEL_STYLE = `
   [data-theme='dark'] .twk-chip[data-on='1']{box-shadow:0 0 0 1.5px rgba(255,255,255,.85),0 2px 6px rgba(0,0,0,.5)}
 `;
 
-// ─── persistent state hook ──────────────────────────────────────────────────
 const STORAGE_KEY = 'homelab-dashboard.tweaks';
 
 export function useTweaks<T extends object>(defaults: T): [T, <K extends keyof T>(k: K, v: T[K]) => void] {
@@ -96,7 +90,7 @@ export function useTweaks<T extends object>(defaults: T): [T, <K extends keyof T
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       } catch {
-        // localStorage unavailable; fall through
+        /* localStorage unavailable */
       }
       return next;
     });
@@ -105,7 +99,6 @@ export function useTweaks<T extends object>(defaults: T): [T, <K extends keyof T
   return [values, setTweak];
 }
 
-// ─── floating panel ─────────────────────────────────────────────────────────
 interface PanelProps {
   title?: string;
   children: ReactNode;
@@ -176,7 +169,6 @@ export function TweaksPanel({ title = 'Tweaks', children }: PanelProps) {
   );
 }
 
-// ─── controls ───────────────────────────────────────────────────────────────
 export function TweakSection({ label, children }: { label: string; children?: ReactNode }) {
   return (
     <>
@@ -356,7 +348,6 @@ export function TweakColor({
   );
 }
 
-// system-theme effect (used by App)
 export function useSystemTheme(): 'light' | 'dark' {
   const [pref, setPref] = useState<'light' | 'dark'>(() =>
     typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches

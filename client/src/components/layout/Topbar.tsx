@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { Clock } from './Clock';
 import { Icon } from '../icons/Icon';
 import { useTempUnit } from '../../lib/units';
@@ -8,10 +7,9 @@ interface Props {
   subtitle?: string;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
-  extraActions?: ReactNode;
 }
 
-export function Topbar({ title, subtitle, theme, onToggleTheme, extraActions }: Props) {
+export function Topbar({ title, subtitle, theme, onToggleTheme }: Props) {
   const { unit, toggle } = useTempUnit();
   return (
     <div className="topbar">
@@ -42,7 +40,6 @@ export function Topbar({ title, subtitle, theme, onToggleTheme, extraActions }: 
         <button className="icon-btn" onClick={onToggleTheme} title="Toggle theme">
           <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
         </button>
-        {extraActions}
       </div>
     </div>
   );

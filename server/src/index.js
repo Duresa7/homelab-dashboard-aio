@@ -2,11 +2,17 @@ import 'dotenv/config';
 import express from 'express';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { Agent, fetch as undiciFetch } from 'undici';
 
 const execFileP = promisify(execFile);
 
-// UniFi controllers use self-signed certs; disable TLS verification for proxy requests
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// Homelab gear (UniFi, Proxmox, Portainer) typically uses self-signed certs.
+// This dispatcher skips TLS verification for those specific fetches only —
+// other outbound HTTPS calls from this process keep verifying normally.
+// We use undici's fetch directly so the Agent matches its dispatcher type.
+const insecureDispatcher = new Agent({ connect: { rejectUnauthorized: false } });
+const insecureFetch = (url, opts = {}) =>
+  undiciFetch(url, { ...opts, dispatcher: insecureDispatcher });
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -16,6 +22,11 @@ function isEnabled(value, defaultEnabled = true) {
   return !['false', '0', 'no', 'off', 'disabled'].includes(String(value).trim().toLowerCase());
 }
 
+function trimBaseUrl(url) {
+  return String(url || '').replace(/\/+$/, '');
+}
+
+// ─── UniFi config ─────────────────────────────────────────────
 const UNIFI_ENABLED = isEnabled(process.env.UNIFI_ENABLED);
 const BASE_URL = process.env.UNIFI_BASE_URL;
 if (UNIFI_ENABLED && !BASE_URL) {
@@ -26,15 +37,32 @@ const API_KEY = process.env.UNIFI_API_KEY || '';
 const SITE = process.env.UNIFI_SITE || 'default';
 const CACHE_TTL = Number(process.env.UNIFI_POLL_INTERVAL) || 10000;
 
-let cache = { data: null, ts: 0 };
+// ─── Portainer config ─────────────────────────────────────────
+const PORTAINER_ENABLED = isEnabled(process.env.PORTAINER_ENABLED, false);
+const PORTAINER_BASE_URL = trimBaseUrl(process.env.PORTAINER_BASE_URL);
+const PORTAINER_API_KEY = process.env.PORTAINER_API_KEY || process.env.PORTAINER_TOKEN || '';
+const PORTAINER_CACHE_TTL = Number(process.env.PORTAINER_POLL_INTERVAL) || 10000;
+const PORTAINER_STATS_ENABLED = isEnabled(process.env.PORTAINER_STATS_ENABLED, true);
 
-function trimBaseUrl(url) {
-  return String(url || '').replace(/\/+$/, '');
-}
+// ─── Proxmox config ───────────────────────────────────────────
+const PROXMOX_ENABLED = isEnabled(process.env.PROXMOX_ENABLED);
+const PVE_BASE_URL = process.env.PROXMOX_BASE_URL;
+const PVE_TOKEN_ID = process.env.PROXMOX_TOKEN_ID;
+const PVE_TOKEN_SECRET = process.env.PROXMOX_TOKEN_SECRET;
+const PVE_NODE_HINT = process.env.PROXMOX_NODE || '';
+const PVE_CACHE_TTL = Number(process.env.PROXMOX_POLL_INTERVAL) || 5000;
+
+// ─── UNAS Pro config ──────────────────────────────────────────
+const UNAS_ENABLED = isEnabled(process.env.UNAS_ENABLED, false);
+const UNAS_BASE_URL = trimBaseUrl(process.env.UNAS_BASE_URL);
+const UNAS_API_KEY = process.env.UNAS_API_KEY || '';
+const UNAS_CACHE_TTL = Number(process.env.UNAS_POLL_INTERVAL) || 30000;
+
+let cache = { data: null, ts: 0 };
 
 async function uniFetch(path) {
   const url = `${BASE_URL}${path}`;
-  const res = await fetch(url, {
+  const res = await insecureFetch(url, {
     headers: {
       'X-API-Key': API_KEY,
       'Accept': 'application/json',
@@ -177,14 +205,15 @@ async function fetchUnifiData() {
   const aps = classified.filter(d => d._role === 'ap');
 
   const clientsByDeviceId = {};
-  const wirelessCount = clients.filter(c => c.type === 'WIRELESS').length;
-  const wiredCount = clients.filter(c => c.type === 'WIRED').length;
-  const vpnCount = clients.filter(c => c.type === 'VPN' || c.type === 'TELEPORT').length;
-
+  let wirelessCount = 0;
+  let wiredCount = 0;
+  let vpnCount = 0;
   for (const c of clients) {
-    const devId = c.uplinkDeviceId;
-    if (devId) {
-      clientsByDeviceId[devId] = (clientsByDeviceId[devId] || 0) + 1;
+    if (c.type === 'WIRELESS') wirelessCount++;
+    else if (c.type === 'WIRED') wiredCount++;
+    else if (c.type === 'VPN' || c.type === 'TELEPORT') vpnCount++;
+    if (c.uplinkDeviceId) {
+      clientsByDeviceId[c.uplinkDeviceId] = (clientsByDeviceId[c.uplinkDeviceId] || 0) + 1;
     }
   }
 
@@ -340,18 +369,16 @@ app.get('/api/health', (_req, res) => {
       enabled: PROXMOX_ENABLED,
       configured: !!(PVE_BASE_URL && PVE_TOKEN_ID && PVE_TOKEN_SECRET),
     },
+    unas: {
+      enabled: UNAS_ENABLED,
+      configured: !!(UNAS_BASE_URL && UNAS_API_KEY),
+    },
   });
 });
 
 // ---------------------------------------------------------------------------
 // Docker via Portainer
 // ---------------------------------------------------------------------------
-
-const PORTAINER_ENABLED = isEnabled(process.env.PORTAINER_ENABLED, false);
-const PORTAINER_BASE_URL = trimBaseUrl(process.env.PORTAINER_BASE_URL);
-const PORTAINER_API_KEY = process.env.PORTAINER_API_KEY || process.env.PORTAINER_TOKEN || '';
-const PORTAINER_CACHE_TTL = Number(process.env.PORTAINER_POLL_INTERVAL) || 10000;
-const PORTAINER_STATS_ENABLED = isEnabled(process.env.PORTAINER_STATS_ENABLED, true);
 
 let portainerCache = { data: null, ts: 0 };
 let portainerLastError = null;
@@ -360,7 +387,7 @@ async function portainerFetch(path, { timeoutMs = 10000 } = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${PORTAINER_BASE_URL}${path}`, {
+    const res = await insecureFetch(`${PORTAINER_BASE_URL}${path}`, {
       headers: {
         'X-API-Key': PORTAINER_API_KEY,
         Accept: 'application/json',
@@ -591,18 +618,11 @@ app.get('/api/docker/debug', async (_req, res) => {
 // Proxmox VE
 // ---------------------------------------------------------------------------
 
-const PROXMOX_ENABLED = isEnabled(process.env.PROXMOX_ENABLED);
-const PVE_BASE_URL = process.env.PROXMOX_BASE_URL;
-const PVE_TOKEN_ID = process.env.PROXMOX_TOKEN_ID;
-const PVE_TOKEN_SECRET = process.env.PROXMOX_TOKEN_SECRET;
-const PVE_NODE_HINT = process.env.PROXMOX_NODE || '';
-const PVE_CACHE_TTL = Number(process.env.PROXMOX_POLL_INTERVAL) || 5000;
-
 let pveCache = { data: null, ts: 0 };
 
 async function pveFetch(path) {
   const url = `${PVE_BASE_URL}${path}`;
-  const res = await fetch(url, {
+  const res = await insecureFetch(url, {
     headers: {
       Authorization: `PVEAPIToken=${PVE_TOKEN_ID}=${PVE_TOKEN_SECRET}`,
       Accept: 'application/json',
@@ -651,14 +671,14 @@ function pickNodeIp(networks) {
 async function getQemuIp(node, vmid) {
   // Requires qemu-guest-agent installed AND running inside the VM.
   const data = await safePveFetch(
-    `/api2/json/nodes/${node}/qemu/${vmid}/agent/network-get-interfaces`
+    `/api2/json/nodes/${node}/qemu/${vmid}/agent/network-get-interfaces`,
   );
   if (!data?.result) return null;
   for (const iface of data.result) {
     if (iface.name === 'lo') continue;
     const addrs = iface['ip-addresses'] || [];
     const v4 = addrs.find(
-      (a) => a['ip-address-type'] === 'ipv4' && !a['ip-address'].startsWith('127.')
+      (a) => a['ip-address-type'] === 'ipv4' && !a['ip-address'].startsWith('127.'),
     );
     if (v4) return v4['ip-address'];
   }
@@ -717,6 +737,8 @@ async function fetchProxmoxData() {
   const ramAllocatedBytes = runningVms.reduce((sum, v) => sum + (v.maxmem || 0), 0);
 
   // Resolve runtime IPs for running guests in parallel.
+  // LXC IPs come from /interfaces or static config. QEMU IPs require
+  // qemu-guest-agent in the VM; VMs without it just return null.
   const vmIps = {};
   await Promise.all(
     runningVms.map(async (v) => {
@@ -727,7 +749,7 @@ async function fetchProxmoxData() {
             : await getQemuIp(v.node, v.vmid);
         if (ip) vmIps[v.vmid] = ip;
       } catch { /* ignore */ }
-    })
+    }),
   );
 
   // Storage: dedupe by `storage` name; sum the unique pools so a shared pool isn't double-counted.
@@ -922,27 +944,36 @@ const NVIDIA_SMI_FIELDS = [
 let gpuCache = { data: null, ts: 0 };
 let gpuLastError = null;
 
-async function runNvidiaSmi() {
-  const queryArg = `--query-gpu=${NVIDIA_SMI_FIELDS}`;
-  const formatArg = '--format=csv,noheader,nounits';
-
-  if (GPU_MODE === 'local') {
-    const { stdout } = await execFileP('nvidia-smi', [queryArg, formatArg], { timeout: 8000 });
+async function runRemote({ mode, host, user, port, keyPath, localCmd, localArgs, remoteCmd, timeoutMs = 8000 }) {
+  if (mode === 'local') {
+    const { stdout } = await execFileP(localCmd, localArgs, { timeout: timeoutMs });
     return stdout;
   }
-
-  // SSH mode (default)
   const sshArgs = [
     '-o', 'BatchMode=yes',
     '-o', 'StrictHostKeyChecking=accept-new',
     '-o', 'ConnectTimeout=5',
-    '-p', String(GPU_SSH_PORT),
+    '-p', String(port),
   ];
-  if (GPU_SSH_KEY_PATH) sshArgs.push('-i', GPU_SSH_KEY_PATH);
-  sshArgs.push(`${GPU_SSH_USER}@${GPU_SSH_HOST}`, `nvidia-smi ${queryArg} ${formatArg}`);
-
-  const { stdout } = await execFileP('ssh', sshArgs, { timeout: 8000 });
+  if (keyPath) sshArgs.push('-i', keyPath);
+  sshArgs.push(`${user}@${host}`, remoteCmd);
+  const { stdout } = await execFileP('ssh', sshArgs, { timeout: timeoutMs });
   return stdout;
+}
+
+function runNvidiaSmi() {
+  const queryArg = `--query-gpu=${NVIDIA_SMI_FIELDS}`;
+  const formatArg = '--format=csv,noheader,nounits';
+  return runRemote({
+    mode: GPU_MODE,
+    host: GPU_SSH_HOST,
+    user: GPU_SSH_USER,
+    port: GPU_SSH_PORT,
+    keyPath: GPU_SSH_KEY_PATH,
+    localCmd: 'nvidia-smi',
+    localArgs: [queryArg, formatArg],
+    remoteCmd: `nvidia-smi ${queryArg} ${formatArg}`,
+  });
 }
 
 function parseNvidiaSmiCsv(output) {
@@ -1046,39 +1077,26 @@ const SENSORS_CACHE_TTL = Number(process.env.SENSORS_POLL_INTERVAL) || 5000;
 let sensorsCache = { data: null, ts: 0 };
 let sensorsLastError = null;
 
-async function runSensors() {
-  if (SENSORS_MODE === 'local') {
-    const { stdout } = await execFileP('sensors', ['-j'], { timeout: 8000 });
-    return stdout;
-  }
-  const sshArgs = [
-    '-o', 'BatchMode=yes',
-    '-o', 'StrictHostKeyChecking=accept-new',
-    '-o', 'ConnectTimeout=5',
-    '-p', String(SENSORS_SSH_PORT),
-  ];
-  if (SENSORS_SSH_KEY_PATH) sshArgs.push('-i', SENSORS_SSH_KEY_PATH);
-  sshArgs.push(`${SENSORS_SSH_USER}@${SENSORS_SSH_HOST}`, 'sensors -j');
-  const { stdout } = await execFileP('ssh', sshArgs, { timeout: 8000 });
-  return stdout;
+function runSensorsRemote(localCmd, localArgs, remoteCmd) {
+  return runRemote({
+    mode: SENSORS_MODE,
+    host: SENSORS_SSH_HOST,
+    user: SENSORS_SSH_USER,
+    port: SENSORS_SSH_PORT,
+    keyPath: SENSORS_SSH_KEY_PATH,
+    localCmd,
+    localArgs,
+    remoteCmd,
+  });
 }
 
-async function runLsblk() {
-  const args = ['-J', '-o', 'NAME,PATH,MODEL,VENDOR,SERIAL,TRAN,TYPE'];
-  if (SENSORS_MODE === 'local') {
-    const { stdout } = await execFileP('lsblk', args, { timeout: 8000 });
-    return stdout;
-  }
-  const sshArgs = [
-    '-o', 'BatchMode=yes',
-    '-o', 'StrictHostKeyChecking=accept-new',
-    '-o', 'ConnectTimeout=5',
-    '-p', String(SENSORS_SSH_PORT),
-  ];
-  if (SENSORS_SSH_KEY_PATH) sshArgs.push('-i', SENSORS_SSH_KEY_PATH);
-  sshArgs.push(`${SENSORS_SSH_USER}@${SENSORS_SSH_HOST}`, 'lsblk -J -o NAME,PATH,MODEL,VENDOR,SERIAL,TRAN,TYPE');
-  const { stdout } = await execFileP('ssh', sshArgs, { timeout: 8000 });
-  return stdout;
+function runSensors() {
+  return runSensorsRemote('sensors', ['-j'], 'sensors -j');
+}
+
+function runLsblk() {
+  const cols = 'NAME,PATH,MODEL,VENDOR,SERIAL,TRAN,TYPE';
+  return runSensorsRemote('lsblk', ['-J', '-o', cols], `lsblk -J -o ${cols}`);
 }
 
 function cleanDiskPart(value) {
@@ -1363,6 +1381,201 @@ app.get('/api/sensors/debug', async (_req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// UniFi UNAS Pro (undocumented local Drive API)
+// ---------------------------------------------------------------------------
+
+let unasCache = { data: null, ts: 0 };
+let unasLastError = null;
+
+async function unasFetch(path) {
+  const res = await insecureFetch(`${UNAS_BASE_URL}${path}`, {
+    headers: { 'X-API-Key': UNAS_API_KEY, Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`UNAS API ${res.status} ${res.statusText} — ${path} — ${body.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+async function safeUnasFetch(path, fallback = null) {
+  try {
+    return await unasFetch(path);
+  } catch (err) {
+    console.warn(`UNAS: ${path} failed → ${err.message}`);
+    return fallback;
+  }
+}
+
+function formatRaidLevel(preferLevel) {
+  if (!preferLevel) return 'JBOD';
+  const m = String(preferLevel).match(/^raid(\d+)$/i);
+  return m ? `RAID ${m[1]}` : String(preferLevel).toUpperCase();
+}
+
+function poolStatus(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'fullyoperational' || s === 'optimal') return 'online';
+  if (s.includes('degrade') || s.includes('rebuild') || s.includes('resync')) return 'degraded';
+  return 'offline';
+}
+
+const UNAS_MODEL_NAMES = {
+  UNAS2B: 'UNAS 2',
+  UNAS2: 'UNAS 2',
+  UNASPRO: 'UNAS Pro',
+  'UNAS-PRO': 'UNAS Pro',
+};
+
+function unasModelLabel(hardwareShort) {
+  const code = String(hardwareShort || '').toUpperCase();
+  if (!code) return 'UNAS';
+  if (UNAS_MODEL_NAMES[code]) return UNAS_MODEL_NAMES[code];
+  // Generic fallback for future models — e.g. "UNAS3B" → "UNAS 3B".
+  return code.replace(/^UNAS[-_ ]?/, 'UNAS ').replace(/\s+/g, ' ').trim() || 'UNAS';
+}
+
+function diskSmart(disk) {
+  const state = String(disk.state || '').toLowerCase();
+  const risks = Array.isArray(disk.riskReasons) ? disk.riskReasons.length : 0;
+  const badSectors = (Number(disk.badSectorCount) || 0) + (Number(disk.uncorrectableSectorCount) || 0);
+  if (state !== 'optimal' || badSectors > 50) return 'bad';
+  if (risks > 0 || badSectors > 0) return 'warn';
+  return 'ok';
+}
+
+const INCOMPAT_LABELS = {
+  DISK_INCOMPATIBLE_REASON_SMALLER_SIZE: 'smaller capacity',
+  DISK_INCOMPATIBLE_REASON_LARGER_SIZE: 'larger than usable',
+  DISK_INCOMPATIBLE_REASON_LOWER_RPM: 'slower RPM',
+  DISK_INCOMPATIBLE_REASON_HIGHER_RPM: 'faster RPM',
+  DISK_INCOMPATIBLE_REASON_DIFFERENT_MODEL: 'different model',
+  DISK_INCOMPATIBLE_REASON_DIFFERENT_TYPE: 'different type',
+};
+
+function formatIncompatibility(code) {
+  if (INCOMPAT_LABELS[code]) return INCOMPAT_LABELS[code];
+  return String(code).replace(/^DISK_INCOMPATIBLE_REASON_/, '').toLowerCase().replace(/_/g, ' ');
+}
+
+const TB = 1024 ** 4;
+const GB = 1024 ** 3;
+// Rough heuristic: treat 10 years of power-on hours as 100% "life used".
+// HDDs don't expose true wear leveling; this gives the dashboard a usable
+// 0-100 number that doesn't pretend to be more precise than it is.
+const HDD_LIFE_HOURS = 87600;
+
+async function fetchUnasData() {
+  const now = Date.now();
+  if (unasCache.data && now - unasCache.ts < UNAS_CACHE_TTL) return unasCache.data;
+
+  const [storage, fanCtl, system] = await Promise.all([
+    unasFetch('/proxy/drive/api/v2/storage'),
+    safeUnasFetch('/proxy/drive/api/v2/systems/fan-control', null),
+    safeUnasFetch('/api/system', null),
+  ]);
+
+  const rawPools = Array.isArray(storage?.pools) ? storage.pools : [];
+  const rawDisks = Array.isArray(storage?.disks) ? storage.disks : [];
+
+  const pools = rawPools.map((p) => {
+    const incompatSet = new Set();
+    for (const d of rawDisks) {
+      if (d.poolId !== p.id) continue;
+      for (const code of d.incompatibleReasons || []) incompatSet.add(code);
+    }
+    const scrub = p.dataScrubbing
+      ? {
+        status: p.dataScrubbing.status || 'unknown',
+        scheduleEnabled: !!p.dataScrubbing.schedule?.enabled,
+        lastRun: p.dataScrubbing.lastTaskRun || null,
+        nextRun: p.dataScrubbing.nextRun || null,
+      }
+      : null;
+    return {
+      name: `Pool ${p.number ?? ''}`.trim() || 'Pool',
+      type: formatRaidLevel(p.preferLevel),
+      usedTB: (p.usage || 0) / TB,
+      totalTB: (p.capacity || 0) / TB,
+      status: poolStatus(p.status),
+      scrub,
+      incompatibilities: [...incompatSet].map(formatIncompatibility),
+    };
+  });
+
+  const disks = rawDisks.map((d) => ({
+    slot: String(d.slotId ?? '?'),
+    model: String(d.model || 'unknown').trim(),
+    tempC: Number(d.temperature) || 0,
+    sizeGB: Math.round((Number(d.size) || 0) / GB),
+    smart: diskSmart(d),
+    powerOnHours: Number(d.powerOnHours) || 0,
+    rpm: Number(d.rpm) || 0,
+    wear: Math.min(100, Math.round(((Number(d.powerOnHours) || 0) / HDD_LIFE_HOURS) * 100)),
+    badSectors: Number(d.badSectorCount) || 0,
+    uncorrectableSectors: Number(d.uncorrectableSectorCount) || 0,
+    lastSmartTest: d.smartTest
+      ? {
+        type: d.smartTest.type || 'unknown',
+        status: d.smartTest.status || 'unknown',
+        result: d.smartTest.result || 'unknown',
+        finishedAt: d.smartTest.finishedAt || null,
+      }
+      : null,
+  }));
+
+  const maxDiskTemp = disks.reduce((m, d) => Math.max(m, d.tempC), 0);
+
+  const modelLabel = unasModelLabel(system?.hardware?.shortname);
+
+  const result = {
+    unas: {
+      name: system?.name || 'UNAS',
+      model: modelLabel,
+      tempC: maxDiskTemp,
+      fanProfile: fanCtl?.currentProfile || '—',
+      pools,
+      disks,
+    },
+  };
+
+  unasCache = { data: result, ts: now };
+  unasLastError = null;
+  return result;
+}
+
+app.get('/api/unas', async (_req, res) => {
+  if (!UNAS_ENABLED) return res.json({ disabled: true });
+  if (!UNAS_BASE_URL || !UNAS_API_KEY) {
+    return res.status(503).json({
+      error: 'UNAS not configured. Set UNAS_BASE_URL and UNAS_API_KEY in .env',
+    });
+  }
+  try {
+    res.json(await fetchUnasData());
+  } catch (err) {
+    unasLastError = err.message;
+    console.error('UNAS API error:', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.get('/api/unas/debug', async (_req, res) => {
+  if (!UNAS_ENABLED) return res.json({ disabled: true });
+  res.json({
+    config: { baseUrl: UNAS_BASE_URL || null, hasKey: !!UNAS_API_KEY },
+    cache: unasCache.data
+      ? {
+        ageMs: Date.now() - unasCache.ts,
+        pools: unasCache.data.unas.pools.length,
+        disks: unasCache.data.unas.disks.length,
+      }
+      : null,
+    lastError: unasLastError,
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Dashboard proxy listening on http://localhost:${PORT}`);
   if (UNIFI_ENABLED) {
@@ -1382,6 +1595,12 @@ app.listen(PORT, () => {
     console.log(`Portainer: ${portainerOk ? `enabled — ${PORTAINER_BASE_URL}` : 'enabled but NOT configured — set PORTAINER_* in .env'}`);
   } else {
     console.log('Portainer: DISABLED (set PORTAINER_ENABLED=true in .env to enable)');
+  }
+  if (UNAS_ENABLED) {
+    const unasOk = !!(UNAS_BASE_URL && UNAS_API_KEY);
+    console.log(`UNAS: ${unasOk ? `enabled — ${UNAS_BASE_URL}` : 'enabled but NOT configured — set UNAS_* in .env'}`);
+  } else {
+    console.log('UNAS: DISABLED (set UNAS_ENABLED=true in .env to enable)');
   }
   if (GPU_ENABLED) {
     if (GPU_MODE === 'local') {

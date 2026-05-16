@@ -15,13 +15,12 @@ import { UPSTile } from './UPSTile';
 import { InternetTile } from './InternetTile';
 import { TopTalkersTile } from './TopTalkersTile';
 import { TempHeatTile } from './TempHeatTile';
-import { NodesTile } from './NodesTile';
 import { EventsTile } from './EventsTile';
 
 export type TileId =
   | 'cpu' | 'ram' | 'gpu' | 'storage' | 'network' | 'unifi' | 'docker'
   | 'proxmox' | 'unas' | 'fans' | 'smart' | 'backups' | 'ups' | 'internet'
-  | 'topTalkers' | 'tempHeat' | 'nodes' | 'events';
+  | 'topTalkers' | 'tempHeat' | 'events';
 
 export interface TileDef {
   id: TileId;
@@ -46,7 +45,6 @@ export const ALL_TILES: TileDef[] = [
   { id: 'internet', label: 'Internet', span: 4 },
   { id: 'topTalkers', label: 'Connected Clients', span: 4 },
   { id: 'tempHeat', label: 'Temp Heatmap', span: 6 },
-  { id: 'nodes', label: 'Nodes', span: 6 },
   { id: 'events', label: 'Events', span: 6 },
 ];
 
@@ -72,7 +70,6 @@ export function tileData(id: TileId, d: DashboardState): unknown {
       gpu: d.gpu,
       disks: d.sensors.disks.length ? d.sensors.disks : d.storage.disks,
     };
-    case 'nodes': return null;
     case 'events': return d.events;
   }
 }
@@ -122,8 +119,6 @@ export function renderTile({ id, span, data, chartKind, onChartKind, onExpand, e
       return <TopTalkersTile {...common} data={data} />;
     case 'tempHeat':
       return <TempHeatTile {...common} cpu={data.cpu} gpu={data.gpu} disks={data.disks} />;
-    case 'nodes':
-      return <NodesTile {...common} />;
     case 'events':
       return <EventsTile {...common} data={data} />;
   }
