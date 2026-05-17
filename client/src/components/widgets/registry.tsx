@@ -17,11 +17,12 @@ import { InternetTile } from './InternetTile';
 import { TopTalkersTile } from './TopTalkersTile';
 import { TempHeatTile } from './TempHeatTile';
 import { EventsTile } from './EventsTile';
+import { BookmarksTile } from './BookmarksTile';
 
 export type TileId =
   | 'cpu' | 'ram' | 'gpu' | 'storage' | 'network' | 'unifi' | 'docker'
   | 'proxmox' | 'unas' | 'protect' | 'fans' | 'smart' | 'backups' | 'ups'
-  | 'internet' | 'topTalkers' | 'tempHeat' | 'events';
+  | 'internet' | 'topTalkers' | 'tempHeat' | 'events' | 'bookmarks';
 
 export interface TileDef {
   id: TileId;
@@ -30,6 +31,7 @@ export interface TileDef {
 }
 
 export const ALL_TILES: TileDef[] = [
+  { id: 'bookmarks', label: 'Apps', span: 12 },
   { id: 'cpu', label: 'CPU', span: 6 },
   { id: 'ram', label: 'Memory', span: 3 },
   { id: 'gpu', label: 'GPU', span: 3 },
@@ -52,6 +54,7 @@ export const ALL_TILES: TileDef[] = [
 
 export function tileData(id: TileId, d: DashboardState): unknown {
   switch (id) {
+    case 'bookmarks': return null;
     case 'cpu': return d.cpu;
     case 'ram': return d.ram;
     case 'gpu': return d.gpu;
@@ -90,6 +93,8 @@ interface RenderProps {
 export function renderTile({ id, span, data, chartKind, onChartKind, onExpand, expandable }: RenderProps) {
   const common = { span, onExpand, expandable };
   switch (id) {
+    case 'bookmarks':
+      return <BookmarksTile {...common} />;
     case 'cpu':
       return <CPUTile {...common} data={data} chartKind={chartKind} onChartKind={onChartKind} />;
     case 'ram':

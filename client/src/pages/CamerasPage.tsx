@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CameraSnapshot } from '../components/widgets/CameraSnapshot';
 import { CameraLiveStream } from '../components/widgets/CameraLiveStream';
+import { CameraFullscreen, type CameraViewMode } from '../components/widgets/CameraFullscreen';
 import type {
   DashboardState,
   ProtectArmStatus,
@@ -12,6 +13,34 @@ import type {
 interface Props {
   data: DashboardState;
   sub: string;
+}
+
+// A click hint that overlays any camera tile and triggers the fullscreen
+// modal. Keeps the leaf snapshot/live components unaware of the page-level
+// expansion state.
+function ClickableTile({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{ position: 'relative', cursor: 'zoom-in' }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 function armSeverity(status: ProtectArmStatus): Severity {
@@ -126,7 +155,9 @@ function FeaturesCard({ data }: { data: DashboardState }) {
   );
 }
 
-function Overview({ data }: { data: DashboardState }) {
+type OpenFn = (camera: ProtectCamera, mode: CameraViewMode) => void;
+
+function Overview({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
   const { protect } = data;
   const preview = useMemo(
     () =>
@@ -167,7 +198,9 @@ function Overview({ data }: { data: DashboardState }) {
           }}
         >
           {preview.map((cam) => (
-            <CameraSnapshot key={cam.id} camera={cam} intervalMs={5000} />
+            <ClickableTile key={cam.id} onClick={() => onOpen(cam, 'snapshot')}>
+              <CameraSnapshot camera={cam} intervalMs={5000} />
+            </ClickableTile>
           ))}
         </div>
       </div>
@@ -177,7 +210,7 @@ function Overview({ data }: { data: DashboardState }) {
 
 type StreamQuality = 'high' | 'medium' | 'low';
 
-function Grid({ data }: { data: DashboardState }) {
+function Grid({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
   const cams = data.protect.cameras;
   const [mode, setMode] = useState<'live' | 'snapshot'>('snapshot');
   const [quality, setQuality] = useState<StreamQuality>('medium');
@@ -261,13 +294,15 @@ function Grid({ data }: { data: DashboardState }) {
             paddingTop: 8,
           }}
         >
-          {cams.map((cam) =>
-            mode === 'live' ? (
-              <CameraLiveStream key={cam.id} camera={cam} quality={quality} />
-            ) : (
-              <CameraSnapshot key={cam.id} camera={cam} highQuality={hq} intervalMs={interval} />
-            ),
-          )}
+          {cams.map((cam) => (
+            <ClickableTile key={cam.id} onClick={() => onOpen(cam, mode)}>
+              {mode === 'live' ? (
+                <CameraLiveStream camera={cam} quality={quality} />
+              ) : (
+                <CameraSnapshot camera={cam} highQuality={hq} intervalMs={interval} />
+              )}
+            </ClickableTile>
+          ))}
         </div>
       </div>
     </div>
@@ -453,7 +488,7 @@ function modelLabel(c: ProtectCamera) {
   return c.modelKey || '—';
 }
 
-function Devices({ data }: { data: DashboardState }) {
+function Devices({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
   const cams = data.protect.cameras;
   if (cams.length === 0) {
     return (
@@ -480,6 +515,7 @@ function Devices({ data }: { data: DashboardState }) {
               <th>Mic</th>
               <th>Speaker</th>
               <th>Smart detect</th>
+              <th>View</th>
             </tr>
           </thead>
           <tbody>
@@ -502,6 +538,30 @@ function Devices({ data }: { data: DashboardState }) {
                   <td>{c.hasMic ? (c.isMicEnabled ? `${c.micVolume}%` : 'muted') : '—'}</td>
                   <td>{c.hasSpeaker ? 'yes' : '—'}</td>
                   <td>{c.enabledObjectTypes.length ? c.enabledObjectTypes.join(', ') : '—'}</td>
+                  <td>
+                    {ok ? (
+                      <div className="row" style={{ gap: 6 }}>
+                        <button
+                          className="icon-btn"
+                          onClick={() => onOpen(c, 'snapshot')}
+                          title="View snapshot"
+                          style={{ padding: '2px 8px', height: 24 }}
+                        >
+                          Snapshot
+                        </button>
+                        <button
+                          className="icon-btn"
+                          onClick={() => onOpen(c, 'live')}
+                          title="View live"
+                          style={{ padding: '2px 8px', height: 24 }}
+                        >
+                          Live
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="t-sub">—</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -512,9 +572,33 @@ function Devices({ data }: { data: DashboardState }) {
   );
 }
 
+interface Expansion {
+  camera: ProtectCamera;
+  mode: CameraViewMode;
+}
+
 export function CamerasPage({ data, sub }: Props) {
-  if (sub === 'grid')    return <Grid    data={data} />;
-  if (sub === 'devices') return <Devices data={data} />;
-  if (sub === 'events')  return <Events  data={data} />;
-  return <Overview data={data} />;
+  const [expanded, setExpanded] = useState<Expansion | null>(null);
+
+  const open = (camera: ProtectCamera, mode: CameraViewMode) =>
+    setExpanded({ camera, mode });
+
+  let body;
+  if (sub === 'grid')         body = <Grid    data={data} onOpen={open} />;
+  else if (sub === 'devices') body = <Devices data={data} onOpen={open} />;
+  else if (sub === 'events')  body = <Events  data={data} />;
+  else                        body = <Overview data={data} onOpen={open} />;
+
+  return (
+    <>
+      {body}
+      {expanded ? (
+        <CameraFullscreen
+          camera={expanded.camera}
+          initialMode={expanded.mode}
+          onClose={() => setExpanded(null)}
+        />
+      ) : null}
+    </>
+  );
 }

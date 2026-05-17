@@ -18,5 +18,7 @@ export { TopTalkersTile } from './TopTalkersTile';
 export { ProtectTile } from './ProtectTile';
 export { CameraSnapshot } from './CameraSnapshot';
 export { CameraLiveStream } from './CameraLiveStream';
+export { CameraFullscreen } from './CameraFullscreen';
+export { BookmarksTile } from './BookmarksTile';
 export { ALL_TILES, tileData, renderTile } from './registry';
 export type { TileId, TileDef } from './registry';

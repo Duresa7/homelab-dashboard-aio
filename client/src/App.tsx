@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
@@ -14,8 +14,9 @@ import { NasPage } from './pages/NasPage';
 import { CamerasPage } from './pages/CamerasPage';
 import { EventsPage } from './pages/EventsPage';
 import { AlertsPage } from './pages/AlertsPage';
+import { SettingsPage } from './pages/SettingsPage';
 
-import { useDashData } from './lib/telemetry';
+import { INTEGRATION_KEYS, setIntegrationEnabled, useDashData, type IntegrationKey } from './lib/telemetry';
 import {
   TweakRadio,
   TweakSection,
@@ -44,6 +45,7 @@ interface TweakState {
   density: Density;
   showAlerts: boolean;
   overviewLayout: TileId[];
+  integrations: Record<IntegrationKey, boolean>;
 }
 
 const DEFAULTS: TweakState = {
@@ -51,10 +53,20 @@ const DEFAULTS: TweakState = {
   density: 'regular',
   showAlerts: true,
   overviewLayout: [
+    'bookmarks',
     'cpu', 'ram', 'gpu', 'unifi', 'proxmox', 'docker', 'storage', 'unas',
     'protect', 'network', 'fans', 'smart', 'ups', 'backups', 'internet',
     'topTalkers', 'tempHeat', 'events',
   ],
+  integrations: {
+    unifi:   true,
+    proxmox: true,
+    docker:  true,
+    gpu:     true,
+    sensors: true,
+    unas:    true,
+    protect: true,
+  },
 };
 
 export function App() {
@@ -64,6 +76,10 @@ export function App() {
   const [chartKinds, setChartKinds] = useState<Partial<Record<TileId, ChartKind>>>({});
   const [expanded, setExpanded] = useState<TileId | null>(null);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<number>>(new Set());
+  const integrations = useMemo(
+    () => ({ ...DEFAULTS.integrations, ...t.integrations }),
+    [t.integrations],
+  );
 
   const sysTheme = useSystemTheme();
   const theme: 'light' | 'dark' = t.theme === 'system' ? sysTheme : t.theme;
@@ -75,12 +91,29 @@ export function App() {
   }, [theme, t.density]);
 
   useEffect(() => {
+    const present = new Set(t.overviewLayout);
+    const missing = ALL_TILES.filter((tile) => !present.has(tile.id)).map((tile) => tile.id);
+    if (missing.length > 0) {
+      setTweak('overviewLayout', [...missing, ...t.overviewLayout]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setExpanded(null);
     };
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
   }, []);
+
+  // Reflect the user-controlled integration toggles into telemetry. Disabling
+  // an integration stops its poller immediately and blanks its slice of state.
+  useEffect(() => {
+    for (const key of INTEGRATION_KEYS) {
+      setIntegrationEnabled(key, !!integrations[key]);
+    }
+  }, [integrations]);
 
   const setRoute = (section: Section, sub?: string) => {
     const resolved: Route = { section, sub: resolveSub(section, sub ?? DEFAULT_SUB[section]) };
@@ -130,6 +163,12 @@ export function App() {
         {route.section === 'cameras' && <CamerasPage data={data} sub={activeSub ?? 'overview'} />}
         {route.section === 'events'  && <EventsPage  data={data} />}
         {route.section === 'alerts'  && <AlertsPage  alerts={visibleAlerts} onDismiss={dismiss} />}
+        {route.section === 'settings' && (
+          <SettingsPage
+            integrations={integrations}
+            onChange={(next) => setTweak('integrations', next)}
+          />
+        )}
       </main>
 
       <ExpandOverlay

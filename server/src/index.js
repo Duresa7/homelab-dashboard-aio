@@ -382,7 +382,7 @@ app.get('/api/unifi', async (_req, res) => {
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
-    unifi: { enabled: UNIFI_ENABLED, hasKey: !!API_KEY },
+    unifi: { enabled: UNIFI_ENABLED, configured: !!API_KEY, hasKey: !!API_KEY },
     portainer: {
       enabled: PORTAINER_ENABLED,
       configured: !!(PORTAINER_BASE_URL && PORTAINER_API_KEY),
@@ -398,6 +398,14 @@ app.get('/api/health', (_req, res) => {
     protect: {
       enabled: PROTECT_ENABLED,
       configured: !!(PROTECT_BASE_URL && PROTECT_API_KEY),
+    },
+    gpu: {
+      enabled: GPU_ENABLED,
+      configured: GPU_MODE === 'local' || !!GPU_SSH_HOST,
+    },
+    sensors: {
+      enabled: SENSORS_ENABLED,
+      configured: SENSORS_MODE === 'local' || !!SENSORS_SSH_HOST,
     },
   });
 });

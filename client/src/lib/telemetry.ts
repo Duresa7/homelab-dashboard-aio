@@ -155,14 +155,18 @@ interface PollerOptions {
   apply: (payload: any) => boolean;
 }
 
-function startPoller({ url, intervalMs, apply }: PollerOptions): void {
+function startPoller({ url, intervalMs, apply }: PollerOptions): () => void {
   let timer: ReturnType<typeof setInterval> | null = null;
+  let stopped = false;
 
   const tick = async () => {
+    if (stopped) return;
     try {
       const res = await fetch(url);
+      if (stopped) return;
       if (!res.ok) return;
       const payload = await res.json();
+      if (stopped) return;
       if (payload.disabled) {
         if (timer) {
           clearInterval(timer);
@@ -179,6 +183,14 @@ function startPoller({ url, intervalMs, apply }: PollerOptions): void {
 
   tick();
   timer = setInterval(tick, intervalMs);
+
+  return () => {
+    stopped = true;
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  };
 }
 
 function applyUnifi(payload: any): boolean {
@@ -298,23 +310,105 @@ function applySensors(payload: any): boolean {
   return true;
 }
 
-let tickerStarted = false;
-function startTicker(): void {
-  if (tickerStarted) return;
-  tickerStarted = true;
-  startPoller({ url: '/api/unifi', intervalMs: UNIFI_POLL_MS, apply: applyUnifi });
-  startPoller({ url: '/api/proxmox', intervalMs: PROXMOX_POLL_MS, apply: applyProxmox });
-  startPoller({ url: '/api/docker', intervalMs: DOCKER_POLL_MS, apply: applyDocker });
-  startPoller({ url: '/api/gpu', intervalMs: GPU_POLL_MS, apply: applyGpu });
-  startPoller({ url: '/api/sensors', intervalMs: SENSORS_POLL_MS, apply: applySensors });
-  startPoller({ url: '/api/unas', intervalMs: UNAS_POLL_MS, apply: applyUnas });
-  startPoller({ url: '/api/protect', intervalMs: PROTECT_POLL_MS, apply: applyProtect });
+export type IntegrationKey =
+  | 'unifi' | 'proxmox' | 'docker' | 'gpu' | 'sensors' | 'unas' | 'protect';
+
+interface PollerConfig {
+  url: string;
+  intervalMs: number;
+  apply: (payload: any) => boolean;
+  // When toggled off, blank the integration's slice of state so stale data
+  // doesn't keep rendering after the user opts out.
+  reset?: () => void;
+}
+
+const POLLERS: Record<IntegrationKey, PollerConfig> = {
+  unifi:   {
+    url: '/api/unifi',
+    intervalMs: UNIFI_POLL_MS,
+    apply: applyUnifi,
+    reset: () => { state.unifi = emptyUnifi(); state.network = emptyNetwork(); },
+  },
+  proxmox: {
+    url: '/api/proxmox',
+    intervalMs: PROXMOX_POLL_MS,
+    apply: applyProxmox,
+    reset: () => {
+      const init = buildInit();
+      state.proxmox = init.proxmox;
+      state.cpu = init.cpu;
+      state.ram = init.ram;
+    },
+  },
+  docker:  {
+    url: '/api/docker',
+    intervalMs: DOCKER_POLL_MS,
+    apply: applyDocker,
+    reset: () => { state.docker = buildInit().docker; },
+  },
+  gpu:     {
+    url: '/api/gpu',
+    intervalMs: GPU_POLL_MS,
+    apply: applyGpu,
+    reset: () => { state.gpu = buildInit().gpu; },
+  },
+  sensors: {
+    url: '/api/sensors',
+    intervalMs: SENSORS_POLL_MS,
+    apply: applySensors,
+    reset: () => {
+      state.sensors = buildInit().sensors;
+      state.cpu = {
+        ...state.cpu,
+        tempC: 0,
+        tempTarget: 0,
+        tempHistory: zeros(),
+      };
+    },
+  },
+  unas:    {
+    url: '/api/unas',
+    intervalMs: UNAS_POLL_MS,
+    apply: applyUnas,
+    reset: () => {
+      state.unas = buildInit().unas;
+      state.storage = buildInit().storage;
+    },
+  },
+  protect: {
+    url: '/api/protect',
+    intervalMs: PROTECT_POLL_MS,
+    apply: applyProtect,
+    reset: () => { state.protect = emptyProtect(); },
+  },
+};
+
+export const INTEGRATION_KEYS = Object.keys(POLLERS) as IntegrationKey[];
+
+const activeStops = new Map<IntegrationKey, () => void>();
+
+export function setIntegrationEnabled(key: IntegrationKey, enabled: boolean): void {
+  const config = POLLERS[key];
+  if (!config) return;
+  const existing = activeStops.get(key);
+  if (enabled) {
+    if (existing) return;
+    activeStops.set(key, startPoller(config));
+  } else {
+    if (existing) {
+      existing();
+      activeStops.delete(key);
+    }
+    // Always reset state on disable, even if there was no active poller
+    // (e.g., on first render before the poller was started).
+    config.reset?.();
+    notify();
+  }
 }
 
 export function useDashData(): DashboardState {
   const [, force] = useState(0);
   useEffect(() => {
-    startTicker();
     const fn = () => force((x) => x + 1);
     subs.add(fn);
     return () => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ProtectCamera } from '../../types';
 
 interface Props {
@@ -26,9 +26,6 @@ export function CameraSnapshot({
   const [displayed, setDisplayed] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [primed, setPrimed] = useState(false);
-  const mounted = useRef(true);
-
-  useEffect(() => () => { mounted.current = false; }, []);
 
   useEffect(() => {
     if (!isConnected) {
@@ -36,7 +33,14 @@ export function CameraSnapshot({
       setPrimed(true);
       return;
     }
+    // `cancelled` is closed-over by this single effect run only. StrictMode
+    // simulates a remount in dev, and each run gets its own copy — so
+    // late image callbacks from a discarded run no-op without affecting
+    // the live run. Do NOT add a "mounted ref" pattern here: refs persist
+    // across StrictMode's simulated unmount and would silently stick the
+    // component on "loading" forever (we hit this and it took a minute).
     let cancelled = false;
+
     const baseQs = new URLSearchParams();
     if (channel === 'package') baseQs.set('channel', 'package');
     if (highQuality) baseQs.set('highQuality', 'true');
@@ -52,13 +56,13 @@ export function CameraSnapshot({
       const url = buildUrl();
       const img = new Image();
       img.onload = () => {
-        if (cancelled || !mounted.current) return;
+        if (cancelled) return;
         setDisplayed(url);
         setFailed(false);
         setPrimed(true);
       };
       img.onerror = () => {
-        if (cancelled || !mounted.current) return;
+        if (cancelled) return;
         setFailed(true);
         setPrimed(true);
       };

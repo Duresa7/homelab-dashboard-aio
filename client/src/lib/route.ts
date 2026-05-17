@@ -6,7 +6,8 @@ export type Section =
   | 'nas'
   | 'cameras'
   | 'events'
-  | 'alerts';
+  | 'alerts'
+  | 'settings';
 
 export interface Route {
   section: Section;
@@ -61,6 +62,7 @@ export const DEFAULT_SUB: Record<Section, string | undefined> = {
   cameras:  'overview',
   events:   undefined,
   alerts:   undefined,
+  settings: undefined,
 };
 
 export const SECTION_LABEL: Record<Section, string> = {
@@ -72,6 +74,7 @@ export const SECTION_LABEL: Record<Section, string> = {
   cameras:  'Cameras',
   events:   'Events',
   alerts:   'Alerts',
+  settings: 'Settings',
 };
 
 export function resolveSub(section: Section, sub?: string): string | undefined {
