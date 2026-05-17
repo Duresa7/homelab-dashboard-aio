@@ -42,7 +42,7 @@ function loadExpandedSet(): Set<Section> {
   if (typeof window === 'undefined') return new Set();
   try {
     const raw = window.localStorage.getItem(EXPANDED_KEY);
-    if (!raw) return new Set(['proxmox', 'network', 'docker', 'nas'] as Section[]);
+    if (!raw) return new Set(['proxmox', 'network', 'docker', 'nas', 'cameras'] as Section[]);
     return new Set(JSON.parse(raw) as Section[]);
   } catch {
     return new Set();
@@ -82,6 +82,7 @@ export function Sidebar({ route, setRoute, alerts }: Props) {
     { kind: 'parent', section: 'network', icon: 'network' },
     { kind: 'parent', section: 'docker',  icon: 'box',     badge: '20' },
     { kind: 'parent', section: 'nas', icon: 'disk' },
+    { kind: 'parent', section: 'cameras', icon: 'camera' },
     { kind: 'section', label: 'observability' },
     { kind: 'leaf', section: 'events', icon: 'activity' },
     {

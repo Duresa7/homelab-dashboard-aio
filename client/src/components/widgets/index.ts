@@ -15,5 +15,8 @@ export { SmartTile } from './SmartTile';
 export { InternetTile } from './InternetTile';
 export { TempHeatTile } from './TempHeatTile';
 export { TopTalkersTile } from './TopTalkersTile';
+export { ProtectTile } from './ProtectTile';
+export { CameraSnapshot } from './CameraSnapshot';
+export { CameraLiveStream } from './CameraLiveStream';
 export { ALL_TILES, tileData, renderTile } from './registry';
 export type { TileId, TileDef } from './registry';

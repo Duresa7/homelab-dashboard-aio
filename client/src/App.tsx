@@ -11,6 +11,7 @@ import { ProxmoxPage } from './pages/ProxmoxPage';
 import { NetworkPage } from './pages/NetworkPage';
 import { DockerPage } from './pages/DockerPage';
 import { NasPage } from './pages/NasPage';
+import { CamerasPage } from './pages/CamerasPage';
 import { EventsPage } from './pages/EventsPage';
 import { AlertsPage } from './pages/AlertsPage';
 
@@ -51,8 +52,8 @@ const DEFAULTS: TweakState = {
   showAlerts: true,
   overviewLayout: [
     'cpu', 'ram', 'gpu', 'unifi', 'proxmox', 'docker', 'storage', 'unas',
-    'network', 'fans', 'smart', 'ups', 'backups', 'internet', 'topTalkers',
-    'tempHeat', 'events',
+    'protect', 'network', 'fans', 'smart', 'ups', 'backups', 'internet',
+    'topTalkers', 'tempHeat', 'events',
   ],
 };
 
@@ -126,6 +127,7 @@ export function App() {
         {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
         {route.section === 'docker'  && <DockerPage  data={data} sub={activeSub ?? 'hosts'} />}
         {route.section === 'nas'     && <NasPage     data={data} sub={activeSub ?? 'pools'} />}
+        {route.section === 'cameras' && <CamerasPage data={data} sub={activeSub ?? 'overview'} />}
         {route.section === 'events'  && <EventsPage  data={data} />}
         {route.section === 'alerts'  && <AlertsPage  alerts={visibleAlerts} onDismiss={dismiss} />}
       </main>

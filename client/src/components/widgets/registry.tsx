@@ -8,6 +8,7 @@ import { UnifiTile } from './UnifiTile';
 import { DockerTile } from './DockerTile';
 import { ProxmoxTile } from './ProxmoxTile';
 import { UnasTile } from './UnasTile';
+import { ProtectTile } from './ProtectTile';
 import { FansTile } from './FansTile';
 import { SmartTile } from './SmartTile';
 import { BackupsTile } from './BackupsTile';
@@ -19,8 +20,8 @@ import { EventsTile } from './EventsTile';
 
 export type TileId =
   | 'cpu' | 'ram' | 'gpu' | 'storage' | 'network' | 'unifi' | 'docker'
-  | 'proxmox' | 'unas' | 'fans' | 'smart' | 'backups' | 'ups' | 'internet'
-  | 'topTalkers' | 'tempHeat' | 'events';
+  | 'proxmox' | 'unas' | 'protect' | 'fans' | 'smart' | 'backups' | 'ups'
+  | 'internet' | 'topTalkers' | 'tempHeat' | 'events';
 
 export interface TileDef {
   id: TileId;
@@ -38,6 +39,7 @@ export const ALL_TILES: TileDef[] = [
   { id: 'docker', label: 'Docker', span: 8 },
   { id: 'proxmox', label: 'Proxmox', span: 4 },
   { id: 'unas', label: 'UniFi NAS', span: 4 },
+  { id: 'protect', label: 'Cameras', span: 4 },
   { id: 'fans', label: 'Fans', span: 4 },
   { id: 'smart', label: 'Disk Health', span: 4 },
   { id: 'backups', label: 'Backups', span: 4 },
@@ -59,6 +61,7 @@ export function tileData(id: TileId, d: DashboardState): unknown {
     case 'docker': return d.docker;
     case 'proxmox': return d.proxmox;
     case 'unas': return d.unas;
+    case 'protect': return d.protect;
     case 'fans': return d.fans;
     case 'smart': return d.storage;
     case 'backups': return d.backups;
@@ -105,6 +108,8 @@ export function renderTile({ id, span, data, chartKind, onChartKind, onExpand, e
       return <ProxmoxTile {...common} data={data} />;
     case 'unas':
       return <UnasTile {...common} data={data} />;
+    case 'protect':
+      return <ProtectTile {...common} data={data} />;
     case 'fans':
       return <FansTile {...common} data={data} />;
     case 'smart':

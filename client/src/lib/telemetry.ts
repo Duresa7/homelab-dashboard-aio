@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { DashboardState, UnifiData, NetworkData } from '../types';
+import type { DashboardState, UnifiData, NetworkData, ProtectData } from '../types';
 
 const N_HISTORY = 60;
 const UNIFI_POLL_MS = 2000;
@@ -8,6 +8,7 @@ const DOCKER_POLL_MS = 10000;
 const GPU_POLL_MS = 5000;
 const SENSORS_POLL_MS = 5000;
 const UNAS_POLL_MS = 30000;
+const PROTECT_POLL_MS = 10000;
 
 function zeros(): number[] {
   return Array(N_HISTORY).fill(0);
@@ -28,6 +29,19 @@ function emptyUnifi(): UnifiData {
     vpnServers: [],
     dnsRecords: [],
     appVersion: null,
+  };
+}
+
+function emptyProtect(): ProtectData {
+  return {
+    cameras: [],
+    total: 0,
+    connected: 0,
+    disconnected: 0,
+    nvr: null,
+    appVersion: null,
+    recentEvents: [],
+    eventsConnected: false,
   };
 }
 
@@ -104,6 +118,7 @@ function buildInit(): DashboardState {
     },
     unifi: emptyUnifi(),
     unas: { name: '—', model: '—', tempC: 0, fanProfile: '—', pools: [], disks: [] },
+    protect: emptyProtect(),
     network: emptyNetwork(),
     backups: [],
     ups: { model: '—', loadW: 0, loadPct: 0, batteryPct: 0, runtimeMin: 0, status: '—' },
@@ -262,6 +277,12 @@ function applyUnas(payload: any): boolean {
   return true;
 }
 
+function applyProtect(payload: any): boolean {
+  if (!payload.protect) return false;
+  state.protect = payload.protect;
+  return true;
+}
+
 function applySensors(payload: any): boolean {
   if (!payload.sensors) return false;
   state.sensors = payload.sensors;
@@ -287,6 +308,7 @@ function startTicker(): void {
   startPoller({ url: '/api/gpu', intervalMs: GPU_POLL_MS, apply: applyGpu });
   startPoller({ url: '/api/sensors', intervalMs: SENSORS_POLL_MS, apply: applySensors });
   startPoller({ url: '/api/unas', intervalMs: UNAS_POLL_MS, apply: applyUnas });
+  startPoller({ url: '/api/protect', intervalMs: PROTECT_POLL_MS, apply: applyProtect });
 }
 
 export function useDashData(): DashboardState {
