@@ -40,7 +40,7 @@ export function Donut({
           fontWeight: 600,
           fill: 'var(--ink)',
           fontVariantNumeric: 'tabular-nums',
-          fontFamily: 'var(--font-mono)',
+          fontFamily: 'var(--font-sans)',
           letterSpacing: '-0.02em',
         }}
       >
@@ -52,7 +52,7 @@ export function Donut({
           style={{
             fontSize: size * 0.1,
             fill: 'var(--ink-3)',
-            fontFamily: 'var(--font-mono)',
+            fontFamily: 'var(--font-sans)',
             letterSpacing: '0.04em',
             textTransform: 'uppercase',
           }}

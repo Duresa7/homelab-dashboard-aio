@@ -256,7 +256,7 @@ function applyUnas(payload: any): boolean {
       model: d.model,
       tempC: d.tempC,
       smart: d.smart,
-      wear: d.wear,
+      ageHours: d.powerOnHours || 0,
     })),
   };
   return true;

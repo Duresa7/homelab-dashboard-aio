@@ -1144,57 +1144,207 @@ function diskToken(...parts) {
     .replace(/[^A-Z0-9]/g, '');
 }
 
+// Render a gigabyte count as a friendly capacity. 1000 GB and up collapses to TB.
 function capacityFromGb(gb) {
   const n = Number(gb);
   if (!Number.isFinite(n) || n <= 0) return '';
-  if (n >= 1000 && n % 1000 === 0) return `${n / 1000}TB`;
+  if (n >= 1000) {
+    const tb = n / 1000;
+    return Number.isInteger(tb) ? `${tb}TB` : `${tb.toFixed(1)}TB`;
+  }
   return `${n}GB`;
 }
 
-function wdCapacityFromModel(modelCode) {
-  const match = String(modelCode || '').match(/^WD(\d{2,3})/i);
-  if (!match) return '';
-  const raw = match[1];
-  const tb = raw.length === 2 ? Number(raw) / 10 : Math.floor(Number(raw) / 10);
-  return Number.isFinite(tb) && tb > 0 ? `${tb}TB` : '';
+// Western Digital capacity is encoded in the digits right after "WD".
+// 2-digit: WD80 → 80/10 = 8TB. 3-digit: WD120 → 120/10 = 12TB.
+// 4-digit: WD5000 → 5000/10 = 500GB (sub-TB drives).
+function wdCapacityFromDigits(digits) {
+  const n = Number(digits);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (digits.length >= 4) {
+    const gb = n / 10;
+    return Number.isInteger(gb) ? `${gb}GB` : `${gb.toFixed(0)}GB`;
+  }
+  const tb = n / 10;
+  return Number.isInteger(tb) ? `${tb}TB` : `${tb.toFixed(1)}TB`;
+}
+
+// WD's 4-letter family code identifies the drive line (Red, Blue, …).
+// Codes are read from the suffix that immediately follows the capacity digits.
+const WD_FAMILY = {
+  // Red — CMR NAS HDD (consumer)
+  EFRX: 'Red', EFAX: 'Red', EFGX: 'Red',
+  // Red Plus — newer Red CMR drives
+  EFBX: 'Red Plus', EFPX: 'Red Plus', EFZX: 'Red Plus', EFZZ: 'Red Plus',
+  // Red Pro — high-throughput NAS
+  FFBX: 'Red Pro', KFGX: 'Red Pro', PFBX: 'Red Pro',
+  // Blue — consumer desktop
+  EZRZ: 'Blue', EZEX: 'Blue', AZLW: 'Blue', AZLX: 'Blue', AZRZ: 'Blue', AZBX: 'Blue',
+  // Black — performance desktop
+  FZWX: 'Black', LSAX: 'Black SN', LSBX: 'Black SN', PLAX: 'Black SN850',
+  // Purple — surveillance
+  PURX: 'Purple', PURZ: 'Purple', PURP: 'Purple Pro',
+  // Gold — enterprise / datacenter
+  FRYZ: 'Gold', VRYZ: 'Gold',
+  // Green — older low-power
+  EZRS: 'Green', AZRX: 'Green',
+};
+
+// Seagate consumer / NAS models use a 2-letter family code right after the
+// capacity-in-GB digits. e.g. ST4000VN008 → "VN" → IronWolf 4 TB.
+const SEAGATE_FAMILY = {
+  VN: 'IronWolf',          // NAS
+  NE: 'IronWolf Pro',
+  NT: 'IronWolf Pro',
+  DM: 'BarraCuda',         // desktop 3.5"
+  LM: 'BarraCuda',         // 2.5" laptop
+  GX: 'FireCuda',
+  LX: 'FireCuda',
+  NM: 'Exos',              // enterprise
+  VX: 'SkyHawk',           // surveillance
+  AS: 'BarraCuda',
+};
+
+// Crucial CT-prefix models follow the pattern CT<capacityGB><family>SSD<rev>.
+const CRUCIAL_FAMILY = {
+  P3P:   { label: 'P3 Plus',  bus: 'NVMe' },
+  P5P:   { label: 'P5 Plus',  bus: 'NVMe' },
+  P3:    { label: 'P3',       bus: 'NVMe' },
+  P5:    { label: 'P5',       bus: 'NVMe' },
+  P1:    { label: 'P1',       bus: 'NVMe' },
+  P2:    { label: 'P2',       bus: 'NVMe' },
+  T700:  { label: 'T700',     bus: 'NVMe' },
+  T705:  { label: 'T705',     bus: 'NVMe' },
+  T500:  { label: 'T500',     bus: 'NVMe' },
+  MX500: { label: 'MX500',    bus: 'SATA' },
+  MX300: { label: 'MX300',    bus: 'SATA' },
+  MX200: { label: 'MX200',    bus: 'SATA' },
+  BX500: { label: 'BX500',    bus: 'SATA' },
+  BX300: { label: 'BX300',    bus: 'SATA' },
+  BX200: { label: 'BX200',    bus: 'SATA' },
+  M4:    { label: 'M4',       bus: 'SATA' },
+};
+const CRUCIAL_FAMILY_REGEX = new RegExp(
+  // Ordered longest-first so "P3P" beats "P3" and "MX500" beats "MX".
+  'CT(\\d+)(' +
+    Object.keys(CRUCIAL_FAMILY)
+      .sort((a, b) => b.length - a.length)
+      .join('|') +
+    ')SSD\\d?',
+);
+
+function detectCrucial(token) {
+  const m = token.match(CRUCIAL_FAMILY_REGEX);
+  if (!m) return null;
+  const sizeGb = Number(m[1]);
+  const fam = CRUCIAL_FAMILY[m[2]];
+  if (!fam) return null;
+  const kind = fam.bus === 'NVMe' ? 'NVMe SSD' : 'SATA SSD';
+  return {
+    vendor: 'Crucial',
+    model: [fam.label, capacityFromGb(sizeGb), kind].filter(Boolean).join(' '),
+  };
+}
+
+function detectWesternDigital(token) {
+  if (!/WD/.test(token)) return null;
+  const m = token.match(/(?:WDC)?WD(\d{2,4})([A-Z]+)/);
+  if (!m) return null;
+  const capStr = wdCapacityFromDigits(m[1]);
+  const suffix = m[2];
+
+  let family = null;
+  // The family code is 4 letters; it sometimes sits at the start of the
+  // suffix, sometimes in the middle (next to revision letters). Scan.
+  for (let i = 0; i + 4 <= suffix.length; i++) {
+    const code = suffix.slice(i, i + 4);
+    if (WD_FAMILY[code]) { family = WD_FAMILY[code]; break; }
+  }
+
+  if (!family) {
+    // Heuristic fallback by suffix prefix when we can't pin a family.
+    if (/^EF/.test(suffix)) family = 'Red';
+    else if (/^EZ/.test(suffix)) family = 'Blue';
+    else if (/^FZ/.test(suffix)) family = 'Black';
+    else if (/^PUR/.test(suffix)) family = 'Purple';
+  }
+
+  return {
+    vendor: 'Western Digital',
+    model: [family, capStr].filter(Boolean).join(' ') || `WD ${capStr}`.trim(),
+  };
+}
+
+function detectSeagate(token) {
+  // ST<capacityGB><2-letter family><revision digits>
+  const m = token.match(/ST(\d{3,5})([A-Z]{2})\d/);
+  if (!m) return null;
+  const gb = Number(m[1]);
+  const family = SEAGATE_FAMILY[m[2]] || null;
+  const capStr = capacityFromGb(gb);
+  return {
+    vendor: 'Seagate',
+    model: [family, capStr].filter(Boolean).join(' ') || `Seagate ${capStr}`,
+  };
+}
+
+function detectSamsung(token, rawModel) {
+  if (!/SAMSUNG|^MZ[VN]|^MZQL/.test(token)) return null;
+  // Consumer Samsung models usually carry a human-readable string in the
+  // raw model field, e.g. "Samsung SSD 990 PRO 1TB". Strip the leading
+  // "Samsung" / "SSD" so we don't double up the vendor.
+  const cleaned = String(rawModel || '')
+    .replace(/^samsung[\s_]*ssd[\s_]*/i, '')
+    .replace(/^samsung[\s_]*/i, '')
+    .trim();
+  return { vendor: 'Samsung', model: cleaned || rawModel || '' };
+}
+
+function detectKingston(token, rawModel) {
+  if (!/KINGSTON|^(KC|SKC|SA400|SNV|NV[12])/.test(token)) return null;
+  const cleaned = String(rawModel || '')
+    .replace(/^kingston[\s_]*/i, '')
+    .trim();
+  return { vendor: 'Kingston', model: cleaned || rawModel || '' };
+}
+
+function detectToshibaKioxia(token, rawModel) {
+  if (!/TOSHIBA|KIOXIA|^MG\d|^MQ\d|^DT\d/.test(token)) return null;
+  const isKioxia = /KIOXIA/.test(token);
+  const cleaned = String(rawModel || '')
+    .replace(/^toshiba[\s_]*/i, '')
+    .replace(/^kioxia[\s_]*/i, '')
+    .trim();
+  return { vendor: isKioxia ? 'Kioxia' : 'Toshiba', model: cleaned || rawModel || '' };
+}
+
+function detectHgstHitachi(token, rawModel) {
+  if (!/HITACHI|HGST|^HUS|^HDN/.test(token)) return null;
+  const cleaned = String(rawModel || '').replace(/^(hitachi|hgst)[\s_]*/i, '').trim();
+  return { vendor: 'HGST', model: cleaned || rawModel || '' };
 }
 
 function normalizeDiskParts(disk) {
-  const model = cleanUsefulDiskPart(disk?.model);
+  const rawModel = cleanUsefulDiskPart(disk?.model);
   const rawVendor = cleanUsefulDiskPart(disk?.vendor);
-  const vendor = /^(ata|nvme)$/i.test(rawVendor) ? '' : rawVendor;
-  const token = diskToken(vendor, model);
+  // Strip useless bus-type-as-vendor values that some kernels report.
+  const vendor = /^(ata|nvme|scsi|usb)$/i.test(rawVendor) ? '' : rawVendor;
+  const token = diskToken(vendor, rawModel);
 
-  const crucialP3 = token.match(/CT(\d+)P3(P?)SSD8/);
-  if (crucialP3) {
-    const capacity = capacityFromGb(crucialP3[1]);
-    const series = crucialP3[2] ? 'P3 Plus' : 'P3';
-    return {
-      vendor: 'Crucial',
-      model: [series, capacity, 'NVMe SSD'].filter(Boolean).join(' '),
-    };
-  }
+  const detected =
+    detectCrucial(token) ||
+    detectWesternDigital(token) ||
+    detectSeagate(token) ||
+    detectSamsung(token, rawModel) ||
+    detectKingston(token, rawModel) ||
+    detectToshibaKioxia(token, rawModel) ||
+    detectHgstHitachi(token, rawModel);
 
-  const wdModel = token.match(/(?:^|WDC)(WD\d{2,3}[A-Z]{3,4})/);
-  if (wdModel) {
-    const code = wdModel[1];
-    const familyCode = code.slice(-4);
-    const capacity = wdCapacityFromModel(code);
-    const family = {
-      EFAX: 'Red',
-      EFRX: 'Red',
-      EFBX: 'Red Plus',
-      EFPX: 'Red Plus',
-      EFZX: 'Red Plus',
-      EFZZ: 'Red Plus',
-    }[familyCode] || 'Red';
-    return {
-      vendor: 'Western Digital',
-      model: [family, capacity, 'NAS HDD'].filter(Boolean).join(' '),
-    };
-  }
+  if (detected && detected.model) return detected;
 
-  return { vendor, model };
+  // No specific brand match — return the cleaned passthrough so the UI at
+  // least shows something readable instead of "unknown".
+  return { vendor, model: rawModel };
 }
 
 function diskDisplayName(disk) {
@@ -1204,14 +1354,23 @@ function diskDisplayName(disk) {
   return `${vendor} ${model}`;
 }
 
+// Map an lm-sensors chip key (e.g. "nct6687-isa-0a20") and the in-chip
+// sensor name to a short, friendly label the UI can show as a sub-title.
+// We never want to leak the raw chip identifier to users.
 function friendlySystemSensorLabel(chipKey, sensorName) {
   const chip = String(chipKey || '').toLowerCase();
   const sensor = String(sensorName || '').trim();
-  if (chip.startsWith('nct') || chip.startsWith('it86') || chip.startsWith('w836')) {
-    return /^chipset|pch$/i.test(sensor) ? 'Chipset' : 'Motherboard';
+  // Explicit PCH / chipset readings.
+  if (/^(chipset|pch)$/i.test(sensor)) return 'Chipset';
+  if (/^pch/i.test(chip)) return 'Chipset';
+  // Super-IO / EC chips that report motherboard temps.
+  if (/^(nct|it86|w836|f718|nuvoton|asus|ec_sys|asusec)/.test(chip)) {
+    return 'Motherboard';
   }
-  if (chip.startsWith('acpitz')) return 'ACPI thermal zone';
-  return sensor || 'Motherboard / chipset';
+  // Generic OS-level / ACPI source.
+  if (chip.startsWith('acpitz') || chip.startsWith('thermal_zone')) return 'System';
+  // Anything else — keep it generic rather than echoing chip/sensor IDs.
+  return 'System';
 }
 
 function diskKind(disk) {
@@ -1578,10 +1737,6 @@ function formatIncompatibility(code) {
 
 const TB = 1024 ** 4;
 const GB = 1024 ** 3;
-// Rough heuristic: treat 10 years of power-on hours as 100% "life used".
-// HDDs don't expose true wear leveling; this gives the dashboard a usable
-// 0-100 number that doesn't pretend to be more precise than it is.
-const HDD_LIFE_HOURS = 87600;
 
 async function fetchUnasData() {
   const now = Date.now();
@@ -1629,7 +1784,6 @@ async function fetchUnasData() {
     smart: diskSmart(d),
     powerOnHours: Number(d.powerOnHours) || 0,
     rpm: Number(d.rpm) || 0,
-    wear: Math.min(100, Math.round(((Number(d.powerOnHours) || 0) / HDD_LIFE_HOURS) * 100)),
     badSectors: Number(d.badSectorCount) || 0,
     uncorrectableSectors: Number(d.uncorrectableSectorCount) || 0,
     lastSmartTest: d.smartTest

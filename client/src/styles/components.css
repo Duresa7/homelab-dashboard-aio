@@ -124,7 +124,7 @@
   background: var(--bg-3);
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-weight: 500;
   line-height: 1.5;
 }
 .sb-link .badge.bad  { background: var(--bad);  color: #fff; }
@@ -279,11 +279,10 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-3);
+  font-weight: 500;
   letter-spacing: 0;
-  text-transform: lowercase;
 }
 .tb-crumb .sep { opacity: 0.4; }
 .tb-crumb .here { color: var(--ink-2); }
@@ -346,7 +345,6 @@
   color: var(--ink-3);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
 }
 .alert .x { background: transparent; border: 0; color: var(--ink-3); font-size: 15px; padding: 4px; }
 
@@ -417,17 +415,17 @@
   display: flex; align-items: center; gap: 8px;
   min-width: 0;
 }
-.t-sub  { color: var(--ink-3); font-size: 12.5px; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+.t-sub  { color: var(--ink-3); font-size: 12.5px; font-variant-numeric: tabular-nums; font-weight: 500; }
 .t-tag {
   font-size: 11px;
   padding: 2px 7px;
   border-radius: var(--radius-sm);
   background: var(--bg-2);
   color: var(--ink-2);
-  font-family: var(--font-mono);
   text-transform: lowercase;
   letter-spacing: 0;
   border: 1px solid var(--line);
+  font-weight: 500;
 }
 .t-tag.ok   { background: color-mix(in oklab, var(--ok)   14%, transparent); color: var(--ok);   border-color: color-mix(in oklab, var(--ok)   28%, var(--line)); }
 .t-tag.warn { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); border-color: color-mix(in oklab, var(--warn) 28%, var(--line)); }
@@ -436,9 +434,8 @@
 .t-big {
   font-size: 36px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
   line-height: 1.05;
   display: flex;
   align-items: baseline;
@@ -469,7 +466,7 @@
   color: var(--ink);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-weight: 500;
   flex-shrink: 0;
 }
 
@@ -488,7 +485,7 @@
   fill: var(--ink);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 .gauge { width: 100%; }
@@ -570,8 +567,8 @@
 .metric-row .meta .lbl { color: var(--ink-3); font-size: 12.5px; }
 .metric-row .meta .v {
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
   font-size: 14px;
+  font-weight: 500;
   color: var(--ink);
 }
 
@@ -587,7 +584,7 @@
   margin: 0;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-weight: 500;
   text-align: right;
 }
 
@@ -625,8 +622,8 @@
 .list .li .val {
   font-size: 13px;
   color: var(--ink-2);
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
 
 .containers {
@@ -666,7 +663,6 @@
 .container-card .meta {
   font-size: 12px;
   color: var(--ink-3);
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   display: flex; gap: 8px;
 }
@@ -683,7 +679,6 @@
 .disk .row .name { color: var(--ink); font-weight: 600; }
 .disk .row .meta {
   color: var(--ink-3);
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 12.5px;
 }
@@ -718,11 +713,11 @@
   font-weight: 600;
 }
 .netrate .col .v {
-  font-family: var(--font-mono);
-  font-size: 26px;
+  font-size: 28px;
   color: var(--ink);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 .netrate .col .v small {
   font-size: 13px;
@@ -800,7 +795,7 @@
   padding: 0 10px;
   font-size: 11.5px;
   color: var(--ink-3);
-  font-family: var(--font-mono);
+  font-weight: 500;
 }
 .expand-btn:hover { color: var(--ink); border-color: var(--line-2); }
 
@@ -832,7 +827,7 @@
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-.expanded-panel .sub { color: var(--ink-3); font-size: 13.5px; margin-bottom: 22px; font-family: var(--font-mono); }
+.expanded-panel .sub { color: var(--ink-3); font-size: 13.5px; margin-bottom: 22px; font-weight: 500; }
 
 @keyframes fade {
   from { opacity: 0; }
@@ -889,7 +884,6 @@
 }
 .sensor-chip .lbl { color: var(--ink-3); font-size: 12px; }
 .sensor-chip .val {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   font-size: 13px;

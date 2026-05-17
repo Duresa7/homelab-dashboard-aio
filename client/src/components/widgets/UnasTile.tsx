@@ -1,6 +1,7 @@
 import { Tile } from '../tile/Tile';
 import type { Severity, UnasData, UnasScrub, UnasSmartTest } from '../../types';
 import { fmtTemp, useTempUnit } from '../../lib/units';
+import { ageSince, formatPowerOnTime } from '../../lib/format';
 
 interface Props {
   data: UnasData;
@@ -26,30 +27,6 @@ function poolKind(status: string): Severity {
   if (status === 'offline') return 'bad';
   if (status === 'degraded') return 'warn';
   return 'ok';
-}
-
-function formatPowerOnTime(hours: number): string {
-  if (!hours) return '—';
-  const days = hours / 24;
-  if (days < 60) return `${Math.round(days)}d`;
-  const months = days / 30.4375;
-  if (months < 12) return `${Math.round(months)}mo`;
-  const years = Math.floor(months / 12);
-  const remMonths = Math.round(months - years * 12);
-  return remMonths > 0 ? `${years}y ${remMonths}mo` : `${years}y`;
-}
-
-function ageSince(iso: string | null): { label: string; days: number } | null {
-  if (!iso) return null;
-  const ms = Date.now() - new Date(iso).getTime();
-  if (Number.isNaN(ms) || ms < 0) return null;
-  const days = Math.floor(ms / 86400000);
-  let label: string;
-  if (days === 0) label = 'today';
-  else if (days === 1) label = 'yesterday';
-  else if (days < 30) label = `${days}d ago`;
-  else label = `${Math.floor(days / 30)}mo ago`;
-  return { label, days };
 }
 
 function scrubDisplay(scrub: UnasScrub | null): { label: string; kind: Severity } {

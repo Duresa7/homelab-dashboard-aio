@@ -47,8 +47,8 @@
   --gap: 12px;
 
   /* ---- type ---- */
-  --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI', system-ui, ui-sans-serif, Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, Menlo, monospace;
+  --font-sans: 'DM Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, Menlo, monospace;
 
   /* ---- shadows (used sparingly: overlay only) ---- */
   --shadow-overlay: 0 20px 50px -12px rgba(15, 17, 21, 0.18), 0 4px 16px rgba(15, 17, 21, 0.06);
@@ -102,7 +102,6 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  font-feature-settings: 'ss01';
 }
 button {
   font-family: inherit;

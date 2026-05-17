@@ -10,7 +10,7 @@ import { OverviewPage } from './pages/OverviewPage';
 import { ProxmoxPage } from './pages/ProxmoxPage';
 import { NetworkPage } from './pages/NetworkPage';
 import { DockerPage } from './pages/DockerPage';
-import { StoragePage } from './pages/StoragePage';
+import { NasPage } from './pages/NasPage';
 import { EventsPage } from './pages/EventsPage';
 import { AlertsPage } from './pages/AlertsPage';
 
@@ -125,7 +125,7 @@ export function App() {
         {route.section === 'proxmox' && <ProxmoxPage data={data} sub={activeSub ?? 'compute'} />}
         {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
         {route.section === 'docker'  && <DockerPage  data={data} sub={activeSub ?? 'hosts'} />}
-        {route.section === 'nas'     && <StoragePage data={data} sub={activeSub ?? 'pools'} />}
+        {route.section === 'nas'     && <NasPage     data={data} sub={activeSub ?? 'pools'} />}
         {route.section === 'events'  && <EventsPage  data={data} />}
         {route.section === 'alerts'  && <AlertsPage  alerts={visibleAlerts} onDismiss={dismiss} />}
       </main>

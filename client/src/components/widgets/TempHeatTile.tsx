@@ -56,7 +56,7 @@ export function TempHeatTile({ cpu, gpu, disks, span, onExpand, expandable }: Pr
             }}
           >
             <div
-              className="t-sub mono"
+              className="t-sub"
               style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
               title={s.name}
             >

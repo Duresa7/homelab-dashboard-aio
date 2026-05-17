@@ -1,6 +1,7 @@
 import { SmartTile, StorageTile, UnasTile } from '../components/widgets';
 import type { DashboardState } from '../types';
 import { fmtTemp, useTempUnit } from '../lib/units';
+import { formatPowerOnTime } from '../lib/format';
 
 interface Props {
   data: DashboardState;
@@ -36,7 +37,7 @@ function Disks({ data }: { data: DashboardState }) {
                 <th>Device</th>
                 <th>Model</th>
                 <th className="num">Temp</th>
-                <th className="num">Wear</th>
+                <th className="num" title="Total power-on time (drive age)">Age</th>
               </tr>
             </thead>
             <tbody>
@@ -52,8 +53,8 @@ function Disks({ data }: { data: DashboardState }) {
                     </td>
                     <td className="mono">{d.name}</td>
                     <td>{d.model}</td>
-                    <td className="mono tnum num">{fmtTemp(d.tempC, unit)}</td>
-                    <td className="mono tnum num">{d.wear}%</td>
+                    <td className="tnum num">{fmtTemp(d.tempC, unit)}</td>
+                    <td className="tnum num">{formatPowerOnTime(d.ageHours)}</td>
                   </tr>
                 );
               })}
@@ -65,7 +66,7 @@ function Disks({ data }: { data: DashboardState }) {
   );
 }
 
-export function StoragePage({ data, sub }: Props) {
+export function NasPage({ data, sub }: Props) {
   if (sub === 'disks') return <Disks data={data} />;
   return <Pools data={data} />;
 }

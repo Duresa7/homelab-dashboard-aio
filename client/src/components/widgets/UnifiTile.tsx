@@ -34,7 +34,7 @@ export function UnifiTile({ data, span, onExpand, expandable }: Props) {
         </div>
         <div className="flex1">
           <div className="t-sub">Uptime</div>
-          <div className="t-big mono" style={{ fontSize: 22 }}>{gateway.uptime}</div>
+          <div className="t-big" style={{ fontSize: 22 }}>{gateway.uptime}</div>
         </div>
       </div>
       <div className="netrate">

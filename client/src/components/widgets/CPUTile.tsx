@@ -31,7 +31,7 @@ export function CPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
       <div className="metric-row">
         <Donut value={usage} label={`${usage.toFixed(0)}%`} sub="usage" />
         <div className="meta flex1">
-          <div className="lbl mono">{model}</div>
+          <div className="lbl">{model}</div>
           <div className="v">
             {usage.toFixed(1)}% · {fmtTemp(tempC, unit)} ·{' '}
             {((usage / 100) * cores).toFixed(1)} cores busy

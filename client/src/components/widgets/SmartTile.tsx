@@ -1,6 +1,7 @@
 import { Tile } from '../tile/Tile';
 import type { StorageData } from '../../types';
 import { convertTemp, fmtTemp, tempSuffix, useTempUnit } from '../../lib/units';
+import { formatPowerOnTime } from '../../lib/format';
 
 interface Props {
   data: StorageData;
@@ -12,11 +13,14 @@ interface Props {
 export function SmartTile({ data, span, onExpand, expandable }: Props) {
   const ok = data.disks.filter((d) => d.smart === 'ok').length;
   const warn = data.disks.filter((d) => d.smart === 'warn').length;
+  const bad = data.disks.filter((d) => d.smart === 'bad').length;
   const { unit } = useTempUnit();
   const avgC = data.disks.length
     ? data.disks.reduce((a, b) => a + b.tempC, 0) / data.disks.length
     : 0;
   const avgTemp = Math.round(convertTemp(avgC, unit));
+  const tagLabel = bad ? `${bad} failing` : warn ? `${warn} warning` : 'all healthy';
+  const tagKind = bad ? 'bad' : warn ? 'warn' : 'ok';
   return (
     <Tile
       title="Disk Health"
@@ -24,7 +28,7 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
       span={span}
       onExpand={onExpand}
       expandable={expandable}
-      tag={{ label: warn ? `${warn} warning` : 'all healthy', kind: warn ? 'warn' : 'ok' }}
+      tag={{ label: tagLabel, kind: tagKind }}
     >
       <div className="row" style={{ gap: 14 }}>
         <div>
@@ -36,6 +40,10 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
           <div className="t-sub">warning</div>
         </div>
         <div>
+          <div className="t-big" style={{ fontSize: 26, color: bad ? 'var(--bad)' : '' }}>{bad}</div>
+          <div className="t-sub">failing</div>
+        </div>
+        <div>
           <div className="t-big" style={{ fontSize: 26 }}>
             {avgTemp}<small>{tempSuffix(unit)}</small>
           </div>
@@ -45,10 +53,15 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
       <div className="list">
         {data.disks.slice(0, 5).map((d) => (
           <div key={d.name} className="li">
-            <span className={`d ${d.smart === 'warn' ? 'warn' : ''}`} />
+            <span className={`d ${d.smart === 'bad' ? 'bad' : d.smart === 'warn' ? 'warn' : ''}`} />
             <span className="name">{d.name}</span>
             <span className="meta">{d.model}</span>
-            <span className="val">{fmtTemp(d.tempC, unit)} · {d.wear}%w</span>
+            <span className="val">
+              {fmtTemp(d.tempC, unit)}
+              <span style={{ color: 'var(--ink-3)', marginLeft: 6 }}>
+                · {formatPowerOnTime(d.ageHours)}
+              </span>
+            </span>
           </div>
         ))}
       </div>

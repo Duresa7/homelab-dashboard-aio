@@ -175,15 +175,15 @@ function Compute({ data }: { data: DashboardState }) {
             </div>
             <div>
               <div className="t-sub">Version</div>
-              <div className="mono" style={{ fontSize: 14, marginTop: 4 }}>PVE {n.version}</div>
+              <div style={{ fontSize: 14, marginTop: 4, fontWeight: 500 }}>PVE {n.version}</div>
             </div>
             <div>
               <div className="t-sub">Uptime</div>
-              <div className="mono" style={{ fontSize: 14, marginTop: 4 }}>{n.uptime}</div>
+              <div style={{ fontSize: 14, marginTop: 4, fontWeight: 500 }}>{n.uptime}</div>
             </div>
             <div>
               <div className="t-sub">Guests</div>
-              <div className="mono" style={{ fontSize: 14, marginTop: 4 }}>
+              <div style={{ fontSize: 14, marginTop: 4, fontWeight: 500 }}>
                 {runningCount}<span style={{ color: 'var(--ink-3)' }}> running / {totalCount} total</span>
               </div>
             </div>
@@ -235,7 +235,7 @@ function Compute({ data }: { data: DashboardState }) {
 
       <TempCard
         title="System Temp"
-        sub={data.sensors.systemTempLabel ?? 'motherboard / chipset'}
+        sub={data.sensors.systemTempLabel ?? 'System'}
         tempC={data.sensors.systemTempC}
         warnAt={60}
         badAt={75}
@@ -298,13 +298,13 @@ function Guests({ data }: { data: DashboardState }) {
                         {v.state}
                       </span>
                     </td>
-                    <td className="mono">{v.id}</td>
+                    <td className="tnum">{v.id}</td>
                     <td>{v.name}</td>
                     <td className="muted">{v.type}</td>
                     <td className="mono">{v.ip ?? <span className="muted">—</span>}</td>
-                    <td className="mono tnum num">{v.cpu.toFixed(1)}%</td>
-                    <td className="mono tnum num">{v.ram}%</td>
-                    <td className="mono tnum num">{v.disk} GB</td>
+                    <td className="tnum num">{v.cpu.toFixed(1)}%</td>
+                    <td className="tnum num">{v.ram}%</td>
+                    <td className="tnum num">{v.disk} GB</td>
                   </tr>
                 );
               })}
@@ -393,7 +393,7 @@ function Storage({ data }: { data: DashboardState }) {
                         <span className="muted">—</span>
                       )}
                     </td>
-                    <td className="mono tnum num">
+                    <td className="tnum num">
                       {s.totalTB > 0 ? `${pct.toFixed(0)}%` : '—'}
                     </td>
                     <td>
@@ -455,10 +455,10 @@ function Storage({ data }: { data: DashboardState }) {
                       {d.model || <span className="muted">unknown</span>}
                     </td>
                     <td className="muted">{typeLabel}</td>
-                    <td className="mono tnum num">{formatBytes(d.sizeBytes)}</td>
+                    <td className="tnum num">{formatBytes(d.sizeBytes)}</td>
                     <td className="muted">{d.used || '—'}</td>
                     <td style={{ color: healthColor }}>{d.health || '—'}</td>
-                    <td className="mono tnum num">
+                    <td className="tnum num">
                       {d.wearout != null ? `${d.wearout}%` : <span className="muted">—</span>}
                     </td>
                   </tr>

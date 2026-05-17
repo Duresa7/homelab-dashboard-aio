@@ -64,7 +64,7 @@ export interface Disk {
   model: string;
   tempC: number;
   smart: 'ok' | 'warn' | 'bad';
-  wear: number;
+  ageHours: number;
 }
 
 export interface StorageData {
@@ -298,7 +298,6 @@ export interface UnasDisk {
   smart: 'ok' | 'warn' | 'bad';
   powerOnHours: number;
   rpm: number;
-  wear: number;
   badSectors: number;
   uncorrectableSectors: number;
   lastSmartTest: UnasSmartTest | null;
