@@ -88,9 +88,10 @@ interface RenderProps {
   onChartKind?: (k: ChartKind) => void;
   onExpand?: () => void;
   expandable?: boolean;
+  compact?: boolean;
 }
 
-export function renderTile({ id, span, data, chartKind, onChartKind, onExpand, expandable }: RenderProps) {
+export function renderTile({ id, span, data, chartKind, onChartKind, onExpand, expandable, compact }: RenderProps) {
   const common = { span, onExpand, expandable };
   switch (id) {
     case 'bookmarks':
@@ -112,7 +113,7 @@ export function renderTile({ id, span, data, chartKind, onChartKind, onExpand, e
     case 'proxmox':
       return <ProxmoxTile {...common} data={data} />;
     case 'unas':
-      return <UnasTile {...common} data={data} />;
+      return <UnasTile {...common} data={data} compact={compact} />;
     case 'protect':
       return <ProtectTile {...common} data={data} />;
     case 'fans':

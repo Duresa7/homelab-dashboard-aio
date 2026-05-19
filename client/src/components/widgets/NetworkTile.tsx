@@ -1,5 +1,6 @@
 import { Tile } from '../tile/Tile';
 import { AutoChart } from '../charts';
+import { BrandIcon } from '../icons/BrandIcon';
 import type { ChartKind, NetworkData } from '../../types';
 
 interface Props {
@@ -17,7 +18,7 @@ export function NetworkTile({ data, span, onExpand, chartKind, onChartKind, expa
   const up = upHistory[upHistory.length - 1];
   return (
     <Tile
-      title="Network"
+      title={<><BrandIcon name="unifi" alt="UniFi" /> Network</>}
       sub={`${latencyMs.toFixed(1)} ms`}
       span={span}
       onExpand={onExpand}

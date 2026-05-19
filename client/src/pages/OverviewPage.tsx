@@ -24,6 +24,7 @@ export function OverviewPage({ data, layout, chartKinds, setChartKind, onExpand 
           onChartKind: (k) => setChartKind(id, k),
           onExpand: () => onExpand(id),
           expandable: true,
+          compact: true,
         }) as ReactElement;
         return el ? cloneElement(el, { key: id }) : null;
       })}

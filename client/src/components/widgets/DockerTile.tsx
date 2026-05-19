@@ -39,44 +39,23 @@ export function DockerTile({ data, span, onExpand, expandable }: Props) {
           <div className="t-sub">hosts</div>
         </div>
       </div>
-      {hosts.map((h) => {
-        const list = containers.filter((c) => c.host === h.id);
-        const up = list.filter((c) => c.state === 'running').length;
-        const hostOk = h.status === 'online';
-        return (
-          <div key={h.id} className="col" style={{ gap: 6, paddingTop: 6 }}>
-            <div className="between">
-              <div className="t-title" style={{ fontSize: 12 }}>
-                <span
-                  style={{
-                    width: 6, height: 6, borderRadius: 50,
-                    background: hostOk ? 'var(--ok)' : 'var(--bad)', display: 'inline-block', marginRight: 6,
-                  }}
-                />
-                {h.name}
-                <span className="t-tag" style={{ marginLeft: 6 }}>{h.addr}</span>
-              </div>
-              <div className="t-sub">
-                {hostOk ? `${up}/${list.length} up · cpu ${h.cpu}% · ram ${h.ram}%` : 'offline'}
-              </div>
+      <div className="list">
+        {hosts.map((h) => {
+          const list = containers.filter((c) => c.host === h.id);
+          const up = list.filter((c) => c.state === 'running').length;
+          const hostOk = h.status === 'online';
+          return (
+            <div key={h.id} className="li">
+              <span className={`d ${hostOk ? '' : 'bad'}`} />
+              <span className="name">{h.name}</span>
+              <span className="meta">{h.addr}</span>
+              <span className="val">
+                {hostOk ? `${up}/${list.length} up` : 'offline'}
+              </span>
             </div>
-            <div className="containers" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
-              {list.map((c) => (
-                <div key={c.name} className="container-card">
-                  <div className="name">
-                    <span
-                      className={`d ${c.state === 'stopped' ? 'idle' : c.state === 'paused' ? 'warn' : ''}`}
-                    />
-                    {c.name}
-                  </div>
-                  <div className="image" title={c.image}>{c.image.split('/').slice(-1)[0]}</div>
-                  <div className="meta">cpu {c.cpu.toFixed(1)}% · {c.memMB} MB</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </Tile>
   );
 }

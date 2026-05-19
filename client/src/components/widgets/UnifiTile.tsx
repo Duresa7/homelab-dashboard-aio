@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function UnifiTile({ data, span, onExpand, expandable }: Props) {
-  const { gateway, switches, aps, clients, clientBreakdown, wan } = data;
+  const { gateway, clients, clientBreakdown, wan } = data;
   return (
     <Tile
       title="Network"
@@ -55,27 +55,6 @@ export function UnifiTile({ data, span, onExpand, expandable }: Props) {
         {' · '}
         {clientBreakdown.wired} wired
         {clientBreakdown.vpn > 0 && <>{' · '}{clientBreakdown.vpn} VPN</>}
-      </div>
-      <div className="list">
-        {aps.map((ap) => (
-          <div key={ap.name} className="li">
-            <span className="d" />
-            <span className="name">{ap.name}</span>
-            <span className="meta">{ap.model}</span>
-            <span className="val">
-              {ap.clients} cli
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className="t-sub" style={{ paddingTop: 6, borderTop: '1px dashed var(--line)' }}>
-        Switches:&nbsp;
-        {switches.map((s, i) => (
-          <span key={s.name}>
-            {s.name}{s.poeUsedW > 0 ? ` (${s.poeUsedW}W)` : ''}
-            {i < switches.length - 1 ? ' · ' : ''}
-          </span>
-        ))}
       </div>
     </Tile>
   );

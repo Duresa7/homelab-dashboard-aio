@@ -1,5 +1,6 @@
 import { Tile } from '../tile/Tile';
 import { AutoChart, Donut } from '../charts';
+import { BrandIcon } from '../icons/BrandIcon';
 import type { ChartKind, GPUData } from '../../types';
 import { fmtTemp, useTempUnit } from '../../lib/units';
 
@@ -17,7 +18,7 @@ export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
   const { unit } = useTempUnit();
   return (
     <Tile
-      title="GPU"
+      title={<><BrandIcon name="nvidia" alt="NVIDIA" /> GPU</>}
       sub={model}
       span={span}
       onExpand={onExpand}

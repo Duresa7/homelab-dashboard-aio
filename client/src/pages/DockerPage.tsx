@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Play, Square, Server, Layers } from 'lucide-react';
+import { BrandIcon } from '../components/icons/BrandIcon';
 import type { DashboardState } from '../types';
 
 interface Props {
@@ -15,28 +17,28 @@ function Hosts({ data }: { data: DashboardState }) {
   return (
     <div className="grid">
       <div className="tile span-3">
-        <div className="t-title">Running</div>
+        <div className="t-title"><Play size={14} strokeWidth={1.75} />Running</div>
         <div className="t-big" style={{ color: 'var(--ok)' }}>{running}</div>
         <div className="t-sub">of {c.length} containers</div>
       </div>
       <div className="tile span-3">
-        <div className="t-title">Stopped</div>
+        <div className="t-title"><Square size={14} strokeWidth={1.75} />Stopped</div>
         <div className="t-big" style={{ color: stopped > 0 ? 'var(--warn)' : 'var(--ink-3)' }}>{stopped}</div>
         <div className="t-sub">{stopped === 0 ? 'all healthy' : 'not running'}</div>
       </div>
       <div className="tile span-3">
-        <div className="t-title">Hosts</div>
+        <div className="t-title"><Server size={14} strokeWidth={1.75} />Hosts</div>
         <div className="t-big">{hosts.length}</div>
         <div className="t-sub">{hosts.map((h) => h.name).join(' · ')}</div>
       </div>
       <div className="tile span-3">
-        <div className="t-title">Stacks</div>
+        <div className="t-title"><Layers size={14} strokeWidth={1.75} />Stacks</div>
         <div className="t-big">{stacks.length}</div>
         <div className="t-sub">{stacks.join(', ')}</div>
       </div>
 
       <div className="tile span-12">
-        <div className="t-title">Docker hosts</div>
+        <div className="t-title"><BrandIcon name="docker" alt="Docker" /> Docker hosts</div>
         <div
           style={{
             display: 'grid',
@@ -167,6 +169,7 @@ function Containers({ data }: { data: DashboardState }) {
             <div key={`${h.id}/${s}`} className="tile span-6">
               <div className="t-head">
                 <div className="t-title">
+                  <BrandIcon name="docker" alt="Docker" size={16} />
                   {h.name} <span style={{ color: 'var(--ink-4)' }}>/</span> {s}
                 </div>
                 <div className="t-sub">{list.length} containers</div>

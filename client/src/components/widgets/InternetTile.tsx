@@ -1,4 +1,5 @@
 import { Tile } from '../tile/Tile';
+import { BrandIcon } from '../icons/BrandIcon';
 import type { NetworkData } from '../../types';
 
 interface Props {
@@ -10,7 +11,7 @@ interface Props {
 
 export function InternetTile({ data, span, onExpand, expandable }: Props) {
   return (
-    <Tile title="Internet" sub={`pub ${data.publicIp}`} span={span} onExpand={onExpand} expandable={expandable}>
+    <Tile title={<><BrandIcon name="unifi" alt="UniFi" /> Internet</>} sub={`pub ${data.publicIp}`} span={span} onExpand={onExpand} expandable={expandable}>
       <div className="row" style={{ gap: 14 }}>
         <div>
           <div className="t-big">

@@ -410,6 +410,127 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+const LIVE_HEALTH_CACHE_TTL_MS = Number(process.env.HEALTH_LIVE_CACHE_TTL) || 12000;
+const LIVE_HEALTH_PROBE_TIMEOUT_MS = Number(process.env.HEALTH_LIVE_TIMEOUT) || 5000;
+let liveHealthCache = { data: null, ts: 0 };
+
+async function runProbe(name, configured, fn) {
+  const checkedAt = new Date().toISOString();
+  if (!configured) {
+    return {
+      name,
+      status: 'skipped',
+      ok: null,
+      latencyMs: null,
+      error: null,
+      checkedAt,
+    };
+  }
+  const start = Date.now();
+  let timer;
+  const timeoutP = new Promise((_, rej) => {
+    timer = setTimeout(
+      () => rej(new Error(`probe timed out after ${LIVE_HEALTH_PROBE_TIMEOUT_MS}ms`)),
+      LIVE_HEALTH_PROBE_TIMEOUT_MS,
+    );
+  });
+  try {
+    await Promise.race([Promise.resolve().then(fn), timeoutP]);
+    return {
+      name,
+      status: 'ok',
+      ok: true,
+      latencyMs: Date.now() - start,
+      error: null,
+      checkedAt,
+    };
+  } catch (err) {
+    const msg = err && err.message ? String(err.message) : String(err);
+    return {
+      name,
+      status: 'down',
+      ok: false,
+      latencyMs: Date.now() - start,
+      error: msg.slice(0, 300),
+      checkedAt,
+    };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+app.get('/api/health/live', async (req, res) => {
+  const force = req.query.refresh === '1' || req.query.force === '1';
+  const now = Date.now();
+  if (!force && liveHealthCache.data && now - liveHealthCache.ts < LIVE_HEALTH_CACHE_TTL_MS) {
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      ...liveHealthCache.data,
+      fromCache: true,
+      ageMs: now - liveHealthCache.ts,
+      cacheTtlMs: LIVE_HEALTH_CACHE_TTL_MS,
+    });
+  }
+
+  const probes = await Promise.all([
+    runProbe(
+      'unifi',
+      UNIFI_ENABLED && !!BASE_URL && !!API_KEY,
+      () => uniFetch('/proxy/network/integration/v1/sites'),
+    ),
+    runProbe(
+      'portainer',
+      PORTAINER_ENABLED && !!PORTAINER_BASE_URL && !!PORTAINER_API_KEY,
+      () => portainerFetch('/api/endpoints', { timeoutMs: LIVE_HEALTH_PROBE_TIMEOUT_MS }),
+    ),
+    runProbe(
+      'proxmox',
+      PROXMOX_ENABLED && !!PVE_BASE_URL && !!PVE_TOKEN_ID && !!PVE_TOKEN_SECRET,
+      () => pveFetch('/api2/json/version'),
+    ),
+    runProbe(
+      'unas',
+      UNAS_ENABLED && !!UNAS_BASE_URL && !!UNAS_API_KEY,
+      () => unasFetch('/proxy/drive/api/v2/storage'),
+    ),
+    runProbe(
+      'protect',
+      PROTECT_ENABLED && !!PROTECT_BASE_URL && !!PROTECT_API_KEY,
+      () => protectFetchJson('/v1/meta/info'),
+    ),
+    runProbe(
+      'gpu',
+      GPU_ENABLED && (GPU_MODE === 'local' || !!GPU_SSH_HOST),
+      () => runNvidiaSmi(),
+    ),
+    runProbe(
+      'sensors',
+      SENSORS_ENABLED && (SENSORS_MODE === 'local' || !!SENSORS_SSH_HOST),
+      () => runSensors(),
+    ),
+  ]);
+
+  const byKey = {};
+  for (const p of probes) byKey[p.name] = p;
+
+  const summary = {
+    total: probes.length,
+    ok: probes.filter((p) => p.status === 'ok').length,
+    down: probes.filter((p) => p.status === 'down').length,
+    skipped: probes.filter((p) => p.status === 'skipped').length,
+  };
+
+  const result = {
+    ok: summary.down === 0,
+    checkedAt: new Date().toISOString(),
+    summary,
+    integrations: byKey,
+  };
+  liveHealthCache = { data: result, ts: now };
+  res.set('Cache-Control', 'no-store');
+  res.json({ ...result, fromCache: false, ageMs: 0, cacheTtlMs: LIVE_HEALTH_CACHE_TTL_MS });
+});
+
 // ---------------------------------------------------------------------------
 // Docker via Portainer
 // ---------------------------------------------------------------------------

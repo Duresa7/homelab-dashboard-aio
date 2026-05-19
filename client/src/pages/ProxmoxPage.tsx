@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
+import {
+  Cpu, MemoryStick, Thermometer, HardDrive, Fan, Network, Server, Box, Disc,
+} from 'lucide-react';
 import { Donut } from '../components/charts';
 import { GPUTile } from '../components/widgets';
+import { BrandIcon } from '../components/icons/BrandIcon';
 import type { DashboardState } from '../types';
 import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '../lib/units';
 
@@ -26,23 +30,55 @@ function SensorChip({
   label,
   value,
   color,
+  icon,
 }: {
   label: string;
   value: string;
   color?: string;
+  icon?: ReactNode;
 }) {
   return (
     <div className="sensor-chip">
+      {icon ? <span className="icon-text" style={{ marginRight: 6 }}>{icon}</span> : null}
       <span className="lbl">{label}</span>
       <span className="val" style={color ? { color } : undefined}>{value}</span>
     </div>
   );
 }
 
-function SensorSection({ title, children }: { title: string; children: ReactNode }) {
+function SpinningFan({ rpm }: { rpm: number }) {
+  const duration = rpm < 200 ? 0 : Math.max(0.35, Math.min(3.5, 1500 / rpm));
+  return (
+    <Fan
+      size={12}
+      strokeWidth={1.75}
+      style={duration > 0 ? { animation: `icon-spin ${duration}s linear infinite`, transformOrigin: '50% 50%' } : undefined}
+    />
+  );
+}
+
+function throbProps(over: boolean) {
+  return {
+    className: over ? 'icon-throb' : '',
+    style: over ? { color: 'var(--bad)' } : undefined,
+  } as const;
+}
+
+function SensorSection({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="sensor-section">
-      <div className="section-head">{title}</div>
+      <div className="section-head">
+        {icon}
+        {title}
+      </div>
       <div className="sensor-chips">{children}</div>
     </div>
   );
@@ -50,6 +86,7 @@ function SensorSection({ title, children }: { title: string; children: ReactNode
 
 function TempCard({
   title,
+  icon,
   sub,
   tempC,
   warnAt,
@@ -57,6 +94,7 @@ function TempCard({
   unit,
 }: {
   title: string;
+  icon?: ReactNode;
   sub: string;
   tempC: number | null;
   warnAt: number;
@@ -83,7 +121,7 @@ function TempCard({
   return (
     <div className="tile span-4">
       <div className="t-head">
-        <div className="t-title">{title}</div>
+        <div className="t-title">{icon}{title}</div>
         <span className={`pill ${pillKind}`}><span className="dot" />{statusLabel}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 8 }}>
@@ -110,6 +148,7 @@ function TempCard({
 
 function MetricCard({
   title,
+  icon,
   value,
   max,
   donutLabel,
@@ -119,6 +158,7 @@ function MetricCard({
   warn,
 }: {
   title: string;
+  icon?: ReactNode;
   value: number;
   max: number;
   donutLabel: string;
@@ -129,7 +169,7 @@ function MetricCard({
 }) {
   return (
     <div className="tile span-3">
-      <div className="t-title">{title}</div>
+      <div className="t-title">{icon}{title}</div>
       <div className="metric-row" style={{ alignItems: 'center', gap: 16 }}>
         <Donut
           value={value}
@@ -164,7 +204,7 @@ function Compute({ data }: { data: DashboardState }) {
       <div className="tile span-12">
         <div className="metric-row" style={{ alignItems: 'center', gap: 32, flexWrap: 'wrap' }}>
           <div>
-            <div className="t-title">Node</div>
+            <div className="t-title"><BrandIcon name="proxmox" alt="Proxmox" /> Node</div>
             <div className="t-big" style={{ marginTop: 4 }}>{n.name}</div>
             <div className="t-sub" style={{ marginTop: 4 }}>{n.cpuModel}</div>
           </div>
@@ -193,6 +233,7 @@ function Compute({ data }: { data: DashboardState }) {
 
       <MetricCard
         title="CPU Usage"
+        icon={<Cpu size={14} strokeWidth={1.75} {...throbProps(n.cpu > 90)} />}
         value={n.cpu}
         max={100}
         donutLabel={`${n.cpu.toFixed(1)}%`}
@@ -202,6 +243,7 @@ function Compute({ data }: { data: DashboardState }) {
       />
       <MetricCard
         title="CPU Allocation"
+        icon={<Cpu size={14} strokeWidth={1.75} {...throbProps(vCpuAllocPct > 100)} />}
         value={Math.min(vCpuAllocPct, 100)}
         max={100}
         donutLabel={`${data.proxmox.coresAllocated}`}
@@ -212,6 +254,7 @@ function Compute({ data }: { data: DashboardState }) {
       />
       <MetricCard
         title="RAM Usage"
+        icon={<MemoryStick size={14} strokeWidth={1.75} {...throbProps(n.ram > 90)} />}
         value={n.ram}
         max={100}
         donutLabel={`${n.ram.toFixed(0)}%`}
@@ -222,6 +265,7 @@ function Compute({ data }: { data: DashboardState }) {
       />
       <MetricCard
         title="RAM Allocation"
+        icon={<MemoryStick size={14} strokeWidth={1.75} {...throbProps(ramAllocPct > 100)} />}
         value={Math.min(ramAllocPct, 100)}
         max={100}
         donutLabel={`${ramAllocPct.toFixed(0)}%`}
@@ -235,6 +279,7 @@ function Compute({ data }: { data: DashboardState }) {
 
       <TempCard
         title="System Temp"
+        icon={<Thermometer size={14} strokeWidth={1.75} {...throbProps((data.sensors.systemTempC ?? 0) >= 75)} />}
         sub={data.sensors.systemTempLabel ?? 'System'}
         tempC={data.sensors.systemTempC}
         warnAt={60}
@@ -243,6 +288,7 @@ function Compute({ data }: { data: DashboardState }) {
       />
       <TempCard
         title="CPU Temp"
+        icon={<Thermometer size={14} strokeWidth={1.75} {...throbProps((data.sensors.cpuTempC ?? 0) >= 85)} />}
         sub={n.cpuModel}
         tempC={data.sensors.cpuTempC}
         warnAt={75}
@@ -251,6 +297,7 @@ function Compute({ data }: { data: DashboardState }) {
       />
       <TempCard
         title="GPU Temp"
+        icon={<Thermometer size={14} strokeWidth={1.75} {...throbProps((data.gpu.tempC ?? 0) >= 85)} />}
         sub={data.gpu.model}
         tempC={data.gpu.tempC || null}
         warnAt={75}
@@ -268,7 +315,7 @@ function Guests({ data }: { data: DashboardState }) {
     <div className="grid">
       <div className="tile span-12">
         <div className="t-head">
-          <div className="t-title">VMs &amp; LXCs <span className="t-sub">· {running}/{vms.length} running</span></div>
+          <div className="t-title"><Server size={14} strokeWidth={1.75} />VMs &amp; LXCs <span className="t-sub">· {running}/{vms.length} running</span></div>
         </div>
         {vms.length === 0 ? (
           <div className="page-empty">No virtual machines or containers detected</div>
@@ -290,6 +337,8 @@ function Guests({ data }: { data: DashboardState }) {
               {vms.map((v) => {
                 const stateClass = v.state === 'stopped' ? 'idle' : v.state === 'paused' ? 'warn' : 'ok';
                 const pillKind = v.state === 'stopped' ? '' : v.state === 'paused' ? 'warn' : 'ok';
+                const isLxc = /lxc|ct|container/i.test(v.type);
+                const TypeIcon = isLxc ? Box : Server;
                 return (
                   <tr key={v.id}>
                     <td>
@@ -300,7 +349,12 @@ function Guests({ data }: { data: DashboardState }) {
                     </td>
                     <td className="tnum">{v.id}</td>
                     <td>{v.name}</td>
-                    <td className="muted">{v.type}</td>
+                    <td className="muted">
+                      <span className="icon-text">
+                        <TypeIcon size={13} strokeWidth={1.75} />
+                        {v.type}
+                      </span>
+                    </td>
                     <td className="mono">{v.ip ?? <span className="muted">—</span>}</td>
                     <td className="tnum num">{v.cpu.toFixed(1)}%</td>
                     <td className="tnum num">{v.ram}%</td>
@@ -332,7 +386,10 @@ function Storage({ data }: { data: DashboardState }) {
   return (
     <div className="grid">
       <div className="tile span-4">
-        <div className="t-title">Storage Usage</div>
+        <div className="t-title">
+          <Disc size={14} strokeWidth={1.75} {...throbProps(n.storagePct > 90)} />
+          Storage Usage
+        </div>
         <div className="metric-row" style={{ alignItems: 'center', gap: 24 }}>
           <Donut
             value={n.storagePct}
@@ -356,6 +413,7 @@ function Storage({ data }: { data: DashboardState }) {
       <div className="tile span-8">
         <div className="t-head">
           <div className="t-title">
+            <Disc size={14} strokeWidth={1.75} />
             Storage Backends <span className="t-sub">· {storages.length}</span>
           </div>
         </div>
@@ -414,6 +472,7 @@ function Storage({ data }: { data: DashboardState }) {
       <div className="tile span-12">
         <div className="t-head">
           <div className="t-title">
+            <HardDrive size={14} strokeWidth={1.75} />
             Physical Drives <span className="t-sub">· {disks.length} drives · {formatBytes(totalBytes)} total</span>
           </div>
         </div>
@@ -483,13 +542,13 @@ function Sensors({ data }: { data: DashboardState }) {
   return (
     <div className="grid">
       <div className="tile span-12">
-        <div className="t-title">Hardware Sensors</div>
+        <div className="t-title"><Thermometer size={14} strokeWidth={1.75} />Hardware Sensors</div>
         {!hasAny ? (
           <div className="page-empty">No hardware sensors detected</div>
         ) : (
           <>
             {data.sensors.disks.length > 0 && (
-              <SensorSection title="Drives">
+              <SensorSection title="Drives" icon={<HardDrive size={14} strokeWidth={1.75} />}>
                 {data.sensors.disks.map((d) => (
                   <SensorChip
                     key={d.name}
@@ -501,7 +560,7 @@ function Sensors({ data }: { data: DashboardState }) {
               </SensorSection>
             )}
             {data.sensors.memory.length > 0 && (
-              <SensorSection title="Memory">
+              <SensorSection title="Memory" icon={<MemoryStick size={14} strokeWidth={1.75} />}>
                 {data.sensors.memory.map((m) => (
                   <SensorChip
                     key={m.name}
@@ -513,7 +572,7 @@ function Sensors({ data }: { data: DashboardState }) {
               </SensorSection>
             )}
             {data.sensors.network.length > 0 && (
-              <SensorSection title="Network">
+              <SensorSection title="Network" icon={<Network size={14} strokeWidth={1.75} />}>
                 {data.sensors.network.map((nic) => (
                   <SensorChip
                     key={nic.name}
@@ -525,7 +584,7 @@ function Sensors({ data }: { data: DashboardState }) {
               </SensorSection>
             )}
             {data.sensors.fans.some((f) => f.rpm > 0) && (
-              <SensorSection title="Fans">
+              <SensorSection title="Fans" icon={<Fan size={14} strokeWidth={1.75} className="icon-spin" />}>
                 {data.sensors.fans
                   .filter((f) => f.rpm > 0)
                   .map((f) => (
@@ -533,6 +592,7 @@ function Sensors({ data }: { data: DashboardState }) {
                       key={`${f.chip}-${f.name}`}
                       label={f.name}
                       value={`${Math.round(f.rpm)} RPM`}
+                      icon={<SpinningFan rpm={f.rpm} />}
                     />
                   ))}
               </SensorSection>

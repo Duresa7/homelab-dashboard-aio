@@ -15,6 +15,8 @@ import { CamerasPage } from './pages/CamerasPage';
 import { EventsPage } from './pages/EventsPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { HealthPage } from './pages/HealthPage';
+import { SiemPage } from './pages/SiemPage';
 
 import { INTEGRATION_KEYS, setIntegrationEnabled, useDashData, type IntegrationKey } from './lib/telemetry';
 import {
@@ -163,6 +165,8 @@ export function App() {
         {route.section === 'cameras' && <CamerasPage data={data} sub={activeSub ?? 'overview'} />}
         {route.section === 'events'  && <EventsPage  data={data} />}
         {route.section === 'alerts'  && <AlertsPage  alerts={visibleAlerts} onDismiss={dismiss} />}
+        {route.section === 'health'  && <HealthPage  integrations={integrations} />}
+        {route.section === 'siem'    && <SiemPage />}
         {route.section === 'settings' && (
           <SettingsPage
             integrations={integrations}

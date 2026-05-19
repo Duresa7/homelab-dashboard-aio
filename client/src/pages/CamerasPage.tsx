@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  Camera as CameraIcon, Mic, Volume2, Sparkles, Package, ScanFace, Activity, Video,
+} from 'lucide-react';
 import { CameraSnapshot } from '../components/widgets/CameraSnapshot';
 import { CameraLiveStream } from '../components/widgets/CameraLiveStream';
 import { CameraFullscreen, type CameraViewMode } from '../components/widgets/CameraFullscreen';
+import { BrandIcon } from '../components/icons/BrandIcon';
 import type {
   DashboardState,
   ProtectArmStatus,
@@ -80,8 +84,12 @@ function NvrCard({ data }: { data: DashboardState }) {
     <div className="tile span-4">
       <div className="t-head">
         <div className="t-title">
+          <BrandIcon name="unifi" alt="UniFi Protect" />
           NVR
-          <span className={`t-tag ${sev}`}>{armLabel(nvr.armMode.status)}</span>
+          <span className={`t-tag ${sev}`}>
+            {nvr.armMode.status === 'armed' ? <span className="pulse-dot icon-pulse" /> : null}
+            {armLabel(nvr.armMode.status)}
+          </span>
         </div>
       </div>
       <dl className="kv">
@@ -111,7 +119,7 @@ function StatusCard({ data }: { data: DashboardState }) {
   const { protect } = data;
   return (
     <div className="tile span-4">
-      <div className="t-title">Fleet</div>
+      <div className="t-title"><BrandIcon name="unifi" alt="UniFi Protect" /> Fleet</div>
       <div className="row" style={{ gap: 14, paddingTop: 4 }}>
         <div>
           <div className="t-big" style={{ fontSize: 28 }}>{protect.connected}</div>
@@ -142,13 +150,13 @@ function FeaturesCard({ data }: { data: DashboardState }) {
   cams.forEach((c) => c.enabledObjectTypes.forEach((t) => smartTypes.add(t)));
   return (
     <div className="tile span-4">
-      <div className="t-title">Capabilities</div>
+      <div className="t-title"><Sparkles size={14} strokeWidth={1.75} />Capabilities</div>
       <dl className="kv">
-        <dt>With microphone</dt><dd>{hasMic}</dd>
-        <dt>With speaker</dt><dd>{hasSpeaker}</dd>
-        <dt>HDR-capable</dt><dd>{hasHdr}</dd>
-        <dt>Package cam</dt><dd>{hasPkg}</dd>
-        <dt>Smart detect</dt>
+        <dt><Mic size={12} strokeWidth={1.75} className="kv-icon" />With microphone</dt><dd>{hasMic}</dd>
+        <dt><Volume2 size={12} strokeWidth={1.75} className="kv-icon" />With speaker</dt><dd>{hasSpeaker}</dd>
+        <dt><Video size={12} strokeWidth={1.75} className="kv-icon" />HDR-capable</dt><dd>{hasHdr}</dd>
+        <dt><Package size={12} strokeWidth={1.75} className="kv-icon" />Package cam</dt><dd>{hasPkg}</dd>
+        <dt><ScanFace size={12} strokeWidth={1.75} className="kv-icon" />Smart detect</dt>
         <dd>{smartTypes.size ? [...smartTypes].join(', ') : 'none enabled'}</dd>
       </dl>
     </div>
@@ -187,7 +195,7 @@ function Overview({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
       <FeaturesCard data={data} />
       <div className="tile span-12">
         <div className="t-head">
-          <div className="t-title">Live snapshots <span className="t-sub">· top {preview.length}</span></div>
+          <div className="t-title"><CameraIcon size={14} strokeWidth={1.75} />Live snapshots <span className="t-sub">· top {preview.length}</span></div>
         </div>
         <div
           style={{
@@ -243,7 +251,7 @@ function Grid({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
     <div className="grid">
       <div className="tile span-12">
         <div className="t-head">
-          <div className="t-title">All cameras <span className="t-sub">· {cams.length}</span></div>
+          <div className="t-title"><CameraIcon size={14} strokeWidth={1.75} />All cameras <span className="t-sub">· {cams.length}</span></div>
           <div className="row" style={{ gap: 14, alignItems: 'center' }}>
             <div className="row" style={{ gap: 8, alignItems: 'center' }}>
               {radio('snapshot', 'Snapshots')}
@@ -311,6 +319,12 @@ function Grid({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
 
 interface EventRow extends ProtectEvent {
   cameraName?: string;
+}
+
+function deviceLabel(e: EventRow): ReactNode {
+  if (e.cameraName) return e.cameraName;
+  if (e.device) return <span className="t-sub mono">device · {e.device.slice(0, 8)}</span>;
+  return '—';
 }
 
 function eventSeverity(e: ProtectEvent): Severity {
@@ -388,9 +402,20 @@ function Events({ data }: { data: DashboardState }) {
 
   const visible: EventRow[] = useMemo(() => {
     const list = events ?? data.protect.recentEvents;
-    const byId = new Map(data.protect.cameras.map((c) => [c.id, c.name]));
-    return list.map((e) => ({ ...e, cameraName: byId.get(e.device) }));
-  }, [events, data.protect.recentEvents, data.protect.cameras]);
+    const normalize = (s: string) => s.replace(/:/g, '').toLowerCase();
+    const byKey = new Map<string, string>();
+    data.protect.cameras.forEach((c) => {
+      if (c.id) byKey.set(normalize(c.id), c.name);
+      if (c.mac) byKey.set(normalize(c.mac), c.name);
+    });
+    if (data.protect.nvr) {
+      byKey.set(normalize(data.protect.nvr.id), data.protect.nvr.name);
+    }
+    return list.map((e) => ({
+      ...e,
+      cameraName: e.device ? byKey.get(normalize(e.device)) : undefined,
+    }));
+  }, [events, data.protect.recentEvents, data.protect.cameras, data.protect.nvr]);
 
   const types = useMemo(() => {
     const set = new Set<string>();
@@ -403,8 +428,10 @@ function Events({ data }: { data: DashboardState }) {
       <div className="tile span-12">
         <div className="t-head">
           <div className="t-title">
+            <Activity size={14} strokeWidth={1.75} />
             Events
             <span className={`t-tag ${connected ? 'ok' : 'bad'}`}>
+              {connected ? <span className="pulse-dot icon-pulse" /> : null}
               {connected ? 'live' : 'disconnected'}
             </span>
           </div>
@@ -464,7 +491,7 @@ function Events({ data }: { data: DashboardState }) {
                 return (
                   <tr key={`${e.id}-${e.seq}`}>
                     <td title={new Date(e.start).toLocaleString()}>{formatTimeAgo(e.start)}</td>
-                    <td>{e.cameraName ?? e.device ?? '—'}</td>
+                    <td>{deviceLabel(e)}</td>
                     <td>
                       <span className={`pill ${sev}`}>
                         <span className="dot" />
@@ -501,7 +528,7 @@ function Devices({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
     <div className="grid">
       <div className="tile span-12">
         <div className="t-head">
-          <div className="t-title">Devices <span className="t-sub">· {cams.length}</span></div>
+          <div className="t-title"><CameraIcon size={14} strokeWidth={1.75} />Devices <span className="t-sub">· {cams.length}</span></div>
         </div>
         <table className="data-table">
           <thead>
@@ -526,7 +553,7 @@ function Devices({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
                 <tr key={c.id}>
                   <td>
                     <span className={`pill ${pill}`}>
-                      <span className="dot" />
+                      <span className={`dot ${ok ? 'icon-pulse' : ''}`} />
                       {c.state.toLowerCase()}
                     </span>
                   </td>

@@ -50,19 +50,6 @@ export function ProxmoxTile({ data, span, onExpand, expandable }: Props) {
           </div>
         </div>
       </div>
-      <div className="list">
-        {vms.slice(0, 6).map((v) => {
-          const cls = v.state === 'stopped' ? 'idle' : v.state === 'paused' ? 'warn' : '';
-          return (
-            <div key={v.id} className="li">
-              <span className={`d ${cls}`} />
-              <span className="name">{v.name}</span>
-              <span className="meta">{v.type} · {v.id}</span>
-              <span className="val">{v.cpu.toFixed(1)}% · {v.ram}%</span>
-            </div>
-          );
-        })}
-      </div>
     </Tile>
   );
 }

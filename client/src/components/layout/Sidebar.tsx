@@ -92,6 +92,8 @@ export function Sidebar({ route, setRoute, alerts }: Props) {
       badge: alerts.length || undefined,
       badgeKind: alerts.some((a) => a.kind === 'bad') ? 'bad' : alerts.length ? 'warn' : '',
     },
+    { kind: 'leaf', section: 'health', icon: 'activity' },
+    { kind: 'leaf', section: 'siem', icon: 'history' },
     { kind: 'section', label: 'preferences' },
     { kind: 'leaf', section: 'settings', icon: 'settings' },
   ];

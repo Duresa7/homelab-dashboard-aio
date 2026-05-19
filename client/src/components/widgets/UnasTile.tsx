@@ -1,4 +1,5 @@
 import { Tile } from '../tile/Tile';
+import { BrandIcon } from '../icons/BrandIcon';
 import type { Severity, UnasData, UnasScrub, UnasSmartTest } from '../../types';
 import { fmtTemp, useTempUnit } from '../../lib/units';
 import { ageSince, formatPowerOnTime } from '../../lib/format';
@@ -8,6 +9,7 @@ interface Props {
   span?: number;
   onExpand?: () => void;
   expandable?: boolean;
+  compact?: boolean;
 }
 
 const KIND_COLOR: Record<Severity, string> = {
@@ -52,14 +54,14 @@ function smartTestDisplay(test: UnasSmartTest | null): { label: string; kind: Se
   return { label: `test failed${suffix}`, kind: 'bad' };
 }
 
-export function UnasTile({ data, span, onExpand, expandable }: Props) {
+export function UnasTile({ data, span, onExpand, expandable, compact }: Props) {
   const { unit } = useTempUnit();
   const { name, model, tempC, fanProfile, pools, disks } = data;
   const allIncompat = [...new Set(pools.flatMap((p) => p.incompatibilities))];
 
   return (
     <Tile
-      title={model}
+      title={<><BrandIcon name="unifi" alt="UniFi" /> {model}</>}
       sub={`${name} · fan ${fanProfile}`}
       span={span}
       onExpand={onExpand}
@@ -91,16 +93,18 @@ export function UnasTile({ data, span, onExpand, expandable }: Props) {
               <div className={`pbar ${cls === 'ok' ? '' : cls}`}>
                 <span style={{ width: `${pct}%` }} />
               </div>
-              <div className="t-sub" style={{ fontSize: 12 }}>
-                Last scrub:{' '}
-                <span style={{ color: KIND_COLOR[scrub.kind] }}>{scrub.label}</span>
-              </div>
+              {!compact && (
+                <div className="t-sub" style={{ fontSize: 12 }}>
+                  Last scrub:{' '}
+                  <span style={{ color: KIND_COLOR[scrub.kind] }}>{scrub.label}</span>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {disks.length > 0 && (
+      {!compact && disks.length > 0 && (
         <>
           <div className="t-sub" style={{ marginTop: 4 }}>Drives</div>
           <div className="list">

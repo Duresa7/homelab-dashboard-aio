@@ -7,6 +7,8 @@ export type Section =
   | 'cameras'
   | 'events'
   | 'alerts'
+  | 'health'
+  | 'siem'
   | 'settings';
 
 export interface Route {
@@ -62,6 +64,8 @@ export const DEFAULT_SUB: Record<Section, string | undefined> = {
   cameras:  'overview',
   events:   undefined,
   alerts:   undefined,
+  health:   undefined,
+  siem:     undefined,
   settings: undefined,
 };
 
@@ -74,6 +78,8 @@ export const SECTION_LABEL: Record<Section, string> = {
   cameras:  'Cameras',
   events:   'Events',
   alerts:   'Alerts',
+  health:   'API Health',
+  siem:     'SIEM',
   settings: 'Settings',
 };
 

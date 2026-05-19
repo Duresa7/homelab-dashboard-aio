@@ -1,5 +1,7 @@
 import { AreaChart } from '../components/charts';
+import { Activity, Wifi, Cable, Globe, Shield, Lock, Router } from 'lucide-react';
 import { InternetTile, NetworkTile, TopTalkersTile } from '../components/widgets';
+import { BrandIcon, vpnBrand } from '../components/icons/BrandIcon';
 import type { DashboardState } from '../types';
 import { fmtTemp, useTempUnit } from '../lib/units';
 
@@ -15,7 +17,7 @@ function Overview({ data }: { data: DashboardState }) {
   return (
     <div className="grid">
       <div className="tile span-4">
-        <div className="t-title">Gateway</div>
+        <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /><Router size={14} strokeWidth={1.75} />Gateway</div>
         <div className="t-big" style={{ fontSize: 24, fontFamily: 'var(--font-sans)' }}>{u.gateway.model}</div>
         <dl className="kv">
           <dt>Firmware</dt><dd>{u.gateway.fwVersion}</dd>
@@ -30,7 +32,7 @@ function Overview({ data }: { data: DashboardState }) {
       <NetworkTile data={data.network} span={8} chartKind="area" expandable={false} />
       <InternetTile data={data.network} span={6} expandable={false} />
       <div className="tile span-6">
-        <div className="t-title">Latency · last 60 ticks</div>
+        <div className="t-title"><Activity size={14} strokeWidth={1.75} />Latency · last 60 ticks</div>
         <AreaChart data={lh} height={120} />
         <dl className="kv">
           <dt>Current</dt><dd>{data.network.latencyMs.toFixed(1)} ms</dd>
@@ -48,7 +50,7 @@ function Devices({ data }: { data: DashboardState }) {
     <div className="grid">
       <div className="tile span-6">
         <div className="t-head">
-          <div className="t-title">Wi-Fi Access Points <span className="t-sub">· {u.aps.length}</span></div>
+          <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /><Wifi size={14} strokeWidth={1.75} />Wi-Fi Access Points <span className="t-sub">· {u.aps.length}</span></div>
         </div>
         {u.aps.length === 0 ? (
           <div className="page-empty">No APs detected</div>
@@ -72,7 +74,7 @@ function Devices({ data }: { data: DashboardState }) {
 
       <div className="tile span-6">
         <div className="t-head">
-          <div className="t-title">Switches &amp; PoE <span className="t-sub">· {u.switches.length}</span></div>
+          <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /><Cable size={14} strokeWidth={1.75} />Switches &amp; PoE <span className="t-sub">· {u.switches.length}</span></div>
         </div>
         {u.switches.length === 0 ? (
           <div className="page-empty">No switches detected</div>
@@ -124,7 +126,7 @@ function Config({ data }: { data: DashboardState }) {
     <div className="grid">
       <div className="tile span-6">
         <div className="t-head">
-          <div className="t-title">Networks &amp; VLANs <span className="t-sub">· {u.networks.length}</span></div>
+          <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /> Networks &amp; VLANs <span className="t-sub">· {u.networks.length}</span></div>
         </div>
         {u.networks.length === 0 ? (
           <div className="page-empty">No networks data</div>
@@ -146,7 +148,7 @@ function Config({ data }: { data: DashboardState }) {
       </div>
       <div className="tile span-6">
         <div className="t-head">
-          <div className="t-title">Wi-Fi SSIDs <span className="t-sub">· {u.ssids.length}</span></div>
+          <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /> Wi-Fi SSIDs <span className="t-sub">· {u.ssids.length}</span></div>
         </div>
         {u.ssids.length === 0 ? (
           <div className="page-empty">No SSID data</div>
@@ -170,7 +172,7 @@ function Config({ data }: { data: DashboardState }) {
       </div>
 
       <div className="tile span-4">
-        <div className="t-title">Firewall</div>
+        <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /><Shield size={14} strokeWidth={1.75} />Firewall</div>
         <dl className="kv">
           <dt>Zones</dt><dd>{u.firewall.zones}</dd>
           <dt>Policies</dt><dd>{u.firewall.policiesEnabled}/{u.firewall.policies} enabled</dd>
@@ -178,26 +180,32 @@ function Config({ data }: { data: DashboardState }) {
       </div>
       <div className="tile span-4">
         <div className="t-head">
-          <div className="t-title">VPN Servers <span className="t-sub">· {u.vpnServers.length}</span></div>
+          <div className="t-title"><Lock size={14} strokeWidth={1.75} />VPN Servers <span className="t-sub">· {u.vpnServers.length}</span></div>
         </div>
         {u.vpnServers.length === 0 ? (
           <div className="page-empty">No VPN servers</div>
         ) : (
           <div className="list">
-            {u.vpnServers.map((v) => (
-              <div key={v.id} className="li">
-                <span className={`d ${v.enabled ? '' : 'idle'}`} />
-                <span className="name">{v.name}</span>
-                <span className="meta">{v.type}</span>
-                <span className="val">{v.enabled ? 'active' : 'disabled'}</span>
-              </div>
-            ))}
+            {u.vpnServers.map((v) => {
+              const brand = vpnBrand(v.type);
+              return (
+                <div key={v.id} className="li">
+                  <span className={`d ${v.enabled ? '' : 'idle'}`} />
+                  <span className="name">{v.name}</span>
+                  <span className="meta icon-text">
+                    {brand ? <BrandIcon name={brand} size={14} alt={v.type} /> : null}
+                    {v.type}
+                  </span>
+                  <span className="val">{v.enabled ? 'active' : 'disabled'}</span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
       <div className="tile span-4">
         <div className="t-head">
-          <div className="t-title">DNS Records <span className="t-sub">· {u.dnsRecords.length}</span></div>
+          <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /><Globe size={14} strokeWidth={1.75} />DNS Records <span className="t-sub">· {u.dnsRecords.length}</span></div>
         </div>
         {u.dnsRecords.length === 0 ? (
           <div className="page-empty">No local DNS records</div>

@@ -1,4 +1,5 @@
 import { Tile } from '../tile/Tile';
+import { BrandIcon } from '../icons/BrandIcon';
 import type { TopTalker } from '../../types';
 
 interface Props {
@@ -32,7 +33,7 @@ function typeLabel(type: string): string {
 
 export function TopTalkersTile({ data, span, onExpand, expandable }: Props) {
   return (
-    <Tile title="Connected Clients" sub="recent" span={span} onExpand={onExpand} expandable={expandable}>
+    <Tile title={<><BrandIcon name="unifi" alt="UniFi" /> Connected Clients</>} sub="recent" span={span} onExpand={onExpand} expandable={expandable}>
       <div className="list">
         {data.map((t) => (
           <div key={`${t.name}-${t.ip}`} className="li">

@@ -1,3 +1,4 @@
+import { HardDrive, ShieldCheck } from 'lucide-react';
 import { SmartTile, StorageTile, UnasTile } from '../components/widgets';
 import type { DashboardState } from '../types';
 import { fmtTemp, useTempUnit } from '../lib/units';
@@ -25,7 +26,7 @@ function Disks({ data }: { data: DashboardState }) {
       <SmartTile data={data.storage} span={12} expandable={false} />
       <div className="tile span-12">
         <div className="t-head">
-          <div className="t-title">All Disks <span className="t-sub">· {disks.length}</span></div>
+          <div className="t-title"><HardDrive size={14} strokeWidth={1.75} />All Disks <span className="t-sub">· {disks.length}</span></div>
         </div>
         {disks.length === 0 ? (
           <div className="page-empty">No disks reported</div>
@@ -47,11 +48,16 @@ function Disks({ data }: { data: DashboardState }) {
                   <tr key={d.name}>
                     <td>
                       <span className={`pill ${pillKind}`}>
-                        <span className="dot" />
+                        <ShieldCheck size={12} strokeWidth={2} style={{ marginRight: 2 }} />
                         {d.smart}
                       </span>
                     </td>
-                    <td className="mono">{d.name}</td>
+                    <td className="mono">
+                      <span className="icon-text">
+                        <HardDrive size={13} strokeWidth={1.75} />
+                        {d.name}
+                      </span>
+                    </td>
                     <td>{d.model}</td>
                     <td className="tnum num">{fmtTemp(d.tempC, unit)}</td>
                     <td className="tnum num">{formatPowerOnTime(d.ageHours)}</td>

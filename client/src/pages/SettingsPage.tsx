@@ -106,41 +106,22 @@ function Toggle({
       aria-checked={value}
       aria-label={label}
       onClick={() => onChange(!value)}
-      style={{
-        position: 'relative',
-        width: 44,
-        height: 24,
-        borderRadius: 999,
-        border: 0,
-        cursor: 'pointer',
-        padding: 0,
-        background: value ? '#34c759' : 'var(--line, rgba(0,0,0,.18))',
-        transition: 'background .15s',
-        flexShrink: 0,
-      }}
+      className={`toggle ${value ? 'is-on' : ''}`}
     >
-      <span
-        style={{
-          position: 'absolute',
-          top: 2,
-          left: 2,
-          width: 20,
-          height: 20,
-          borderRadius: '50%',
-          background: '#fff',
-          boxShadow: '0 1px 2px rgba(0,0,0,.25)',
-          transition: 'transform .15s',
-          transform: value ? 'translateX(20px)' : 'translateX(0)',
-        }}
-      />
+      <span className="thumb" />
     </button>
   );
 }
 
 export function SettingsPage({ integrations, onChange }: Props) {
   const { data, error, loading } = useServerHealth();
-  const allOn = Object.values(integrations).every(Boolean);
-  const allOff = Object.values(integrations).every((v) => !v);
+  const total = INTEGRATIONS.length;
+  const enabledCount = INTEGRATIONS.reduce(
+    (n, def) => n + (integrations[def.key] ? 1 : 0),
+    0,
+  );
+  const allOn = enabledCount === total;
+  const allOff = enabledCount === 0;
 
   const setOne = (key: IntegrationKey, value: boolean) => {
     onChange({ ...integrations, [key]: value });
@@ -153,96 +134,89 @@ export function SettingsPage({ integrations, onChange }: Props) {
   };
 
   return (
-    <div className="grid">
-      <div className="tile span-12">
-        <div className="t-head">
-          <div className="t-title">Integrations</div>
-          <div className="row" style={{ gap: 8 }}>
-            <button
-              className="icon-btn"
-              disabled={allOn}
-              onClick={() => setAll(true)}
-              style={{ padding: '4px 10px', height: 28 }}
-            >
-              Enable all
-            </button>
-            <button
-              className="icon-btn"
-              disabled={allOff}
-              onClick={() => setAll(false)}
-              style={{ padding: '4px 10px', height: 28 }}
-            >
-              Disable all
-            </button>
+    <div className="page">
+      <div className="settings-summary">
+        <div className="ss-meta">
+          <div className="ss-title">
+            Integrations
+            <span className="ss-count">{enabledCount} / {total} active</span>
+          </div>
+          <div className="ss-sub">
+            Toggle integrations off to stop the dashboard from polling them. Disabled
+            integrations make zero API calls until re-enabled. The server status shows
+            whether <code>.env</code> is also set up to allow each integration.
           </div>
         </div>
-        <div className="t-sub" style={{ paddingBottom: 10 }}>
-          Toggle integrations off to stop the dashboard from polling them. Disabled
-          integrations make zero integration API calls until you re-enable them here. The
-          server-side status shows whether <code>.env</code> is also set up to
-          allow the integration.
-          {error ? (
-            <div style={{ color: 'var(--bad)', paddingTop: 4 }}>
-              Server health check failed: {error}
+        <div className="ss-actions">
+          <button
+            type="button"
+            className="btn"
+            disabled={allOn}
+            onClick={() => setAll(true)}
+          >
+            Enable all
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={allOff}
+            onClick={() => setAll(false)}
+          >
+            Disable all
+          </button>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="alerts">
+          <div className="alert bad">
+            <span className="dot" style={{ background: 'var(--bad)' }} />
+            <div className="body">
+              <b>Server health check failed</b>
+              <span>{error}</span>
             </div>
-          ) : null}
+          </div>
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: 10,
-          }}
-        >
-          {INTEGRATIONS.map((def) => {
-            const enabled = !!integrations[def.key];
-            const info = data ? asHealthInfo(data[def.healthField]) : null;
-            const status = serverStatus(info);
-            const inactive = !enabled;
-            return (
-              <div
-                key={def.key}
-                style={{
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  padding: 12,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                  opacity: inactive ? 0.7 : 1,
-                  transition: 'opacity .15s',
-                }}
-              >
-                <div className="row" style={{ alignItems: 'center', gap: 10 }}>
-                  <div className="flex1">
-                    <div className="t-title" style={{ fontSize: 14 }}>{def.label}</div>
-                    <div className="t-sub" style={{ marginTop: 2 }}>{def.description}</div>
-                  </div>
-                  <Toggle
-                    value={enabled}
-                    label={`Toggle ${def.label}`}
-                    onChange={(v) => setOne(def.key, v)}
-                  />
+      ) : null}
+
+      <div className="settings-grid">
+        {INTEGRATIONS.map((def) => {
+          const enabled = !!integrations[def.key];
+          const info = data ? asHealthInfo(data[def.healthField]) : null;
+          const status = serverStatus(info);
+          const pollLabel = loading
+            ? 'checking server…'
+            : !enabled
+              ? 'paused — no API calls'
+              : info && !info.enabled
+                ? 'not polling (server off)'
+                : `polling /api/${def.key}`;
+          return (
+            <div
+              key={def.key}
+              className={`settings-card ${enabled ? 'is-on' : 'is-off'}`}
+            >
+              <div className="sc-head">
+                <div className="sc-meta">
+                  <div className="sc-title">{def.label}</div>
+                  <div className="sc-desc">{def.description}</div>
                 </div>
-                <div className="row" style={{ alignItems: 'center', gap: 8 }}>
-                  <span className={`pill ${status.kind}`} title={status.hint}>
-                    <span className="dot" />
-                    server: {status.label}
-                  </span>
-                  <span className="t-sub" style={{ fontSize: 11 }}>
-                    {loading
-                      ? 'checking server...'
-                      : !enabled
-                        ? 'paused (no API calls)'
-                        : info && !info.enabled
-                          ? 'not polling (server disabled)'
-                          : 'polling /api/' + def.key}
-                  </span>
-                </div>
+                <Toggle
+                  value={enabled}
+                  label={`Toggle ${def.label}`}
+                  onChange={(v) => setOne(def.key, v)}
+                />
               </div>
-            );
-          })}
-        </div>
+              <div className="sc-foot">
+                <span className={`pill ${status.kind}`} title={status.hint}>
+                  <span className="dot" />
+                  server: {status.label}
+                </span>
+                <span className="sc-poll" title={pollLabel}>{pollLabel}</span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
