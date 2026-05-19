@@ -22,54 +22,8 @@ const SOURCE_LABEL: Record<LogSource, string> = {
   cameras: 'Cameras',
 };
 
-const m = (ms: number) => Date.now() - ms;
-
-const NAS_LOGS: LogEntry[] = [
-  { id: 'n1', ts: m(60_000), severity: 'info', source: 'nas', component: 'zfs.tank', message: 'Scrub completed: 0 errors, 4.21 TB scanned in 2h 18m.', detail: 'pool=tank repaired=0 read=0 write=0 cksum=0' },
-  { id: 'n2', ts: m(5 * 60_000), severity: 'warn', source: 'nas', component: 'smart.sda', message: 'Reallocated_Sector_Ct increased to 12 (was 4).', detail: 'disk=WDC-WD80EFAX-68LHPN0 serial=VAGZNXXX' },
-  { id: 'n3', ts: m(18 * 60_000), severity: 'info', source: 'nas', component: 'snapshot', message: 'Auto-snapshot created: tank/data@2026-05-18-0930', detail: 'retain=14 size=482MB' },
-  { id: 'n4', ts: m(42 * 60_000), severity: 'ok', source: 'nas', component: 'share.media', message: 'SMB share remount succeeded.' },
-  { id: 'n5', ts: m(75 * 60_000), severity: 'bad', source: 'nas', component: 'smart.sdc', message: 'SMART self-test FAILED: read element 18 of 19.', detail: 'disk=ST8000VN004-3CP101 serial=WKD0YYYY' },
-  { id: 'n6', ts: m(95 * 60_000), severity: 'info', source: 'nas', component: 'fan.chassis', message: 'Fan profile auto-switched: silent → balanced (CPU 71°C).' },
-  { id: 'n7', ts: m(3 * 3600_000), severity: 'info', source: 'nas', component: 'pool.backup', message: 'Replication snapshot sent → off-site (412 GB, 38m).' },
-  { id: 'n8', ts: m(5 * 3600_000), severity: 'warn', source: 'nas', component: 'capacity.tank', message: 'Pool usage crossed 80% threshold (80.4% of 30 TB).' },
-  { id: 'n9', ts: m(7 * 3600_000), severity: 'info', source: 'nas', component: 'share.docs', message: 'New SMB session: example-user@198.51.100.10' },
-  { id: 'n10', ts: m(11 * 3600_000), severity: 'info', source: 'nas', component: 'system', message: 'Scheduled scrub started for pool "tank".' },
-  { id: 'n11', ts: m(26 * 3600_000), severity: 'ok', source: 'nas', component: 'firmware', message: 'UNAS firmware updated to 4.2.7 (rebooted, 38s downtime).' },
-];
-
-const NETWORK_LOGS: LogEntry[] = [
-  { id: 'w1', ts: m(20_000), severity: 'info', source: 'network', component: 'dhcp', message: 'DHCP lease issued: 198.51.100.10 → iPhone-ExampleUser', detail: 'mac=8c:85:90:xx:xx:xx ttl=86400' },
-  { id: 'w2', ts: m(2 * 60_000), severity: 'info', source: 'network', component: 'ap.living-room', message: 'Client roamed in: MacBook-Air (-58 dBm, 5 GHz).' },
-  { id: 'w3', ts: m(7 * 60_000), severity: 'warn', source: 'network', component: 'firewall', message: 'Blocked outbound: 198.51.100.10 → 185.220.101.45:443 (Tor exit).' },
-  { id: 'w4', ts: m(15 * 60_000), severity: 'bad', source: 'network', component: 'wan.primary', message: 'WAN1 lost carrier — failing over to WAN2 (LTE).', detail: 'duration=43s' },
-  { id: 'w5', ts: m(16 * 60_000), severity: 'ok', source: 'network', component: 'wan.primary', message: 'WAN1 restored — failed back from LTE.' },
-  { id: 'w6', ts: m(31 * 60_000), severity: 'info', source: 'network', component: 'switch.usw-pro', message: 'Port 14 link up: 1 Gbps full-duplex.' },
-  { id: 'w7', ts: m(48 * 60_000), severity: 'warn', source: 'network', component: 'ap.garage', message: 'Channel interference detected on 2.4 GHz (CCI 78%).' },
-  { id: 'w8', ts: m(82 * 60_000), severity: 'info', source: 'network', component: 'gateway', message: 'Firmware update available: 4.0.21 → 4.1.5.' },
-  { id: 'w9', ts: m(2 * 3600_000), severity: 'info', source: 'network', component: 'vpn.wireguard', message: 'Peer connected: phone (rx=12.4 MB tx=842 KB).' },
-  { id: 'w10', ts: m(4 * 3600_000), severity: 'warn', source: 'network', component: 'switch.usw-pro', message: 'Port 6 flapped 3× in 60s — possibly bad cable.' },
-  { id: 'w11', ts: m(6 * 3600_000), severity: 'info', source: 'network', component: 'dpi', message: 'Top talker last hour: AppleTV-LR (8.2 GB, Netflix).' },
-  { id: 'w12', ts: m(22 * 3600_000), severity: 'ok', source: 'network', component: 'system', message: 'UniFi controller backup completed (487 MB).' },
-];
-
-const CAMERA_LOGS: LogEntry[] = [
-  { id: 'c1', ts: m(15_000), severity: 'info', source: 'cameras', component: 'front-door', message: 'Smart-detect: person (97%).', detail: 'duration=8s zone=porch clip=motion-2891.mp4' },
-  { id: 'c2', ts: m(3 * 60_000), severity: 'info', source: 'cameras', component: 'driveway', message: 'Smart-detect: vehicle (94%).', detail: 'duration=22s zone=approach' },
-  { id: 'c3', ts: m(8 * 60_000), severity: 'info', source: 'cameras', component: 'porch', message: 'Smart-detect: package (88%).', detail: 'tracker=delivery clip=motion-2884.mp4' },
-  { id: 'c4', ts: m(12 * 60_000), severity: 'warn', source: 'cameras', component: 'side-yard', message: 'Motion event — no smart-detect class matched.' },
-  { id: 'c5', ts: m(25 * 60_000), severity: 'bad', source: 'cameras', component: 'backyard', message: 'Camera went offline (RTSP keepalive timed out).', detail: 'last_seen=25m ago retry=auto' },
-  { id: 'c6', ts: m(26 * 60_000), severity: 'ok', source: 'cameras', component: 'backyard', message: 'Camera reconnected — back online.' },
-  { id: 'c7', ts: m(48 * 60_000), severity: 'info', source: 'cameras', component: 'doorbell', message: 'Doorbell pressed — chime triggered, 12s 2-way audio.' },
-  { id: 'c8', ts: m(72 * 60_000), severity: 'warn', source: 'cameras', component: 'garage', message: 'Lens obstruction suspected (5+ minutes low contrast).' },
-  { id: 'c9', ts: m(3 * 3600_000), severity: 'info', source: 'cameras', component: 'nvr', message: 'Storage usage 62% of 8 TB — oldest clip 41d ago.' },
-  { id: 'c10', ts: m(6 * 3600_000), severity: 'ok', source: 'cameras', component: 'nvr', message: 'Firmware updated: Protect 5.1.74 (38s reboot).' },
-  { id: 'c11', ts: m(11 * 3600_000), severity: 'info', source: 'cameras', component: 'front-door', message: 'Recording schedule changed: continuous → motion-only.' },
-];
-
-const ALL_LOGS: LogEntry[] = [...NAS_LOGS, ...NETWORK_LOGS, ...CAMERA_LOGS].sort(
-  (a, b) => b.ts - a.ts,
-);
+// No data source wired up yet — SIEM page renders empty until logs feed in.
+const ALL_LOGS: LogEntry[] = [];
 
 const RANGE_MS: Record<Range, number> = {
   '1h': 60 * 60_000,

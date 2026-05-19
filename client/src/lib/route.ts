@@ -9,6 +9,7 @@ export type Section =
   | 'alerts'
   | 'health'
   | 'siem'
+  | 'inventory'
   | 'settings';
 
 export interface Route {
@@ -56,31 +57,33 @@ export const SUBS: Partial<Record<Section, SubDef[]>> = {
 };
 
 export const DEFAULT_SUB: Record<Section, string | undefined> = {
-  overview: undefined,
-  proxmox:  'compute',
-  network:  'overview',
-  docker:   'hosts',
-  nas:      'pools',
-  cameras:  'overview',
-  events:   undefined,
-  alerts:   undefined,
-  health:   undefined,
-  siem:     undefined,
-  settings: undefined,
+  overview:  undefined,
+  proxmox:   'compute',
+  network:   'overview',
+  docker:    'hosts',
+  nas:       'pools',
+  cameras:   'overview',
+  events:    undefined,
+  alerts:    undefined,
+  health:    undefined,
+  siem:      undefined,
+  inventory: undefined,
+  settings:  undefined,
 };
 
 export const SECTION_LABEL: Record<Section, string> = {
-  overview: 'Overview',
-  proxmox:  'Proxmox',
-  network:  'Network',
-  docker:   'Docker',
-  nas:      'NAS',
-  cameras:  'Cameras',
-  events:   'Events',
-  alerts:   'Alerts',
-  health:   'API Health',
-  siem:     'SIEM',
-  settings: 'Settings',
+  overview:  'Overview',
+  proxmox:   'Proxmox',
+  network:   'Network',
+  docker:    'Docker',
+  nas:       'NAS',
+  cameras:   'Cameras',
+  events:    'Events',
+  alerts:    'Alerts',
+  health:    'API Health',
+  siem:      'SIEM',
+  inventory: 'Inventory',
+  settings:  'Settings',
 };
 
 export function resolveSub(section: Section, sub?: string): string | undefined {

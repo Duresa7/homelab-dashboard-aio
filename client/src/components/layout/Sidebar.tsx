@@ -94,6 +94,8 @@ export function Sidebar({ route, setRoute, alerts }: Props) {
     },
     { kind: 'leaf', section: 'health', icon: 'activity' },
     { kind: 'leaf', section: 'siem', icon: 'history' },
+    { kind: 'section', label: 'reference' },
+    { kind: 'leaf', section: 'inventory', icon: 'layers' },
     { kind: 'section', label: 'preferences' },
     { kind: 'leaf', section: 'settings', icon: 'settings' },
   ];
