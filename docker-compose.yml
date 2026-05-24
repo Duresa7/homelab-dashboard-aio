@@ -1,0 +1,22 @@
+services:
+  dashboard:
+    build: .
+    image: homelab-dashboard:latest
+    container_name: homelab-dashboard
+    restart: unless-stopped
+    # Host networking keeps real syslog source IPs (instead of the docker
+    # bridge gateway) and removes the unprivileged-LXC UDP/514 binding issue.
+    network_mode: host
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PROTECT_STREAM_DIR: /tmp/protect-streams
+    volumes:
+      - ./data:/app/data
+      # Mount an SSH key the container can use for GPU/sensors over SSH.
+      # The host file must be 0600 and owned by UID 1000.
+      - ${HOME}/.ssh/id_homelab:/home/node/.ssh/id_homelab:ro
+    tmpfs:
+      - /tmp:size=512m
+    ulimits:
+      nofile: 65536

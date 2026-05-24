@@ -213,8 +213,7 @@ function applyUnifi(payload: any): boolean {
 function applyProxmox(payload: any): boolean {
   if (!payload.proxmox) return false;
   state.proxmox = payload.proxmox;
-  // Mirror Proxmox node telemetry into the global CPU / RAM tiles so the
-  // generic CPUTile / RAMTile widgets render real data on the Proxmox page.
+  // Mirror node telemetry into global CPU/RAM so generic tiles render real data.
   const node = payload.proxmox.node;
   const cpuUsage = node.cpu || 0;
   state.cpu = {
@@ -266,9 +265,7 @@ function applyGpu(payload: any): boolean {
 function applyUnas(payload: any): boolean {
   if (!payload.unas) return false;
   state.unas = payload.unas;
-  // Mirror UNAS pools and disks into the generic storage state so the
-  // StorageTile, SmartTile, and Storage page's All Disks table populate.
-  // If more storage sources are added later, this becomes a merge.
+  // Mirror UNAS pools/disks into generic storage so StorageTile/SmartTile populate.
   state.storage = {
     pools: payload.unas.pools.map((p: any) => ({
       name: p.name,
@@ -317,8 +314,6 @@ interface PollerConfig {
   url: string;
   intervalMs: number;
   apply: (payload: any) => boolean;
-  // When toggled off, blank the integration's slice of state so stale data
-  // doesn't keep rendering after the user opts out.
   reset?: () => void;
 }
 
@@ -399,8 +394,6 @@ export function setIntegrationEnabled(key: IntegrationKey, enabled: boolean): vo
       existing();
       activeStops.delete(key);
     }
-    // Always reset state on disable, even if there was no active poller
-    // (e.g., on first render before the poller was started).
     config.reset?.();
     notify();
   }

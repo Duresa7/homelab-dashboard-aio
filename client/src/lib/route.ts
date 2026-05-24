@@ -15,11 +15,14 @@ export type Section =
 export interface Route {
   section: Section;
   sub?: string;
+  /** Optional item id for inventory detail panel. */
+  itemId?: string;
 }
 
 interface PersistedRoute {
   section?: Section | 'storage';
   sub?: string;
+  itemId?: string;
 }
 
 export interface SubDef {
@@ -103,7 +106,8 @@ const STORAGE_KEY = 'homelab-dashboard.route';
 function normalizeRoute(route: PersistedRoute): Route {
   const section: Section = route.section === 'storage' ? 'nas' : route.section ?? 'overview';
   const sub = section === 'proxmox' && route.sub === 'drives' ? 'storage' : route.sub;
-  return { section, sub: resolveSub(section, sub) };
+  const itemId = section === 'inventory' ? route.itemId : undefined;
+  return { section, sub: resolveSub(section, sub), itemId };
 }
 
 export function loadRoute(): Route {

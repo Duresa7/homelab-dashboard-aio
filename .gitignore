@@ -2,9 +2,12 @@
 node_modules
 
 # Build output
-dist
+/dist
 dist-ssr
 *.tsbuildinfo
+
+# Runtime data (SQLite, HLS scratch, etc.)
+/data
 
 # Environment
 .env

@@ -6,3 +6,4 @@ export { Gauge } from './Gauge';
 export { Heatmap } from './Heatmap';
 export { BigNum } from './BigNum';
 export { AutoChart } from './AutoChart';
+export { TrendArrow } from './TrendArrow';

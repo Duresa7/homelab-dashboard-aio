@@ -1,5 +1,6 @@
 import { Tile } from '../tile/Tile';
 import type { StorageData } from '../../types';
+import { fillSeverity, severityColor } from '../../lib/severity';
 
 interface Props {
   data: StorageData;
@@ -20,7 +21,8 @@ export function StorageTile({ data, span, onExpand, expandable }: Props) {
       <div className="disks">
         {data.pools.map((p) => {
           const pct = (p.usedTB / p.totalTB) * 100;
-          const cls = p.status === 'degraded' ? 'bad' : pct > 85 ? 'warn' : '';
+          const fillKind = p.status === 'degraded' ? 'bad' : fillSeverity(pct);
+          const cls = fillKind === 'ok' ? '' : fillKind;
           return (
             <div key={p.name} className="disk">
               <div className="row">
@@ -35,7 +37,7 @@ export function StorageTile({ data, span, onExpand, expandable }: Props) {
                   <span className="t-tag" style={{ marginLeft: 4 }}>{p.type}</span>
                 </div>
                 <div className="meta">
-                  {p.usedTB.toFixed(2)} / {p.totalTB.toFixed(2)} TB
+                  <span style={{ color: severityColor[fillKind] }}>{p.usedTB.toFixed(2)}</span> / {p.totalTB.toFixed(2)} TB
                 </div>
               </div>
               <div className={`pbar ${cls}`}>

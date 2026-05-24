@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { INTEGRATIONS, type HealthInfo, type HealthResponse } from '../lib/integrations';
 import type { IntegrationKey } from '../lib/telemetry';
+import {
+  DEFAULT_THRESHOLDS,
+  THRESHOLD_LABELS,
+  resetThresholds,
+  setThreshold,
+  useThresholds,
+  type Thresholds,
+} from '../lib/thresholds';
 
 interface Props {
   integrations: Record<IntegrationKey, boolean>;
@@ -113,7 +121,49 @@ function Toggle({
   );
 }
 
+function ThresholdRow({ k, thresholds }: { k: keyof Thresholds; thresholds: Thresholds }) {
+  const { label, unit } = THRESHOLD_LABELS[k];
+  const pair = thresholds[k];
+  const def = DEFAULT_THRESHOLDS[k];
+  const isCustom = pair.warn !== def.warn || pair.bad !== def.bad;
+  return (
+    <div className={`thr-row ${isCustom ? 'is-custom' : ''}`}>
+      <div className="thr-label">
+        {label}
+        {isCustom ? <span className="thr-dot" title={`default ${def.warn}/${def.bad}`} /> : null}
+      </div>
+      <label className="thr-input">
+        <span style={{ color: 'var(--warn)' }}>warn</span>
+        <input
+          type="number"
+          value={pair.warn}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            if (!Number.isFinite(v)) return;
+            setThreshold(k, { ...pair, warn: v });
+          }}
+        />
+        <span className="thr-unit">{unit}</span>
+      </label>
+      <label className="thr-input">
+        <span style={{ color: 'var(--bad)' }}>bad</span>
+        <input
+          type="number"
+          value={pair.bad}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            if (!Number.isFinite(v)) return;
+            setThreshold(k, { ...pair, bad: v });
+          }}
+        />
+        <span className="thr-unit">{unit}</span>
+      </label>
+    </div>
+  );
+}
+
 export function SettingsPage({ integrations, onChange }: Props) {
+  const thresholds = useThresholds();
   const { data, error, loading } = useServerHealth();
   const total = INTEGRATIONS.length;
   const enabledCount = INTEGRATIONS.reduce(
@@ -217,6 +267,28 @@ export function SettingsPage({ integrations, onChange }: Props) {
             </div>
           );
         })}
+      </div>
+
+      <div className="settings-summary" style={{ marginTop: 16 }}>
+        <div className="ss-meta">
+          <div className="ss-title">Severity Thresholds</div>
+          <div className="ss-sub">
+            Tune when metric values switch from <span style={{ color: 'var(--ok)' }}>ok</span> to{' '}
+            <span style={{ color: 'var(--warn)' }}>warn</span> to{' '}
+            <span style={{ color: 'var(--bad)' }}>bad</span>. Saved to your browser only.
+          </div>
+        </div>
+        <div className="ss-actions">
+          <button type="button" className="btn" onClick={() => resetThresholds()}>
+            Reset to defaults
+          </button>
+        </div>
+      </div>
+
+      <div className="thresholds-grid">
+        {(Object.keys(THRESHOLD_LABELS) as Array<keyof Thresholds>).map((k) => (
+          <ThresholdRow key={k} k={k} thresholds={thresholds} />
+        ))}
       </div>
     </div>
   );

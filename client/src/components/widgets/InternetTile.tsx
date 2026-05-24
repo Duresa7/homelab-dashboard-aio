@@ -1,6 +1,7 @@
 import { Tile } from '../tile/Tile';
 import { BrandIcon } from '../icons/BrandIcon';
 import type { NetworkData } from '../../types';
+import { severityColor, pingSeverity, uptimeSeverity } from '../../lib/severity';
 
 interface Props {
   data: NetworkData;
@@ -14,13 +15,13 @@ export function InternetTile({ data, span, onExpand, expandable }: Props) {
     <Tile title={<><BrandIcon name="unifi" alt="UniFi" /> Internet</>} sub={`pub ${data.publicIp}`} span={span} onExpand={onExpand} expandable={expandable}>
       <div className="row" style={{ gap: 14 }}>
         <div>
-          <div className="t-big">
+          <div className="t-big" style={{ color: severityColor[uptimeSeverity(data.uptime30d)] }}>
             {data.uptime30d.toFixed(2)}<small>%</small>
           </div>
           <div className="t-sub">uptime · 30d</div>
         </div>
         <div>
-          <div className="t-big" style={{ fontSize: 26 }}>
+          <div className="t-big" style={{ fontSize: 26, color: severityColor[pingSeverity(data.speedtest.ping)] }}>
             {data.speedtest.ping}<small>ms</small>
           </div>
           <div className="t-sub">last ping</div>

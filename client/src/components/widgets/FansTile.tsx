@@ -1,5 +1,6 @@
 import { Tile } from '../tile/Tile';
 import type { Fan } from '../../types';
+import { fanSeverity, severityColor } from '../../lib/severity';
 
 interface Props {
   data: Fan[];
@@ -14,15 +15,18 @@ export function FansTile({ data, span, onExpand, expandable }: Props) {
       <div className="col" style={{ gap: 6 }}>
         {data.map((f) => {
           const pct = (f.rpm / f.max) * 100;
+          const kind = fanSeverity(pct);
+          const cls = kind === 'ok' ? '' : kind;
           return (
             <div key={f.name} className="disk">
               <div className="row">
                 <div className="name flex1">{f.name}</div>
                 <div className="meta">
-                  {f.rpm.toFixed(0)} <span style={{ color: 'var(--ink-4)' }}>rpm</span>
+                  <span style={{ color: severityColor[kind] }}>{f.rpm.toFixed(0)}</span>{' '}
+                  <span style={{ color: 'var(--ink-4)' }}>rpm</span>
                 </div>
               </div>
-              <div className="pbar">
+              <div className={`pbar ${cls}`}>
                 <span style={{ width: `${pct}%` }} />
               </div>
             </div>

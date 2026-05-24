@@ -452,6 +452,67 @@ export interface SensorsData {
   other: SensorOther[];
 }
 
+// SIEM — syslog events received from UniFi gear over UDP/514.
+// Severity uses standard syslog codes (0=emerg .. 7=debug). The dashboard
+// collapses 0–3 to 'bad', 4 to 'warn', 5–7 to 'info' for the chip UI.
+export type SyslogSeverity = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type SyslogFormat = 'rfc3164' | 'cef';
+export type SyslogDeviceKind = 'gateway' | 'ap' | 'switch' | 'controller' | 'unknown';
+export type SyslogCategory =
+  | 'firewall'
+  | 'client'
+  | 'ids'
+  | 'vpn'
+  | 'admin'
+  | 'update'
+  | 'system'
+  | 'monitoring'
+  | 'security'
+  | 'threat';
+
+export interface SyslogEvent {
+  id: number;
+  receivedAt: number;                 // ms epoch, server's clock
+  logTime: number | null;             // ms epoch, sender's reported timestamp (RFC 3164)
+  sourceIp: string;
+  hostname: string | null;
+  facility: number | null;
+  severity: SyslogSeverity;
+  tag: string | null;
+  message: string;
+  raw: string;
+  format: SyslogFormat;
+  deviceKind: SyslogDeviceKind;
+  category: SyslogCategory;
+  extra: Record<string, string> | null;
+}
+
+export interface SiemStatus {
+  enabled: boolean;
+  listening: boolean;
+  host: string;
+  port: number;
+  serverAddress: string;              // best LAN IP for the setup banner
+  eventsTotal: number;
+  eventsLastHour: number;
+  bytesReceived: number;
+  packetsReceived: number;
+  parseErrors: number;
+  lastEventAt: number | null;
+  clientCount: number;
+  bindError: string | null;
+  retentionDays?: number;
+}
+
+export interface SiemStats {
+  window: string;
+  sinceMs: number;
+  bySeverity: Record<string, number>;
+  byCategory: Record<string, number>;
+  byDeviceKind: Record<string, number>;
+  bySource: { ip: string; count: number }[];
+}
+
 export interface DashboardState {
   now: number;
   cpu: CPUData;

@@ -23,6 +23,7 @@ import {
 
 import {
   exportInventoryJSON,
+  findItem,
   genId,
   loadInventory,
   resetInventory,
@@ -33,16 +34,25 @@ import {
   type Machine,
   type SpareCategory,
   type SpareColumn,
+  type SpareItem,
 } from '../lib/inventory';
+import {
+  BrandGlyph,
+  categoryIcon,
+  componentIcon,
+  roleIcon,
+} from '../lib/inventoryIcons';
+import { InventoryDetailPanel } from './InventoryDetailPanel';
 
 type Tab = 'machines' | 'spares';
 type Mode = 'browse' | 'edit';
 
-/* =========================================================
-   Page
-   ========================================================= */
+interface InventoryPageProps {
+  selectedItemId?: string;
+  onSelectItem?: (id: string | undefined) => void;
+}
 
-export function InventoryPage() {
+export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPageProps = {}) {
   const [inv, setInv] = useState<Inventory>(() => loadInventory());
   const [tab, setTab] = useState<Tab>('machines');
   const [mode, setMode] = useState<Mode>('browse');
@@ -50,6 +60,11 @@ export function InventoryPage() {
   const [jumpTo, setJumpTo] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const selectItem = useCallback(
+    (id: string | undefined) => onSelectItem?.(id),
+    [onSelectItem],
+  );
 
   useEffect(() => { saveInventory(inv); }, [inv]);
 
@@ -70,8 +85,6 @@ export function InventoryPage() {
   const isEditing = mode === 'edit';
   const q = query.trim().toLowerCase();
 
-  /* ---------- mutation helpers ---------- */
-
   const patch = useCallback((mut: (draft: Inventory) => Inventory) => {
     setInv((prev) => mut(prev));
   }, []);
@@ -91,6 +104,30 @@ export function InventoryPage() {
       lastUpdated: today(),
     }));
   };
+
+  const updateItemById = useCallback(
+    (id: string, mut: (item: Machine | SpareItem) => Machine | SpareItem) => {
+      patch((prev) => {
+        const machineHit = prev.machines.some((m) => m.id === id);
+        if (machineHit) {
+          return {
+            ...prev,
+            machines: prev.machines.map((m) => (m.id === id ? (mut(m) as Machine) : m)),
+            lastUpdated: today(),
+          };
+        }
+        return {
+          ...prev,
+          spares: prev.spares.map((cat) => ({
+            ...cat,
+            items: cat.items.map((it) => (it.id === id ? (mut(it) as SpareItem) : it)),
+          })),
+          lastUpdated: today(),
+        };
+      });
+    },
+    [patch],
+  );
 
   const addMachine = () => {
     patch((prev) => {
@@ -150,7 +187,6 @@ export function InventoryPage() {
     }));
   };
 
-  /* ---------- export / import / reset ---------- */
 
   const onExport = () => {
     const json = exportInventoryJSON(inv);
@@ -189,12 +225,19 @@ export function InventoryPage() {
     setToast('Reset to default inventory');
   };
 
-  /* ---------- search filtering ---------- */
 
   const machinesView = useMemo(() => filterMachines(inv.machines, q), [inv.machines, q]);
   const sparesView   = useMemo(() => filterSpares(inv.spares, q),     [inv.spares, q]);
 
-  /* ---------- render ---------- */
+  const selectedFound = useMemo(
+    () => (selectedItemId ? findItem(inv, selectedItemId) : null),
+    [inv, selectedItemId],
+  );
+
+  // If a previously-selected id no longer exists (e.g. deleted), clear it.
+  useEffect(() => {
+    if (selectedItemId && !selectedFound) selectItem(undefined);
+  }, [selectedItemId, selectedFound, selectItem]);
 
   return (
     <div className="page inv-page">
@@ -229,6 +272,8 @@ export function InventoryPage() {
           addMachine={addMachine}
           totalMachines={inv.machines.length}
           isSearching={q.length > 0}
+          onOpenItem={selectItem}
+          openItemId={selectedItemId}
         />
       ) : (
         <SparesTab
@@ -240,17 +285,24 @@ export function InventoryPage() {
           totalCategories={inv.spares.length}
           isSearching={q.length > 0}
           onJump={setJumpTo}
+          onOpenItem={selectItem}
+          openItemId={selectedItemId}
         />
       )}
+
+      {selectedFound ? (
+        <InventoryDetailPanel
+          found={selectedFound}
+          isEditing={isEditing}
+          onChange={updateItemById}
+          onClose={() => selectItem(undefined)}
+        />
+      ) : null}
 
       {toast ? <div className="inv-toast" role="status">{toast}</div> : null}
     </div>
   );
 }
-
-/* =========================================================
-   Masthead
-   ========================================================= */
 
 interface MastheadProps {
   inv: Inventory;
@@ -376,10 +428,6 @@ function Masthead({
   );
 }
 
-/* =========================================================
-   Machines tab
-   ========================================================= */
-
 interface MachinesTabProps {
   machines: Machine[];
   totalMachines: number;
@@ -388,11 +436,14 @@ interface MachinesTabProps {
   updateMachine: (id: string, mut: (m: Machine) => Machine) => void;
   deleteMachine: (id: string) => void;
   addMachine: () => void;
+  onOpenItem: (id: string) => void;
+  openItemId?: string;
 }
 
 function MachinesTab({
   machines, totalMachines, isEditing, isSearching,
   updateMachine, deleteMachine, addMachine,
+  onOpenItem, openItemId,
 }: MachinesTabProps) {
   if (machines.length === 0) {
     return (
@@ -413,6 +464,8 @@ function MachinesTab({
           isEditing={isEditing}
           onChange={(mut) => updateMachine(m.id, mut)}
           onDelete={() => deleteMachine(m.id)}
+          onOpen={() => onOpenItem(m.id)}
+          isOpen={openItemId === m.id}
         />
       ))}
       {isEditing ? (
@@ -431,10 +484,14 @@ interface MachineCardProps {
   isEditing: boolean;
   onChange: (mut: (m: Machine) => Machine) => void;
   onDelete: () => void;
+  onOpen: () => void;
+  isOpen: boolean;
 }
 
-function MachineCard({ machine, isEditing, onChange, onDelete }: MachineCardProps) {
+function MachineCard({ machine, isEditing, onChange, onDelete, onOpen, isOpen }: MachineCardProps) {
   const m = machine;
+  const RoleIcon = roleIcon(m.role, m.name);
+  const status = m.status ?? 'working';
 
   const setName = (name: string) => onChange((cur) => ({ ...cur, name }));
   const setRole = (role: string) => onChange((cur) => ({ ...cur, role }));
@@ -466,8 +523,30 @@ function MachineCard({ machine, isEditing, onChange, onDelete }: MachineCardProp
   const removeComp = (id: string) =>
     onChange((cur) => ({ ...cur, components: cur.components.filter((r) => r.id !== id) }));
 
+  const openOnClick = (e: React.MouseEvent<HTMLElement>) => {
+    // Don't hijack clicks on inputs / textareas / buttons / links.
+    const t = e.target as HTMLElement;
+    if (t.closest('input, textarea, button, a, [contenteditable="true"]')) return;
+    onOpen();
+  };
+  const openOnKey = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const t = e.target as HTMLElement;
+      if (t.closest('input, textarea, button')) return;
+      e.preventDefault();
+      onOpen();
+    }
+  };
+
   return (
-    <article className="inv-card">
+    <article
+      className={`inv-card inv-card-clickable status-${status} ${isOpen ? 'is-open' : ''}`}
+      onClick={openOnClick}
+      onKeyDown={openOnKey}
+      tabIndex={0}
+      role="button"
+      aria-label={`Open ${m.name} details`}
+    >
       <header className="inv-card-head">
         <div className="inv-ordinal">
           <Editable
@@ -489,6 +568,7 @@ function MachineCard({ machine, isEditing, onChange, onDelete }: MachineCardProp
             className="machine-name"
           />
           <div className="machine-role">
+            <RoleIcon size={12} strokeWidth={1.75} />
             <Editable
               value={m.role}
               editing={isEditing}
@@ -557,9 +637,14 @@ function MachineCard({ machine, isEditing, onChange, onDelete }: MachineCardProp
           <span className="ct mono">{m.components.length}</span>
         </div>
         <ul className="inv-spec-list">
-          {m.components.map((row) => (
+          {m.components.map((row) => {
+            const CompIcon = componentIcon(row.component);
+            return (
             <li key={row.id} className="inv-spec-row">
               <div className="inv-spec-label">
+                <span className="inv-spec-icon" aria-hidden>
+                  {CompIcon ? <CompIcon size={12} strokeWidth={1.75} /> : null}
+                </span>
                 <Editable
                   value={row.component}
                   editing={isEditing}
@@ -568,6 +653,7 @@ function MachineCard({ machine, isEditing, onChange, onDelete }: MachineCardProp
                 />
               </div>
               <div className="inv-spec-val">
+                <BrandGlyph text={row.specification} size={16} />
                 <Editable
                   value={row.specification}
                   editing={isEditing}
@@ -587,7 +673,8 @@ function MachineCard({ machine, isEditing, onChange, onDelete }: MachineCardProp
                 </button>
               ) : null}
             </li>
-          ))}
+            );
+          })}
         </ul>
         {isEditing ? (
           <button type="button" className="inv-add-row" onClick={addComp}>
@@ -599,10 +686,6 @@ function MachineCard({ machine, isEditing, onChange, onDelete }: MachineCardProp
   );
 }
 
-/* =========================================================
-   Spares tab
-   ========================================================= */
-
 interface SparesTabProps {
   spares: SpareCategory[];
   totalCategories: number;
@@ -612,11 +695,14 @@ interface SparesTabProps {
   deleteCategory: (id: string) => void;
   addCategory: () => void;
   onJump: (id: string) => void;
+  onOpenItem: (id: string) => void;
+  openItemId?: string;
 }
 
 function SparesTab({
   spares, totalCategories, isEditing, isSearching,
   updateCategory, deleteCategory, addCategory, onJump,
+  onOpenItem, openItemId,
 }: SparesTabProps) {
   if (spares.length === 0) {
     return (
@@ -633,17 +719,21 @@ function SparesTab({
       <nav className="inv-jump">
         <span className="inv-jump-lbl">Jump to</span>
         <div className="inv-jump-chips">
-          {spares.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              className="inv-jump-chip"
-              onClick={() => onJump(cat.id)}
-            >
-              {cat.name}
-              <span className="ct tnum">{cat.items.length}</span>
-            </button>
-          ))}
+          {spares.map((cat) => {
+            const CatIcon = categoryIcon(cat.name);
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                className="inv-jump-chip"
+                onClick={() => onJump(cat.id)}
+              >
+                <CatIcon size={12} strokeWidth={1.75} />
+                {cat.name}
+                <span className="ct tnum">{cat.items.length}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
 
@@ -655,6 +745,8 @@ function SparesTab({
             isEditing={isEditing}
             onChange={(mut) => updateCategory(cat.id, mut)}
             onDelete={() => deleteCategory(cat.id)}
+            onOpenItem={onOpenItem}
+            openItemId={openItemId}
           />
         ))}
         {isEditing ? (
@@ -674,9 +766,12 @@ interface CategoryBlockProps {
   isEditing: boolean;
   onChange: (mut: (c: SpareCategory) => SpareCategory) => void;
   onDelete: () => void;
+  onOpenItem: (id: string) => void;
+  openItemId?: string;
 }
 
-function CategoryBlock({ category, isEditing, onChange, onDelete }: CategoryBlockProps) {
+function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, openItemId }: CategoryBlockProps) {
+  const CatIcon = categoryIcon(category.name);
   const setName = (name: string) => onChange((cur) => ({ ...cur, name }));
   const setNote = (note: string) =>
     onChange((cur) => ({ ...cur, note: note.length > 0 ? note : undefined }));
@@ -729,6 +824,9 @@ function CategoryBlock({ category, isEditing, onChange, onDelete }: CategoryBloc
     <section className="inv-cat" id={`cat-${category.id}`}>
       <header className="inv-cat-head">
         <div className="inv-cat-id">
+          <span className="inv-cat-icon" aria-hidden>
+            <CatIcon size={16} strokeWidth={1.75} />
+          </span>
           <h3>
             <Editable
               value={category.name}
@@ -804,19 +902,42 @@ function CategoryBlock({ category, isEditing, onChange, onDelete }: CategoryBloc
                 </td>
               </tr>
             ) : null}
-            {category.items.map((it) => (
-              <tr key={it.id}>
-                {category.columns.map((col) => (
-                  <td key={col.id} className={col.align === 'right' ? 'num' : ''}>
+            {category.items.map((it) => {
+              const status = it.status ?? 'working';
+              const openRow = (e: React.MouseEvent<HTMLTableRowElement>) => {
+                const t = e.target as HTMLElement;
+                if (t.closest('input, textarea, button, a, [contenteditable="true"]')) return;
+                onOpenItem(it.id);
+              };
+              const isOpen = openItemId === it.id;
+              return (
+              <tr
+                key={it.id}
+                className={`inv-row-clickable status-${status} ${isOpen ? 'is-open' : ''}`}
+                onClick={openRow}
+              >
+                {category.columns.map((col) => {
+                  const value = it.values[col.id] ?? '';
+                  const isBrand = col.id === 'brand';
+                  return (
+                  <td
+                    key={col.id}
+                    className={[
+                      col.align === 'right' ? 'num' : '',
+                      isBrand ? 'inv-td-brand' : '',
+                    ].filter(Boolean).join(' ')}
+                  >
+                    {isBrand ? <BrandGlyph text={value} size={16} reserveSpace /> : null}
                     <Editable
-                      value={it.values[col.id] ?? ''}
+                      value={value}
                       editing={isEditing}
                       onChange={(v) => setItemValue(it.id, col.id, v)}
                       placeholder="—"
                       mono={col.id === 'model' || col.id === 'part' || col.align === 'right'}
                     />
                   </td>
-                ))}
+                  );
+                })}
                 {isEditing ? (
                   <td className="inv-td-actions">
                     <button
@@ -830,7 +951,8 @@ function CategoryBlock({ category, isEditing, onChange, onDelete }: CategoryBloc
                   </td>
                 ) : null}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -844,10 +966,6 @@ function CategoryBlock({ category, isEditing, onChange, onDelete }: CategoryBloc
   );
 }
 
-/* =========================================================
-   Inline editable text
-   ========================================================= */
-
 interface EditableProps {
   value: string;
   editing: boolean;
@@ -860,7 +978,7 @@ interface EditableProps {
   maxLength?: number;
 }
 
-function Editable({
+export function Editable({
   value, editing, onChange, placeholder = '',
   className = '', mono = false, multiline = false, muted = false, maxLength,
 }: EditableProps) {
@@ -930,10 +1048,6 @@ function Editable({
     />
   );
 }
-
-/* =========================================================
-   Helpers
-   ========================================================= */
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);

@@ -2,6 +2,7 @@ import { Tile } from '../tile/Tile';
 import type { StorageData } from '../../types';
 import { convertTemp, fmtTemp, tempSuffix, useTempUnit } from '../../lib/units';
 import { formatPowerOnTime } from '../../lib/format';
+import { diskTempSeverity, severityColor } from '../../lib/severity';
 
 interface Props {
   data: StorageData;
@@ -44,7 +45,7 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
           <div className="t-sub">failing</div>
         </div>
         <div>
-          <div className="t-big" style={{ fontSize: 26 }}>
+          <div className="t-big" style={{ fontSize: 26, color: severityColor[diskTempSeverity(avgC)] }}>
             {avgTemp}<small>{tempSuffix(unit)}</small>
           </div>
           <div className="t-sub">avg temp</div>
@@ -57,7 +58,7 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
             <span className="name">{d.name}</span>
             <span className="meta">{d.model}</span>
             <span className="val">
-              {fmtTemp(d.tempC, unit)}
+              <span style={{ color: severityColor[diskTempSeverity(d.tempC)] }}>{fmtTemp(d.tempC, unit)}</span>
               <span style={{ color: 'var(--ink-3)', marginLeft: 6 }}>
                 · {formatPowerOnTime(d.ageHours)}
               </span>

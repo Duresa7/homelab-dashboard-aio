@@ -16,7 +16,7 @@ cp .env.example .env
 npm install
 ```
 
-## Run
+## Run (development)
 
 ```bash
 # Terminal 1 — backend proxy
@@ -24,6 +24,18 @@ npm run server
 
 # Terminal 2 — frontend dev server
 npm run dev          # http://localhost:5173
+```
+
+## Run (Docker)
+
+The repo ships a single-image Docker Compose setup designed for an
+unprivileged Proxmox LXC that needs LAN access. See
+[`docs/documentation v2/deployment.md`](docs/documentation%20v2/deployment.md)
+for the full guide.
+
+```bash
+cp .env.example .env  # then edit
+docker compose up -d  # http://<host-ip>:3001
 ```
 
 ## Folder Structure

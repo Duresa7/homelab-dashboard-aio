@@ -6,14 +6,14 @@ import { mkdir, readFile, rm } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { Agent, fetch as undiciFetch, WebSocket as UndiciWebSocket } from 'undici';
+
+import { initSiem } from './siem/index.js';
 
 const execFileP = promisify(execFile);
 
-// Homelab gear (UniFi, Proxmox, Portainer) typically uses self-signed certs.
-// This dispatcher skips TLS verification for those specific fetches only —
-// other outbound HTTPS calls from this process keep verifying normally.
-// We use undici's fetch directly so the Agent matches its dispatcher type.
+// Homelab gear uses self-signed certs; skip TLS verification on these fetches only.
 const insecureDispatcher = new Agent({ connect: { rejectUnauthorized: false } });
 const insecureFetch = (url, opts = {}) =>
   undiciFetch(url, { ...opts, dispatcher: insecureDispatcher });
@@ -21,16 +21,22 @@ const insecureFetch = (url, opts = {}) =>
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
+const FALSY_ENV = ['false', '0', 'no', 'off', 'disabled'];
+
 function isEnabled(value, defaultEnabled = true) {
+  // DISABLE_ALL is a master kill-switch: when truthy, every integration is
+  // forced off regardless of its individual *_ENABLED flag. Useful for
+  // smoke-testing the UI without any backend integrations configured.
+  const disableAll = String(process.env.DISABLE_ALL || '').trim().toLowerCase();
+  if (disableAll && !FALSY_ENV.includes(disableAll)) return false;
   if (value === undefined || value === null || value === '') return defaultEnabled;
-  return !['false', '0', 'no', 'off', 'disabled'].includes(String(value).trim().toLowerCase());
+  return !FALSY_ENV.includes(String(value).trim().toLowerCase());
 }
 
 function trimBaseUrl(url) {
   return String(url || '').replace(/\/+$/, '');
 }
 
-// ─── UniFi config ─────────────────────────────────────────────
 const UNIFI_ENABLED = isEnabled(process.env.UNIFI_ENABLED);
 const BASE_URL = process.env.UNIFI_BASE_URL;
 if (UNIFI_ENABLED && !BASE_URL) {
@@ -41,14 +47,12 @@ const API_KEY = process.env.UNIFI_API_KEY || '';
 const SITE = process.env.UNIFI_SITE || 'default';
 const CACHE_TTL = Number(process.env.UNIFI_POLL_INTERVAL) || 10000;
 
-// ─── Portainer config ─────────────────────────────────────────
 const PORTAINER_ENABLED = isEnabled(process.env.PORTAINER_ENABLED, false);
 const PORTAINER_BASE_URL = trimBaseUrl(process.env.PORTAINER_BASE_URL);
 const PORTAINER_API_KEY = process.env.PORTAINER_API_KEY || process.env.PORTAINER_TOKEN || '';
 const PORTAINER_CACHE_TTL = Number(process.env.PORTAINER_POLL_INTERVAL) || 10000;
 const PORTAINER_STATS_ENABLED = isEnabled(process.env.PORTAINER_STATS_ENABLED, true);
 
-// ─── Proxmox config ───────────────────────────────────────────
 const PROXMOX_ENABLED = isEnabled(process.env.PROXMOX_ENABLED);
 const PVE_BASE_URL = process.env.PROXMOX_BASE_URL;
 const PVE_TOKEN_ID = process.env.PROXMOX_TOKEN_ID;
@@ -56,13 +60,11 @@ const PVE_TOKEN_SECRET = process.env.PROXMOX_TOKEN_SECRET;
 const PVE_NODE_HINT = process.env.PROXMOX_NODE || '';
 const PVE_CACHE_TTL = Number(process.env.PROXMOX_POLL_INTERVAL) || 5000;
 
-// ─── UNAS Pro config ──────────────────────────────────────────
 const UNAS_ENABLED = isEnabled(process.env.UNAS_ENABLED, false);
 const UNAS_BASE_URL = trimBaseUrl(process.env.UNAS_BASE_URL);
 const UNAS_API_KEY = process.env.UNAS_API_KEY || '';
 const UNAS_CACHE_TTL = Number(process.env.UNAS_POLL_INTERVAL) || 30000;
 
-// ─── UniFi Protect config ─────────────────────────────────────
 const PROTECT_ENABLED = isEnabled(process.env.PROTECT_ENABLED, false);
 const PROTECT_BASE_URL = trimBaseUrl(process.env.PROTECT_BASE_URL);
 const PROTECT_API_KEY = process.env.PROTECT_API_KEY || '';
@@ -75,10 +77,18 @@ const PROTECT_STREAM_QUALITY = (process.env.PROTECT_STREAM_QUALITY || 'medium').
 const PROTECT_RTSP_TRANSPORT = (process.env.PROTECT_RTSP_TRANSPORT || 'tcp').toLowerCase();
 const PROTECT_EVENT_BUFFER = Number(process.env.PROTECT_EVENT_BUFFER) || 500;
 const PROTECT_EVENTS_ENABLED = isEnabled(process.env.PROTECT_EVENTS_ENABLED, true);
-// UniFi OS proxies app APIs at /proxy/<app>/... — same pattern UNAS and the
-// Network integration use. Set PROTECT_API_PREFIX=/integration for a
-// standalone Protect appliance that exposes the API at its root instead.
+// UniFi OS proxies app APIs at /proxy/<app>/...; standalone Protect appliances
+// use /integration at the root — override PROTECT_API_PREFIX in that case.
 const PROTECT_API_PREFIX = process.env.PROTECT_API_PREFIX || '/proxy/protect/integration';
+
+const SIEM_ENABLED = isEnabled(process.env.SIEM_ENABLED, false);
+const SIEM_PORT = Number(process.env.SIEM_PORT) || 514;
+const SIEM_HOST = process.env.SIEM_HOST || '0.0.0.0';
+const SIEM_DB_PATH = process.env.SIEM_DB_PATH
+  ? path.resolve(process.env.SIEM_DB_PATH)
+  : path.resolve(process.cwd(), 'data', 'siem.sqlite');
+const SIEM_RETENTION_DAYS = Number(process.env.SIEM_RETENTION_DAYS) || 30;
+const SIEM_MAX_PER_QUERY = Number(process.env.SIEM_MAX_PER_QUERY) || 1000;
 
 let cache = { data: null, ts: 0 };
 
@@ -145,7 +155,6 @@ async function getSiteId() {
   }
   const site = sites.find(s => s.name === SITE || s.id === SITE) || sites[0];
   resolvedSiteId = site.id || site._id || site.name;
-  console.log(`Resolved site: "${site.name}" → ID: ${resolvedSiteId}`);
   return resolvedSiteId;
 }
 
@@ -199,8 +208,6 @@ async function fetchUnifiData() {
   const appInfo = await safeFetch('/proxy/network/integration/v1/info');
   if (appInfo) appVersion = appInfo.applicationVersion || null;
 
-  console.log(`Fetched ${devices.length} devices, ${clients.length} clients, ${networks.length} networks, ${ssids.length} SSIDs`);
-
   const statsMap = {};
   const detailMap = {};
   await Promise.all(devices.map(async (d) => {
@@ -213,13 +220,6 @@ async function fetchUnifiData() {
   }));
 
   const classified = devices.map(d => ({ ...d, _role: classifyDevice(d) }));
-  if (!cache.data) {
-    classified.forEach(d => {
-      const detail = detailMap[d.id];
-      const portCount = detail?.interfaces?.ports?.length || 0;
-      console.log(`  ${d._role.toUpperCase()}: "${d.name || '(no name)'}" model="${d.model}" ports=${portCount}`);
-    });
-  }
 
   const gateway = classified.find(d => d._role === 'gateway') || {};
   const gwStats = statsMap[gateway.id] || {};
@@ -352,10 +352,6 @@ async function fetchUnifiData() {
       dns: [],
     },
   };
-
-  if (Object.keys(gwStats).length > 0 && !cache.data) {
-    console.log('Gateway stats keys:', Object.keys(gwStats).join(', '));
-  }
 
   cache = { data: result, ts: now };
   return result;
@@ -531,9 +527,6 @@ app.get('/api/health/live', async (req, res) => {
   res.json({ ...result, fromCache: false, ageMs: 0, cacheTtlMs: LIVE_HEALTH_CACHE_TTL_MS });
 });
 
-// ---------------------------------------------------------------------------
-// Docker via Portainer
-// ---------------------------------------------------------------------------
 
 let portainerCache = { data: null, ts: 0 };
 let portainerLastError = null;
@@ -769,9 +762,6 @@ app.get('/api/docker/debug', async (_req, res) => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Proxmox VE
-// ---------------------------------------------------------------------------
 
 let pveCache = { data: null, ts: 0 };
 
@@ -814,7 +804,6 @@ function trimPveVersion(raw) {
 
 function pickNodeIp(networks) {
   if (!Array.isArray(networks)) return null;
-  // Prefer an active bridge with an address; fall back to any iface with an address.
   const bridgeWithIp = networks.find(
     (n) => n.active && n.address && n.type === 'bridge'
   );
@@ -892,9 +881,7 @@ async function fetchProxmoxData() {
   const coresAllocated = runningVms.reduce((sum, v) => sum + (v.maxcpu || 0), 0);
   const ramAllocatedBytes = runningVms.reduce((sum, v) => sum + (v.maxmem || 0), 0);
 
-  // Resolve runtime IPs for running guests in parallel.
-  // LXC IPs come from /interfaces or static config. QEMU IPs require
-  // qemu-guest-agent in the VM; VMs without it just return null.
+  // QEMU IPs need qemu-guest-agent in the VM; without it we just return null.
   const vmIps = {};
   await Promise.all(
     runningVms.map(async (v) => {
@@ -908,7 +895,7 @@ async function fetchProxmoxData() {
     }),
   );
 
-  // Storage: dedupe by `storage` name; sum the unique pools so a shared pool isn't double-counted.
+  // Dedupe by storage name so shared pools aren't counted twice.
   const seenStorage = new Set();
   let storageUsed = 0;
   let storageTotal = 0;
@@ -1092,14 +1079,7 @@ app.get('/api/debug', async (_req, res) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// GPU (NVIDIA via SSH + nvidia-smi)
-// ---------------------------------------------------------------------------
-
 const GPU_ENABLED = isEnabled(process.env.GPU_ENABLED);
-// GPU_MODE: "local" (run nvidia-smi here) or "ssh" (run it on a remote host).
-// Use "local" when the dashboard runs on a machine with the GPU (e.g. an LXC
-// with passthrough on the Proxmox host). Use "ssh" otherwise.
 const GPU_MODE = (process.env.GPU_MODE || 'ssh').toLowerCase();
 const GPU_SSH_HOST = process.env.GPU_SSH_HOST || '';
 const GPU_SSH_USER = process.env.GPU_SSH_USER || 'root';
@@ -1240,10 +1220,7 @@ app.get('/api/gpu/debug', async (_req, res) => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Host sensors (lm-sensors: CPU temps, drive temps, fans, chipset)
-// Shares the GPU SSH config by default since both target the same host.
-// ---------------------------------------------------------------------------
+// Sensors share the GPU SSH config by default — both usually target the same host.
 
 const SENSORS_ENABLED = isEnabled(process.env.SENSORS_ENABLED);
 const SENSORS_MODE = (process.env.SENSORS_MODE || GPU_MODE).toLowerCase();
@@ -1310,9 +1287,7 @@ function capacityFromGb(gb) {
   return `${n}GB`;
 }
 
-// Western Digital capacity is encoded in the digits right after "WD".
-// 2-digit: WD80 → 80/10 = 8TB. 3-digit: WD120 → 120/10 = 12TB.
-// 4-digit: WD5000 → 5000/10 = 500GB (sub-TB drives).
+// WD: 2-3 digits = TB×10 (WD80→8TB), 4 digits = GB×10 (WD5000→500GB).
 function wdCapacityFromDigits(digits) {
   const n = Number(digits);
   if (!Number.isFinite(n) || n <= 0) return '';
@@ -1324,8 +1299,7 @@ function wdCapacityFromDigits(digits) {
   return Number.isInteger(tb) ? `${tb}TB` : `${tb.toFixed(1)}TB`;
 }
 
-// WD's 4-letter family code identifies the drive line (Red, Blue, …).
-// Codes are read from the suffix that immediately follows the capacity digits.
+// 4-letter WD family code, read from the suffix after the capacity digits.
 const WD_FAMILY = {
   // Red — CMR NAS HDD (consumer)
   EFRX: 'Red', EFAX: 'Red', EFGX: 'Red',
@@ -1345,8 +1319,7 @@ const WD_FAMILY = {
   EZRS: 'Green', AZRX: 'Green',
 };
 
-// Seagate consumer / NAS models use a 2-letter family code right after the
-// capacity-in-GB digits. e.g. ST4000VN008 → "VN" → IronWolf 4 TB.
+// Seagate 2-letter family code after the GB digits: ST4000VN008 → VN → IronWolf.
 const SEAGATE_FAMILY = {
   VN: 'IronWolf',          // NAS
   NE: 'IronWolf Pro',
@@ -1360,7 +1333,7 @@ const SEAGATE_FAMILY = {
   AS: 'BarraCuda',
 };
 
-// Crucial CT-prefix models follow the pattern CT<capacityGB><family>SSD<rev>.
+// Crucial: CT<capacityGB><family>SSD<rev>.
 const CRUCIAL_FAMILY = {
   P3P:   { label: 'P3 Plus',  bus: 'NVMe' },
   P5P:   { label: 'P5 Plus',  bus: 'NVMe' },
@@ -1409,15 +1382,13 @@ function detectWesternDigital(token) {
   const suffix = m[2];
 
   let family = null;
-  // The family code is 4 letters; it sometimes sits at the start of the
-  // suffix, sometimes in the middle (next to revision letters). Scan.
+  // 4-letter family code may be anywhere in the suffix; scan for it.
   for (let i = 0; i + 4 <= suffix.length; i++) {
     const code = suffix.slice(i, i + 4);
     if (WD_FAMILY[code]) { family = WD_FAMILY[code]; break; }
   }
 
   if (!family) {
-    // Heuristic fallback by suffix prefix when we can't pin a family.
     if (/^EF/.test(suffix)) family = 'Red';
     else if (/^EZ/.test(suffix)) family = 'Blue';
     else if (/^FZ/.test(suffix)) family = 'Black';
@@ -1445,9 +1416,7 @@ function detectSeagate(token) {
 
 function detectSamsung(token, rawModel) {
   if (!/SAMSUNG|^MZ[VN]|^MZQL/.test(token)) return null;
-  // Consumer Samsung models usually carry a human-readable string in the
-  // raw model field, e.g. "Samsung SSD 990 PRO 1TB". Strip the leading
-  // "Samsung" / "SSD" so we don't double up the vendor.
+  // Raw model already reads like "Samsung SSD 990 PRO 1TB"; strip leading vendor.
   const cleaned = String(rawModel || '')
     .replace(/^samsung[\s_]*ssd[\s_]*/i, '')
     .replace(/^samsung[\s_]*/i, '')
@@ -1482,7 +1451,7 @@ function detectHgstHitachi(token, rawModel) {
 function normalizeDiskParts(disk) {
   const rawModel = cleanUsefulDiskPart(disk?.model);
   const rawVendor = cleanUsefulDiskPart(disk?.vendor);
-  // Strip useless bus-type-as-vendor values that some kernels report.
+  // Some kernels report the bus type as the vendor — drop those.
   const vendor = /^(ata|nvme|scsi|usb)$/i.test(rawVendor) ? '' : rawVendor;
   const token = diskToken(vendor, rawModel);
 
@@ -1496,9 +1465,6 @@ function normalizeDiskParts(disk) {
     detectHgstHitachi(token, rawModel);
 
   if (detected && detected.model) return detected;
-
-  // No specific brand match — return the cleaned passthrough so the UI at
-  // least shows something readable instead of "unknown".
   return { vendor, model: rawModel };
 }
 
@@ -1509,22 +1475,14 @@ function diskDisplayName(disk) {
   return `${vendor} ${model}`;
 }
 
-// Map an lm-sensors chip key (e.g. "nct6687-isa-0a20") and the in-chip
-// sensor name to a short, friendly label the UI can show as a sub-title.
-// We never want to leak the raw chip identifier to users.
+// Map lm-sensors chip+sensor names to a friendly UI label without leaking the chip ID.
 function friendlySystemSensorLabel(chipKey, sensorName) {
   const chip = String(chipKey || '').toLowerCase();
   const sensor = String(sensorName || '').trim();
-  // Explicit PCH / chipset readings.
   if (/^(chipset|pch)$/i.test(sensor)) return 'Chipset';
   if (/^pch/i.test(chip)) return 'Chipset';
-  // Super-IO / EC chips that report motherboard temps.
-  if (/^(nct|it86|w836|f718|nuvoton|asus|ec_sys|asusec)/.test(chip)) {
-    return 'Motherboard';
-  }
-  // Generic OS-level / ACPI source.
+  if (/^(nct|it86|w836|f718|nuvoton|asus|ec_sys|asusec)/.test(chip)) return 'Motherboard';
   if (chip.startsWith('acpitz') || chip.startsWith('thermal_zone')) return 'System';
-  // Anything else — keep it generic rather than echoing chip/sensor IDs.
   return 'System';
 }
 
@@ -1592,7 +1550,6 @@ function findFirstNumeric(obj, predicate) {
 }
 
 function parseSensorsJson(raw, diskInventory = []) {
-  // sensors output can include warnings on stderr; -j strips them, but be defensive
   const json = typeof raw === 'string' ? JSON.parse(raw) : raw;
   const diskNames = diskNameQueues(diskInventory);
 
@@ -1609,15 +1566,11 @@ function parseSensorsJson(raw, diskInventory = []) {
   const fans = [];
   const other = [];
 
-  // Sensor names that motherboards / super-IO chips use to report the
-  // overall "system" / "motherboard" temperature, in priority order.
-  // Matched against each sensor's label (case-insensitive). First match wins.
+  // Motherboard/system temp labels in priority order. First match wins.
   const SYSTEM_LABEL_PATTERNS = [
-    // Tier 1: friendly names some BIOSes assign (Asus, Gigabyte, ASRock).
     /^systin$/i, /^mb[ _\-]?temp/i, /^motherboard$/i, /^board[ _\-]?temp/i,
     /^system$/i, /^chipset$/i, /^pch$/i,
-    // Tier 2: MSI / Nuvoton nct668x conventions — the chip just calls the
-    // motherboard's main board thermistor "Thermistor 0" or "Diode 0".
+    // MSI / Nuvoton nct668x call the board thermistor "Thermistor 0" / "Diode 0".
     /^thermistor[ _]*0$/i,
     /^diode[ _]*0/i,
   ];
@@ -1713,8 +1666,7 @@ function parseSensorsJson(raw, diskInventory = []) {
       continue;
     }
 
-    // Fans + chipset/motherboard temps (anything else, e.g. nct6798, it8688)
-    // Decide a friendly source name based on the chip family.
+    // Fans + chipset/motherboard temps (nct6798, it8688, NZXT, Corsair, Asus).
     const fanSource = lcChip.startsWith('nct') || lcChip.startsWith('it86') || lcChip.startsWith('w836')
       ? 'Mobo'
       : lcChip.startsWith('nzxt')
@@ -1747,7 +1699,6 @@ function parseSensorsJson(raw, diskInventory = []) {
     }
   }
 
-  // Fall back to ACPI thermal zone if no labeled system temp was found.
   if (systemTempC == null && acpiTempC != null) {
     systemTempC = acpiTempC;
     systemTempLabel = friendlySystemSensorLabel('acpitz');
@@ -1812,9 +1763,6 @@ app.get('/api/sensors/debug', async (_req, res) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// UniFi UNAS Pro (undocumented local Drive API)
-// ---------------------------------------------------------------------------
 
 let unasCache = { data: null, ts: 0 };
 let unasLastError = null;
@@ -1855,6 +1803,8 @@ function poolStatus(status) {
 const UNAS_MODEL_NAMES = {
   UNAS2B: 'UNAS 2',
   UNAS2: 'UNAS 2',
+  UNAS4B: 'UNAS 4',
+  UNAS4: 'UNAS 4',
   UNASPRO: 'UNAS Pro',
   'UNAS-PRO': 'UNAS Pro',
 };
@@ -2002,9 +1952,6 @@ app.get('/api/unas/debug', async (_req, res) => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// UniFi Protect (local API v7.1.46, /integration prefix)
-// ---------------------------------------------------------------------------
 
 let protectCache = { data: null, ts: 0 };
 let protectLastError = null;
@@ -2126,8 +2073,7 @@ async function fetchProtectData() {
       disconnected: cams.length - connected,
       nvr: mapProtectNvr(nvrRaw),
       appVersion: info?.applicationVersion || null,
-      // Latest 50 events folded into the main payload so the tile/page can
-      // render without an extra round-trip on first load.
+      // Fold 50 events into the main payload so the page renders without a second round-trip.
       recentEvents: listProtectEvents({ limit: 50 }),
       eventsConnected: !!protectWs && !!protectWsConnectedAt,
     },
@@ -2135,10 +2081,6 @@ async function fetchProtectData() {
 
   protectCache = { data: result, ts: now };
   protectLastError = null;
-  if (!protectCache.logged) {
-    console.log(`Protect: ${cams.length} cameras (${connected} connected)`);
-    protectCache.logged = true;
-  }
   return result;
 }
 
@@ -2158,10 +2100,8 @@ app.get('/api/protect', async (_req, res) => {
   }
 });
 
-// Stream a fresh camera snapshot through the proxy. Browsers cannot reach
-// the local Protect instance directly (TLS + auth header), so the dashboard
-// proxies the binary. The image is *not* cached server-side; each request
-// hits Protect so a 4-second poll on the client gets 4-second freshness.
+// Proxy snapshot bytes — browsers can't reach Protect directly (TLS + auth).
+// Not cached server-side so client poll cadence drives freshness.
 app.get('/api/protect/cameras/:id/snapshot', async (req, res) => {
   if (!PROTECT_ENABLED) return res.status(503).json({ error: 'Protect disabled' });
   if (!PROTECT_BASE_URL || !PROTECT_API_KEY) {
@@ -2185,10 +2125,6 @@ app.get('/api/protect/cameras/:id/snapshot', async (req, res) => {
     res.setHeader('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
     res.setHeader('Cache-Control', 'no-store');
     res.send(buf);
-    if (!snapshotSuccessLogged.has(id)) {
-      console.log(`Protect snapshot ${id} ok (${buf.length}B in ${Date.now() - t0}ms)`);
-      snapshotSuccessLogged.add(id);
-    }
   } catch (err) {
     // 503 maps to "camera offline" upstream; pass through cleanly.
     const msg = err.message || 'snapshot failed';
@@ -2200,24 +2136,12 @@ app.get('/api/protect/cameras/:id/snapshot', async (req, res) => {
   }
 });
 
-// First successful snapshot per camera is logged once so the console doesn't
-// fill up with one line every 4 seconds.
-const snapshotSuccessLogged = new Set();
+// Protect WebSocket pushes motion/smartDetect/ring/sensor events as JSON
+// { type: 'add'|'update'|'remove', item: {...} }. One persistent socket;
+// events normalized and held in an in-memory ring buffer for REST polling.
 
-// ─── Protect event subscriber (WebSocket → in-memory ring buffer) ────────
-//
-// The Protect API exposes a single WebSocket at /v1/subscribe/events that
-// pushes ALL Protect events (motion, smartDetect, ring, alarm hub, sensor
-// triggers, etc.) as JSON messages of the form:
-//   { type: 'add' | 'update' | 'remove', item: { id, modelKey, type,
-//     start, end, device, metadata?, smartDetectTypes? } }
-//
-// We hold one persistent socket on the server, normalize each message into
-// a flat ProtectEvent, and store the most recent N in memory. The browser
-// reads via REST polling — same pattern as the rest of the dashboard.
-
-const protectEvents = [];          // newest last
-let protectEventsSeq = 0;          // monotonically increasing sequence id
+const protectEvents = [];
+let protectEventsSeq = 0;
 let protectWs = null;
 let protectWsRetryMs = 1000;
 let protectWsLastError = null;
@@ -2226,10 +2150,9 @@ let protectWsConnectedAt = null;
 function pushProtectEvent(raw) {
   const item = raw?.item;
   if (!item || typeof item !== 'object') return;
-  // Drop "remove" actions — these mean the event row was deleted upstream.
   if (raw.type === 'remove') return;
 
-  // Try to flatten the {text: "foo"} or {number: 5} wrapper metadata uses.
+  // Flatten Protect's {text:"foo"} / {number:5} metadata wrappers.
   const metadata = {};
   if (item.metadata && typeof item.metadata === 'object') {
     for (const [k, v] of Object.entries(item.metadata)) {
@@ -2256,12 +2179,10 @@ function pushProtectEvent(raw) {
     metadata,
   };
 
-  // Update-in-place: if we already have an event with this id, replace it so
-  // an `end` value or a smartDetect type addition refreshes the row instead
-  // of stacking a duplicate.
+  // Replace in place on `update` so end-times / smartDetect adds refresh the row,
+  // preserving the original seq so the ordering doesn't jitter.
   const existing = protectEvents.findIndex((e) => e.id === evt.id);
   if (existing >= 0) {
-    // Preserve original seq so ordering doesn't jitter on update.
     evt.seq = protectEvents[existing].seq;
     protectEvents[existing] = evt;
     return;
@@ -2308,21 +2229,11 @@ function startProtectEventSubscriber() {
     console.log(`Protect events: connected to ${url}`);
   });
 
-  let wsDebugMessagesLogged = 0;
   ws.addEventListener('message', (msgEvt) => {
     const text = decodeWsPayload(msgEvt.data);
     if (!text) return;
     let payload;
-    try { payload = JSON.parse(text); } catch {
-      if (wsDebugMessagesLogged++ < 3) {
-        console.log(`Protect events: non-JSON message: ${text.slice(0, 200)}`);
-      }
-      return;
-    }
-    if (wsDebugMessagesLogged < 5) {
-      console.log(`Protect events: sample message: ${JSON.stringify(payload).slice(0, 400)}`);
-      wsDebugMessagesLogged++;
-    }
+    try { payload = JSON.parse(text); } catch { return; }
     if (Array.isArray(payload)) payload.forEach(pushProtectEvent);
     else pushProtectEvent(payload);
   });
@@ -2361,7 +2272,6 @@ function listProtectEvents({ limit = 50, device = null, type = null, since = nul
   if (device) out = out.filter((e) => e.device === device);
   if (type) out = out.filter((e) => e.type === type);
   if (since != null) out = out.filter((e) => e.start >= since);
-  // Newest first.
   return out.slice(-limit).reverse();
 }
 
@@ -2380,21 +2290,11 @@ app.get('/api/protect/events', (req, res) => {
   });
 });
 
-// ─── Protect HLS stream manager (ffmpeg-backed) ─────────────────────────
-//
-// Browsers can't play RTSPS directly. For each requested camera we:
-//   1. Ask Protect for an RTSPS stream URL (creating one if needed).
-//   2. Spawn `ffmpeg` to repackage that RTSPS feed as low-overhead HLS
-//      (H.264 copied, AAC copied if present), writing playlist + segments
-//      into PROTECT_STREAM_DIR/<cameraId>.
-//   3. Serve those files through Express. The browser uses hls.js.
-//
-// Sessions are shared across multiple browser tabs — one ffmpeg per
-// camera, regardless of viewer count. An idle watchdog kills sessions
+// Browsers can't play RTSPS; one ffmpeg per camera repackages to HLS into
+// PROTECT_STREAM_DIR/<cameraId>. Sessions are shared across tabs and reaped
 // after PROTECT_STREAM_IDLE_MS without a segment fetch.
-
-const protectStreams = new Map();  // cameraId → session
-let ffmpegAvailable = null;        // null = unknown, true/false set on first check
+const protectStreams = new Map();
+let ffmpegAvailable = null;
 let ffmpegVersionInfo = null;
 
 async function detectFfmpeg() {
@@ -2416,7 +2316,6 @@ async function detectFfmpeg() {
 }
 
 async function ensureRtspsUrl(cameraId, quality) {
-  // Re-use any existing stream URL of the requested quality; otherwise create.
   const existing = await safeProtectFetchJson(`/v1/cameras/${cameraId}/rtsps-stream`, null);
   if (existing && existing[quality]) return existing[quality];
 
@@ -2447,7 +2346,6 @@ function killStreamSession(cameraId, reason) {
   protectStreams.delete(cameraId);
   try { session.proc?.kill('SIGKILL'); } catch { /* ignore */ }
   clearInterval(session.reaperId);
-  // Best-effort cleanup of segment dir.
   rm(session.dir, { recursive: true, force: true }).catch(() => {});
   if (reason) console.log(`Protect stream ${cameraId} stopped: ${reason}`);
 }
@@ -2459,16 +2357,13 @@ async function startStreamSession(cameraId, quality) {
 
   const rtsps = await ensureRtspsUrl(id, quality);
   const dir = path.join(PROTECT_STREAM_DIR, id);
-  await mkdir(dir, { recursive: true });
-  // Wipe stale segments from a previous session.
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
 
   const playlist = path.join(dir, 'index.m3u8');
   const segPattern = path.join(dir, 'seg-%05d.ts');
 
-  // 2s segments, 6-segment window. Copy codecs when possible — Protect cams
-  // emit H.264 + AAC by default which Chrome/Firefox play natively over HLS.
+  // 2s segments, 6-segment window. Copy H.264 (Protect cams emit it natively); re-encode audio to AAC.
   const args = [
     '-hide_banner',
     '-loglevel', 'warning',
@@ -2504,7 +2399,6 @@ async function startStreamSession(cameraId, quality) {
 
   proc.stderr.on('data', (chunk) => {
     const line = String(chunk).trim();
-    // ffmpeg writes most progress info to stderr; surface only the noisy bits.
     if (/error|failed|denied|forbidden|unauthorized/i.test(line)) {
       session.lastError = line.slice(0, 240);
     }
@@ -2516,7 +2410,6 @@ async function startStreamSession(cameraId, quality) {
     }
   });
 
-  // Mark playlist ready once it actually exists on disk.
   const readyTimer = setInterval(async () => {
     try {
       await readFile(playlist);
@@ -2524,10 +2417,8 @@ async function startStreamSession(cameraId, quality) {
       clearInterval(readyTimer);
     } catch { /* not yet */ }
   }, 250);
-  // Give up after 12 s — likely an upstream failure.
   setTimeout(() => clearInterval(readyTimer), 12000);
 
-  // Idle reaper: any time the playlist hasn't been hit recently, kill ffmpeg.
   session.reaperId = setInterval(() => {
     if (Date.now() - session.lastAccess > PROTECT_STREAM_IDLE_MS) {
       killStreamSession(id, 'idle');
@@ -2605,7 +2496,7 @@ app.get('/api/protect/cameras/:id/stream/:file', (req, res) => {
   const id = String(req.params.id).replace(/[^a-zA-Z0-9-]/g, '');
   const file = String(req.params.file);
   if (!id) return res.status(400).end();
-  // Whitelist: only the playlist + numbered HLS segments are served.
+  // Whitelist playlist + numbered segments only — prevents path traversal.
   if (!/^index\.m3u8$/.test(file) && !/^seg-\d{5}\.ts$/.test(file)) {
     return res.status(400).json({ error: 'invalid stream file' });
   }
@@ -2683,8 +2574,32 @@ app.get('/api/protect/debug', async (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Dashboard proxy listening on http://localhost:${PORT}`);
+// SIEM mounts UDP listener + SSE + REST routes on `app`. Must complete before app.listen.
+const siemHandle = await initSiem(app, {
+  enabled: SIEM_ENABLED,
+  port: SIEM_PORT,
+  host: SIEM_HOST,
+  dbPath: SIEM_DB_PATH,
+  retentionDays: SIEM_RETENTION_DAYS,
+  maxPerQuery: SIEM_MAX_PER_QUERY,
+}).catch((err) => {
+  console.error(`SIEM: init failed - ${err.message}`);
+  return { shutdown() {} };
+});
+process.on('SIGINT', () => { try { siemHandle.shutdown(); } catch { /* ignore */ } });
+process.on('SIGTERM', () => { try { siemHandle.shutdown(); } catch { /* ignore */ } });
+
+app.get('/healthz', (_req, res) => res.json({ ok: true }));
+
+// Static SPA + fallback so client-side routes resolve on hard refresh.
+const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
+app.use(express.static(distDir, { index: false, maxAge: '1h' }));
+app.get(/^\/(?!api\/|healthz).*/, (_req, res, next) => {
+  res.sendFile(path.join(distDir, 'index.html'), (err) => err && next());
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Dashboard listening on http://0.0.0.0:${PORT}`);
   if (UNIFI_ENABLED) {
     console.log(`UniFi: enabled — ${BASE_URL}`);
     console.log(`UniFi API Key: ${API_KEY ? 'configured' : 'NO — add UNIFI_API_KEY to .env'}`);
@@ -2741,5 +2656,10 @@ app.listen(PORT, () => {
     }
   } else {
     console.log('Sensors: DISABLED (set SENSORS_ENABLED=true in .env to enable)');
+  }
+  if (SIEM_ENABLED) {
+    console.log(`SIEM: enabled — UDP ${SIEM_HOST}:${SIEM_PORT}, db ${SIEM_DB_PATH}, retention ${SIEM_RETENTION_DAYS}d`);
+  } else {
+    console.log('SIEM: DISABLED (set SIEM_ENABLED=true in .env to enable syslog ingestion on UDP 514)');
   }
 });

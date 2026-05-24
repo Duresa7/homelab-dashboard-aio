@@ -3,14 +3,23 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "vite --config client/vite.config.ts",
     "server": "node server/src/index.js",
+    "start": "node server/src/index.js",
     "build": "tsc -p client/tsconfig.json --noEmit && vite build --config client/vite.config.ts",
     "typecheck": "tsc -p client/tsconfig.json --noEmit",
-    "preview": "vite preview --config client/vite.config.ts"
+    "preview": "vite preview --config client/vite.config.ts",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f dashboard"
   },
   "dependencies": {
+    "better-sqlite3": "^12.10.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "hls.js": "^1.6.16",

@@ -16,7 +16,38 @@ export interface SpecRow {
   specification: string;
 }
 
-export interface Machine {
+export type ItemStatus = 'working' | 'broken' | 'in-repair' | 'retired';
+
+export interface PurchaseInfo {
+  date?: string;          // ISO yyyy-mm-dd
+  vendor?: string;
+  price?: string;
+  receiptRef?: string;
+  warrantyEnd?: string;   // ISO yyyy-mm-dd
+}
+
+export interface ItemIds {
+  serial?: string;
+  uid?: string;
+  mac?: string;
+  assetTag?: string;
+  location?: string;
+}
+
+export interface ProblemLogEntry {
+  id: string;
+  date: string;           // ISO yyyy-mm-dd
+  note: string;
+}
+
+export interface ItemDetail {
+  status?: ItemStatus;
+  purchase?: PurchaseInfo;
+  ids?: ItemIds;
+  problemLog?: ProblemLogEntry[];
+}
+
+export interface Machine extends ItemDetail {
   id: string;
   name: string;
   role: string;
@@ -26,7 +57,7 @@ export interface Machine {
   components: SpecRow[];
 }
 
-export interface SpareItem {
+export interface SpareItem extends ItemDetail {
   id: string;
   /** Keyed by column id. */
   values: Record<string, string>;
@@ -82,6 +113,7 @@ function makeSeed(): Inventory {
         role: 'Windows workstation',
         meta: [
           m('Hostname', 'EXAMPLE-WORKSTATION'),
+          m('IP', '198.51.100.10'),
           m('OS', 'Microsoft Windows 11 Pro'),
         ],
         components: [
@@ -152,20 +184,26 @@ function makeSeed(): Inventory {
       {
         id: genId('mach'),
         ordinal: '04',
-        name: 'UNAS 2',
+        name: 'NAS NAS',
         role: 'Network-attached storage',
         meta: [
-          m('Brand / Model', 'Ubiquiti UniFi UNAS 2 (2-bay)'),
+          m('Brand / Model', 'Ubiquiti UniFi UNAS 4 (4-bay)'),
+          m('IP', '198.51.100.10'),
         ],
         components: [
           c('CPU',         'Quad-core ARM Cortex-A55 @ 1.7 GHz'),
           c('RAM',         '4 GB'),
           c('Drive Bay 1', 'WD Purple WD40PURX-64GVNY0 — 4 TB 3.5" SATA HDD (surveillance)'),
           c('Drive Bay 2', 'WD Purple WD60PURX-64LZMY0 — 6 TB 3.5" SATA HDD (surveillance)'),
-          c('NIC',         '2.5 GbE RJ45 (PoE++ powered)'),
-          c('USB',         'USB-C 5 Gbps (front)'),
+          c('Drive Bay 3', 'Empty'),
+          c('Drive Bay 4', 'Empty'),
+          c('NVMe Slot 1', 'Empty (M.2 NVMe, up to 2 TiB)'),
+          c('NVMe Slot 2', 'Empty (M.2 NVMe, up to 2 TiB)'),
+          c('NIC',         '2.5 GbE RJ45 (PoE+++ powered)'),
+          c('USB',         'USB-C 5 Gbps'),
+          c('Wireless',    'Bluetooth 4.1'),
           c('Display',     '1.47" color LCM'),
-          c('Power',       '60 W PoE++ (adapter included)'),
+          c('Power',       '90 W PoE+++'),
         ],
       },
     ],
@@ -312,23 +350,59 @@ function makeSeed(): Inventory {
 /* ---------- storage ---------- */
 
 const STORAGE_KEY = 'homelab-dashboard.inventory';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 4;
 
 interface Persisted {
   v: number;
   data: Inventory;
 }
 
+/** Best-effort UID for a machine, derived from its name. e.g. "Example PC" → "EXAMPLE-PC". */
+export function suggestMachineUid(name: string): string {
+  const slug = name
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'MACHINE';
+}
+
+/** Ensure an item has the v4 detail fields filled in with safe defaults. Mutates in place. */
+function ensureDetail<T extends ItemDetail>(item: T, fallbackUid: string): void {
+  if (!item.status) item.status = 'working';
+  if (!item.purchase) item.purchase = {};
+  if (!item.ids) item.ids = {};
+  if (!item.ids.uid) item.ids.uid = fallbackUid;
+  if (!item.problemLog) item.problemLog = [];
+}
+
+function migrateToV4(data: Inventory): Inventory {
+  for (const m of data.machines) {
+    ensureDetail(m, suggestMachineUid(m.name));
+  }
+  for (const cat of data.spares) {
+    for (const it of cat.items) {
+      ensureDetail(it, genId('uid').toUpperCase());
+    }
+  }
+  return data;
+}
+
 export function loadInventory(): Inventory {
-  if (typeof window === 'undefined') return makeSeed();
+  if (typeof window === 'undefined') return migrateToV4(makeSeed());
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return makeSeed();
+    if (!raw) return migrateToV4(makeSeed());
     const parsed = JSON.parse(raw) as Persisted;
-    if (parsed?.v !== SCHEMA_VERSION || !parsed.data) return makeSeed();
-    return parsed.data;
+    if (!parsed?.data) return migrateToV4(makeSeed());
+    if (parsed.v < SCHEMA_VERSION) {
+      const migrated = migrateToV4(parsed.data);
+      saveInventory(migrated);
+      return migrated;
+    }
+    if (parsed.v !== SCHEMA_VERSION) return migrateToV4(makeSeed());
+    return migrateToV4(parsed.data); // re-ensure in case of partial data
   } catch {
-    return makeSeed();
+    return migrateToV4(makeSeed());
   }
 }
 
@@ -361,10 +435,26 @@ export function tryImportInventoryJSON(text: string): Inventory | null {
     if (!candidate || !Array.isArray((candidate as Inventory).machines) || !Array.isArray((candidate as Inventory).spares)) {
       return null;
     }
-    return candidate as Inventory;
+    return migrateToV4(candidate as Inventory);
   } catch {
     return null;
   }
+}
+
+/* ---------- item lookup ---------- */
+
+export type FoundItem =
+  | { kind: 'machine'; machine: Machine }
+  | { kind: 'spare'; item: SpareItem; category: SpareCategory };
+
+export function findItem(inv: Inventory, id: string): FoundItem | null {
+  const machine = inv.machines.find((m) => m.id === id);
+  if (machine) return { kind: 'machine', machine };
+  for (const cat of inv.spares) {
+    const it = cat.items.find((x) => x.id === id);
+    if (it) return { kind: 'spare', item: it, category: cat };
+  }
+  return null;
 }
 
 /* ---------- summary stats ---------- */

@@ -39,6 +39,7 @@ import {
   type Section,
 } from './lib/route';
 import type { ChartKind } from './types';
+import { useThresholds } from './lib/thresholds';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
 type Density = 'compact' | 'regular' | 'comfy';
@@ -73,6 +74,7 @@ const DEFAULTS: TweakState = {
 };
 
 export function App() {
+  useThresholds(); // subscribe so threshold changes re-render all severity-aware tiles
   const [t, setTweak] = useTweaks<TweakState>(DEFAULTS);
   const data = useDashData();
   const [route, setRouteState] = useState<Route>(() => loadRoute());
@@ -118,10 +120,22 @@ export function App() {
     }
   }, [integrations]);
 
-  const setRoute = (section: Section, sub?: string) => {
-    const resolved: Route = { section, sub: resolveSub(section, sub ?? DEFAULT_SUB[section]) };
+  const setRoute = (section: Section, sub?: string, itemId?: string) => {
+    const resolved: Route = {
+      section,
+      sub: resolveSub(section, sub ?? DEFAULT_SUB[section]),
+      itemId: section === 'inventory' ? itemId : undefined,
+    };
     setRouteState(resolved);
     saveRoute(resolved);
+  };
+
+  const setInventoryItemId = (itemId: string | undefined) => {
+    setRouteState((prev) => {
+      const next: Route = { ...prev, itemId };
+      saveRoute(next);
+      return next;
+    });
   };
 
   const setChartKind = (id: TileId, k: ChartKind) =>
@@ -168,7 +182,12 @@ export function App() {
         {route.section === 'alerts'  && <AlertsPage  alerts={visibleAlerts} onDismiss={dismiss} />}
         {route.section === 'health'    && <HealthPage  integrations={integrations} />}
         {route.section === 'siem'      && <SiemPage />}
-        {route.section === 'inventory' && <InventoryPage />}
+        {route.section === 'inventory' && (
+          <InventoryPage
+            selectedItemId={route.itemId}
+            onSelectItem={setInventoryItemId}
+          />
+        )}
         {route.section === 'settings' && (
           <SettingsPage
             integrations={integrations}

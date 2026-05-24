@@ -68,17 +68,14 @@ export function TempHeatTile({ cpu, gpu, disks, span, onExpand, expandable }: Pr
       </div>
       <div className="legend">
         <div className="item">
-          <div className="swatch" style={{ background: 'var(--bg-3)' }} /> {fmtTemp(30, unit)}
+          <div className="swatch" style={{ background: 'color-mix(in oklab, var(--ok) 30%, var(--bg-3))' }} />{' '}
+          {fmtTemp(30, unit)}
         </div>
         <div className="item">
-          <div
-            className="swatch"
-            style={{ background: 'color-mix(in oklab, var(--accent) 50%, var(--bg-3))' }}
-          />{' '}
-          {fmtTemp(60, unit)}
+          <div className="swatch" style={{ background: 'var(--warn)' }} /> {fmtTemp(55, unit)}
         </div>
         <div className="item">
-          <div className="swatch" style={{ background: 'var(--accent)' }} /> {fmtTemp(80, unit)}+
+          <div className="swatch" style={{ background: 'var(--bad)' }} /> {fmtTemp(75, unit)}+
         </div>
       </div>
     </Tile>
