@@ -1,16 +1,39 @@
 const HEARTBEAT_MS = 25_000;
+const REPLAY_LIMIT = 1000;
 
 export function createSseBus({ replayAfter }) {
+  // Each client is tracked by an object that carries the response handle,
+  // its keepalive interval, and the highest event id we've already sent it.
+  // The lastSent counter lets broadcast() skip events the client received
+  // during initial replay (replay and live broadcast can overlap if any
+  // future code introduces an `await` inside handle()) — and lets us assert
+  // strictly-monotonic delivery so a client never sees an out-of-order id.
   const clients = new Set();
 
+  function writeEvent(client, evt, eventName) {
+    if (evt.id != null && evt.id <= client.lastSent) return;
+    const header = eventName ? `event: ${eventName}\n` : '';
+    const payload = `${header}id: ${evt.id}\ndata: ${JSON.stringify(evt)}\n\n`;
+    try {
+      client.res.write(payload);
+      if (evt.id != null) client.lastSent = evt.id;
+      return true;
+    } catch {
+      removeClient(client);
+      return false;
+    }
+  }
+
+  function removeClient(client) {
+    if (client.removed) return;
+    client.removed = true;
+    if (client.ka) clearInterval(client.ka);
+    clients.delete(client);
+  }
+
   function broadcast(evt) {
-    const payload = `id: ${evt.id}\ndata: ${JSON.stringify(evt)}\n\n`;
-    for (const res of clients) {
-      try {
-        res.write(payload);
-      } catch {
-        clients.delete(res);
-      }
+    for (const client of clients) {
+      writeEvent(client, evt);
     }
   }
 
@@ -23,27 +46,60 @@ export function createSseBus({ replayAfter }) {
 
     res.write('retry: 3000\n\n');
 
-    // Replay missed events via Last-Event-ID; cap so a long-gone client doesn't flood.
     const lastEventIdHeader = req.headers['last-event-id'];
     const lastEventIdQuery = req.query?.lastEventId;
-    const since = Number(lastEventIdHeader ?? lastEventIdQuery ?? 0);
-    if (Number.isFinite(since) && since > 0) {
-      const missed = replayAfter(since, 1000);
+    const sinceRaw = Number(lastEventIdHeader ?? lastEventIdQuery ?? 0);
+    const since = Number.isFinite(sinceRaw) && sinceRaw > 0 ? sinceRaw : 0;
+
+    const client = { res, lastSent: since, ka: null, removed: false };
+
+    // Subscribe BEFORE replay. broadcast() filters by lastSent so we
+    // can't deliver the same event twice, and any live insert during
+    // replay is now delivered rather than lost in the race window.
+    clients.add(client);
+
+    if (since > 0) {
+      let missed;
+      try {
+        missed = replayAfter(since, REPLAY_LIMIT);
+      } catch {
+        missed = [];
+      }
       for (const evt of missed) {
-        res.write(`id: ${evt.id}\ndata: ${JSON.stringify(evt)}\n\n`);
+        if (!writeEvent(client, evt)) return;
+      }
+      // Signal to the client that the replay window was capped so they
+      // can fetch the gap via /api/siem/logs?after_id=<since>&until=<lastSent>
+      // before drawing conclusions from the live tail.
+      if (missed.length >= REPLAY_LIMIT) {
+        const truncMarker = {
+          // Reuse the lastSent id so the client knows the high-water mark;
+          // the marker itself is not a real event id.
+          id: client.lastSent,
+          replayTruncated: true,
+          replayFromId: since,
+          replayThroughId: client.lastSent,
+        };
+        // Use a named SSE event so it doesn't get fed into the events list.
+        try {
+          client.res.write(
+            `event: replay-truncated\nid: ${client.lastSent}\ndata: ${JSON.stringify(truncMarker)}\n\n`,
+          );
+        } catch {
+          removeClient(client);
+          return;
+        }
       }
     }
 
-    clients.add(res);
-
-    const ka = setInterval(() => {
-      try { res.write(':ka\n\n'); } catch { /* dropped */ }
+    client.ka = setInterval(() => {
+      try { client.res.write(':ka\n\n'); } catch { removeClient(client); }
     }, HEARTBEAT_MS);
 
-    req.on('close', () => {
-      clearInterval(ka);
-      clients.delete(res);
-    });
+    const cleanup = () => removeClient(client);
+    req.on('close', cleanup);
+    req.on('error', cleanup);
+    res.on('error', cleanup);
   }
 
   function clientCount() {
@@ -51,8 +107,9 @@ export function createSseBus({ replayAfter }) {
   }
 
   function shutdown() {
-    for (const res of clients) {
-      try { res.end(); } catch { /* ignore */ }
+    for (const client of clients) {
+      if (client.ka) clearInterval(client.ka);
+      try { client.res.end(); } catch { /* ignore */ }
     }
     clients.clear();
   }

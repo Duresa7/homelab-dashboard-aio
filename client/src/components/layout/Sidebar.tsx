@@ -6,6 +6,7 @@ import {
   type Route,
   type Section,
 } from '../../lib/route';
+import { getState, setState } from '../../lib/store';
 import type { AlertEntry } from '../../types';
 
 interface Props {
@@ -31,22 +32,16 @@ interface NavParent {
 interface NavSection { kind: 'section'; label: string }
 type NavItem = NavLeaf | NavParent | NavSection;
 
-const COLLAPSED_KEY = 'homelab-dashboard.sidebar-collapsed';
-const EXPANDED_KEY  = 'homelab-dashboard.sidebar-expanded';
+const COLLAPSED_KEY = 'sidebarCollapsed';
+const EXPANDED_KEY  = 'sidebarExpanded';
+const DEFAULT_EXPANDED: Section[] = ['proxmox', 'network', 'docker', 'nas', 'cameras'];
 
 function loadCollapsed(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(COLLAPSED_KEY) === '1';
+  return getState<boolean>(COLLAPSED_KEY, false);
 }
 function loadExpandedSet(): Set<Section> {
-  if (typeof window === 'undefined') return new Set();
-  try {
-    const raw = window.localStorage.getItem(EXPANDED_KEY);
-    if (!raw) return new Set(['proxmox', 'network', 'docker', 'nas', 'cameras'] as Section[]);
-    return new Set(JSON.parse(raw) as Section[]);
-  } catch {
-    return new Set();
-  }
+  const arr = getState<Section[] | null>(EXPANDED_KEY, null);
+  return new Set(arr ?? DEFAULT_EXPANDED);
 }
 
 export function Sidebar({ route, setRoute, alerts }: Props) {
@@ -55,15 +50,11 @@ export function Sidebar({ route, setRoute, alerts }: Props) {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-sidebar', collapsed ? 'collapsed' : 'expanded');
-    try {
-      window.localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0');
-    } catch { /* ignore */ }
+    setState<boolean>(COLLAPSED_KEY, collapsed);
   }, [collapsed]);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(EXPANDED_KEY, JSON.stringify([...expanded]));
-    } catch { /* ignore */ }
+    setState<Section[]>(EXPANDED_KEY, [...expanded]);
   }, [expanded]);
 
   const toggleExpanded = (s: Section) => {

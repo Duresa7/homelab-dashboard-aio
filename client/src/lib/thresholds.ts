@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import { getState, setState, subscribe as subscribeState } from './store';
+
 export interface ThresholdPair {
   warn: number;
   bad: number;
@@ -41,35 +43,33 @@ export const THRESHOLD_LABELS: Record<keyof Thresholds, { label: string; unit: s
   ping:        { label: 'Ping',         unit: 'ms' },
 };
 
-const STORAGE_KEY = 'homelab-dashboard.thresholds';
+const STORAGE_KEY = 'thresholds';
 const listeners = new Set<() => void>();
 let current: Thresholds = load();
 
+// Cross-tab / cross-device updates: when another tab edits thresholds, our
+// store layer fires a subscribe callback. Refresh the cached value and
+// re-render any threshold-aware components.
+subscribeState(STORAGE_KEY, () => {
+  current = load();
+  listeners.forEach((fn) => fn());
+});
+
 function load(): Thresholds {
-  if (typeof window === 'undefined') return DEFAULT_THRESHOLDS;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_THRESHOLDS;
-    const parsed = JSON.parse(raw) as Partial<Thresholds>;
-    const merged = { ...DEFAULT_THRESHOLDS } as Thresholds;
-    for (const k of Object.keys(DEFAULT_THRESHOLDS) as Array<keyof Thresholds>) {
-      const p = parsed[k];
-      if (p && typeof p.warn === 'number' && typeof p.bad === 'number') {
-        merged[k] = { warn: p.warn, bad: p.bad };
-      }
+  const parsed = getState<Partial<Thresholds> | null>(STORAGE_KEY, null);
+  if (!parsed) return DEFAULT_THRESHOLDS;
+  const merged = { ...DEFAULT_THRESHOLDS } as Thresholds;
+  for (const k of Object.keys(DEFAULT_THRESHOLDS) as Array<keyof Thresholds>) {
+    const p = parsed[k];
+    if (p && typeof p.warn === 'number' && typeof p.bad === 'number') {
+      merged[k] = { warn: p.warn, bad: p.bad };
     }
-    return merged;
-  } catch {
-    return DEFAULT_THRESHOLDS;
   }
+  return merged;
 }
 
 function persist() {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-  } catch {
-    /* ignore */
-  }
+  setState<Thresholds>(STORAGE_KEY, current);
 }
 
 export function getThresholds(): Thresholds {

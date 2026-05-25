@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function UnifiTile({ data, span, onExpand, expandable }: Props) {
-  const { gateway, clients, clientBreakdown, wan } = data;
+  const { gateway, clients, wan } = data;
   return (
     <Tile
       title="Network"
@@ -19,42 +19,19 @@ export function UnifiTile({ data, span, onExpand, expandable }: Props) {
       expandable={expandable}
       tag={{ label: `${clients} clients`, kind: 'ok' }}
     >
-      <div className="row" style={{ gap: 14 }}>
-        <div className="flex1">
-          <div className="t-sub">Gateway CPU</div>
-          <div className="t-big" style={{ fontSize: 26 }}>
-            {gateway.cpu.toFixed(0)}<small>%</small>
-          </div>
-        </div>
-        <div className="flex1">
-          <div className="t-sub">Gateway RAM</div>
-          <div className="t-big" style={{ fontSize: 26 }}>
-            {gateway.ram.toFixed(0)}<small>%</small>
-          </div>
-        </div>
-        <div className="flex1">
-          <div className="t-sub">Uptime</div>
-          <div className="t-big" style={{ fontSize: 22 }}>{gateway.uptime}</div>
-        </div>
+      <div className="t-big">
+        {clients}
+        <small> clients online</small>
       </div>
       <div className="netrate">
         <div className="col">
-          <div className="label">↓ wan down</div>
+          <div className="label">↓ wan</div>
           <div className="v">{wan.down}<small>Mbps</small></div>
-          <div className="pbar"><span style={{ width: `${(wan.down / wan.downMax) * 100}%` }} /></div>
         </div>
         <div className="col">
-          <div className="label">↑ wan up</div>
+          <div className="label">↑ wan</div>
           <div className="v">{wan.up}<small>Mbps</small></div>
-          <div className="pbar"><span style={{ width: `${(wan.up / wan.upMax) * 100}%` }} /></div>
         </div>
-      </div>
-      <div className="t-sub" style={{ paddingTop: 6, borderTop: '1px dashed var(--line)' }}>
-        Clients:&nbsp;
-        <span style={{ color: 'var(--accent)' }}>{clientBreakdown.wireless} wireless</span>
-        {' · '}
-        {clientBreakdown.wired} wired
-        {clientBreakdown.vpn > 0 && <>{' · '}{clientBreakdown.vpn} VPN</>}
       </div>
     </Tile>
   );

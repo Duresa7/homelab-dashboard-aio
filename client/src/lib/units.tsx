@@ -7,8 +7,10 @@ import {
   type ReactNode,
 } from 'react';
 
+import { getState, setState, subscribe as subscribeState } from './store';
+
 export type TempUnit = 'F' | 'C';
-const STORAGE_KEY = 'homelab-dashboard.tempUnit';
+const STORAGE_KEY = 'tempUnit';
 
 interface Ctx {
   unit: TempUnit;
@@ -23,20 +25,7 @@ const UnitContext = createContext<Ctx>({
 });
 
 function readStoredUnit(): TempUnit {
-  if (typeof window === 'undefined') return 'F';
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === 'C' ? 'C' : 'F';
-  } catch {
-    return 'F';
-  }
-}
-
-function writeStoredUnit(u: TempUnit): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, u);
-  } catch {
-    /* localStorage unavailable */
-  }
+  return getState<string>(STORAGE_KEY, 'F') === 'C' ? 'C' : 'F';
 }
 
 export function TempUnitProvider({ children }: { children: ReactNode }) {
@@ -44,25 +33,19 @@ export function TempUnitProvider({ children }: { children: ReactNode }) {
 
   const setUnit = useCallback((u: TempUnit) => {
     setUnitState(u);
-    writeStoredUnit(u);
+    setState<TempUnit>(STORAGE_KEY, u);
   }, []);
 
   const toggle = useCallback(() => {
     setUnitState((prev) => {
       const next = prev === 'F' ? 'C' : 'F';
-      writeStoredUnit(next);
+      setState<TempUnit>(STORAGE_KEY, next);
       return next;
     });
   }, []);
 
   useEffect(() => {
-    const handler = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY && (e.newValue === 'F' || e.newValue === 'C')) {
-        setUnitState(e.newValue);
-      }
-    };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
+    return subscribeState(STORAGE_KEY, () => setUnitState(readStoredUnit()));
   }, []);
 
   return (

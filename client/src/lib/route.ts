@@ -101,7 +101,9 @@ export function subLabel(section: Section, sub: string): string {
   return subs?.find((s) => s.id === sub)?.label ?? sub;
 }
 
-const STORAGE_KEY = 'homelab-dashboard.route';
+import { getState, setState } from './store';
+
+const STORAGE_KEY = 'route';
 
 function normalizeRoute(route: PersistedRoute): Route {
   const section: Section = route.section === 'storage' ? 'nas' : route.section ?? 'overview';
@@ -111,23 +113,11 @@ function normalizeRoute(route: PersistedRoute): Route {
 }
 
 export function loadRoute(): Route {
-  if (typeof window === 'undefined') return { section: 'overview' };
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { section: 'overview' };
-    const parsed = JSON.parse(raw) as PersistedRoute;
-    if (!parsed.section) return { section: 'overview' };
-    return normalizeRoute(parsed);
-  } catch {
-    return { section: 'overview' };
-  }
+  const parsed = getState<PersistedRoute | null>(STORAGE_KEY, null);
+  if (!parsed?.section) return { section: 'overview' };
+  return normalizeRoute(parsed);
 }
 
 export function saveRoute(r: Route): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
-  } catch {
-    /* ignore */
-  }
+  setState<Route>(STORAGE_KEY, r);
 }

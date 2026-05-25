@@ -60,10 +60,19 @@ export interface SiemSubscription {
   dispose(): void;
 }
 
+export interface ReplayTruncated {
+  /** Lowest id we asked for (exclusive) — i.e. the client's last seen id. */
+  replayFromId: number;
+  /** Highest id the server actually replayed; events in (from, through] arrived. */
+  replayThroughId: number;
+}
+
 export interface SubscribeOptions {
   onEvent: (evt: SyslogEvent) => void;
   onStatus?: (status: SiemStatus) => void;
   onError?: (err: Event | Error) => void;
+  /** Server signals when replay was capped and the client should backfill via fetchLogs. */
+  onReplayTruncated?: (info: ReplayTruncated) => void;
   /** Resume after this DB id; the backend replays anything newer. */
   lastEventId?: number;
   /** Status poll cadence (ms). Default 30s. */
@@ -71,7 +80,7 @@ export interface SubscribeOptions {
 }
 
 export function subscribeSiem(opts: SubscribeOptions): SiemSubscription {
-  const { onEvent, onStatus, onError, lastEventId, statusIntervalMs = 30_000 } = opts;
+  const { onEvent, onStatus, onError, onReplayTruncated, lastEventId, statusIntervalMs = 30_000 } = opts;
 
   let disposed = false;
   let statusTimer: ReturnType<typeof setInterval> | null = null;
@@ -91,6 +100,15 @@ export function subscribeSiem(opts: SubscribeOptions): SiemSubscription {
       /* drop malformed message */
     }
   };
+  es.addEventListener('replay-truncated', (msg) => {
+    if (disposed) return;
+    try {
+      const info = JSON.parse((msg as MessageEvent).data) as ReplayTruncated;
+      onReplayTruncated?.(info);
+    } catch {
+      /* drop malformed marker */
+    }
+  });
   es.onerror = (e) => {
     if (disposed) return;
     onError?.(e);

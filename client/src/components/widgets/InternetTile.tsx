@@ -1,7 +1,7 @@
 import { Tile } from '../tile/Tile';
 import { BrandIcon } from '../icons/BrandIcon';
 import type { NetworkData } from '../../types';
-import { severityColor, pingSeverity, uptimeSeverity } from '../../lib/severity';
+import { pingSeverity, uptimeSeverity } from '../../lib/severity';
 
 interface Props {
   data: NetworkData;
@@ -11,32 +11,22 @@ interface Props {
 }
 
 export function InternetTile({ data, span, onExpand, expandable }: Props) {
+  const uptimeKind = uptimeSeverity(data.uptime30d);
+  const pingKind = pingSeverity(data.speedtest.ping);
   return (
-    <Tile title={<><BrandIcon name="unifi" alt="UniFi" /> Internet</>} sub={`pub ${data.publicIp}`} span={span} onExpand={onExpand} expandable={expandable}>
-      <div className="row" style={{ gap: 14 }}>
-        <div>
-          <div className="t-big" style={{ color: severityColor[uptimeSeverity(data.uptime30d)] }}>
-            {data.uptime30d.toFixed(2)}<small>%</small>
-          </div>
-          <div className="t-sub">uptime · 30d</div>
-        </div>
-        <div>
-          <div className="t-big" style={{ fontSize: 26, color: severityColor[pingSeverity(data.speedtest.ping)] }}>
-            {data.speedtest.ping}<small>ms</small>
-          </div>
-          <div className="t-sub">last ping</div>
-        </div>
+    <Tile
+      title={<><BrandIcon name="unifi" alt="UniFi" /> Internet</>}
+      sub={`pub ${data.publicIp}`}
+      span={span}
+      onExpand={onExpand}
+      expandable={expandable}
+      tag={{ label: `${data.speedtest.ping} ms`, kind: pingKind }}
+    >
+      <div className={`t-big text-${uptimeKind}`}>
+        {data.uptime30d.toFixed(2)}
+        <small>% uptime</small>
       </div>
-      <div className="list">
-        {data.dns.map((d) => (
-          <div key={d.ip} className="li">
-            <span className="d" />
-            <span className="name">{d.name}</span>
-            <span className="meta">{d.ip}</span>
-            <span className="val">ok</span>
-          </div>
-        ))}
-      </div>
+      <div className="t-sub">30-day · {data.speedtest.down}/{data.speedtest.up} Mbps</div>
     </Tile>
   );
 }

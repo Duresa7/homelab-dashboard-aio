@@ -57,7 +57,14 @@ export async function openSiemDb(dbPath) {
   const lastEventStmt = db.prepare(
     `SELECT MAX(received_at) AS ts FROM syslog_events`,
   );
-  const purgeStmt = db.prepare(`DELETE FROM syslog_events WHERE received_at < ?`);
+  // Chunked purge: better-sqlite3 is synchronous, so a multi-million-row
+  // DELETE would block the Node event loop for seconds. We delete in batches
+  // and let the caller yield to the event loop between chunks.
+  const purgeChunkStmt = db.prepare(
+    `DELETE FROM syslog_events WHERE id IN (
+       SELECT id FROM syslog_events WHERE received_at < ? LIMIT ?
+     )`,
+  );
   const replayStmt = db.prepare(
     `SELECT * FROM syslog_events WHERE id > ? ORDER BY id ASC LIMIT ?`,
   );
@@ -174,8 +181,11 @@ export async function openSiemDb(dbPath) {
     return { total, lastHour, lastEventAt: last ?? null };
   }
 
-  function purgeOlderThan(cutoffMs) {
-    return purgeStmt.run(cutoffMs).changes;
+  // Delete one batch of rows older than `cutoffMs`. Returns the number of
+  // rows actually removed. Caller loops until 0 is returned, awaiting an
+  // event-loop tick between calls so HTTP, SSE, and UDP handlers keep flowing.
+  function purgeOlderThanChunk(cutoffMs, chunkSize = 1000) {
+    return purgeChunkStmt.run(cutoffMs, chunkSize).changes;
   }
 
   function replayAfter(lastId, limit = 500) {
@@ -196,7 +206,7 @@ export async function openSiemDb(dbPath) {
     queryEvents,
     getStats,
     totals,
-    purgeOlderThan,
+    purgeOlderThanChunk,
     replayAfter,
     getById,
     close,

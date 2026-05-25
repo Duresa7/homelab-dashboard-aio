@@ -80,11 +80,44 @@ export function SiemPage() {
             if (!alive) return;
             if (!liveTailRef.current) return;
             setEvents((prev) => {
-              if (prev.length && prev[0].id === evt.id) return prev;
+              // Robust dedup: backfill + replay + live-tail can overlap on
+              // reconnect; only the head check would miss duplicates buried
+              // by a concurrent re-fetch. Use a Set over the existing ids.
+              for (let i = 0; i < prev.length; i++) {
+                if (prev[i].id === evt.id) return prev;
+              }
               const next = [evt, ...prev];
               if (next.length > MAX_LIVE_BUFFER) next.length = MAX_LIVE_BUFFER;
               return next;
             });
+          },
+          onReplayTruncated: async ({ replayFromId, replayThroughId }) => {
+            // Server's replay was capped at 1000 events; fetch the gap so
+            // the in-memory buffer doesn't have a silent hole between the
+            // backfill and the live tail.
+            try {
+              const gap = await fetchLogs({
+                afterId: replayFromId,
+                limit: 5000,
+                order: 'desc',
+              });
+              if (!alive || gap.length === 0) return;
+              setEvents((prev) => {
+                const seen = new Set(prev.map((e) => e.id));
+                const merged = [...prev];
+                for (const e of gap) {
+                  if (e.id > replayThroughId) continue; // live tail handles these
+                  if (seen.has(e.id)) continue;
+                  merged.push(e);
+                  seen.add(e.id);
+                }
+                merged.sort((a, b) => b.id - a.id);
+                if (merged.length > MAX_LIVE_BUFFER) merged.length = MAX_LIVE_BUFFER;
+                return merged;
+              });
+            } catch {
+              /* leave the gap rather than crash */
+            }
           },
           onStatus: (s) => alive && setStatus(s),
           onError: () => { /* EventSource auto-reconnects */ },
@@ -188,11 +221,6 @@ export function SiemPage() {
               {category !== 'all' ? ` · ${categoryLabel(category)}` : ''}
               {' · '}{sevCounts.all} in last {range}
             </span>
-          </div>
-          <div className="ls-sub">
-            Syslog events ingested from your UniFi gateway, access points, switches, and
-            controller. Filter by device, category, or severity to triage; click a row to
-            inspect parsed fields and the raw message.
           </div>
         </div>
         <div className="ls-stats">

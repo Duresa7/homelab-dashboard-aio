@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { Agent, fetch as undiciFetch, WebSocket as UndiciWebSocket } from 'undici';
 
 import { initSiem } from './siem/index.js';
+import { initState } from './state/index.js';
 
 const execFileP = promisify(execFile);
 
@@ -89,6 +90,10 @@ const SIEM_DB_PATH = process.env.SIEM_DB_PATH
   : path.resolve(process.cwd(), 'data', 'siem.sqlite');
 const SIEM_RETENTION_DAYS = Number(process.env.SIEM_RETENTION_DAYS) || 30;
 const SIEM_MAX_PER_QUERY = Number(process.env.SIEM_MAX_PER_QUERY) || 1000;
+
+const STATE_DB_PATH = process.env.STATE_DB_PATH
+  ? path.resolve(process.env.STATE_DB_PATH)
+  : path.resolve(process.cwd(), 'data', 'dashboard.sqlite');
 
 let cache = { data: null, ts: 0 };
 
@@ -2574,6 +2579,14 @@ app.get('/api/protect/debug', async (_req, res) => {
   });
 });
 
+// Persistent app-state DB (inventory, thresholds, tweaks, etc.). Core, always on.
+const stateHandle = await initState(app, { dbPath: STATE_DB_PATH }).catch((err) => {
+  console.error(`State: init failed - ${err.message}`);
+  return { shutdown() {}, recordMetric() {} };
+});
+process.on('SIGINT', () => { try { stateHandle.shutdown(); } catch { /* ignore */ } });
+process.on('SIGTERM', () => { try { stateHandle.shutdown(); } catch { /* ignore */ } });
+
 // SIEM mounts UDP listener + SSE + REST routes on `app`. Must complete before app.listen.
 const siemHandle = await initSiem(app, {
   enabled: SIEM_ENABLED,
@@ -2662,4 +2675,5 @@ app.listen(PORT, '0.0.0.0', () => {
   } else {
     console.log('SIEM: DISABLED (set SIEM_ENABLED=true in .env to enable syslog ingestion on UDP 514)');
   }
+  console.log(`State: db ${STATE_DB_PATH}`);
 });

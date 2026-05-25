@@ -38,18 +38,18 @@ export const ALL_TILES: TileDef[] = [
   { id: 'storage', label: 'NAS Pools', span: 4 },
   { id: 'network', label: 'Network', span: 4 },
   { id: 'unifi', label: 'Network (UniFi)', span: 4 },
-  { id: 'docker', label: 'Docker', span: 8 },
-  { id: 'proxmox', label: 'Proxmox', span: 4 },
+  { id: 'docker', label: 'Docker', span: 6 },
+  { id: 'proxmox', label: 'Proxmox', span: 3 },
   { id: 'unas', label: 'UniFi NAS', span: 4 },
-  { id: 'protect', label: 'Cameras', span: 4 },
+  { id: 'protect', label: 'Cameras', span: 3 },
   { id: 'fans', label: 'Fans', span: 4 },
   { id: 'smart', label: 'Disk Health', span: 4 },
   { id: 'backups', label: 'Backups', span: 4 },
   { id: 'ups', label: 'UPS', span: 4 },
   { id: 'internet', label: 'Internet', span: 4 },
   { id: 'topTalkers', label: 'Connected Clients', span: 4 },
-  { id: 'tempHeat', label: 'Temp Heatmap', span: 6 },
-  { id: 'events', label: 'Events', span: 6 },
+  { id: 'tempHeat', label: 'Temp Heatmap', span: 4 },
+  { id: 'events', label: 'Events', span: 12 },
 ];
 
 export function tileData(id: TileId, d: DashboardState): unknown {

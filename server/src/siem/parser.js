@@ -22,15 +22,32 @@ function decodePriority(pri) {
 function parseBsdTimestamp(month, day, hh, mm, ss) {
   const monthIdx = MONTHS[month];
   if (monthIdx == null) return null;
-  // BSD timestamps lack a year. Assume current year; if that pushes >30d into
-  // the future the message is from last year (year rollover / clock skew).
+  // BSD timestamps (RFC 3164) lack both year AND timezone. The protocol
+  // specifies the SENDER'S local wall clock, so we interpret the fields in
+  // the server's local timezone (assumed to match the sender; configurable
+  // via SIEM_SYSLOG_TZ_OFFSET_MINUTES for cross-zone deployments). Using
+  // `new Date(year, monthIdx, day, hh, mm, ss)` (no UTC) does exactly that.
   const now = new Date();
-  let year = now.getUTCFullYear();
-  const candidate = new Date(Date.UTC(year, monthIdx, +day, +hh, +mm, +ss));
+  let year = now.getFullYear();
+  // If the resulting date is >30d in the future, it's from last year
+  // (year rollover / clock skew tolerance).
+  let candidate = new Date(year, monthIdx, +day, +hh, +mm, +ss);
   if (candidate.getTime() - now.getTime() > 30 * 86400_000) {
     year -= 1;
+    candidate = new Date(year, monthIdx, +day, +hh, +mm, +ss);
   }
-  return Date.UTC(year, monthIdx, +day, +hh, +mm, +ss);
+  // Allow an explicit offset override for senders in a different zone.
+  const offsetOverride = process.env.SIEM_SYSLOG_TZ_OFFSET_MINUTES;
+  if (offsetOverride != null && offsetOverride !== '') {
+    const offMin = Number(offsetOverride);
+    if (Number.isFinite(offMin)) {
+      // Treat the wall-clock as UTC+offMin: subtract the override and add
+      // back the server-local offset to land on the correct instant.
+      const utcInstant = Date.UTC(year, monthIdx, +day, +hh, +mm, +ss);
+      return utcInstant - offMin * 60_000;
+    }
+  }
+  return candidate.getTime();
 }
 
 export function parseRfc3164(raw) {
@@ -84,12 +101,38 @@ function unescapeCefValue(s) {
   });
 }
 
+// Linear-time CEF extension parser. The previous implementation used a
+// lazy regex with a forward lookahead, which is O(n·k) in (input length ×
+// pair count) and stalled the event loop on adversarial inputs. This
+// version finds every `key=` boundary in one scan, then carves out the
+// value text between adjacent boundaries — O(n) total. We also bound the
+// input length so a single oversize packet can't dominate parsing.
+const CEF_EXT_MAX_LEN = 16 * 1024;
+// Anchor only at start-of-string or after literal whitespace; an `=` inside
+// an escaped value (\=) does not begin a new key.
+const CEF_KEY_RE = /(^|\s)([A-Za-z][A-Za-z0-9_]*)=/g;
+
 function parseCefExtension(ext) {
   const fields = {};
   if (!ext) return fields;
-  const re = /([A-Za-z][A-Za-z0-9_]*)=((?:[^\\=]|\\.)*?)(?=\s+[A-Za-z][A-Za-z0-9_]*=|$)/g;
-  for (const m of ext.matchAll(re)) {
-    fields[m[1]] = unescapeCefValue(m[2]).trim();
+  const src = ext.length > CEF_EXT_MAX_LEN ? ext.slice(0, CEF_EXT_MAX_LEN) : ext;
+  // Single pass to locate every key boundary.
+  const boundaries = [];
+  CEF_KEY_RE.lastIndex = 0;
+  let m;
+  while ((m = CEF_KEY_RE.exec(src)) !== null) {
+    boundaries.push({ key: m[2], valueStart: m.index + m[0].length });
+    if (boundaries.length > 1024) break; // sanity cap
+  }
+  for (let i = 0; i < boundaries.length; i++) {
+    const cur = boundaries[i];
+    const next = boundaries[i + 1];
+    // The value runs until just before the whitespace preceding the next key,
+    // or end-of-string. Walk back to strip the trailing whitespace consumed
+    // by the next match's `(^|\s)` group.
+    let end = next ? next.valueStart - next.key.length - 1 : src.length;
+    while (end > cur.valueStart && /\s/.test(src[end - 1])) end -= 1;
+    fields[cur.key] = unescapeCefValue(src.slice(cur.valueStart, end)).trim();
   }
   return fields;
 }

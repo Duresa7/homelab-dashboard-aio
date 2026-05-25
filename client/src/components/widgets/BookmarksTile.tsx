@@ -1,5 +1,6 @@
-import { useEffect, useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { Tile } from '../tile/Tile';
+import { getState, setState, subscribe as subscribeState } from '../../lib/store';
 
 interface Props {
   span?: number;
@@ -44,23 +45,21 @@ const BOOKMARKS: BookmarkDef[] = [
   { id: 'bm-ts3manager',  url: 'http://198.51.100.10:9000/servers',            label: 'TS3Manager',    src: `${DI}/teamspeak.svg` },
 ];
 
-const STORE_KEY = 'homelab-dashboard.bookmarks.order';
+const STORE_KEY = 'bookmarksOrder';
 
 function loadOrder(): string[] {
   const fallback = BOOKMARKS.map((b) => b.id);
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as string[];
-    const known = new Set(fallback);
-    const valid = parsed.filter((id) => known.has(id));
-    for (const id of fallback) {
-      if (!valid.includes(id)) valid.push(id);
-    }
-    return valid;
-  } catch {
-    return fallback;
+  const parsed = getState<unknown>(STORE_KEY, null);
+  // Runtime guard: TypeScript's <T> on getState is erased; the server could
+  // hold any shape (corrupt import, future feature, foreign writer). An
+  // unguarded .filter() on a non-array crashes the tile during render.
+  if (!Array.isArray(parsed)) return fallback;
+  const known = new Set(fallback);
+  const valid = parsed.filter((id): id is string => typeof id === 'string' && known.has(id));
+  for (const id of fallback) {
+    if (!valid.includes(id)) valid.push(id);
   }
+  return valid;
 }
 
 function BookmarkIcon({ b }: { b: BookmarkDef }) {
@@ -107,13 +106,27 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
+  // Skip the initial mount: order was just read via loadOrder(), so writing
+  // it back is redundant and triggers a debounced PUT on every navigation
+  // that re-mounts this tile. Subsequent drag-reorders flow through normally.
+  const didMount = useRef(false);
   useEffect(() => {
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(order));
-    } catch {
-      /* localStorage unavailable */
-    }
+    if (!didMount.current) { didMount.current = true; return; }
+    setState<string[]>(STORE_KEY, order);
   }, [order]);
+
+  // Cross-tab updates: another tab's drag-reorder broadcasts via the store's
+  // BroadcastChannel. Without this we'd hold a stale `order` and overwrite
+  // the other tab's edit on our next change.
+  useEffect(() => {
+    return subscribeState(STORE_KEY, () => {
+      const next = loadOrder();
+      setOrder((prev) => {
+        if (prev.length === next.length && prev.every((id, i) => id === next[i])) return prev;
+        return next;
+      });
+    });
+  }, []);
 
   const lookup = (id: string) => BOOKMARKS.find((b) => b.id === id);
 

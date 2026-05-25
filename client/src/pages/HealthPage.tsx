@@ -109,7 +109,7 @@ export function HealthPage({ integrations }: Props) {
             ) : loading ? (
               'Probing upstreams…'
             ) : error ? (
-              <span style={{ color: 'var(--bad)' }}>Failed: {error}</span>
+              <span className="text-bad">Failed: {error}</span>
             ) : (
               '—'
             )}
@@ -158,7 +158,6 @@ export function HealthPage({ integrations }: Props) {
                   <td>
                     <div className="h-name">
                       <b>{def.label}</b>
-                      <span>{def.description}</span>
                     </div>
                   </td>
                   <td>

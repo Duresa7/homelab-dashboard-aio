@@ -8,9 +8,15 @@ export const severityColor: Record<Severity, string> = {
   bad: 'var(--bad)',
 };
 
+// Severity bands use STRICT comparisons (`>` / `<`) so that being exactly
+// at the configured threshold counts as the milder side — matching the
+// inline `pct > 90 ? 'bad' : pct > 75 ? 'warn'` semantics each widget used
+// before threshold extraction. The forward and inverse helpers are
+// mirrors: forward uses `>`, inverse uses `<`, so a value AT the bad cutoff
+// stays in the warn band on both sides.
 function byThreshold(value: number, t: ThresholdPair): Severity {
-  if (value >= t.bad) return 'bad';
-  if (value >= t.warn) return 'warn';
+  if (value > t.bad) return 'bad';
+  if (value > t.warn) return 'warn';
   return 'ok';
 }
 

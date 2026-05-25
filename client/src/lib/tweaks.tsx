@@ -7,6 +7,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { getState, setState } from './store';
+
 const PANEL_STYLE = `
   .twk-launch{position:fixed;right:16px;bottom:16px;z-index:2147483645;
     width:36px;height:36px;border-radius:50%;border:1px solid rgba(0,0,0,.1);
@@ -71,27 +73,18 @@ const PANEL_STYLE = `
   [data-theme='dark'] .twk-chip[data-on='1']{box-shadow:0 0 0 1.5px rgba(255,255,255,.85),0 2px 6px rgba(0,0,0,.5)}
 `;
 
-const STORAGE_KEY = 'homelab-dashboard.tweaks';
+const STORAGE_KEY = 'tweaks';
 
 export function useTweaks<T extends object>(defaults: T): [T, <K extends keyof T>(k: K, v: T[K]) => void] {
   const [values, setValues] = useState<T>(() => {
-    if (typeof window === 'undefined') return defaults;
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
-    } catch {
-      return defaults;
-    }
+    const stored = getState<Partial<T> | null>(STORAGE_KEY, null);
+    return stored ? { ...defaults, ...stored } : defaults;
   });
 
   const setTweak = useCallback(<K extends keyof T>(key: K, val: T[K]) => {
     setValues((prev) => {
       const next = { ...prev, [key]: val };
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* localStorage unavailable */
-      }
+      setState<T>(STORAGE_KEY, next);
       return next;
     });
   }, []);

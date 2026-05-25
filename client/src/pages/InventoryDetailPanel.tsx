@@ -23,6 +23,7 @@ import {
 
 import {
   genId,
+  suggestComponentUid,
   suggestMachineUid,
   type FoundItem,
   type ItemDetail,
@@ -33,6 +34,7 @@ import {
   type PurchaseInfo,
   type SpareCategory,
   type SpareItem,
+  type SpecRow,
 } from '../lib/inventory';
 import { BrandGlyph, categoryIcon, componentIcon, roleIcon } from '../lib/inventoryIcons';
 import { Editable } from './InventoryPage';
@@ -42,7 +44,7 @@ type Mutator<T> = (mut: (cur: T) => T) => void;
 interface Props {
   found: FoundItem;
   isEditing: boolean;
-  onChange: (id: string, mut: (item: Machine | SpareItem) => Machine | SpareItem) => void;
+  onChange: (id: string, mut: (item: Machine | SpareItem | SpecRow) => Machine | SpareItem | SpecRow) => void;
   onClose: () => void;
 }
 
@@ -68,9 +70,15 @@ const STATUS_KIND: Record<ItemStatus, 'ok' | 'bad' | 'warn' | 'idle'> = {
 };
 
 export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Props) {
-  const itemId = found.kind === 'machine' ? found.machine.id : found.item.id;
-  const status: ItemStatus =
-    (found.kind === 'machine' ? found.machine.status : found.item.status) ?? 'working';
+  const itemId =
+    found.kind === 'machine'   ? found.machine.id
+    : found.kind === 'spare'   ? found.item.id
+    :                            found.component.id;
+  const detail: ItemDetail =
+    found.kind === 'machine'   ? found.machine
+    : found.kind === 'spare'   ? found.item
+    :                            found.component;
+  const status: ItemStatus = detail.status ?? 'working';
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
@@ -87,7 +95,7 @@ export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Pr
   }, [itemId]);
 
   const mutDetail: Mutator<ItemDetail> = (mut) => {
-    onChange(itemId, (cur) => ({ ...cur, ...mut(cur) }) as Machine | SpareItem);
+    onChange(itemId, (cur) => ({ ...cur, ...mut(cur) }) as Machine | SpareItem | SpecRow);
   };
 
   const setStatus = (s: ItemStatus) => mutDetail((cur) => ({ ...cur, status: s }));
@@ -116,17 +124,24 @@ export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Pr
       problemLog: (cur.problemLog ?? []).map((e) => (e.id === id ? { ...e, ...patch } : e)),
     }));
 
-  const purchase = (found.kind === 'machine' ? found.machine.purchase : found.item.purchase) ?? {};
-  const ids = (found.kind === 'machine' ? found.machine.ids : found.item.ids) ?? {};
-  const log = (found.kind === 'machine' ? found.machine.problemLog : found.item.problemLog) ?? [];
+  const purchase = detail.purchase ?? {};
+  const ids = detail.ids ?? {};
+  const log = detail.problemLog ?? [];
 
   const kindClass = STATUS_KIND[status];
-  const StatusGlyph = STATUS_ICON[status];
 
   // Header label content
-  const header = found.kind === 'machine'
-    ? <MachineHeader machine={found.machine} isEditing={isEditing} onChange={(mut) => onChange(itemId, mut as (m: Machine | SpareItem) => Machine | SpareItem)} />
-    : <SpareHeader item={found.item} category={found.category} isEditing={isEditing} onChange={(mut) => onChange(itemId, mut as (m: Machine | SpareItem) => Machine | SpareItem)} />;
+  const header =
+    found.kind === 'machine'
+      ? <MachineHeader machine={found.machine} isEditing={isEditing} onChange={(mut) => onChange(itemId, mut as (m: Machine | SpareItem | SpecRow) => Machine | SpareItem | SpecRow)} />
+    : found.kind === 'spare'
+      ? <SpareHeader item={found.item} category={found.category} isEditing={isEditing} onChange={(mut) => onChange(itemId, mut as (m: Machine | SpareItem | SpecRow) => Machine | SpareItem | SpecRow)} />
+      : <ComponentHeader component={found.component} machine={found.machine} isEditing={isEditing} onChange={(mut) => onChange(itemId, mut as (m: Machine | SpareItem | SpecRow) => Machine | SpareItem | SpecRow)} />;
+
+  const suggestedUid =
+    found.kind === 'machine'   ? suggestMachineUid(found.machine.name)
+    : found.kind === 'component' ? suggestComponentUid(found.machine.name, found.component.component)
+    :                              undefined;
 
   return (
     <div className="inv-detail-scrim" onMouseDown={onClose}>
@@ -176,7 +191,7 @@ export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Pr
             <Field label="UID"        icon={Sparkles}>
               <UidInput
                 value={ids.uid}
-                suggestion={found.kind === 'machine' ? suggestMachineUid(found.machine.name) : undefined}
+                suggestion={suggestedUid}
                 onChange={(v) => setIds({ uid: v })}
               />
             </Field>
@@ -277,6 +292,43 @@ function SpareHeader({
               </span>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComponentHeader({
+  component, machine, isEditing, onChange,
+}: { component: SpecRow; machine: Machine; isEditing: boolean; onChange: (mut: (c: SpecRow) => SpecRow) => void }) {
+  const CompIcon = componentIcon(component.component);
+  const RoleIcon = roleIcon(machine.role, machine.name);
+  return (
+    <div className="inv-detail-head-id">
+      <div className="inv-detail-ordinal">
+        <span className="ord-of mono">component</span>
+        <span className="ord-cat">
+          {CompIcon ? <CompIcon size={14} strokeWidth={1.75} /> : null}
+          {component.component}
+        </span>
+      </div>
+      <div className="inv-detail-id-text">
+        <h2 className="inv-detail-name">
+          <BrandGlyph text={component.specification} size={18} />
+          <Editable
+            value={component.specification}
+            editing={isEditing}
+            onChange={(specification) => onChange((cur) => ({ ...cur, specification }))}
+            placeholder="Specification"
+            multiline
+          />
+        </h2>
+        <div className="inv-detail-sub">
+          <span className="inv-detail-chip">
+            <span className="lbl">installed in</span>
+            <RoleIcon size={11} strokeWidth={1.75} />
+            <span>{machine.name}</span>
+          </span>
         </div>
       </div>
     </div>

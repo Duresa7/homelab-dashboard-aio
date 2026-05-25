@@ -1,6 +1,6 @@
 import { Tile } from '../tile/Tile';
-import type { StorageData } from '../../types';
-import { fillSeverity, severityColor } from '../../lib/severity';
+import type { Severity, StorageData } from '../../types';
+import { fillSeverity } from '../../lib/severity';
 
 interface Props {
   data: StorageData;
@@ -9,7 +9,26 @@ interface Props {
   expandable?: boolean;
 }
 
+const SEVERITY_RANK: Record<Severity, number> = { ok: 0, info: 1, warn: 2, bad: 3 };
+
 export function StorageTile({ data, span, onExpand, expandable }: Props) {
+  const totalTB = data.pools.reduce((a, p) => a + p.totalTB, 0);
+  const usedTB = data.pools.reduce((a, p) => a + p.usedTB, 0);
+  const summedPct = totalTB ? (usedTB / totalTB) * 100 : 0;
+
+  // Compute the WORST per-pool severity rather than the severity of the
+  // sum — otherwise a 100%-full small pool gets averaged into a fleet-wide
+  // fill that looks fine, and the overview shows green while the user is
+  // already out of space on one disk.
+  let worstKind: Severity = 'ok';
+  let worstPct = 0;
+  for (const p of data.pools) {
+    const poolPct = p.totalTB > 0 ? (p.usedTB / p.totalTB) * 100 : 0;
+    const poolKind: Severity = p.status === 'degraded' ? 'bad' : fillSeverity(poolPct);
+    if (SEVERITY_RANK[poolKind] > SEVERITY_RANK[worstKind]) worstKind = poolKind;
+    if (poolPct > worstPct) worstPct = poolPct;
+  }
+  const tagPct = worstKind === 'ok' ? summedPct : worstPct;
   return (
     <Tile
       title="NAS Pools"
@@ -17,35 +36,14 @@ export function StorageTile({ data, span, onExpand, expandable }: Props) {
       span={span}
       onExpand={onExpand}
       expandable={expandable}
+      tag={{ label: `${tagPct.toFixed(0)}%`, kind: worstKind }}
     >
-      <div className="disks">
-        {data.pools.map((p) => {
-          const pct = (p.usedTB / p.totalTB) * 100;
-          const fillKind = p.status === 'degraded' ? 'bad' : fillSeverity(pct);
-          const cls = fillKind === 'ok' ? '' : fillKind;
-          return (
-            <div key={p.name} className="disk">
-              <div className="row">
-                <div className="name flex1" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span
-                    style={{
-                      width: 6, height: 6, borderRadius: 50,
-                      background: p.status === 'degraded' ? 'var(--bad)' : 'var(--ok)',
-                    }}
-                  />
-                  {p.name}
-                  <span className="t-tag" style={{ marginLeft: 4 }}>{p.type}</span>
-                </div>
-                <div className="meta">
-                  <span style={{ color: severityColor[fillKind] }}>{p.usedTB.toFixed(2)}</span> / {p.totalTB.toFixed(2)} TB
-                </div>
-              </div>
-              <div className={`pbar ${cls}`}>
-                <span style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          );
-        })}
+      <div className="t-big">
+        {usedTB.toFixed(1)}
+        <small> / {totalTB.toFixed(1)} TB</small>
+      </div>
+      <div className="pbar">
+        <span className={worstKind === 'ok' ? '' : worstKind} style={{ width: `${summedPct}%` }} />
       </div>
     </Tile>
   );

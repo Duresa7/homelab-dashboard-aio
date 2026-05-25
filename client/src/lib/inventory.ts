@@ -1,8 +1,11 @@
 /* =========================================================
-   Inventory — client-side persistent tracker.
+   Inventory — persistent tracker.
    Seeded from `Datacenter/Inventory.md` + `Spare_Parts.md`.
-   Stored in localStorage; user can edit, export/import, reset.
+   Persisted via the server-backed store (lib/store.ts); user can edit,
+   export/import, reset.
    ========================================================= */
+
+import { getState, setState } from './store';
 
 export interface MetaRow {
   id: string;
@@ -10,7 +13,7 @@ export interface MetaRow {
   value: string;
 }
 
-export interface SpecRow {
+export interface SpecRow extends ItemDetail {
   id: string;
   component: string;
   specification: string;
@@ -75,6 +78,8 @@ export interface SpareCategory {
   name: string;
   /** Short blurb / footnote shown under the section header. */
   note?: string;
+  /** 2-digit category code used as a UID prefix for items in this category. e.g. "03" → 0301, 0302… */
+  prefix?: string;
   columns: SpareColumn[];
   items: SpareItem[];
 }
@@ -322,12 +327,13 @@ function makeSeed(): Inventory {
           { id: 'notes', label: 'Notes' },
         ],
         items: [
-          { id: genId('s'), values: { brand: 'Cisco',     model: 'Firepower 1000',  type: 'Next-gen firewall / security appliance', notes: 'Specific sub-model TBD' } },
+          { id: genId('s'), values: { brand: 'Cisco',     model: 'FPR-1010 (Firepower 1010)', type: 'Next-gen firewall / security appliance', notes: 'PID: FPR-1010 V01, 8× 1 GbE + mgmt, SN JMX2726X1SC, mfg 06/29/2023, Made in Mexico' } },
           { id: genId('s'), values: { brand: 'ASUS',      model: 'RT-AX3000',       type: 'Wi-Fi 6 router',                          notes: '' } },
           { id: genId('s'), values: { brand: 'TP-Link',   model: 'TL-SG108E',       type: '8-port managed switch (1 GbE)',           notes: 'Easy Smart, QoS / VLAN / IGMP / LAG' } },
           { id: genId('s'), values: { brand: 'Netgear',   model: 'GS308',           type: '8-port unmanaged switch (1 GbE)',         notes: '' } },
+          { id: genId('s'), values: { brand: 'Netgear',   model: 'GS608',           type: '8-port unmanaged switch (1 GbE)',         notes: '' } },
           { id: genId('s'), values: { brand: 'Netgear',   model: 'FS726TP ProSafe', type: '24-port smart switch (10/100) + 2× 1 GbE', notes: 'PoE' } },
-          { id: genId('s'), values: { brand: '(Generic)', model: '—',               type: '8-port PoE unmanaged switch (1 GbE)',     notes: '' } },
+          { id: genId('s'), values: { brand: '(Generic)', model: 'PS1080',          type: '8-port PoE unmanaged switch (1 GbE)',     notes: 'IEEE 802.3af, 100–240 VAC input, 48 VDC output' } },
         ],
       },
       {
@@ -349,8 +355,8 @@ function makeSeed(): Inventory {
 
 /* ---------- storage ---------- */
 
-const STORAGE_KEY = 'homelab-dashboard.inventory';
-const SCHEMA_VERSION = 4;
+const STORAGE_KEY = 'inventory';
+const SCHEMA_VERSION = 6;
 
 interface Persisted {
   v: number;
@@ -366,7 +372,76 @@ export function suggestMachineUid(name: string): string {
   return slug || 'MACHINE';
 }
 
-/** Ensure an item has the v4 detail fields filled in with safe defaults. Mutates in place. */
+/** Best-effort UID for a component, scoped to its machine. e.g. ("Example PC", "CPU") → "EXAMPLE-PC-CPU". */
+export function suggestComponentUid(machineName: string, component: string): string {
+  const m = suggestMachineUid(machineName);
+  const c = component
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return c ? `${m}-${c}` : m;
+}
+
+/* ---------- spare category UIDs ---------- */
+
+/**
+ * Heuristic mapping from category name to its preferred 2-digit prefix.
+ * First match wins; falls back to the next free 2-digit code.
+ */
+const PREFIX_HEURISTICS: Array<[RegExp, string]> = [
+  [/laptop|workstation/i,                                      '01'],
+  [/server|nas/i,                                              '02'],
+  [/unifi|network|switch|router|firewall|gateway|wi[- ]?fi/i,  '03'],
+  [/cpu cooler|cooler|aio/i,                                   '05'],
+  [/cpu(?! cooler)|processor/i,                                '04'],
+  [/ssd/i,                                                     '06'],
+  [/hdd|drive|disk/i,                                          '07'],
+  [/ram\b|memory|dimm/i,                                       '08'],
+  [/printer/i,                                                 '09'],
+  [/gpu|graphics/i,                                            '10'],
+  [/psu|power supply/i,                                        '11'],
+  [/case|chassis/i,                                            '12'],
+  [/cable|adapter/i,                                           '13'],
+  [/peripheral|keyboard|mouse|monitor|display/i,               '14'],
+];
+
+/** Pick a sensible 2-digit prefix for a category name, avoiding `used`. */
+export function suggestCategoryPrefix(name: string, used: Iterable<string> = []): string {
+  const taken = new Set(used);
+  for (const [re, code] of PREFIX_HEURISTICS) {
+    if (re.test(name) && !taken.has(code)) return code;
+  }
+  for (let i = 1; i < 100; i += 1) {
+    const code = String(i).padStart(2, '0');
+    if (!taken.has(code)) return code;
+  }
+  return '00';
+}
+
+/** True if `uid` looks like a previously auto-generated random UID (pre-prefix scheme). */
+function isLegacyAutoUid(uid?: string): boolean {
+  if (!uid) return true;
+  return /^UID_/i.test(uid);
+}
+
+/** Next available `{prefix}{nn}` UID for a spare category. */
+export function nextSpareUid(category: SpareCategory): string {
+  const prefix = category.prefix ?? '00';
+  const used = new Set<number>();
+  for (const it of category.items) {
+    const uid = it.ids?.uid;
+    if (uid && uid.startsWith(prefix)) {
+      const n = parseInt(uid.slice(prefix.length), 10);
+      if (!Number.isNaN(n)) used.add(n);
+    }
+  }
+  for (let i = 1; i < 1000; i += 1) {
+    if (!used.has(i)) return `${prefix}${String(i).padStart(2, '0')}`;
+  }
+  return `${prefix}99`;
+}
+
+/** Ensure an item has the detail fields filled in with safe defaults. Mutates in place. */
 function ensureDetail<T extends ItemDetail>(item: T, fallbackUid: string): void {
   if (!item.status) item.status = 'working';
   if (!item.purchase) item.purchase = {};
@@ -375,45 +450,75 @@ function ensureDetail<T extends ItemDetail>(item: T, fallbackUid: string): void 
   if (!item.problemLog) item.problemLog = [];
 }
 
-function migrateToV4(data: Inventory): Inventory {
-  for (const m of data.machines) {
+// Deep-clone the inventory before mutation. getState returns the Map's
+// stored reference; mutating it leaks migration defaults back into the
+// canonical state and corrupts other readers.
+function cloneInventory(data: Inventory): Inventory {
+  if (typeof structuredClone === 'function') return structuredClone(data);
+  return JSON.parse(JSON.stringify(data));
+}
+
+function migrateInventory(data: Inventory): Inventory {
+  const cloned = cloneInventory(data);
+  for (const m of cloned.machines) {
     ensureDetail(m, suggestMachineUid(m.name));
-  }
-  for (const cat of data.spares) {
-    for (const it of cat.items) {
-      ensureDetail(it, genId('uid').toUpperCase());
+    for (const row of m.components) {
+      ensureDetail(row, suggestComponentUid(m.name, row.component));
     }
   }
-  return data;
+  const usedPrefixes = new Set<string>();
+  for (const cat of cloned.spares) {
+    if (cat.prefix) usedPrefixes.add(cat.prefix);
+  }
+  for (const cat of cloned.spares) {
+    if (!cat.prefix) {
+      cat.prefix = suggestCategoryPrefix(cat.name, usedPrefixes);
+      usedPrefixes.add(cat.prefix);
+    }
+    let seq = 1;
+    for (const it of cat.items) {
+      if (!it.ids) it.ids = {};
+      // Replace empty or legacy random UIDs with category-prefixed sequentials,
+      // but preserve user-edited UIDs (anything that doesn't match the legacy
+      // `UID_*` pattern).
+      if (isLegacyAutoUid(it.ids.uid)) {
+        it.ids.uid = `${cat.prefix}${String(seq).padStart(2, '0')}`;
+      }
+      seq += 1;
+      ensureDetail(it, it.ids.uid ?? `${cat.prefix}${String(seq).padStart(2, '0')}`);
+    }
+  }
+  return cloned;
 }
 
 export function loadInventory(): Inventory {
-  if (typeof window === 'undefined') return migrateToV4(makeSeed());
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return migrateToV4(makeSeed());
-    const parsed = JSON.parse(raw) as Persisted;
-    if (!parsed?.data) return migrateToV4(makeSeed());
-    if (parsed.v < SCHEMA_VERSION) {
-      const migrated = migrateToV4(parsed.data);
-      saveInventory(migrated);
-      return migrated;
-    }
-    if (parsed.v !== SCHEMA_VERSION) return migrateToV4(makeSeed());
-    return migrateToV4(parsed.data); // re-ensure in case of partial data
-  } catch {
-    return migrateToV4(makeSeed());
+  const persisted = getState<Persisted | null>(STORAGE_KEY, null);
+  if (!persisted?.data) return migrateInventory(makeSeed());
+  if (persisted.v < SCHEMA_VERSION) {
+    const migrated = migrateInventory(persisted.data);
+    saveInventory(migrated);
+    return migrated;
   }
+  if (persisted.v > SCHEMA_VERSION) {
+    // Forward-compat: a future build wrote v > SCHEMA_VERSION and we've
+    // since rolled back. We don't understand the future shape, but we
+    // refuse to silently overwrite it with the seed — preserve the user's
+    // data, fill missing detail fields, and DO NOT call saveInventory so
+    // the higher-versioned payload stays untouched on disk.
+    if (typeof console !== 'undefined') {
+      console.warn(
+        `[inventory] persisted v=${persisted.v} > supported v=${SCHEMA_VERSION}; ` +
+        `rendering preserved data without saving. Upgrade the app to write back.`,
+      );
+    }
+    return migrateInventory(persisted.data);
+  }
+  return migrateInventory(persisted.data); // re-ensure in case of partial data
 }
 
 export function saveInventory(inv: Inventory): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const payload: Persisted = { v: SCHEMA_VERSION, data: inv };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch {
-    /* quota or unavailable; ignore */
-  }
+  const payload: Persisted = { v: SCHEMA_VERSION, data: inv };
+  setState<Persisted>(STORAGE_KEY, payload);
 }
 
 export function resetInventory(): Inventory {
@@ -435,7 +540,7 @@ export function tryImportInventoryJSON(text: string): Inventory | null {
     if (!candidate || !Array.isArray((candidate as Inventory).machines) || !Array.isArray((candidate as Inventory).spares)) {
       return null;
     }
-    return migrateToV4(candidate as Inventory);
+    return migrateInventory(candidate as Inventory);
   } catch {
     return null;
   }
@@ -444,12 +549,17 @@ export function tryImportInventoryJSON(text: string): Inventory | null {
 /* ---------- item lookup ---------- */
 
 export type FoundItem =
-  | { kind: 'machine'; machine: Machine }
-  | { kind: 'spare'; item: SpareItem; category: SpareCategory };
+  | { kind: 'machine';   machine: Machine }
+  | { kind: 'spare';     item: SpareItem; category: SpareCategory }
+  | { kind: 'component'; component: SpecRow; machine: Machine };
 
 export function findItem(inv: Inventory, id: string): FoundItem | null {
   const machine = inv.machines.find((m) => m.id === id);
   if (machine) return { kind: 'machine', machine };
+  for (const m of inv.machines) {
+    const comp = m.components.find((c) => c.id === id);
+    if (comp) return { kind: 'component', component: comp, machine: m };
+  }
   for (const cat of inv.spares) {
     const it = cat.items.find((x) => x.id === id);
     if (it) return { kind: 'spare', item: it, category: cat };

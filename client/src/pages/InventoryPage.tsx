@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Search,
   Server,
+  Settings2,
   Trash2,
   Upload,
   X,
@@ -26,8 +27,10 @@ import {
   findItem,
   genId,
   loadInventory,
+  nextSpareUid,
   resetInventory,
   saveInventory,
+  suggestCategoryPrefix,
   summarize,
   tryImportInventoryJSON,
   type Inventory,
@@ -35,6 +38,7 @@ import {
   type SpareCategory,
   type SpareColumn,
   type SpareItem,
+  type SpecRow,
 } from '../lib/inventory';
 import {
   BrandGlyph,
@@ -44,7 +48,7 @@ import {
 } from '../lib/inventoryIcons';
 import { InventoryDetailPanel } from './InventoryDetailPanel';
 
-type Tab = 'machines' | 'spares';
+type Tab = 'machines' | 'service' | 'spares';
 type Mode = 'browse' | 'edit';
 
 interface InventoryPageProps {
@@ -66,7 +70,15 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     [onSelectItem],
   );
 
-  useEffect(() => { saveInventory(inv); }, [inv]);
+  // Skip the initial mount: loadInventory already returned the persisted
+  // value, so writing it back is both redundant *and* destructive in the
+  // forward-compat case where the persisted schema version is higher than
+  // this build understands.
+  const didMountInv = useRef(false);
+  useEffect(() => {
+    if (!didMountInv.current) { didMountInv.current = true; return; }
+    saveInventory(inv);
+  }, [inv]);
 
   useEffect(() => {
     if (!toast) return;
@@ -80,6 +92,13 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setJumpTo(null);
   }, [jumpTo]);
+
+  useEffect(() => {
+    if (!selectedItemId) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [selectedItemId]);
 
   const stats = useMemo(() => summarize(inv), [inv]);
   const isEditing = mode === 'edit';
@@ -106,13 +125,22 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   };
 
   const updateItemById = useCallback(
-    (id: string, mut: (item: Machine | SpareItem) => Machine | SpareItem) => {
+    (id: string, mut: (item: Machine | SpareItem | SpecRow) => Machine | SpareItem | SpecRow) => {
       patch((prev) => {
-        const machineHit = prev.machines.some((m) => m.id === id);
-        if (machineHit) {
+        if (prev.machines.some((m) => m.id === id)) {
           return {
             ...prev,
             machines: prev.machines.map((m) => (m.id === id ? (mut(m) as Machine) : m)),
+            lastUpdated: today(),
+          };
+        }
+        if (prev.machines.some((m) => m.components.some((c) => c.id === id))) {
+          return {
+            ...prev,
+            machines: prev.machines.map((m) => ({
+              ...m,
+              components: m.components.map((c) => (c.id === id ? (mut(c) as SpecRow) : c)),
+            })),
             lastUpdated: today(),
           };
         }
@@ -167,14 +195,20 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
       .filter(Boolean)
       .map((label) => ({ id: slugColumn(label), label }));
     if (columns.length === 0) return;
-    patch((prev) => ({
-      ...prev,
-      spares: [
-        ...prev.spares,
-        { id: genId('cat'), name, columns, items: [] },
-      ],
-      lastUpdated: today(),
-    }));
+    patch((prev) => {
+      const usedPrefixes = prev.spares
+        .map((c) => c.prefix)
+        .filter((p): p is string => Boolean(p));
+      const prefix = suggestCategoryPrefix(name, usedPrefixes);
+      return {
+        ...prev,
+        spares: [
+          ...prev.spares,
+          { id: genId('cat'), name, prefix, columns, items: [] },
+        ],
+        lastUpdated: today(),
+      };
+    });
     setMode('edit');
   };
 
@@ -275,6 +309,13 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
           onOpenItem={selectItem}
           openItemId={selectedItemId}
         />
+      ) : tab === 'service' ? (
+        <ServiceTab
+          machines={inv.machines}
+          query={q}
+          onOpenItem={selectItem}
+          openItemId={selectedItemId}
+        />
       ) : (
         <SparesTab
           spares={sparesView}
@@ -331,8 +372,6 @@ function Masthead({
           <h1 className="inv-mh-title">Inventory<span className="dot">.</span></h1>
           <div className="inv-mh-meta">
             <span className="mono">Updated {inv.lastUpdated}</span>
-            <span className="sep" aria-hidden>·</span>
-            <span>Single source of truth for parts &amp; spares</span>
           </div>
         </div>
 
@@ -370,6 +409,16 @@ function Masthead({
           </button>
           <button
             role="tab"
+            aria-selected={tab === 'service'}
+            className={`inv-tab ${tab === 'service' ? 'is-on' : ''}`}
+            onClick={() => setTab('service')}
+          >
+            <Settings2 size={13} strokeWidth={1.75} />
+            In service
+            <span className="ct tnum">{stats.componentCount}</span>
+          </button>
+          <button
+            role="tab"
             aria-selected={tab === 'spares'}
             className={`inv-tab ${tab === 'spares' ? 'is-on' : ''}`}
             onClick={() => setTab('spares')}
@@ -385,9 +434,11 @@ function Masthead({
             <Search size={14} strokeWidth={1.75} />
             <input
               type="search"
-              placeholder={tab === 'machines'
-                ? 'Filter machines, components, specs…'
-                : 'Filter categories, brands, models…'}
+              placeholder={
+                tab === 'machines' ? 'Filter machines, components, specs…' :
+                tab === 'service'  ? 'Filter installed components…' :
+                                     'Filter categories, brands, models…'
+              }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -775,6 +826,10 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
   const setName = (name: string) => onChange((cur) => ({ ...cur, name }));
   const setNote = (note: string) =>
     onChange((cur) => ({ ...cur, note: note.length > 0 ? note : undefined }));
+  const setPrefix = (prefix: string) => {
+    const clean = prefix.replace(/[^0-9]/g, '').slice(0, 2).padStart(2, '0');
+    onChange((cur) => ({ ...cur, prefix: clean }));
+  };
 
   const setItemValue = (itemId: string, colId: string, v: string) =>
     onChange((cur) => ({
@@ -784,11 +839,24 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
       ),
     }));
 
-  const addItem = () =>
+  const setItemUid = (itemId: string, uid: string) =>
     onChange((cur) => ({
       ...cur,
-      items: [...cur.items, { id: genId('s'), values: {} }],
+      items: cur.items.map((it) =>
+        it.id === itemId
+          ? { ...it, ids: { ...(it.ids ?? {}), uid: uid.toUpperCase() } }
+          : it,
+      ),
     }));
+
+  const addItem = () =>
+    onChange((cur) => {
+      const uid = nextSpareUid(cur);
+      return {
+        ...cur,
+        items: [...cur.items, { id: genId('s'), values: {}, ids: { uid } }],
+      };
+    });
 
   const removeItem = (itemId: string) =>
     onChange((cur) => ({ ...cur, items: cur.items.filter((it) => it.id !== itemId) }));
@@ -826,6 +894,17 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
         <div className="inv-cat-id">
           <span className="inv-cat-icon" aria-hidden>
             <CatIcon size={16} strokeWidth={1.75} />
+          </span>
+          <span className="inv-cat-prefix mono tnum" title="Category UID prefix">
+            <Editable
+              value={category.prefix ?? ''}
+              editing={isEditing}
+              onChange={setPrefix}
+              placeholder="00"
+              className="prefix-edit"
+              maxLength={2}
+            />
+            <span className="suffix">xx</span>
           </span>
           <h3>
             <Editable
@@ -865,6 +944,9 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
         <table className="inv-table">
           <thead>
             <tr>
+              <th className="inv-th-uid">
+                <div className="inv-th-inner"><span>UID</span></div>
+              </th>
               {category.columns.map((col) => (
                 <th key={col.id} className={col.align === 'right' ? 'num' : ''}>
                   <div className="inv-th-inner">
@@ -895,7 +977,7 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
             {category.items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={category.columns.length + (isEditing ? 1 : 0)}
+                  colSpan={category.columns.length + 1 + (isEditing ? 1 : 0)}
                   className="inv-empty-cell"
                 >
                   No items in this category yet.
@@ -916,6 +998,15 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
                 className={`inv-row-clickable status-${status} ${isOpen ? 'is-open' : ''}`}
                 onClick={openRow}
               >
+                <td className="inv-td-uid mono tnum">
+                  <Editable
+                    value={it.ids?.uid ?? ''}
+                    editing={isEditing}
+                    onChange={(v) => setItemUid(it.id, v)}
+                    placeholder="—"
+                    mono
+                  />
+                </td>
                 {category.columns.map((col) => {
                   const value = it.values[col.id] ?? '';
                   const isBrand = col.id === 'brand';
@@ -964,6 +1055,131 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
       ) : null}
     </section>
   );
+}
+
+/* ---------- In-service components tab ---------- */
+
+interface ServiceTabProps {
+  machines: Machine[];
+  query: string;
+  onOpenItem: (id: string) => void;
+  openItemId?: string;
+}
+
+function isNasLike(m: Machine): boolean {
+  return /nas|storage/i.test(m.role) ||
+    m.components.some((c) => /^(Drive Bay|NVMe Slot)/.test(c.component));
+}
+
+function inServiceComponents(m: Machine): SpecRow[] {
+  if (isNasLike(m)) {
+    return m.components.filter((c) =>
+      /^(Drive Bay|NVMe Slot)/.test(c.component) &&
+      !/^empty/i.test(c.specification.trim()),
+    );
+  }
+  return m.components;
+}
+
+function ServiceTab({ machines, query, onOpenItem, openItemId }: ServiceTabProps) {
+  const sections = useMemo(() => {
+    return machines
+      .map((m) => {
+        let comps = inServiceComponents(m);
+        if (query) {
+          comps = comps.filter((c) =>
+            `${c.component} ${c.specification} ${c.ids?.serial ?? ''} ${c.ids?.uid ?? ''}`
+              .toLowerCase()
+              .includes(query),
+          );
+        }
+        return { machine: m, comps };
+      })
+      .filter((s) => s.comps.length > 0);
+  }, [machines, query]);
+
+  if (sections.length === 0) {
+    return (
+      <div className="page-empty">
+        {query
+          ? 'No in-service components match the current search.'
+          : 'No machines have installed components yet.'}
+      </div>
+    );
+  }
+
+  return (
+    <div className="inv-service">
+      {sections.map(({ machine, comps }) => {
+        const RoleIcon = roleIcon(machine.role, machine.name);
+        return (
+          <section className="inv-service-section" key={machine.id}>
+            <header className="inv-service-head">
+              <span className="inv-service-ord mono tnum">{machine.ordinal ?? '—'}</span>
+              <span className="inv-service-id">
+                <RoleIcon size={14} strokeWidth={1.75} />
+                <span className="name">{machine.name}</span>
+                <span className="role">{machine.role}</span>
+              </span>
+              <span className="inv-service-count mono tnum">
+                {pad2(comps.length)} component{comps.length === 1 ? '' : 's'}
+              </span>
+            </header>
+            <div className="inv-table-wrap">
+              <table className="inv-table inv-service-table">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Specification</th>
+                    <th>UID</th>
+                    <th className="num">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comps.map((c) => {
+                    const status = c.status ?? 'working';
+                    const CompIcon = componentIcon(c.component);
+                    const isOpen = openItemId === c.id;
+                    return (
+                      <tr
+                        key={c.id}
+                        className={`inv-row-clickable status-${status} ${isOpen ? 'is-open' : ''}`}
+                        onClick={(e) => {
+                          const t = e.target as HTMLElement;
+                          if (t.closest('input, textarea, button, a')) return;
+                          onOpenItem(c.id);
+                        }}
+                      >
+                        <td className="inv-service-type">
+                          {CompIcon ? <CompIcon size={12} strokeWidth={1.75} /> : null}
+                          <span>{c.component}</span>
+                        </td>
+                        <td className="inv-service-spec">
+                          <BrandGlyph text={c.specification} size={16} reserveSpace />
+                          <span>{c.specification || '—'}</span>
+                        </td>
+                        <td className="mono inv-service-uid">{c.ids?.uid ?? '—'}</td>
+                        <td className="num">
+                          <span className={`pill ${statusKind(status)}`}>{status}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function statusKind(s: string): 'ok' | 'warn' | 'bad' | '' {
+  if (s === 'working')   return 'ok';
+  if (s === 'broken')    return 'bad';
+  if (s === 'in-repair') return 'warn';
+  return '';
 }
 
 interface EditableProps {

@@ -15,31 +15,27 @@ function formatConnectedAt(iso: string): string {
   const now = Date.now();
   const diffMin = Math.floor((now - d.getTime()) / 60000);
   if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 60) return `${diffMin}m`;
   const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH}h ago`;
-  return `${Math.floor(diffH / 24)}d ago`;
-}
-
-function typeLabel(type: string): string {
-  switch (type) {
-    case 'WIRELESS': return '📶';
-    case 'WIRED': return '🔌';
-    case 'VPN': return '🔒';
-    case 'TELEPORT': return '🌐';
-    default: return '•';
-  }
+  if (diffH < 24) return `${diffH}h`;
+  return `${Math.floor(diffH / 24)}d`;
 }
 
 export function TopTalkersTile({ data, span, onExpand, expandable }: Props) {
+  const top = data.slice(0, 3);
   return (
-    <Tile title={<><BrandIcon name="unifi" alt="UniFi" /> Connected Clients</>} sub="recent" span={span} onExpand={onExpand} expandable={expandable}>
+    <Tile
+      title={<><BrandIcon name="unifi" alt="UniFi" /> Connected Clients</>}
+      sub="recent"
+      span={span}
+      onExpand={onExpand}
+      expandable={expandable}
+    >
       <div className="list">
-        {data.map((t) => (
+        {top.map((t) => (
           <div key={`${t.name}-${t.ip}`} className="li">
             <span className="d" />
-            <span className="name">{typeLabel(t.type)} {t.name}{t.access === 'GUEST' ? ' 👤' : ''}</span>
-            <span className="meta">{t.ip}</span>
+            <span className="name">{t.name}</span>
             <span className="val">{formatConnectedAt(t.connectedAt)}</span>
           </div>
         ))}

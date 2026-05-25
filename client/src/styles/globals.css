@@ -1,7 +1,7 @@
 /* =========================================================
    Homelab Dashboard — design tokens, reset, base.
-   One committed aesthetic: UniFi-led, dense, hairline borders,
-   sharp 4px radii, restrained blue accent, mono numerics.
+   Technical aesthetic, real text hierarchy, soft hairlines,
+   modern 8px radii, ambient elevation, mono numerics.
    Themes: light (default) | dark.
    Density: compact | regular | comfy (spacing only).
    ========================================================= */
@@ -26,65 +26,88 @@
   --surface:   #ffffff; /* tile fill */
   --surface-2: #fafbfc; /* subtle inset (e.g. cards inside tiles) */
 
-  /* ---- ink ---- */
-  --ink:   #0f1115;
-  --ink-2: #0f1115;
-  --ink-3: #0f1115;
-  --ink-4: #0f1115;
+  /* ---- ink (real 4-step hierarchy, all AA+ on white) ---- */
+  --ink:   #0b0d12; /* primary metric, page title, tile value (~21:1) */
+  --ink-2: #1f2430; /* body, labels, key names (~14:1) */
+  --ink-3: #4b5563; /* muted: section labels, sub, captions (~7.5:1, AAA) */
+  --ink-4: #6b7280; /* deemphasized: stale timestamps (~4.8:1, AA) */
 
   /* ---- lines ---- */
-  --line:   #e4e6ea;
-  --line-2: #c9cdd3;
+  --line:        #e6e8ec; /* soft hairline */
+  --line-2:      #d1d5db; /* hover / divider */
+  --line-strong: #c9cdd3; /* tables that need defined edges */
+  --panel-line:  #000000; /* high-contrast panel outline */
 
   /* ---- radii ---- */
-  --radius:     4px;
-  --radius-sm:  3px;
-  --radius-lg:  6px;
+  --radius:     8px;  /* tiles, cards */
+  --radius-sm:  4px;  /* chips, inputs, pills inner */
+  --radius-lg:  12px; /* overlays, expanded panels */
   --radius-pill: 999px;
 
   /* ---- spacing ---- */
-  --pad: 16px;
-  --gap: 12px;
+  --pad: 20px;
+  --gap: 16px;
+  --section-gap: 44px;
 
   /* ---- type ---- */
-  --font-sans: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'Roboto Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, Menlo, monospace;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 
-  /* ---- shadows (used sparingly: overlay only) ---- */
-  --shadow-overlay: 0 20px 50px -12px rgba(15, 17, 21, 0.18), 0 4px 16px rgba(15, 17, 21, 0.06);
+  /* ---- shadows ---- */
+  --shadow-tile:       0 1px 2px rgba(15, 17, 21, 0.04);
+  --shadow-tile-hover: 0 2px 6px rgba(15, 17, 21, 0.06);
+  --shadow-overlay:    0 20px 50px -12px rgba(15, 17, 21, 0.18), 0 4px 16px rgba(15, 17, 21, 0.06);
 
   /* layout */
   --sidebar-w: 232px;
   --sidebar-rail: 56px;
+
+  /* z-index scale */
+  --z-base:     1;
+  --z-sticky:   10;
+  --z-dropdown: 40;
+  --z-toast:    60;
+  --z-scrim:    100;
+  --z-panel:    110;
+  --z-overlay:  200;
+  --z-tooltip:  300;
 }
 
 [data-theme='dark'] {
   --bg:        #0a0c10;
-  --bg-2:      #0f1217;
-  --bg-3:      #161a21;
-  --surface:   #131720;
-  --surface-2: #181d27;
+  --bg-2:      #11141b;
+  --bg-3:      #1a1f29;
+  --surface:   #151924;
+  --surface-2: #1c2130;
 
-  --ink:   #f1f3f7;
-  --ink-2: #d8dce4;
-  --ink-3: #c0c6d0;
-  --ink-4: #9aa2af;
+  /* brighter ink for visibility on dark surfaces */
+  --ink:   #f4f6fa; /* primary (~17:1) */
+  --ink-2: #dde2eb; /* body (~13:1) */
+  --ink-3: #c3cad6; /* muted (~9:1) */
+  --ink-4: #99a1b0; /* deemphasized (~5.5:1, AA on dark surface) */
 
-  --line:   #1f242d;
-  --line-2: #2a313c;
+  --line:        #232936;
+  --line-2:      #2f3645;
+  --line-strong: #3a4254;
+  --panel-line:  #ffffff; /* high-contrast panel outline */
 
-  --accent-soft: rgba(59, 130, 246, 0.16);
-  --shadow-overlay: 0 24px 60px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.35);
+  --accent-soft: rgba(59, 130, 246, 0.18);
+
+  --shadow-tile:       0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-tile-hover: 0 2px 6px rgba(0, 0, 0, 0.50);
+  --shadow-overlay:    0 24px 60px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 [data-density='compact'] {
-  --pad: 12px;
-  --gap: 8px;
+  --pad: 14px;
+  --gap: 12px;
+  --section-gap: 28px;
   --sidebar-w: 208px;
 }
 [data-density='comfy'] {
-  --pad: 20px;
-  --gap: 16px;
+  --pad: 24px;
+  --gap: 20px;
+  --section-gap: 56px;
   --sidebar-w: 256px;
 }
 
@@ -96,18 +119,31 @@ html, body { margin: 0; padding: 0; height: 100%; }
 body {
   font-family: var(--font-sans);
   background: var(--bg);
-  color: var(--ink);
+  color: var(--ink-2);
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* Inter alternate forms: cv02 disambiguates 1/l, cv11 single-storey a,
+     ss01 stylistic set, ss03 disambiguates 0/O. tnum for tabular numerics. */
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01', 'ss03';
 }
 button {
   font-family: inherit;
   color: inherit;
   cursor: pointer;
 }
+
+/* Thin, themed scrollbars for any scrollable container */
+* { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
+*::-webkit-scrollbar-track { background: transparent; }
 
 /* =========================================================
    Utility classes

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Minus, Plus } from 'lucide-react';
 import { INTEGRATIONS, type HealthInfo, type HealthResponse } from '../lib/integrations';
 import type { IntegrationKey } from '../lib/telemetry';
 import {
@@ -121,6 +122,49 @@ function Toggle({
   );
 }
 
+function NumberStepper({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="num-stepper">
+      <button
+        type="button"
+        className="ns-btn"
+        aria-label={`Decrease ${ariaLabel}`}
+        onClick={() => onChange(value - 1)}
+      >
+        <Minus size={12} strokeWidth={2.5} />
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        className="ns-input"
+        value={value}
+        aria-label={ariaLabel}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          if (!Number.isFinite(v)) return;
+          onChange(v);
+        }}
+      />
+      <button
+        type="button"
+        className="ns-btn"
+        aria-label={`Increase ${ariaLabel}`}
+        onClick={() => onChange(value + 1)}
+      >
+        <Plus size={12} strokeWidth={2.5} />
+      </button>
+    </div>
+  );
+}
+
 function ThresholdRow({ k, thresholds }: { k: keyof Thresholds; thresholds: Thresholds }) {
   const { label, unit } = THRESHOLD_LABELS[k];
   const pair = thresholds[k];
@@ -132,32 +176,24 @@ function ThresholdRow({ k, thresholds }: { k: keyof Thresholds; thresholds: Thre
         {label}
         {isCustom ? <span className="thr-dot" title={`default ${def.warn}/${def.bad}`} /> : null}
       </div>
-      <label className="thr-input">
+      <div className="thr-input">
         <span style={{ color: 'var(--warn)' }}>warn</span>
-        <input
-          type="number"
+        <NumberStepper
           value={pair.warn}
-          onChange={(e) => {
-            const v = Number(e.target.value);
-            if (!Number.isFinite(v)) return;
-            setThreshold(k, { ...pair, warn: v });
-          }}
+          ariaLabel={`${label} warn threshold`}
+          onChange={(v) => setThreshold(k, { ...pair, warn: v })}
         />
         <span className="thr-unit">{unit}</span>
-      </label>
-      <label className="thr-input">
+      </div>
+      <div className="thr-input">
         <span style={{ color: 'var(--bad)' }}>bad</span>
-        <input
-          type="number"
+        <NumberStepper
           value={pair.bad}
-          onChange={(e) => {
-            const v = Number(e.target.value);
-            if (!Number.isFinite(v)) return;
-            setThreshold(k, { ...pair, bad: v });
-          }}
+          ariaLabel={`${label} bad threshold`}
+          onChange={(v) => setThreshold(k, { ...pair, bad: v })}
         />
         <span className="thr-unit">{unit}</span>
-      </label>
+      </div>
     </div>
   );
 }
@@ -190,11 +226,6 @@ export function SettingsPage({ integrations, onChange }: Props) {
           <div className="ss-title">
             Integrations
             <span className="ss-count">{enabledCount} / {total} active</span>
-          </div>
-          <div className="ss-sub">
-            Toggle integrations off to stop the dashboard from polling them. Disabled
-            integrations make zero API calls until re-enabled. The server status shows
-            whether <code>.env</code> is also set up to allow each integration.
           </div>
         </div>
         <div className="ss-actions">
@@ -249,7 +280,6 @@ export function SettingsPage({ integrations, onChange }: Props) {
               <div className="sc-head">
                 <div className="sc-meta">
                   <div className="sc-title">{def.label}</div>
-                  <div className="sc-desc">{def.description}</div>
                 </div>
                 <Toggle
                   value={enabled}
@@ -272,11 +302,6 @@ export function SettingsPage({ integrations, onChange }: Props) {
       <div className="settings-summary" style={{ marginTop: 16 }}>
         <div className="ss-meta">
           <div className="ss-title">Severity Thresholds</div>
-          <div className="ss-sub">
-            Tune when metric values switch from <span style={{ color: 'var(--ok)' }}>ok</span> to{' '}
-            <span style={{ color: 'var(--warn)' }}>warn</span> to{' '}
-            <span style={{ color: 'var(--bad)' }}>bad</span>. Saved to your browser only.
-          </div>
         </div>
         <div className="ss-actions">
           <button type="button" className="btn" onClick={() => resetThresholds()}>

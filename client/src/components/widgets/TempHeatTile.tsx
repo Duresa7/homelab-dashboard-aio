@@ -1,7 +1,6 @@
 import { Tile } from '../tile/Tile';
 import { Heatmap } from '../charts';
 import type { CPUData, GPUData } from '../../types';
-import { fmtTemp, useTempUnit } from '../../lib/units';
 
 interface TempSensor {
   name: string;
@@ -19,7 +18,6 @@ interface Props {
 }
 
 export function TempHeatTile({ cpu, gpu, disks, span, onExpand, expandable }: Props) {
-  const { unit } = useTempUnit();
   const cols = 24;
   const diskSeries = disks.slice(0, 3).map((d, idx) => {
     const base = Number.isFinite(d.tempC) ? d.tempC : 0;
@@ -38,8 +36,8 @@ export function TempHeatTile({ cpu, gpu, disks, span, onExpand, expandable }: Pr
   ];
   return (
     <Tile
-      title="Temperature Heatmap"
-      sub="all sensors · 24 ticks"
+      title="Temperature"
+      sub={`${series.length} sensors`}
       span={span}
       onExpand={onExpand}
       expandable={expandable}
@@ -50,14 +48,14 @@ export function TempHeatTile({ cpu, gpu, disks, span, onExpand, expandable }: Pr
             key={`${s.name}-${i}`}
             style={{
               display: 'grid',
-              gridTemplateColumns: 'minmax(72px, 120px) 1fr',
-              gap: 8,
+              gridTemplateColumns: 'minmax(0, 120px) minmax(0, 1fr)',
+              gap: 10,
               alignItems: 'center',
             }}
           >
             <div
               className="t-sub"
-              style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              style={{ fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
               title={s.name}
             >
               {s.name}
@@ -65,18 +63,6 @@ export function TempHeatTile({ cpu, gpu, disks, span, onExpand, expandable }: Pr
             <Heatmap cols={cols} data={s.data} max={85} />
           </div>
         ))}
-      </div>
-      <div className="legend">
-        <div className="item">
-          <div className="swatch" style={{ background: 'color-mix(in oklab, var(--ok) 30%, var(--bg-3))' }} />{' '}
-          {fmtTemp(30, unit)}
-        </div>
-        <div className="item">
-          <div className="swatch" style={{ background: 'var(--warn)' }} /> {fmtTemp(55, unit)}
-        </div>
-        <div className="item">
-          <div className="swatch" style={{ background: 'var(--bad)' }} /> {fmtTemp(75, unit)}+
-        </div>
       </div>
     </Tile>
   );
