@@ -11,6 +11,7 @@ import {
   Cpu,
   Download,
   Layers,
+  Network,
   Pencil,
   Plus,
   RefreshCw,
@@ -48,7 +49,7 @@ import {
 } from '../lib/inventoryIcons';
 import { InventoryDetailPanel } from './InventoryDetailPanel';
 
-type Tab = 'machines' | 'service' | 'spares';
+type Tab = 'machines' | 'service' | 'spares' | 'network';
 type Mode = 'browse' | 'edit';
 
 interface InventoryPageProps {
@@ -261,7 +262,10 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
 
 
   const machinesView = useMemo(() => filterMachines(inv.machines, q), [inv.machines, q]);
-  const sparesView   = useMemo(() => filterSpares(inv.spares, q),     [inv.spares, q]);
+  const sparesAll    = useMemo(() => inv.spares.filter((c) => c.kind !== 'network'), [inv.spares]);
+  const networkAll   = useMemo(() => inv.spares.filter((c) => c.kind === 'network'), [inv.spares]);
+  const sparesView   = useMemo(() => filterSpares(sparesAll,  q), [sparesAll, q]);
+  const networkView  = useMemo(() => filterSpares(networkAll, q), [networkAll, q]);
 
   const selectedFound = useMemo(
     () => (selectedItemId ? findItem(inv, selectedItemId) : null),
@@ -316,6 +320,19 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
           onOpenItem={selectItem}
           openItemId={selectedItemId}
         />
+      ) : tab === 'network' ? (
+        <SparesTab
+          spares={networkView}
+          isEditing={isEditing}
+          updateCategory={updateCategory}
+          deleteCategory={deleteCategory}
+          addCategory={addCategory}
+          totalCategories={networkAll.length}
+          isSearching={q.length > 0}
+          onJump={setJumpTo}
+          onOpenItem={selectItem}
+          openItemId={selectedItemId}
+        />
       ) : (
         <SparesTab
           spares={sparesView}
@@ -323,7 +340,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
           updateCategory={updateCategory}
           deleteCategory={deleteCategory}
           addCategory={addCategory}
-          totalCategories={inv.spares.length}
+          totalCategories={sparesAll.length}
           isSearching={q.length > 0}
           onJump={setJumpTo}
           onOpenItem={selectItem}
@@ -406,6 +423,16 @@ function Masthead({
             <Server size={13} strokeWidth={1.75} />
             Active machines
             <span className="ct tnum">{pad2(stats.machineCount)}</span>
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'network'}
+            className={`inv-tab ${tab === 'network' ? 'is-on' : ''}`}
+            onClick={() => setTab('network')}
+          >
+            <Network size={13} strokeWidth={1.75} />
+            Network
+            <span className="ct tnum">{pad2(stats.networkItemCount)}</span>
           </button>
           <button
             role="tab"

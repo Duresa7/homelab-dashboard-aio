@@ -35,7 +35,7 @@ export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
         <div className="meta flex1">
           <div className="v">
             <b>{memUsedGB.toFixed(1)}</b>
-            <span style={{ color: 'var(--ink-3)' }}> / {memTotalGB} GB VRAM</span>
+            <span className="text-muted"> / {memTotalGB} GB VRAM</span>
           </div>
           <AutoChart kind={chartKind ?? 'area'} data={history} height={40} severity={usageKind} />
         </div>

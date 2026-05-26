@@ -87,6 +87,7 @@ export function Sidebar({ route, setRoute, alerts }: Props) {
     { kind: 'leaf', section: 'siem', icon: 'history' },
     { kind: 'section', label: 'reference' },
     { kind: 'leaf', section: 'inventory', icon: 'layers' },
+    { kind: 'leaf', section: 'playground', icon: 'cube' },
     { kind: 'section', label: 'preferences' },
     { kind: 'leaf', section: 'settings', icon: 'settings' },
   ];

@@ -31,7 +31,7 @@ export function RAMTile({ data, span, onExpand, chartKind, onChartKind, expandab
         <div className="meta flex1">
           <div className="v">
             <b className={`text-${kind}`}>{usedGB.toFixed(1)}</b>
-            <span style={{ color: 'var(--ink-3)' }}> / {totalGB} GB</span>
+            <span className="text-muted"> / {totalGB} GB</span>
           </div>
           <AutoChart kind={chartKind ?? 'area'} data={history} height={40} severity={kind} />
         </div>

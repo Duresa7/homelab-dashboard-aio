@@ -18,6 +18,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { HealthPage } from './pages/HealthPage';
 import { SiemPage } from './pages/SiemPage';
 import { InventoryPage } from './pages/InventoryPage';
+import { PlaygroundPage } from './pages/PlaygroundPage';
 
 import { INTEGRATION_KEYS, setIntegrationEnabled, useDashData, type IntegrationKey } from './lib/telemetry';
 import {
@@ -188,6 +189,7 @@ export function App() {
             onSelectItem={setInventoryItemId}
           />
         )}
+        {route.section === 'playground' && <PlaygroundPage />}
         {route.section === 'settings' && (
           <SettingsPage
             integrations={integrations}

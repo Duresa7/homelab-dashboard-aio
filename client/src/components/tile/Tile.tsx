@@ -65,10 +65,10 @@ export function Tile({
           {action ?? null}
           {expandable && onExpand ? (
             <button
-              className="icon-btn"
+              className="icon-btn t-expand"
               onClick={onExpand}
               title="Expand"
-              style={{ width: 26, height: 26 }}
+              aria-label="Expand"
             >
               <Icon name="expand" size={11} />
             </button>

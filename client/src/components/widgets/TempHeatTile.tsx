@@ -42,24 +42,10 @@ export function TempHeatTile({ cpu, gpu, disks, span, onExpand, expandable }: Pr
       onExpand={onExpand}
       expandable={expandable}
     >
-      <div className="col" style={{ gap: 4 }}>
+      <div className="t-heat-list">
         {series.map((s, i) => (
-          <div
-            key={`${s.name}-${i}`}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 120px) minmax(0, 1fr)',
-              gap: 10,
-              alignItems: 'center',
-            }}
-          >
-            <div
-              className="t-sub"
-              style={{ fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              title={s.name}
-            >
-              {s.name}
-            </div>
+          <div key={`${s.name}-${i}`} className="t-heat-row">
+            <div className="t-heat-name t-sub" title={s.name}>{s.name}</div>
             <Heatmap cols={cols} data={s.data} max={85} />
           </div>
         ))}

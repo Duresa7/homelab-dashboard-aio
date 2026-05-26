@@ -80,6 +80,8 @@ export interface SpareCategory {
   note?: string;
   /** 2-digit category code used as a UID prefix for items in this category. e.g. "03" → 0301, 0302… */
   prefix?: string;
+  /** Tab the category belongs to. 'spare' (default) lives under "Spare parts"; 'network' lives under its own "Network" tab for actively-deployed network gear. */
+  kind?: 'spare' | 'network';
   columns: SpareColumn[];
   items: SpareItem[];
 }
@@ -217,6 +219,7 @@ function makeSeed(): Inventory {
         id: genId('cat'),
         name: 'UniFi Network Infrastructure',
         note: 'Active Ubiquiti gear powering the network.',
+        kind: 'network',
         columns: [
           { id: 'role',  label: 'Role' },
           { id: 'brand', label: 'Brand' },
@@ -243,8 +246,11 @@ function makeSeed(): Inventory {
           { id: 'storage', label: 'Storage' },
         ],
         items: [
-          { id: genId('s'), values: { brand: 'Apple', model: 'MacBook Air (M1)',               cpu: 'Apple M1',     ram: '8 GB',  storage: '256 GB' } },
-          { id: genId('s'), values: { brand: 'Apple', model: 'MacBook Pro 15" 2017 (Touch Bar)', cpu: 'Intel Core i7', ram: '16 GB', storage: '1 TB'   } },
+          { id: genId('s'), values: { brand: 'Apple',  model: 'MacBook Air (M1)',                 cpu: 'Apple M1',     ram: '8 GB',  storage: '256 GB' } },
+          { id: genId('s'), values: { brand: 'Apple',  model: 'MacBook Pro 15" 2017 (Touch Bar)', cpu: 'Intel Core i7', ram: '16 GB', storage: '1 TB'   } },
+          { id: genId('s'), values: { brand: 'Lenovo', model: 'ThinkPad T440',                    cpu: 'Verify on boot (Intel 4th-gen Core)', ram: 'Verify on boot', storage: 'Verify on boot' } },
+          { id: genId('s'), values: { brand: 'Lenovo', model: 'ThinkPad T470s',                   cpu: 'Verify on boot (Intel 7th-gen Core)', ram: 'Verify on boot', storage: 'Verify on boot' } },
+          { id: genId('s'), values: { brand: 'Lenovo', model: 'ThinkPad T480',                    cpu: 'Verify on boot (Intel 8th-gen Core)', ram: 'Verify on boot', storage: 'Verify on boot' } },
         ],
       },
       {
@@ -282,8 +288,18 @@ function makeSeed(): Inventory {
           { id: 'form',     label: 'Form Factor' },
         ],
         items: [
-          { id: genId('s'), values: { brand: 'Samsung',  model: '850 EVO',            capacity: '250 GB', form: '2.5" SATA' } },
-          { id: genId('s'), values: { brand: 'Kingston', model: 'RBU-SNS4151S3/16GD', capacity: '16 GB',  form: 'OEM SSD'   } },
+          { id: genId('s'), values: { brand: 'Samsung',  model: '850 EVO',                  capacity: '250 GB', form: '2.5" SATA' } },
+          { id: genId('s'), values: { brand: 'Kingston', model: 'RBU-SNS4151S3/16GD',       capacity: '16 GB',  form: 'OEM SSD'   } },
+          {
+            id: genId('s'),
+            values: { brand: 'Samsung', model: 'PM981 (MZ-VLB2560)', capacity: '256 GB', form: 'M.2 2280 PCIe NVMe' },
+            ids: { serial: 'S41GNX1M405659', location: 'Installed in Lenovo ThinkCentre M920q' },
+          },
+          {
+            id: genId('s'),
+            values: { brand: 'Samsung', model: 'PM961 (MZ-VLW2560) — Lenovo FRU 00UP436', capacity: '256 GB', form: 'M.2 2280 PCIe NVMe' },
+            ids: { serial: 'S35ENX0K441210', location: 'Installed in Lenovo ThinkCentre M910q' },
+          },
         ],
       },
       {
@@ -314,6 +330,18 @@ function makeSeed(): Inventory {
         items: [
           { id: genId('s'), values: { brand: 'SK hynix', part: 'HMT351S6EFR8A',    capacity: '4 GB', type: 'DDR3L-1600 SO-DIMM (PC3L-12800S), 2Rx8' } },
           { id: genId('s'), values: { brand: 'Samsung',  part: 'M471A5644EB0-CPB', capacity: '2 GB', type: 'DDR4-2133 SO-DIMM (PC4-2133P), 1Rx16'  } },
+          { id: genId('s'), values: { brand: 'SK hynix', part: 'HMA81GS6AFR8N-UH', capacity: '8 GB', type: 'DDR4-2400 SO-DIMM (PC4-2400T-SA1-11), 1Rx8'  } },
+          { id: genId('s'), values: { brand: 'SK hynix', part: 'HMA851S6AFR6N-UH', capacity: '4 GB', type: 'DDR4-2400 SO-DIMM (PC4-2400T-SC0-11), 1Rx16' } },
+          {
+            id: genId('s'),
+            values: { brand: 'Micron', part: 'MTA8ATF1G64HZ-2G6E1', capacity: '8 GB', type: 'DDR4-2666 SO-DIMM (PC4-2666V-SA2-11), 1Rx8 — Lenovo FRU 01AG841' },
+            ids: { location: 'Installed in Lenovo ThinkCentre M920q (DIMM1)' },
+          },
+          {
+            id: genId('s'),
+            values: { brand: 'SK hynix', part: 'HMA81GS6CJR8N-VK', capacity: '8 GB', type: 'DDR4-2666 SO-DIMM (PC4-2666V-SA1-11), 1Rx8 — Lenovo FRU 01AG824' },
+            ids: { location: 'Installed in Lenovo ThinkCentre M910q' },
+          },
         ],
       },
       {
@@ -334,6 +362,45 @@ function makeSeed(): Inventory {
           { id: genId('s'), values: { brand: 'Netgear',   model: 'GS608',           type: '8-port unmanaged switch (1 GbE)',         notes: '' } },
           { id: genId('s'), values: { brand: 'Netgear',   model: 'FS726TP ProSafe', type: '24-port smart switch (10/100) + 2× 1 GbE', notes: 'PoE' } },
           { id: genId('s'), values: { brand: '(Generic)', model: 'PS1080',          type: '8-port PoE unmanaged switch (1 GbE)',     notes: 'IEEE 802.3af, 100–240 VAC input, 48 VDC output' } },
+        ],
+      },
+      {
+        id: genId('cat'),
+        name: 'Desktops',
+        note: 'Tiny / SFF desktops kept as spares.',
+        columns: [
+          { id: 'brand',   label: 'Brand' },
+          { id: 'model',   label: 'Model' },
+          { id: 'cpu',     label: 'CPU' },
+          { id: 'ram',     label: 'RAM' },
+          { id: 'storage', label: 'Storage' },
+          { id: 'notes',   label: 'Notes' },
+        ],
+        items: [
+          {
+            id: genId('s'),
+            values: {
+              brand:   'Lenovo',
+              model:   'ThinkCentre M920q Tiny',
+              cpu:     'Unknown — verify on boot (Intel 8th/9th gen LGA1151)',
+              ram:     '8 GB DDR4-2666 (1×8 GB, DIMM2 empty)',
+              storage: 'Samsung PM981 256 GB NVMe',
+              notes:   'MTM ASSET-EXAMPLE-001 · 20 V / 3.25 A PSU',
+            },
+            ids: { serial: 'SERIAL-EXAMPLE-001', assetTag: 'ASSET-EXAMPLE-001' },
+          },
+          {
+            id: genId('s'),
+            values: {
+              brand:   'Lenovo',
+              model:   'ThinkCentre M910q Tiny',
+              cpu:     'Unknown — verify on boot (Intel 6th/7th gen LGA1151)',
+              ram:     '8 GB DDR4-2666 (1×8 GB, second slot empty)',
+              storage: 'Samsung PM961 256 GB NVMe',
+              notes:   'MTM 10MU · Model S08B00 · MFG 04/2018 · 20 V / 3.25 A PSU · Made in Mexico',
+            },
+            ids: { serial: 'SERIAL-EXAMPLE-002', assetTag: 'ASSET-EXAMPLE-002' },
+          },
         ],
       },
       {
@@ -574,17 +641,32 @@ export interface InventoryStats {
   componentCount: number;
   spareCategoryCount: number;
   spareItemCount: number;
+  networkCategoryCount: number;
+  networkItemCount: number;
 }
 
 export function summarize(inv: Inventory): InventoryStats {
   let components = 0;
   for (const ma of inv.machines) components += ma.components.length;
+  let spareCats = 0;
   let spareItems = 0;
-  for (const cat of inv.spares) spareItems += cat.items.length;
+  let networkCats = 0;
+  let networkItems = 0;
+  for (const cat of inv.spares) {
+    if (cat.kind === 'network') {
+      networkCats += 1;
+      networkItems += cat.items.length;
+    } else {
+      spareCats += 1;
+      spareItems += cat.items.length;
+    }
+  }
   return {
     machineCount: inv.machines.length,
     componentCount: components,
-    spareCategoryCount: inv.spares.length,
+    spareCategoryCount: spareCats,
     spareItemCount: spareItems,
+    networkCategoryCount: networkCats,
+    networkItemCount: networkItems,
   };
 }

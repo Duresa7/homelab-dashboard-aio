@@ -10,6 +10,7 @@ export type Section =
   | 'health'
   | 'siem'
   | 'inventory'
+  | 'playground'
   | 'settings';
 
 export interface Route {
@@ -71,6 +72,7 @@ export const DEFAULT_SUB: Record<Section, string | undefined> = {
   health:    undefined,
   siem:      undefined,
   inventory: undefined,
+  playground: undefined,
   settings:  undefined,
 };
 
@@ -86,6 +88,7 @@ export const SECTION_LABEL: Record<Section, string> = {
   health:    'API Health',
   siem:      'SIEM',
   inventory: 'Inventory',
+  playground: 'Playground',
   settings:  'Settings',
 };
 
