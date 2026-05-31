@@ -1,7 +1,10 @@
+import type { ReactNode } from 'react';
 import { AreaChart } from '../components/charts';
 import { Activity, Wifi, Cable, Globe, Shield, Lock, Router } from 'lucide-react';
 import { InternetTile, NetworkTile, TopTalkersTile } from '../components/widgets';
 import { BrandIcon, vpnBrand } from '../components/icons/BrandIcon';
+import { SectionCard, StatList, StatRow } from '@/components/common';
+import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
 import { fmtTemp, useTempUnit } from '../lib/units';
 
@@ -10,36 +13,86 @@ interface Props {
   sub: string;
 }
 
+type DotKind = 'ok' | 'bad' | 'idle';
+
+/** One row in a config/device list — dot · name · meta · value. */
+function ListRow({
+  dot,
+  name,
+  meta,
+  val,
+}: {
+  dot: DotKind;
+  name: ReactNode;
+  meta?: ReactNode;
+  val?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-b border-border/60 py-2 last:border-0">
+      <span
+        className={cn(
+          'size-2 shrink-0 rounded-full',
+          dot === 'ok' ? 'bg-ok' : dot === 'bad' ? 'bg-bad' : 'bg-idle',
+        )}
+      />
+      <span className="shrink-0 text-sm font-medium text-foreground">{name}</span>
+      {meta != null ? (
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-xs text-muted-foreground">
+          {meta}
+        </span>
+      ) : (
+        <span className="flex-1" />
+      )}
+      {val != null ? (
+        <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{val}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function emptyRow(text: string) {
+  return <div className="py-6 text-center text-sm text-muted-foreground">{text}</div>;
+}
+
 function Overview({ data }: { data: DashboardState }) {
   const u = data.unifi;
   const { unit } = useTempUnit();
   const lh = data.network.latencyHistory;
   return (
-    <div className="grid">
-      <div className="tile span-4">
-        <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /><Router size={14} strokeWidth={1.75} />Gateway</div>
-        <div className="t-big" style={{ fontSize: 24, fontFamily: 'var(--font-sans)' }}>{u.gateway.model}</div>
-        <dl className="kv">
-          <dt>Firmware</dt><dd>{u.gateway.fwVersion}</dd>
-          <dt>Uptime</dt><dd>{u.gateway.uptime}</dd>
-          <dt>CPU</dt><dd>{u.gateway.cpu.toFixed(0)}%</dd>
-          <dt>RAM</dt><dd>{u.gateway.ram.toFixed(0)}%</dd>
-          <dt>Temp</dt><dd>{fmtTemp(u.gateway.tempC, unit)}</dd>
-          <dt>Public IP</dt><dd>{u.wan.public}</dd>
-          {u.appVersion && <><dt>App Version</dt><dd>{u.appVersion}</dd></>}
-        </dl>
-      </div>
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <SectionCard
+        span={4}
+        title="Gateway"
+        icon={
+          <span className="flex items-center gap-1.5">
+            <BrandIcon name="unifi" alt="UniFi" />
+            <Router size={14} strokeWidth={1.75} />
+          </span>
+        }
+      >
+        <div className="mb-3 text-2xl font-semibold text-foreground">{u.gateway.model}</div>
+        <StatList>
+          <StatRow label="Firmware" value={u.gateway.fwVersion} />
+          <StatRow label="Uptime" value={u.gateway.uptime} />
+          <StatRow label="CPU" value={`${u.gateway.cpu.toFixed(0)}%`} />
+          <StatRow label="RAM" value={`${u.gateway.ram.toFixed(0)}%`} />
+          <StatRow label="Temp" value={fmtTemp(u.gateway.tempC, unit)} />
+          <StatRow label="Public IP" value={u.wan.public} />
+          {u.appVersion ? <StatRow label="App Version" value={u.appVersion} /> : null}
+        </StatList>
+      </SectionCard>
+
       <NetworkTile data={data.network} span={8} chartKind="area" expandable={false} />
       <InternetTile data={data.network} span={6} expandable={false} />
-      <div className="tile span-6">
-        <div className="t-title"><Activity size={14} strokeWidth={1.75} />Latency · last 60 ticks</div>
+
+      <SectionCard span={6} title="Latency · last 60 ticks" icon={<Activity size={14} strokeWidth={1.75} />}>
         <AreaChart data={lh} height={120} />
-        <dl className="kv">
-          <dt>Current</dt><dd>{data.network.latencyMs.toFixed(1)} ms</dd>
-          <dt>Min</dt><dd>{lh.length ? Math.min(...lh).toFixed(1) : '—'} ms</dd>
-          <dt>Max</dt><dd>{lh.length ? Math.max(...lh).toFixed(1) : '—'} ms</dd>
-        </dl>
-      </div>
+        <StatList className="mt-2">
+          <StatRow label="Current" value={`${data.network.latencyMs.toFixed(1)} ms`} />
+          <StatRow label="Min" value={`${lh.length ? Math.min(...lh).toFixed(1) : '—'} ms`} />
+          <StatRow label="Max" value={`${lh.length ? Math.max(...lh).toFixed(1) : '—'} ms`} />
+        </StatList>
+      </SectionCard>
     </div>
   );
 }
@@ -47,66 +100,80 @@ function Overview({ data }: { data: DashboardState }) {
 function Devices({ data }: { data: DashboardState }) {
   const u = data.unifi;
   return (
-    <div className="grid">
-      <div className="tile span-6">
-        <div className="t-head">
-          <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /><Wifi size={14} strokeWidth={1.75} />Wi-Fi Access Points <span className="t-sub">· {u.aps.length}</span></div>
-        </div>
-        {u.aps.length === 0 ? (
-          <div className="page-empty">No APs detected</div>
-        ) : (
-          <div className="list">
-            {u.aps.map((ap) => (
-              <div key={ap.name} className="li">
-                <span className={`d ${ap.state === 'ONLINE' ? '' : 'bad'}`} />
-                <span className="name">{ap.name}</span>
-                <span className="meta">
-                  {ap.model}
-                  {ap.channel !== 'n/a' && ` · ch${ap.channel}`}
-                  {ap.frequency && ` · ${ap.frequency}GHz`}
-                </span>
-                <span className="val">{ap.clients} clients</span>
-              </div>
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <SectionCard
+        span={6}
+        sub={u.aps.length}
+        title="Wi-Fi Access Points"
+        icon={
+          <span className="flex items-center gap-1.5">
+            <BrandIcon name="unifi" alt="UniFi" />
+            <Wifi size={14} strokeWidth={1.75} />
+          </span>
+        }
+      >
+        {u.aps.length === 0
+          ? emptyRow('No APs detected')
+          : u.aps.map((ap) => (
+              <ListRow
+                key={ap.name}
+                dot={ap.state === 'ONLINE' ? 'ok' : 'bad'}
+                name={ap.name}
+                meta={
+                  <>
+                    {ap.model}
+                    {ap.channel !== 'n/a' && ` · ch${ap.channel}`}
+                    {ap.frequency ? ` · ${ap.frequency}GHz` : ''}
+                  </>
+                }
+                val={`${ap.clients} clients`}
+              />
             ))}
-          </div>
-        )}
-      </div>
+      </SectionCard>
 
-      <div className="tile span-6">
-        <div className="t-head">
-          <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /><Cable size={14} strokeWidth={1.75} />Switches &amp; PoE <span className="t-sub">· {u.switches.length}</span></div>
-        </div>
-        {u.switches.length === 0 ? (
-          <div className="page-empty">No switches detected</div>
-        ) : (
-          <div className="disks">
-            {u.switches.map((s) => {
+      <SectionCard
+        span={6}
+        sub={u.switches.length}
+        title="Switches & PoE"
+        icon={
+          <span className="flex items-center gap-1.5">
+            <BrandIcon name="unifi" alt="UniFi" />
+            <Cable size={14} strokeWidth={1.75} />
+          </span>
+        }
+        bodyClassName="flex flex-col gap-3"
+      >
+        {u.switches.length === 0
+          ? emptyRow('No switches detected')
+          : u.switches.map((s) => {
               const pct = s.poeMaxW ? (s.poeUsedW / s.poeMaxW) * 100 : 0;
               return (
-                <div key={s.name} className="disk">
-                  <div className="row">
-                    <div className="name flex1" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className={`status-dot ${s.state === 'ONLINE' ? 'ok' : 'bad'}`} />
-                      {s.name}
+                <div key={s.name} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                      <span className={cn('size-2 shrink-0 rounded-full', s.state === 'ONLINE' ? 'bg-ok' : 'bg-bad')} />
+                      <span className="truncate">{s.name}</span>
                     </div>
-                    <div className="meta">{s.model}</div>
+                    <span className="shrink-0 text-xs text-muted-foreground">{s.model}</span>
                   </div>
                   {s.poeMaxW > 0 && (
-                    <div className="row" style={{ alignItems: 'center', gap: 8 }}>
-                      <div className="meta" style={{ minWidth: 40 }}>PoE</div>
-                      <div className="pbar flex1">
-                        <span style={{ width: `${pct}%` }} />
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="w-9 shrink-0">PoE</span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
                       </div>
-                      <div className="meta">{s.poeUsedW}/{s.poeMaxW} W</div>
+                      <span className="shrink-0 tabular-nums">
+                        {s.poeUsedW}/{s.poeMaxW} W
+                      </span>
                     </div>
                   )}
-                  <div className="meta">{s.portsUp}/{s.ports} ports up · {s.portsActive} clients</div>
+                  <div className="text-xs tabular-nums text-muted-foreground">
+                    {s.portsUp}/{s.ports} ports up · {s.portsActive} clients
+                  </div>
                 </div>
               );
             })}
-          </div>
-        )}
-      </div>
+      </SectionCard>
     </div>
   );
 }
@@ -114,7 +181,7 @@ function Devices({ data }: { data: DashboardState }) {
 function Clients({ data }: { data: DashboardState }) {
   const u = data.unifi;
   return (
-    <div className="grid">
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
       <TopTalkersTile data={u.topTalkers} span={12} expandable={false} />
     </div>
   );
@@ -123,104 +190,101 @@ function Clients({ data }: { data: DashboardState }) {
 function Config({ data }: { data: DashboardState }) {
   const u = data.unifi;
   return (
-    <div className="grid">
-      <div className="tile span-6">
-        <div className="t-head">
-          <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /> Networks &amp; VLANs <span className="t-sub">· {u.networks.length}</span></div>
-        </div>
-        {u.networks.length === 0 ? (
-          <div className="page-empty">No networks data</div>
-        ) : (
-          <div className="list">
-            {u.networks.map((n) => (
-              <div key={n.id} className="li">
-                <span className={`d ${n.enabled ? '' : 'idle'}`} />
-                <span className="name">{n.name}</span>
-                <span className="meta">
-                  {n.vlanId !== null ? `VLAN ${n.vlanId}` : 'Default'}
-                  {n.isDefault ? ' · default' : ''}
-                </span>
-                <span className="val">{n.management}</span>
-              </div>
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <SectionCard span={6} sub={u.networks.length} title="Networks & VLANs" icon={<BrandIcon name="unifi" alt="UniFi" />}>
+        {u.networks.length === 0
+          ? emptyRow('No networks data')
+          : u.networks.map((n) => (
+              <ListRow
+                key={n.id}
+                dot={n.enabled ? 'ok' : 'idle'}
+                name={n.name}
+                meta={
+                  <>
+                    {n.vlanId !== null ? `VLAN ${n.vlanId}` : 'Default'}
+                    {n.isDefault ? ' · default' : ''}
+                  </>
+                }
+                val={n.management}
+              />
             ))}
-          </div>
-        )}
-      </div>
-      <div className="tile span-6">
-        <div className="t-head">
-          <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /> Wi-Fi SSIDs <span className="t-sub">· {u.ssids.length}</span></div>
-        </div>
-        {u.ssids.length === 0 ? (
-          <div className="page-empty">No SSID data</div>
-        ) : (
-          <div className="list">
-            {u.ssids.map((s) => (
-              <div key={s.id} className="li">
-                <span className={`d ${s.enabled ? '' : 'idle'}`} />
-                <span className="name">{s.name}</span>
-                <span className="meta">
-                  {s.security}
-                  {s.broadcastingFrequencies.length > 0 &&
-                    ` · ${s.broadcastingFrequencies.map((f) => `${f}GHz`).join(', ')}`
-                  }
-                </span>
-                <span className="val">{s.enabled ? 'active' : 'disabled'}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      </SectionCard>
 
-      <div className="tile span-4">
-        <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /><Shield size={14} strokeWidth={1.75} />Firewall</div>
-        <dl className="kv">
-          <dt>Zones</dt><dd>{u.firewall.zones}</dd>
-          <dt>Policies</dt><dd>{u.firewall.policiesEnabled}/{u.firewall.policies} enabled</dd>
-        </dl>
-      </div>
-      <div className="tile span-4">
-        <div className="t-head">
-          <div className="t-title"><Lock size={14} strokeWidth={1.75} />VPN Servers <span className="t-sub">· {u.vpnServers.length}</span></div>
-        </div>
-        {u.vpnServers.length === 0 ? (
-          <div className="page-empty">No VPN servers</div>
-        ) : (
-          <div className="list">
-            {u.vpnServers.map((v) => {
+      <SectionCard span={6} sub={u.ssids.length} title="Wi-Fi SSIDs" icon={<BrandIcon name="unifi" alt="UniFi" />}>
+        {u.ssids.length === 0
+          ? emptyRow('No SSID data')
+          : u.ssids.map((s) => (
+              <ListRow
+                key={s.id}
+                dot={s.enabled ? 'ok' : 'idle'}
+                name={s.name}
+                meta={
+                  <>
+                    {s.security}
+                    {s.broadcastingFrequencies.length > 0 &&
+                      ` · ${s.broadcastingFrequencies.map((f) => `${f}GHz`).join(', ')}`}
+                  </>
+                }
+                val={s.enabled ? 'active' : 'disabled'}
+              />
+            ))}
+      </SectionCard>
+
+      <SectionCard
+        span={4}
+        title="Firewall"
+        icon={
+          <span className="flex items-center gap-1.5">
+            <BrandIcon name="unifi" alt="UniFi" />
+            <Shield size={14} strokeWidth={1.75} />
+          </span>
+        }
+      >
+        <StatList>
+          <StatRow label="Zones" value={u.firewall.zones} />
+          <StatRow label="Policies" value={`${u.firewall.policiesEnabled}/${u.firewall.policies} enabled`} />
+        </StatList>
+      </SectionCard>
+
+      <SectionCard span={4} sub={u.vpnServers.length} title="VPN Servers" icon={<Lock size={14} strokeWidth={1.75} />}>
+        {u.vpnServers.length === 0
+          ? emptyRow('No VPN servers')
+          : u.vpnServers.map((v) => {
               const brand = vpnBrand(v.type);
               return (
-                <div key={v.id} className="li">
-                  <span className={`d ${v.enabled ? '' : 'idle'}`} />
-                  <span className="name">{v.name}</span>
-                  <span className="meta icon-text">
-                    {brand ? <BrandIcon name={brand} size={14} alt={v.type} /> : null}
-                    {v.type}
-                  </span>
-                  <span className="val">{v.enabled ? 'active' : 'disabled'}</span>
-                </div>
+                <ListRow
+                  key={v.id}
+                  dot={v.enabled ? 'ok' : 'idle'}
+                  name={v.name}
+                  meta={
+                    <>
+                      {brand ? <BrandIcon name={brand} size={14} alt={v.type} /> : null}
+                      {v.type}
+                    </>
+                  }
+                  val={v.enabled ? 'active' : 'disabled'}
+                />
               );
             })}
-          </div>
-        )}
-      </div>
-      <div className="tile span-4">
-        <div className="t-head">
-          <div className="t-title"><BrandIcon name="unifi" alt="UniFi" /><Globe size={14} strokeWidth={1.75} />DNS Records <span className="t-sub">· {u.dnsRecords.length}</span></div>
-        </div>
-        {u.dnsRecords.length === 0 ? (
-          <div className="page-empty">No local DNS records</div>
-        ) : (
-          <div className="list">
-            {u.dnsRecords.map((r) => (
-              <div key={r.id} className="li">
-                <span className={`d ${r.enabled ? '' : 'idle'}`} />
-                <span className="name">{r.domain}</span>
-                <span className="val">{r.type}</span>
-              </div>
+      </SectionCard>
+
+      <SectionCard
+        span={4}
+        sub={u.dnsRecords.length}
+        title="DNS Records"
+        icon={
+          <span className="flex items-center gap-1.5">
+            <BrandIcon name="unifi" alt="UniFi" />
+            <Globe size={14} strokeWidth={1.75} />
+          </span>
+        }
+      >
+        {u.dnsRecords.length === 0
+          ? emptyRow('No local DNS records')
+          : u.dnsRecords.map((r) => (
+              <ListRow key={r.id} dot={r.enabled ? 'ok' : 'idle'} name={r.domain} val={r.type} />
             ))}
-          </div>
-        )}
-      </div>
+      </SectionCard>
     </div>
   );
 }
@@ -228,6 +292,6 @@ function Config({ data }: { data: DashboardState }) {
 export function NetworkPage({ data, sub }: Props) {
   if (sub === 'devices') return <Devices data={data} />;
   if (sub === 'clients') return <Clients data={data} />;
-  if (sub === 'config')  return <Config  data={data} />;
+  if (sub === 'config') return <Config data={data} />;
   return <Overview data={data} />;
 }

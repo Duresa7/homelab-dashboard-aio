@@ -8,6 +8,7 @@ import { TempHeatTile } from '../widgets/TempHeatTile';
 import type { ChartKind, CPUData, DashboardState, GPUData } from '../../types';
 import { fmtTemp, useTempUnit, convertTemp, tempSuffix } from '../../lib/units';
 import { formatPowerOnTime } from '../../lib/format';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   cpuTempSeverity,
   cpuUsageSeverity,
@@ -35,54 +36,23 @@ interface Props {
 }
 
 export function ExpandOverlay({ id, data, chartKind, setChartKind, onClose }: Props) {
-  const closeBtnRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!id) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    closeBtnRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [id, onClose]);
-
-  if (!id) return null;
-  const def = ALL_TILES.find((t) => t.id === id);
+  const def = id ? ALL_TILES.find((t) => t.id === id) : null;
 
   return (
-    <div className="expanded-overlay" onClick={onClose}>
-      <div
-        className="expanded-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label={def ? def.label : String(id)}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="expanded-head">
-          <div className="expanded-head-text">
-            <h2>{def ? def.label : id}</h2>
-            <div className="sub">esc to close</div>
-          </div>
-          <button
-            ref={closeBtnRef}
-            className="icon-btn"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-        <div className="expanded-body">
-          <ExpandedBody id={id} data={data} chartKind={chartKind} setChartKind={setChartKind} />
-        </div>
-      </div>
-    </div>
+    <Dialog open={!!id} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="grid max-h-[88vh] w-[min(1100px,92vw)] max-w-[min(1100px,92vw)] grid-rows-[auto_1fr] gap-0 overflow-hidden p-0 sm:max-w-[min(1100px,92vw)]">
+        {id ? (
+          <>
+            <DialogHeader className="border-b border-border px-6 py-4 text-left">
+              <DialogTitle className="font-display text-lg tracking-tight">{def ? def.label : id}</DialogTitle>
+            </DialogHeader>
+            <div className="overflow-y-auto px-6 py-5">
+              <ExpandedBody id={id} data={data} chartKind={chartKind} setChartKind={setChartKind} />
+            </div>
+          </>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -145,7 +115,7 @@ function ExpandedCPU({ data, chartKind, setChartKind }: { data: DashboardState; 
   const usageKind = cpuUsageSeverity(cpu.usage);
   const tempKind = cpuTempSeverity(cpu.tempC);
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-head">
           <div className="t-title">CPU</div>
@@ -196,7 +166,7 @@ function ExpandedRAM({ data, chartKind, setChartKind }: { data: DashboardState; 
   const pct = (ram.usedGB / ram.totalGB) * 100;
   const freeGB = ram.totalGB - ram.usedGB;
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-6">
         <div className="t-title">Memory</div>
         <div className="metric-row">
@@ -231,7 +201,7 @@ function ExpandedGPU({ data, chartKind, setChartKind, unit }: { data: DashboardS
   const tempKind = gpuTempSeverity(gpu.tempC);
   const fanKind = fanSeverity(gpu.fanPct);
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-head">
           <div className="t-title">GPU</div>
@@ -269,7 +239,7 @@ function ExpandedSmart({ data, unit }: { data: DashboardState; unit: 'C' | 'F' }
   const bad = disks.filter((d) => d.smart === 'bad').length;
   const avgC = disks.length ? disks.reduce((a, b) => a + b.tempC, 0) / disks.length : 0;
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">Summary</div>
         <div className="row" style={{ gap: 32, paddingTop: 4 }}>
@@ -317,7 +287,7 @@ function ExpandedUPS({ data }: { data: DashboardState }) {
   const ups = data.ups;
   const batteryKind = batterySeverity(ups.batteryPct);
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-6">
         <div className="t-title">Battery</div>
         <div className="metric-row">
@@ -349,7 +319,7 @@ function ExpandedUPS({ data }: { data: DashboardState }) {
 function ExpandedDocker({ data }: { data: DashboardState }) {
   const { hosts, containers, running, stopped, total, updates } = data.docker;
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">Summary</div>
         <div className="row" style={{ gap: 32, paddingTop: 4 }}>
@@ -403,7 +373,7 @@ function ExpandedDocker({ data }: { data: DashboardState }) {
 
 function ExpandedStorage({ data }: { data: DashboardState }) {
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">Pools</div>
         <div className="disks">
@@ -443,7 +413,7 @@ function ExpandedStorage({ data }: { data: DashboardState }) {
 function ExpandedUnas({ data, unit }: { data: DashboardState; unit: 'C' | 'F' }) {
   const { pools, disks } = data.unas;
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">Pools</div>
         <div className="disks">
@@ -487,7 +457,7 @@ function ExpandedUnas({ data, unit }: { data: DashboardState; unit: 'C' | 'F' })
 
 function ExpandedBackups({ data }: { data: DashboardState }) {
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">All jobs</div>
         <div className="list">
@@ -510,7 +480,7 @@ function ExpandedInternet({ data }: { data: DashboardState }) {
   const uptimeKind = uptimeSeverity(n.uptime30d);
   const pingKind = pingSeverity(n.speedtest.ping);
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-6">
         <div className="t-title">Connectivity</div>
         <div className="row" style={{ gap: 32, paddingTop: 4 }}>
@@ -553,7 +523,7 @@ function ExpandedInternet({ data }: { data: DashboardState }) {
 function ExpandedUnifi({ data }: { data: DashboardState }) {
   const { gateway, clients, clientBreakdown, wan, switches, aps } = data.unifi;
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">Gateway · {gateway.model}</div>
         <div className="row" style={{ gap: 32, paddingTop: 4 }}>
@@ -623,7 +593,7 @@ function ExpandedUnifi({ data }: { data: DashboardState }) {
 function ExpandedNetwork({ data, chartKind, setChartKind }: { data: DashboardState; chartKind: ChartKind; setChartKind: (k: ChartKind) => void }) {
   const n = data.network;
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">Throughput</div>
         <div className="netrate">
@@ -654,7 +624,7 @@ function ExpandedNetwork({ data, chartKind, setChartKind }: { data: DashboardSta
 
 function ExpandedTopTalkers({ data }: { data: DashboardState }) {
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">All connected clients</div>
         <div className="list">
@@ -675,7 +645,7 @@ function ExpandedTopTalkers({ data }: { data: DashboardState }) {
 function ExpandedProxmox({ data }: { data: DashboardState }) {
   const { node, vms, coresAllocated, coresTotal, storages } = data.proxmox;
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">Node · {node.name}</div>
         <div className="row" style={{ gap: 32, paddingTop: 4 }}>
@@ -719,7 +689,7 @@ function ExpandedProtect({ data }: { data: DashboardState }) {
   const { cameras, total, connected, disconnected, recentEvents } = data.protect;
   const connectedCams = cameras.filter((c) => c.state === 'CONNECTED');
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">Summary</div>
         <div className="row" style={{ gap: 32, paddingTop: 4 }}>
@@ -759,7 +729,7 @@ function ExpandedProtect({ data }: { data: DashboardState }) {
 
 function ExpandedFans({ data }: { data: DashboardState }) {
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">All fans</div>
         <div className="col" style={{ gap: 8 }}>
@@ -794,7 +764,7 @@ function ExpandedFans({ data }: { data: DashboardState }) {
 
 function ExpandedEvents({ data }: { data: DashboardState }) {
   return (
-    <div className="grid">
+    <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-title">All events ({data.events.length})</div>
         <div className="events" style={{ maxHeight: 'none' }}>

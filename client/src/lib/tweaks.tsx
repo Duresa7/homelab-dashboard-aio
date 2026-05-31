@@ -2,76 +2,28 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
 
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { getState, setState } from './store';
-
-const PANEL_STYLE = `
-  .twk-launch{position:fixed;right:16px;bottom:16px;z-index:2147483645;
-    width:36px;height:36px;border-radius:50%;border:1px solid rgba(0,0,0,.1);
-    background:rgba(250,249,247,.92);color:#29261b;display:grid;place-items:center;
-    box-shadow:0 6px 18px rgba(0,0,0,.18);cursor:pointer}
-  .twk-launch svg{width:16px;height:16px}
-  [data-theme='dark'] .twk-launch{background:rgba(30,30,32,.92);color:#f4f4f1;
-    border-color:rgba(255,255,255,.1)}
-  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
-    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
-    background:rgba(250,249,247,.78);color:#29261b;
-    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
-    border:.5px solid rgba(255,255,255,.6);border-radius:14px;
-    box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
-    font:13px/1.45 var(--font-sans),ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
-  [data-theme='dark'] .twk-panel{background:rgba(28,28,32,.82);color:#e8e8e3;
-    border-color:rgba(255,255,255,.06)}
-  .twk-hd{display:flex;align-items:center;justify-content:space-between;
-    padding:10px 8px 10px 14px;cursor:move;user-select:none}
-  .twk-hd b{font-size:14px;font-weight:700;letter-spacing:0}
-  .twk-x{appearance:none;border:0;background:transparent;color:inherit;opacity:.55;
-    width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:15px;line-height:1}
-  .twk-x:hover{background:rgba(0,0,0,.08);opacity:1}
-  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
-    overflow-y:auto;overflow-x:hidden;min-height:0}
-  .twk-row{display:flex;flex-direction:column;gap:5px}
-  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
-  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;opacity:.78}
-  .twk-lbl>span:first-child{font-weight:500}
-  .twk-val{opacity:.5;font-variant-numeric:tabular-nums}
-  .twk-sect{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
-    opacity:.5;padding:10px 0 0}
-  .twk-sect:first-child{padding-top:0}
-  .twk-field{appearance:none;width:100%;height:30px;padding:0 10px;
-    border:.5px solid rgba(0,0,0,.1);border-radius:7px;
-    background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
-  [data-theme='dark'] .twk-field{background:rgba(0,0,0,.25);border-color:rgba(255,255,255,.1)}
-  .twk-field:focus{border-color:rgba(0,0,0,.25)}
-  select.twk-field{padding-right:22px}
-  .twk-seg{position:relative;display:flex;padding:2px;border-radius:8px;
-    background:rgba(0,0,0,.06);user-select:none}
-  [data-theme='dark'] .twk-seg{background:rgba(255,255,255,.08)}
-  .twk-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;
-    background:rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.12);
-    transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
-  [data-theme='dark'] .twk-seg-thumb{background:rgba(60,60,68,.95)}
-  .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
-    background:transparent;color:inherit;font:inherit;font-weight:600;min-height:26px;
-    border-radius:6px;cursor:pointer;padding:4px 6px;line-height:1.2}
-  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
-    background:rgba(0,0,0,.18);transition:background .15s;cursor:pointer;padding:0}
-  .twk-toggle[data-on='1']{background:#34c759}
-  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
-    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
-  .twk-toggle[data-on='1'] i{transform:translateX(14px)}
-  .twk-chips{display:flex;gap:6px}
-  .twk-chip{appearance:none;flex:1;min-width:0;height:32px;padding:0;border:0;border-radius:6px;
-    cursor:pointer;box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.06);
-    transition:transform .12s,box-shadow .12s}
-  .twk-chip:hover{transform:translateY(-1px)}
-  .twk-chip[data-on='1']{box-shadow:0 0 0 1.5px rgba(0,0,0,.85),0 2px 6px rgba(0,0,0,.15)}
-  [data-theme='dark'] .twk-chip[data-on='1']{box-shadow:0 0 0 1.5px rgba(255,255,255,.85),0 2px 6px rgba(0,0,0,.5)}
-`;
 
 const STORAGE_KEY = 'tweaks';
 
@@ -93,79 +45,32 @@ export function useTweaks<T extends object>(defaults: T): [T, <K extends keyof T
 }
 
 interface PanelProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   title?: string;
   children: ReactNode;
 }
 
-export function TweaksPanel({ title = 'Tweaks', children }: PanelProps) {
-  const [open, setOpen] = useState(false);
-  const dragRef = useRef<HTMLDivElement | null>(null);
-  const offsetRef = useRef<{ x: number; y: number }>({ x: 16, y: 16 });
-
-  const onDragStart = (e: React.MouseEvent) => {
-    const panel = dragRef.current;
-    if (!panel) return;
-    const r = panel.getBoundingClientRect();
-    const sx = e.clientX;
-    const sy = e.clientY;
-    const startRight = window.innerWidth - r.right;
-    const startBottom = window.innerHeight - r.bottom;
-    const move = (ev: MouseEvent) => {
-      offsetRef.current = {
-        x: Math.max(8, startRight - (ev.clientX - sx)),
-        y: Math.max(8, startBottom - (ev.clientY - sy)),
-      };
-      panel.style.right = `${offsetRef.current.x}px`;
-      panel.style.bottom = `${offsetRef.current.y}px`;
-    };
-    const up = () => {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', up);
-    };
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
-  };
-
+export function TweaksPanel({ open, onOpenChange, title = 'Customize', children }: PanelProps) {
   return (
-    <>
-      <style>{PANEL_STYLE}</style>
-      {!open && (
-        <button className="twk-launch" onClick={() => setOpen(true)} aria-label="Open tweaks">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
-            strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a8 8 0 0 0 0-6l1.6-1.3-2-3.4-2 .8A8 8 0 0 0 12 3l-.4-2h-4l-.4 2a8 8 0 0 0-5 2.1l-2-.8-2 3.4L0 9a8 8 0 0 0 0 6l-1.6 1.3" />
-          </svg>
-        </button>
-      )}
-      {open && (
-        <div
-          ref={dragRef}
-          className="twk-panel"
-          style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}
-        >
-          <div className="twk-hd" onMouseDown={onDragStart}>
-            <b>{title}</b>
-            <button
-              className="twk-x"
-              aria-label="Close tweaks"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => setOpen(false)}
-            >
-              ✕
-            </button>
-          </div>
-          <div className="twk-body">{children}</div>
-        </div>
-      )}
-    </>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex w-[330px] flex-col gap-0 p-0 sm:w-[360px]">
+        <SheetHeader className="border-b border-border px-5 py-4">
+          <SheetTitle className="font-display text-base">{title}</SheetTitle>
+          <SheetDescription className="sr-only">Appearance and dashboard preferences</SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">{children}</div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 export function TweakSection({ label, children }: { label: string; children?: ReactNode }) {
   return (
     <>
-      <div className="twk-sect">{label}</div>
+      <div className="pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground first:pt-0">
+        {label}
+      </div>
       {children}
     </>
   );
@@ -182,11 +87,19 @@ export function TweakRow({
   children: ReactNode;
   inline?: boolean;
 }) {
+  if (inline) {
+    return (
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm text-foreground">{label}</span>
+        {children}
+      </div>
+    );
+  }
   return (
-    <div className={inline ? 'twk-row twk-row-h' : 'twk-row'}>
-      <div className="twk-lbl">
-        <span>{label}</span>
-        {value != null && <span className="twk-val">{value}</span>}
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between">
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        {value != null && <span className="text-xs tabular-nums text-muted-foreground">{value}</span>}
       </div>
       {children}
     </div>
@@ -203,20 +116,9 @@ export function TweakToggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="twk-row twk-row-h">
-      <div className="twk-lbl">
-        <span>{label}</span>
-      </div>
-      <button
-        type="button"
-        className="twk-toggle"
-        data-on={value ? '1' : '0'}
-        role="switch"
-        aria-checked={!!value}
-        onClick={() => onChange(!value)}
-      >
-        <i />
-      </button>
+    <div className="flex items-center justify-between gap-3">
+      <Label className="text-sm font-normal text-foreground">{label}</Label>
+      <Switch checked={value} onCheckedChange={onChange} />
     </div>
   );
 }
@@ -241,18 +143,9 @@ export function TweakRadio<T extends string>({
     () => options.map((o) => (typeof o === 'object' ? o : { value: o, label: String(o) })),
     [options],
   );
-  const idx = Math.max(0, opts.findIndex((o) => o.value === value));
-  const n = opts.length;
   return (
     <TweakRow label={label}>
-      <div role="radiogroup" className="twk-seg">
-        <div
-          className="twk-seg-thumb"
-          style={{
-            left: `calc(2px + ${idx} * (100% - 4px) / ${n})`,
-            width: `calc((100% - 4px) / ${n})`,
-          }}
-        />
+      <div role="radiogroup" className="flex gap-1 rounded-lg bg-muted p-1">
         {opts.map((o) => (
           <button
             key={String(o.value)}
@@ -260,6 +153,12 @@ export function TweakRadio<T extends string>({
             role="radio"
             aria-checked={o.value === value}
             onClick={() => onChange(o.value)}
+            className={cn(
+              'flex-1 rounded-md px-2 py-1.5 text-[13px] font-medium capitalize transition-colors',
+              o.value === value
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
           >
             {o.label}
           </button>
@@ -290,17 +189,18 @@ export function TweakSelect<T extends string>({
   );
   return (
     <TweakRow label={label}>
-      <select
-        className="twk-field"
-        value={value}
-        onChange={(e) => onChange(e.target.value as T)}
-      >
-        {opts.map((o) => (
-          <option key={String(o.value)} value={String(o.value)}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+      <Select value={value} onValueChange={(v) => onChange(v as T)}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {opts.map((o) => (
+            <SelectItem key={String(o.value)} value={String(o.value)}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </TweakRow>
   );
 }
@@ -318,21 +218,23 @@ export function TweakColor({
 }) {
   return (
     <TweakRow label={label}>
-      <div className="twk-chips" role="radiogroup">
+      <div className="flex gap-2" role="radiogroup">
         {options.map((c) => {
           const on = c.toLowerCase() === value.toLowerCase();
           return (
             <button
               key={c}
               type="button"
-              className="twk-chip"
               role="radio"
               aria-checked={on}
-              data-on={on ? '1' : '0'}
               style={{ background: c }}
               onClick={() => onChange(c)}
               aria-label={c}
               title={c}
+              className={cn(
+                'h-8 flex-1 rounded-md ring-offset-background transition-transform hover:-translate-y-0.5',
+                on ? 'ring-2 ring-foreground ring-offset-2' : 'ring-1 ring-black/10',
+              )}
             />
           );
         })}

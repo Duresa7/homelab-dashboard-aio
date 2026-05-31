@@ -6,6 +6,7 @@ import {
   useState,
   type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from 'react';
 import {
   Cpu,
@@ -48,9 +49,23 @@ import {
   roleIcon,
 } from '../lib/inventoryIcons';
 import { InventoryDetailPanel } from './InventoryDetailPanel';
+import { StatusBadge, type StatusKind } from '@/components/common';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 type Tab = 'machines' | 'service' | 'spares' | 'network';
 type Mode = 'browse' | 'edit';
+
+const GHOST_ICON_BTN =
+  'inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-bad';
+const ADD_ROW_BTN =
+  'inline-flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-brand';
 
 interface InventoryPageProps {
   selectedItemId?: string;
@@ -278,7 +293,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   }, [selectedItemId, selectedFound, selectItem]);
 
   return (
-    <div className="page inv-page">
+    <div className="flex flex-col gap-4">
       <Masthead
         inv={inv}
         stats={stats}
@@ -298,7 +313,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
         type="file"
         accept="application/json,.json"
         onChange={onImportFile}
-        style={{ display: 'none' }}
+        className="hidden"
       />
 
       {tab === 'machines' ? (
@@ -376,90 +391,61 @@ interface MastheadProps {
   onReset: () => void;
 }
 
+function MhStat({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex flex-col">
+      <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">{label}</dt>
+      <dd className="font-display text-xl font-semibold tabular-nums text-foreground">{value}</dd>
+    </div>
+  );
+}
+
 function Masthead({
   inv, stats, tab, setTab, mode, setMode, query, setQuery,
   onExport, onImport, onReset,
 }: MastheadProps) {
   const isEditing = mode === 'edit';
+  const count = (n: ReactNode) => <span className="ml-1 text-[11px] tabular-nums opacity-60">{n}</span>;
   return (
-    <section className="inv-masthead">
-      <div className="inv-mh-grid">
-        <div className="inv-mh-id">
-          <div className="inv-mh-eyebrow">/ datacenter index</div>
-          <h1 className="inv-mh-title">Inventory<span className="dot">.</span></h1>
-          <div className="inv-mh-meta">
-            <span className="mono">Updated {inv.lastUpdated}</span>
-          </div>
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-card">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+            Datacenter index
+          </span>
+          <h2 className="font-display text-xl tracking-tight text-foreground">Inventory</h2>
+          <span className="font-mono text-xs text-muted-foreground">Updated {inv.lastUpdated}</span>
         </div>
-
-        <ul className="inv-mh-stats">
-          <li>
-            <span className="lbl">Machines</span>
-            <span className="val tnum">{pad2(stats.machineCount)}</span>
-          </li>
-          <li>
-            <span className="lbl">Components</span>
-            <span className="val tnum">{stats.componentCount}</span>
-          </li>
-          <li>
-            <span className="lbl">Categories</span>
-            <span className="val tnum">{pad2(stats.spareCategoryCount)}</span>
-          </li>
-          <li>
-            <span className="lbl">Spare items</span>
-            <span className="val tnum">{stats.spareItemCount}</span>
-          </li>
-        </ul>
+        <dl className="flex flex-wrap gap-x-8 gap-y-3">
+          <MhStat label="Machines" value={pad2(stats.machineCount)} />
+          <MhStat label="Components" value={stats.componentCount} />
+          <MhStat label="Categories" value={pad2(stats.spareCategoryCount)} />
+          <MhStat label="Spare items" value={stats.spareItemCount} />
+        </dl>
       </div>
 
-      <div className="inv-mh-bar">
-        <div className="inv-tabs" role="tablist">
-          <button
-            role="tab"
-            aria-selected={tab === 'machines'}
-            className={`inv-tab ${tab === 'machines' ? 'is-on' : ''}`}
-            onClick={() => setTab('machines')}
-          >
-            <Server size={13} strokeWidth={1.75} />
-            Active machines
-            <span className="ct tnum">{pad2(stats.machineCount)}</span>
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === 'network'}
-            className={`inv-tab ${tab === 'network' ? 'is-on' : ''}`}
-            onClick={() => setTab('network')}
-          >
-            <Network size={13} strokeWidth={1.75} />
-            Network
-            <span className="ct tnum">{pad2(stats.networkItemCount)}</span>
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === 'service'}
-            className={`inv-tab ${tab === 'service' ? 'is-on' : ''}`}
-            onClick={() => setTab('service')}
-          >
-            <Settings2 size={13} strokeWidth={1.75} />
-            In service
-            <span className="ct tnum">{stats.componentCount}</span>
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === 'spares'}
-            className={`inv-tab ${tab === 'spares' ? 'is-on' : ''}`}
-            onClick={() => setTab('spares')}
-          >
-            <Layers size={13} strokeWidth={1.75} />
-            Spare parts
-            <span className="ct tnum">{pad2(stats.spareCategoryCount)}</span>
-          </button>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+          <TabsList>
+            <TabsTrigger value="machines">
+              <Server className="size-3.5" /> Active machines {count(pad2(stats.machineCount))}
+            </TabsTrigger>
+            <TabsTrigger value="network">
+              <Network className="size-3.5" /> Network {count(pad2(stats.networkItemCount))}
+            </TabsTrigger>
+            <TabsTrigger value="service">
+              <Settings2 className="size-3.5" /> In service {count(stats.componentCount)}
+            </TabsTrigger>
+            <TabsTrigger value="spares">
+              <Layers className="size-3.5" /> Spare parts {count(pad2(stats.spareCategoryCount))}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-        <div className="inv-mh-tools">
-          <label className="inv-search">
-            <Search size={14} strokeWidth={1.75} />
-            <input
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
               type="search"
               placeholder={
                 tab === 'machines' ? 'Filter machines, components, specs…' :
@@ -468,41 +454,38 @@ function Masthead({
               }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              className="h-8 w-60 pl-8"
             />
-            {query ? (
-              <button
-                type="button"
-                className="inv-search-clear"
-                aria-label="Clear search"
-                onClick={() => setQuery('')}
-              >
-                <X size={12} strokeWidth={2} />
-              </button>
-            ) : null}
-          </label>
-          <button
-            type="button"
-            className={`btn ${isEditing ? 'primary' : ''}`}
+          </div>
+          <Button
+            variant={isEditing ? 'default' : 'outline'}
+            size="sm"
             onClick={() => setMode(isEditing ? 'browse' : 'edit')}
             title={isEditing ? 'Finish editing' : 'Enable inline editing'}
           >
-            <Pencil size={13} strokeWidth={1.75} />
-            <span>{isEditing ? 'Done editing' : 'Edit'}</span>
-          </button>
-          <div className="inv-mh-iconbar">
-            <button type="button" className="iconbtn" onClick={onExport} title="Export JSON">
-              <Download size={14} strokeWidth={1.75} />
-            </button>
-            <button type="button" className="iconbtn" onClick={onImport} title="Import JSON">
-              <Upload size={14} strokeWidth={1.75} />
-            </button>
-            <button type="button" className="iconbtn" onClick={onReset} title="Reset to defaults">
-              <RefreshCw size={14} strokeWidth={1.75} />
-            </button>
-          </div>
+            <Pencil className="size-3.5" />
+            {isEditing ? 'Done editing' : 'Edit'}
+          </Button>
+          <Button variant="outline" size="icon-sm" onClick={onExport} title="Export JSON">
+            <Download className="size-3.5" />
+          </Button>
+          <Button variant="outline" size="icon-sm" onClick={onImport} title="Import JSON">
+            <Upload className="size-3.5" />
+          </Button>
+          <Button variant="outline" size="icon-sm" onClick={onReset} title="Reset to defaults">
+            <RefreshCw className="size-3.5" />
+          </Button>
         </div>
       </div>
     </section>
+  );
+}
+
+function EmptyState({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-card/50 py-16 text-center text-sm text-muted-foreground shadow-card">
+      {children}
+    </div>
   );
 }
 
@@ -525,16 +508,16 @@ function MachinesTab({
 }: MachinesTabProps) {
   if (machines.length === 0) {
     return (
-      <div className="page-empty">
+      <EmptyState>
         {isSearching
           ? 'No machines match the current search.'
           : 'No machines on file yet. Click “Edit” then “+ New machine” to start.'}
-      </div>
+      </EmptyState>
     );
   }
 
   return (
-    <div className="inv-machines">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
       {machines.map((m) => (
         <MachineCard
           key={m.id}
@@ -547,10 +530,14 @@ function MachinesTab({
         />
       ))}
       {isEditing ? (
-        <button type="button" className="inv-add-card" onClick={addMachine}>
-          <Plus size={16} strokeWidth={1.75} />
-          <span>New machine</span>
-          <small>Adds a blank spec sheet (#{pad2(totalMachines + 1)})</small>
+        <button
+          type="button"
+          className="flex min-h-[180px] flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-card/50 text-muted-foreground transition-colors hover:border-brand hover:text-brand"
+          onClick={addMachine}
+        >
+          <Plus className="size-5" strokeWidth={1.75} />
+          <span className="text-sm font-medium">New machine</span>
+          <small className="text-xs opacity-80">Adds a blank spec sheet (#{pad2(totalMachines + 1)})</small>
         </button>
       ) : null}
     </div>
@@ -569,7 +556,6 @@ interface MachineCardProps {
 function MachineCard({ machine, isEditing, onChange, onDelete, onOpen, isOpen }: MachineCardProps) {
   const m = machine;
   const RoleIcon = roleIcon(m.role, m.name);
-  const status = m.status ?? 'working';
 
   const setName = (name: string) => onChange((cur) => ({ ...cur, name }));
   const setRole = (role: string) => onChange((cur) => ({ ...cur, role }));
@@ -618,144 +604,135 @@ function MachineCard({ machine, isEditing, onChange, onDelete, onOpen, isOpen }:
 
   return (
     <article
-      className={`inv-card inv-card-clickable status-${status} ${isOpen ? 'is-open' : ''}`}
+      className={cn(
+        'group flex cursor-pointer flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-card transition-shadow hover:shadow-card-hover',
+        isOpen && 'ring-2 ring-brand/50',
+      )}
       onClick={openOnClick}
       onKeyDown={openOnKey}
       tabIndex={0}
       role="button"
       aria-label={`Open ${m.name} details`}
     >
-      <header className="inv-card-head">
-        <div className="inv-ordinal">
+      <header className="flex items-start gap-3">
+        <div className="flex shrink-0 flex-col items-start leading-none">
           <Editable
             value={m.ordinal ?? ''}
             editing={isEditing}
             onChange={setOrdinal}
             placeholder="##"
-            className="ord"
+            className="w-14 font-display text-2xl font-semibold tabular-nums text-brand"
             maxLength={4}
           />
-          <span className="ord-of">/ machine</span>
+          <span className="text-[10px] tracking-wide text-muted-foreground uppercase">machine</span>
         </div>
-        <div className="inv-card-id">
+        <div className="min-w-0 flex-1">
           <Editable
             value={m.name}
             editing={isEditing}
             onChange={setName}
             placeholder="Machine name"
-            className="machine-name"
+            className="font-display text-base font-semibold text-foreground"
           />
-          <div className="machine-role">
-            <RoleIcon size={12} strokeWidth={1.75} />
+          <div className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <RoleIcon size={12} strokeWidth={1.75} className="shrink-0" />
             <Editable
               value={m.role}
               editing={isEditing}
               onChange={setRole}
               placeholder="Role"
+              className="text-sm text-muted-foreground"
             />
           </div>
         </div>
         {isEditing ? (
-          <button
-            type="button"
-            className="iconbtn danger"
-            onClick={onDelete}
-            title="Delete machine"
-          >
+          <button type="button" className={GHOST_ICON_BTN} onClick={onDelete} title="Delete machine">
             <Trash2 size={14} strokeWidth={1.75} />
           </button>
         ) : null}
       </header>
 
       {(m.meta.length > 0 || isEditing) ? (
-        <dl className="inv-meta">
+        <dl className="flex flex-col gap-1 border-t border-border/60 pt-3">
           {m.meta.map((row) => (
-            <div className="inv-meta-row" key={row.id}>
-              <dt>
+            <div className="grid grid-cols-[110px_1fr_auto] items-center gap-2" key={row.id}>
+              <dt className="text-xs text-muted-foreground">
                 <Editable
                   value={row.label}
                   editing={isEditing}
                   onChange={(v) => updateMeta(row.id, 'label', v)}
                   placeholder="Label"
+                  className="text-xs text-muted-foreground"
                 />
               </dt>
-              <dd>
+              <dd className="min-w-0 text-sm text-foreground">
                 <Editable
                   value={row.value}
                   editing={isEditing}
                   onChange={(v) => updateMeta(row.id, 'value', v)}
                   placeholder="Value"
                   mono
+                  className="text-sm"
                 />
               </dd>
               {isEditing ? (
-                <button
-                  type="button"
-                  className="iconbtn ghost"
-                  onClick={() => removeMeta(row.id)}
-                  title="Remove meta row"
-                >
+                <button type="button" className={GHOST_ICON_BTN} onClick={() => removeMeta(row.id)} title="Remove meta row">
                   <X size={12} strokeWidth={2} />
                 </button>
               ) : null}
             </div>
           ))}
           {isEditing ? (
-            <button type="button" className="inv-add-row" onClick={addMeta}>
+            <button type="button" className={ADD_ROW_BTN} onClick={addMeta}>
               <Plus size={12} strokeWidth={2} /> meta row
             </button>
           ) : null}
         </dl>
       ) : null}
 
-      <section className="inv-spec">
-        <div className="inv-spec-head">
+      <section className="flex flex-col gap-2 border-t border-border/60 pt-3">
+        <div className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
           <Cpu size={12} strokeWidth={1.75} />
           <span>Components</span>
-          <span className="ct mono">{m.components.length}</span>
+          <span className="ml-auto font-mono tabular-nums">{m.components.length}</span>
         </div>
-        <ul className="inv-spec-list">
+        <ul className="flex flex-col divide-y divide-border/60">
           {m.components.map((row) => {
             const CompIcon = componentIcon(row.component);
             return (
-            <li key={row.id} className="inv-spec-row">
-              <div className="inv-spec-label">
-                <span className="inv-spec-icon" aria-hidden>
-                  {CompIcon ? <CompIcon size={12} strokeWidth={1.75} /> : null}
-                </span>
-                <Editable
-                  value={row.component}
-                  editing={isEditing}
-                  onChange={(v) => updateComp(row.id, 'component', v)}
-                  placeholder="Component"
-                />
-              </div>
-              <div className="inv-spec-val">
-                <BrandGlyph text={row.specification} size={16} />
-                <Editable
-                  value={row.specification}
-                  editing={isEditing}
-                  onChange={(v) => updateComp(row.id, 'specification', v)}
-                  placeholder="Specification"
-                  multiline
-                />
-              </div>
-              {isEditing ? (
-                <button
-                  type="button"
-                  className="iconbtn ghost"
-                  onClick={() => removeComp(row.id)}
-                  title="Remove component"
-                >
-                  <X size={12} strokeWidth={2} />
-                </button>
-              ) : null}
-            </li>
+              <li key={row.id} className="grid grid-cols-[120px_1fr_auto] items-start gap-2 py-1.5">
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  {CompIcon ? <CompIcon size={12} strokeWidth={1.75} className="shrink-0" /> : null}
+                  <Editable
+                    value={row.component}
+                    editing={isEditing}
+                    onChange={(v) => updateComp(row.id, 'component', v)}
+                    placeholder="Component"
+                    className="text-sm"
+                  />
+                </div>
+                <div className="min-w-0 text-sm text-foreground">
+                  <BrandGlyph text={row.specification} size={16} />
+                  <Editable
+                    value={row.specification}
+                    editing={isEditing}
+                    onChange={(v) => updateComp(row.id, 'specification', v)}
+                    placeholder="Specification"
+                    multiline
+                    className="text-sm"
+                  />
+                </div>
+                {isEditing ? (
+                  <button type="button" className={GHOST_ICON_BTN} onClick={() => removeComp(row.id)} title="Remove component">
+                    <X size={12} strokeWidth={2} />
+                  </button>
+                ) : null}
+              </li>
             );
           })}
         </ul>
         {isEditing ? (
-          <button type="button" className="inv-add-row" onClick={addComp}>
+          <button type="button" className={ADD_ROW_BTN} onClick={addComp}>
             <Plus size={12} strokeWidth={2} /> component
           </button>
         ) : null}
@@ -784,38 +761,31 @@ function SparesTab({
 }: SparesTabProps) {
   if (spares.length === 0) {
     return (
-      <div className="page-empty">
+      <EmptyState>
         {isSearching
           ? 'No spare-part categories match the current search.'
           : 'No spare-part categories yet. Click “Edit” then “+ New category” to start.'}
-      </div>
+      </EmptyState>
     );
   }
 
   return (
-    <div className="inv-spares">
-      <nav className="inv-jump">
-        <span className="inv-jump-lbl">Jump to</span>
-        <div className="inv-jump-chips">
-          {spares.map((cat) => {
-            const CatIcon = categoryIcon(cat.name);
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                className="inv-jump-chip"
-                onClick={() => onJump(cat.id)}
-              >
-                <CatIcon size={12} strokeWidth={1.75} />
-                {cat.name}
-                <span className="ct tnum">{cat.items.length}</span>
-              </button>
-            );
-          })}
-        </div>
+    <div className="flex flex-col gap-4">
+      <nav className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">Jump to</span>
+        {spares.map((cat) => {
+          const CatIcon = categoryIcon(cat.name);
+          return (
+            <Button key={cat.id} variant="outline" size="xs" onClick={() => onJump(cat.id)}>
+              <CatIcon className="size-3" strokeWidth={1.75} />
+              {cat.name}
+              <span className="tabular-nums text-muted-foreground">{cat.items.length}</span>
+            </Button>
+          );
+        })}
       </nav>
 
-      <div className="inv-cats">
+      <div className="flex flex-col gap-4">
         {spares.map((cat) => (
           <CategoryBlock
             key={cat.id}
@@ -828,10 +798,14 @@ function SparesTab({
           />
         ))}
         {isEditing ? (
-          <button type="button" className="inv-add-card wide" onClick={addCategory}>
-            <Plus size={16} strokeWidth={1.75} />
-            <span>New category</span>
-            <small>Define a name and column headers (#{pad2(totalCategories + 1)})</small>
+          <button
+            type="button"
+            className="flex min-h-[88px] flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-card/50 text-muted-foreground transition-colors hover:border-brand hover:text-brand"
+            onClick={addCategory}
+          >
+            <Plus className="size-5" strokeWidth={1.75} />
+            <span className="text-sm font-medium">New category</span>
+            <small className="text-xs opacity-80">Define a name and column headers (#{pad2(totalCategories + 1)})</small>
           </button>
         ) : null}
       </div>
@@ -915,40 +889,37 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
     }));
   };
 
+  const colSpan = category.columns.length + 1 + (isEditing ? 1 : 0);
+
   return (
-    <section className="inv-cat" id={`cat-${category.id}`}>
-      <header className="inv-cat-head">
-        <div className="inv-cat-id">
-          <span className="inv-cat-icon" aria-hidden>
-            <CatIcon size={16} strokeWidth={1.75} />
-          </span>
-          <span className="inv-cat-prefix mono tnum" title="Category UID prefix">
-            <Editable
-              value={category.prefix ?? ''}
-              editing={isEditing}
-              onChange={setPrefix}
-              placeholder="00"
-              className="prefix-edit"
-              maxLength={2}
-            />
-            <span className="suffix">xx</span>
-          </span>
-          <h3>
-            <Editable
-              value={category.name}
-              editing={isEditing}
-              onChange={setName}
-              placeholder="Category name"
-            />
-          </h3>
-          <span className="inv-cat-count tnum mono">{pad2(category.items.length)} item{category.items.length === 1 ? '' : 's'}</span>
-        </div>
+    <section id={`cat-${category.id}`} className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+      <header className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+        <span className="shrink-0 text-muted-foreground [&_svg]:size-4">
+          <CatIcon size={16} strokeWidth={1.75} />
+        </span>
+        <span className="inline-flex items-baseline font-mono text-xs tabular-nums text-muted-foreground" title="Category UID prefix">
+          <Editable
+            value={category.prefix ?? ''}
+            editing={isEditing}
+            onChange={setPrefix}
+            placeholder="00"
+            className="w-7 text-right"
+            maxLength={2}
+          />
+          <span>xx</span>
+        </span>
+        <h3 className="min-w-0 font-display text-base text-foreground">
+          <Editable value={category.name} editing={isEditing} onChange={setName} placeholder="Category name" />
+        </h3>
+        <Badge variant="secondary" className="font-mono tabular-nums">
+          {pad2(category.items.length)} item{category.items.length === 1 ? '' : 's'}
+        </Badge>
         {isEditing ? (
-          <div className="inv-cat-actions">
-            <button type="button" className="iconbtn ghost" onClick={addColumn} title="Add column">
+          <div className="ml-auto flex items-center gap-1">
+            <button type="button" className={ADD_ROW_BTN} onClick={addColumn} title="Add column">
               <Plus size={12} strokeWidth={2} /> col
             </button>
-            <button type="button" className="iconbtn danger" onClick={onDelete} title="Delete category">
+            <button type="button" className={GHOST_ICON_BTN} onClick={onDelete} title="Delete category">
               <Trash2 size={13} strokeWidth={1.75} />
             </button>
           </div>
@@ -956,7 +927,7 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
       </header>
 
       {(category.note || isEditing) ? (
-        <div className="inv-cat-note">
+        <div className="border-b border-border px-4 py-2 text-sm text-muted-foreground">
           <Editable
             value={category.note ?? ''}
             editing={isEditing}
@@ -967,118 +938,90 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
         </div>
       ) : null}
 
-      <div className="inv-table-wrap">
-        <table className="inv-table">
-          <thead>
-            <tr>
-              <th className="inv-th-uid">
-                <div className="inv-th-inner"><span>UID</span></div>
-              </th>
-              {category.columns.map((col) => (
-                <th key={col.id} className={col.align === 'right' ? 'num' : ''}>
-                  <div className="inv-th-inner">
-                    <Editable
-                      value={col.label}
-                      editing={isEditing}
-                      onChange={(v) => setColumnLabel(col.id, v)}
-                      placeholder="Column"
-                      className="th-edit"
-                    />
-                    {isEditing ? (
-                      <button
-                        type="button"
-                        className="iconbtn ghost"
-                        onClick={() => removeColumn(col.id)}
-                        title="Remove column"
-                      >
-                        <X size={11} strokeWidth={2} />
-                      </button>
-                    ) : null}
-                  </div>
-                </th>
-              ))}
-              {isEditing ? <th className="inv-th-actions" aria-label="Row actions" /> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {category.items.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={category.columns.length + 1 + (isEditing ? 1 : 0)}
-                  className="inv-empty-cell"
-                >
-                  No items in this category yet.
-                </td>
-              </tr>
-            ) : null}
-            {category.items.map((it) => {
-              const status = it.status ?? 'working';
-              const openRow = (e: React.MouseEvent<HTMLTableRowElement>) => {
-                const t = e.target as HTMLElement;
-                if (t.closest('input, textarea, button, a, [contenteditable="true"]')) return;
-                onOpenItem(it.id);
-              };
-              const isOpen = openItemId === it.id;
-              return (
-              <tr
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-16">UID</TableHead>
+            {category.columns.map((col) => (
+              <TableHead key={col.id} className={col.align === 'right' ? 'text-right' : ''}>
+                <span className="flex items-center gap-1">
+                  <Editable
+                    value={col.label}
+                    editing={isEditing}
+                    onChange={(v) => setColumnLabel(col.id, v)}
+                    placeholder="Column"
+                  />
+                  {isEditing ? (
+                    <button type="button" className={GHOST_ICON_BTN} onClick={() => removeColumn(col.id)} title="Remove column">
+                      <X size={11} strokeWidth={2} />
+                    </button>
+                  ) : null}
+                </span>
+              </TableHead>
+            ))}
+            {isEditing ? <TableHead className="w-10" aria-label="Row actions" /> : null}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {category.items.length === 0 ? (
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={colSpan} className="py-6 text-center text-muted-foreground">
+                No items in this category yet.
+              </TableCell>
+            </TableRow>
+          ) : null}
+          {category.items.map((it) => {
+            const openRow = (e: React.MouseEvent<HTMLTableRowElement>) => {
+              const t = e.target as HTMLElement;
+              if (t.closest('input, textarea, button, a, [contenteditable="true"]')) return;
+              onOpenItem(it.id);
+            };
+            const isOpen = openItemId === it.id;
+            return (
+              <TableRow
                 key={it.id}
-                className={`inv-row-clickable status-${status} ${isOpen ? 'is-open' : ''}`}
+                className={cn('cursor-pointer', isOpen && 'bg-muted/50')}
                 onClick={openRow}
               >
-                <td className="inv-td-uid mono tnum">
-                  <Editable
-                    value={it.ids?.uid ?? ''}
-                    editing={isEditing}
-                    onChange={(v) => setItemUid(it.id, v)}
-                    placeholder="—"
-                    mono
-                  />
-                </td>
+                <TableCell className="font-mono tabular-nums text-muted-foreground">
+                  <Editable value={it.ids?.uid ?? ''} editing={isEditing} onChange={(v) => setItemUid(it.id, v)} placeholder="—" mono />
+                </TableCell>
                 {category.columns.map((col) => {
                   const value = it.values[col.id] ?? '';
                   const isBrand = col.id === 'brand';
+                  const isMono = col.id === 'model' || col.id === 'part' || col.align === 'right';
                   return (
-                  <td
-                    key={col.id}
-                    className={[
-                      col.align === 'right' ? 'num' : '',
-                      isBrand ? 'inv-td-brand' : '',
-                    ].filter(Boolean).join(' ')}
-                  >
-                    {isBrand ? <BrandGlyph text={value} size={16} reserveSpace /> : null}
-                    <Editable
-                      value={value}
-                      editing={isEditing}
-                      onChange={(v) => setItemValue(it.id, col.id, v)}
-                      placeholder="—"
-                      mono={col.id === 'model' || col.id === 'part' || col.align === 'right'}
-                    />
-                  </td>
+                    <TableCell key={col.id} className={col.align === 'right' ? 'text-right tabular-nums' : ''}>
+                      {isBrand ? (
+                        <span className="flex items-center gap-1.5">
+                          <BrandGlyph text={value} size={16} reserveSpace />
+                          <Editable value={value} editing={isEditing} onChange={(v) => setItemValue(it.id, col.id, v)} placeholder="—" mono={isMono} />
+                        </span>
+                      ) : (
+                        <Editable value={value} editing={isEditing} onChange={(v) => setItemValue(it.id, col.id, v)} placeholder="—" mono={isMono} />
+                      )}
+                    </TableCell>
                   );
                 })}
                 {isEditing ? (
-                  <td className="inv-td-actions">
-                    <button
-                      type="button"
-                      className="iconbtn ghost"
-                      onClick={() => removeItem(it.id)}
-                      title="Remove row"
-                    >
+                  <TableCell>
+                    <button type="button" className={GHOST_ICON_BTN} onClick={() => removeItem(it.id)} title="Remove row">
                       <X size={12} strokeWidth={2} />
                     </button>
-                  </td>
+                  </TableCell>
                 ) : null}
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
 
       {isEditing ? (
-        <button type="button" className="inv-add-row stretch" onClick={addItem}>
-          <Plus size={12} strokeWidth={2} /> add item
-        </button>
+        <div className="border-t border-border px-4 py-2">
+          <button type="button" className={ADD_ROW_BTN} onClick={addItem}>
+            <Plus size={12} strokeWidth={2} /> add item
+          </button>
+        </div>
       ) : null}
     </section>
   );
@@ -1127,74 +1070,76 @@ function ServiceTab({ machines, query, onOpenItem, openItemId }: ServiceTabProps
 
   if (sections.length === 0) {
     return (
-      <div className="page-empty">
+      <EmptyState>
         {query
           ? 'No in-service components match the current search.'
           : 'No machines have installed components yet.'}
-      </div>
+      </EmptyState>
     );
   }
 
   return (
-    <div className="inv-service">
+    <div className="flex flex-col gap-4">
       {sections.map(({ machine, comps }) => {
         const RoleIcon = roleIcon(machine.role, machine.name);
         return (
-          <section className="inv-service-section" key={machine.id}>
-            <header className="inv-service-head">
-              <span className="inv-service-ord mono tnum">{machine.ordinal ?? '—'}</span>
-              <span className="inv-service-id">
-                <RoleIcon size={14} strokeWidth={1.75} />
-                <span className="name">{machine.name}</span>
-                <span className="role">{machine.role}</span>
+          <section key={machine.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+            <header className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+              <span className="font-mono text-sm tabular-nums text-muted-foreground">{machine.ordinal ?? '—'}</span>
+              <span className="flex items-center gap-1.5">
+                <RoleIcon size={14} strokeWidth={1.75} className="text-muted-foreground" />
+                <span className="font-display text-base text-foreground">{machine.name}</span>
+                <span className="text-sm text-muted-foreground">{machine.role}</span>
               </span>
-              <span className="inv-service-count mono tnum">
+              <Badge variant="secondary" className="ml-auto font-mono tabular-nums">
                 {pad2(comps.length)} component{comps.length === 1 ? '' : 's'}
-              </span>
+              </Badge>
             </header>
-            <div className="inv-table-wrap">
-              <table className="inv-table inv-service-table">
-                <thead>
-                  <tr>
-                    <th>Type</th>
-                    <th>Specification</th>
-                    <th>UID</th>
-                    <th className="num">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {comps.map((c) => {
-                    const status = c.status ?? 'working';
-                    const CompIcon = componentIcon(c.component);
-                    const isOpen = openItemId === c.id;
-                    return (
-                      <tr
-                        key={c.id}
-                        className={`inv-row-clickable status-${status} ${isOpen ? 'is-open' : ''}`}
-                        onClick={(e) => {
-                          const t = e.target as HTMLElement;
-                          if (t.closest('input, textarea, button, a')) return;
-                          onOpenItem(c.id);
-                        }}
-                      >
-                        <td className="inv-service-type">
-                          {CompIcon ? <CompIcon size={12} strokeWidth={1.75} /> : null}
-                          <span>{c.component}</span>
-                        </td>
-                        <td className="inv-service-spec">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Type</TableHead>
+                  <TableHead>Specification</TableHead>
+                  <TableHead>UID</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {comps.map((c) => {
+                  const status = c.status ?? 'working';
+                  const CompIcon = componentIcon(c.component);
+                  const isOpen = openItemId === c.id;
+                  return (
+                    <TableRow
+                      key={c.id}
+                      className={cn('cursor-pointer', isOpen && 'bg-muted/50')}
+                      onClick={(e) => {
+                        const t = e.target as HTMLElement;
+                        if (t.closest('input, textarea, button, a')) return;
+                        onOpenItem(c.id);
+                      }}
+                    >
+                      <TableCell>
+                        <span className="flex items-center gap-1.5 text-foreground">
+                          {CompIcon ? <CompIcon size={12} strokeWidth={1.75} className="text-muted-foreground" /> : null}
+                          {c.component}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="flex items-center gap-1.5">
                           <BrandGlyph text={c.specification} size={16} reserveSpace />
-                          <span>{c.specification || '—'}</span>
-                        </td>
-                        <td className="mono inv-service-uid">{c.ids?.uid ?? '—'}</td>
-                        <td className="num">
-                          <span className={`pill ${statusKind(status)}`}>{status}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          {c.specification || '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-mono text-muted-foreground">{c.ids?.uid ?? '—'}</TableCell>
+                      <TableCell className="text-right">
+                        <StatusBadge kind={statusKind(status)}>{status}</StatusBadge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </section>
         );
       })}
@@ -1202,11 +1147,11 @@ function ServiceTab({ machines, query, onOpenItem, openItemId }: ServiceTabProps
   );
 }
 
-function statusKind(s: string): 'ok' | 'warn' | 'bad' | '' {
+function statusKind(s: string): StatusKind {
   if (s === 'working')   return 'ok';
   if (s === 'broken')    return 'bad';
   if (s === 'in-repair') return 'warn';
-  return '';
+  return 'idle';
 }
 
 interface EditableProps {
@@ -1346,4 +1291,3 @@ function filterSpares(spares: SpareCategory[], q: string): SpareCategory[] {
     })
     .filter((x): x is SpareCategory => x !== null);
 }
-

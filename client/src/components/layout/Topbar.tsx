@@ -1,5 +1,7 @@
+import { Moon, RefreshCw, Search, SlidersHorizontal, Sun } from 'lucide-react';
 import { Clock } from './Clock';
-import { Icon } from '../icons/Icon';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTempUnit } from '../../lib/units';
 import { SECTION_LABEL, subLabel, type Section } from '../../lib/route';
 
@@ -9,46 +11,87 @@ interface Props {
   title: string;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  onOpenSearch: () => void;
+  onOpenTweaks: () => void;
 }
 
-export function Topbar({ section, activeSub, title, theme, onToggleTheme }: Props) {
+function IconAction({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={onClick} aria-label={label}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+export function Topbar({ section, activeSub, title, theme, onToggleTheme, onOpenSearch, onOpenTweaks }: Props) {
   const { unit, toggle } = useTempUnit();
-  const sectionLbl = SECTION_LABEL[section].toLowerCase();
-  const here = activeSub ? subLabel(section, activeSub).toLowerCase() : null;
+  const sectionLbl = SECTION_LABEL[section];
+  const here = activeSub ? subLabel(section, activeSub) : null;
 
   return (
-    <div className="topbar">
-      <div className="tb-title">
-        <div className="tb-crumb">
-          {here ? (
-            <>
-              <span>{sectionLbl}</span>
-              <span className="sep">/</span>
-              <span className="here">{here}</span>
-            </>
-          ) : (
-            <span className="here">{sectionLbl}</span>
-          )}
-        </div>
-        <h1>{title}</h1>
+    <header className="sticky top-0 z-30 h-14 shrink-0 border-b border-border bg-background/80 backdrop-blur-md">
+      <div className="flex h-full w-full max-w-[var(--content-max)] items-center justify-between gap-4 px-6">
+      <div className="flex min-w-0 items-center gap-2">
+        {here && (
+          <>
+            <span className="truncate text-sm text-muted-foreground">{sectionLbl}</span>
+            <span className="text-muted-foreground/50">/</span>
+          </>
+        )}
+        <h1 className="truncate text-[15px] font-semibold tracking-tight text-foreground">
+          {here ?? title}
+        </h1>
       </div>
-      <div className="tb-actions">
-        <Clock />
+
+      <div className="flex items-center gap-1.5">
         <button
-          className="icon-btn unit-btn"
-          onClick={toggle}
-          title={`Showing °${unit} — click to switch to °${unit === 'F' ? 'C' : 'F'}`}
-          aria-label={`Temperature unit: ${unit}. Click to toggle.`}
+          onClick={onOpenSearch}
+          className="hidden h-8 items-center gap-2 rounded-md border border-border bg-card pl-2.5 pr-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:flex"
         >
-          °{unit}
+          <Search className="size-4" />
+          <span className="pr-6">Search…</span>
+          <kbd className="pointer-events-none rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+            ⌘K
+          </kbd>
         </button>
-        <button className="icon-btn" title="Refresh">
-          <Icon name="refresh" />
-        </button>
-        <button className="icon-btn" onClick={onToggleTheme} title="Toggle theme">
-          <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
-        </button>
+
+        <div className="mx-1 hidden lg:block">
+          <Clock />
+        </div>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-9 px-0 font-mono text-[13px] text-muted-foreground hover:text-foreground" onClick={toggle} aria-label={`Temperature unit ${unit}`}>
+              °{unit}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Switch to °{unit === 'F' ? 'C' : 'F'}</TooltipContent>
+        </Tooltip>
+
+        <IconAction label="Refresh" onClick={() => window.location.reload()}>
+          <RefreshCw className="size-4" />
+        </IconAction>
+        <IconAction label={theme === 'dark' ? 'Light mode' : 'Dark mode'} onClick={onToggleTheme}>
+          {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+        </IconAction>
+        <IconAction label="Customize" onClick={onOpenTweaks}>
+          <SlidersHorizontal className="size-4" />
+        </IconAction>
       </div>
-    </div>
+      </div>
+    </header>
   );
 }

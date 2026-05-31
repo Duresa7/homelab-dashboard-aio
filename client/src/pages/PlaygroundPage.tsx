@@ -37,6 +37,20 @@ import {
   type SlotEntry,
   type SlotId,
 } from '../lib/playground';
+import { PageHeader } from '@/components/common';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -127,7 +141,6 @@ export function PlaygroundPage() {
   const [state, setState] = useState<PlaygroundState>(() => loadPlayground());
   const [inv] = useState<Inventory>(() => loadInventory());
   const [toast, setToast] = useState<string | null>(null);
-  const [showMachinePicker, setShowMachinePicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Skip initial mount; loadPlayground returned the persisted value.
@@ -178,7 +191,6 @@ export function PlaygroundPage() {
       lastUpdated: today(),
       builds: [...prev.builds, buildFromMachine(machine)],
     }));
-    setShowMachinePicker(false);
     setToast(`Cloned ${machine.name} into a new build`);
   };
 
@@ -229,64 +241,60 @@ export function PlaygroundPage() {
   };
 
   return (
-    <div className="page pg-page">
-      <section className="pg-mh">
-        <div className="pg-mh-id">
-          <div className="pg-mh-eyebrow">/ build workbench</div>
-          <h1 className="pg-mh-title">Playground<span className="dot">.</span></h1>
-          <div className="pg-mh-meta">
-            <span className="mono">Updated {state.lastUpdated}</span>
-            <span className="mono"> · {state.builds.length} build{state.builds.length === 1 ? '' : 's'}</span>
-          </div>
-        </div>
-
-        <div className="pg-mh-tools">
-          <button className="btn" onClick={addBuild}>
-            <Plus size={14} /> New build
-          </button>
-          <div className="pg-machine-wrap">
-            <button
-              className="btn"
-              onClick={() => setShowMachinePicker((v) => !v)}
-              disabled={inv.machines.length === 0}
-            >
-              <Cpu size={14} /> From machine
-            </button>
-            {showMachinePicker ? (
-              <div className="pg-machine-menu" role="menu">
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow="Build workbench"
+        title="Playground"
+        sub={
+          <span className="font-mono tabular-nums">
+            Updated {state.lastUpdated} · {state.builds.length} build{state.builds.length === 1 ? '' : 's'}
+          </span>
+        }
+        actions={
+          <>
+            <Button size="sm" onClick={addBuild}>
+              <Plus /> New build
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={inv.machines.length === 0}>
+                  <Cpu /> From machine
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-[60vh] w-60 overflow-y-auto">
                 {inv.machines.map((m) => (
-                  <button key={m.id} className="pg-machine-item" onClick={() => cloneFromMachine(m)}>
-                    <span className="mono ord">{m.ordinal ?? '–'}</span>
-                    <span className="nm">{m.name}</span>
-                    <span className="role">{m.role}</span>
-                  </button>
+                  <DropdownMenuItem key={m.id} className="gap-2" onSelect={() => cloneFromMachine(m)}>
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground">{m.ordinal ?? '–'}</span>
+                    <span className="flex-1 truncate">{m.name}</span>
+                    <span className="text-xs text-muted-foreground">{m.role}</span>
+                  </DropdownMenuItem>
                 ))}
-              </div>
-            ) : null}
-          </div>
-          <button className="btn" onClick={onExport}>
-            <Download size={14} /> Export
-          </button>
-          <button className="btn" onClick={onPickImport}>
-            <Upload size={14} /> Import
-          </button>
-          <button className="btn" onClick={onReset}>
-            <RefreshCw size={14} /> Reset
-          </button>
-        </div>
-      </section>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="outline" size="sm" onClick={onExport}>
+              <Download /> Export
+            </Button>
+            <Button variant="outline" size="sm" onClick={onPickImport}>
+              <Upload /> Import
+            </Button>
+            <Button variant="outline" size="sm" onClick={onReset}>
+              <RefreshCw /> Reset
+            </Button>
+          </>
+        }
+      />
 
       <input
         ref={fileInputRef}
         type="file"
         accept="application/json,.json"
         onChange={onImportFile}
-        style={{ display: 'none' }}
+        className="hidden"
       />
 
       {state.builds.length === 0 ? (
-        <div className="page-empty">
-          No builds yet. Click <strong>New build</strong> to start experimenting.
+        <div className="rounded-xl border border-dashed border-border bg-card/50 py-16 text-center text-sm text-muted-foreground shadow-card">
+          No builds yet. Click <strong className="text-foreground">New build</strong> to start experimenting.
         </div>
       ) : (
         state.builds.map((build) => (
@@ -324,81 +332,92 @@ function BuildCard({ build, inv, onChangeName, onChangeNotes, onChangeSlot, onDe
     status.powerPct > 70 ? 'warn' : 'ok';
 
   return (
-    <section className="pg-card">
-      <header className="pg-card-head">
-        <input
-          className="pg-name"
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-card">
+      <header className="flex items-center gap-3">
+        <Input
+          className="h-9 max-w-xs font-display text-base font-semibold"
           value={build.name}
           onChange={(e) => onChangeName(e.target.value)}
           placeholder="Build name"
         />
-        <div className="pg-stamps mono">
-          <span>created {build.createdAt}</span>
-          <span> · updated {build.updatedAt}</span>
+        <div className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">
+          created {build.createdAt} · updated {build.updatedAt}
         </div>
-        <button className="pg-icon-btn danger" onClick={onDelete} title="Delete build" aria-label="Delete build">
-          <Trash2 size={14} />
-        </button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-bad"
+          onClick={onDelete}
+          title="Delete build"
+          aria-label="Delete build"
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
       </header>
 
       <textarea
-        className="pg-notes"
+        className="min-h-[44px] w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         placeholder="Notes (purpose, budget, links to listings…)"
         value={build.notes ?? ''}
         onChange={(e) => onChangeNotes(e.target.value)}
         rows={2}
       />
 
-      <table className="pg-slots">
-        <thead>
-          <tr>
-            <th className="col-slot">Slot</th>
-            <th className="col-source">Source</th>
-            <th className="col-label">Part</th>
-            <th className="col-watts">Watts</th>
-            <th className="col-status" aria-label="Status" />
-          </tr>
-        </thead>
-        <tbody>
-          {SLOT_DEFS.map((slot) => {
-            const entry = build.slots[slot.id];
-            return (
+      <div className="overflow-hidden rounded-lg border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-44">Slot</TableHead>
+              <TableHead className="w-64">Source</TableHead>
+              <TableHead>Part</TableHead>
+              <TableHead className="w-24 text-right">Watts</TableHead>
+              <TableHead className="w-10" aria-label="Status" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {SLOT_DEFS.map((slot) => (
               <SlotRow
                 key={slot.id}
                 slot={slot}
-                entry={entry}
+                entry={build.slots[slot.id]}
                 inv={inv}
                 onChange={(mut) => onChangeSlot(slot.id, mut)}
               />
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
-      <footer className="pg-card-foot">
-        <div className="pg-missing">
+      <footer className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm">
           {status.missing.length === 0 ? (
-            <span className="ok">All required slots filled ✓</span>
+            <span className="text-ok">All required slots filled ✓</span>
           ) : (
             <>
-              <span className="lbl">Missing:</span>{' '}
-              <span className="bad">
+              <span className="text-muted-foreground">Missing: </span>
+              <span className="text-bad">
                 {status.missing.map((id) => SLOT_DEFS.find((s) => s.id === id)?.label).join(', ')}
               </span>
             </>
           )}
         </div>
-        <div className="pg-power">
+        <div className="flex items-center gap-3">
           {status.psuRating === 0 ? (
-            <span className="dim">Set a PSU rating to estimate the power budget</span>
+            <span className="text-sm text-muted-foreground">Set a PSU rating to estimate the power budget</span>
           ) : (
             <>
-              <span className="pg-power-text mono">
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {status.powerDraw} / {status.psuRating} W ({Math.round(status.powerPct)}%)
                 {status.powerOk ? ' ✓' : ' — over budget'}
               </span>
-              <div className={`pg-bar ${powerBarColor}`}>
-                <div className="fill" style={{ width: `${Math.min(100, status.powerPct)}%` }} />
+              <div className="h-2 w-40 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-[width]',
+                    powerBarColor === 'bad' ? 'bg-bad' : powerBarColor === 'warn' ? 'bg-warn' : 'bg-ok',
+                  )}
+                  style={{ width: `${Math.min(100, status.powerPct)}%` }}
+                />
               </div>
             </>
           )}
@@ -438,63 +457,80 @@ function SlotRow({ slot, entry, inv, onChange }: SlotRowProps) {
   const wattsLabel = slot.isPsu ? 'rating' : 'draw';
 
   return (
-    <tr>
-      <td className="col-slot">
-        <span className="pg-slot-name">{slot.label}</span>
-        {slot.isPsu ? <span className="pg-slot-tag mono">PSU</span> : null}
-        {!slot.required ? <span className="pg-slot-tag mono dim">optional</span> : null}
-      </td>
-      <td className="col-source">
-        <select
-          className="pg-select"
-          value={pickerValue}
-          onChange={(e) => onChange(() => parsePickerValue(e.target.value))}
-        >
-          <option value="empty">— Empty —</option>
-          {[...groups.entries()].map(([group, opts]) => (
-            <optgroup key={group} label={group}>
-              {opts.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </optgroup>
-          ))}
-          <option value="custom">Custom text…</option>
-        </select>
-      </td>
-      <td className="col-label">
+    <TableRow>
+      <TableCell>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-medium text-foreground">{slot.label}</span>
+          {slot.isPsu ? (
+            <Badge variant="secondary" className="font-mono text-[10px]">PSU</Badge>
+          ) : null}
+          {!slot.required ? (
+            <Badge variant="outline" className="text-[10px] text-muted-foreground">optional</Badge>
+          ) : null}
+        </div>
+      </TableCell>
+      <TableCell>
+        <Select value={pickerValue} onValueChange={(v) => onChange(() => parsePickerValue(v))}>
+          <SelectTrigger size="sm" className="w-full min-w-[200px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="empty">— Empty —</SelectItem>
+            {[...groups.entries()].map(([group, opts]) => (
+              <SelectGroup key={group}>
+                <SelectLabel>{group}</SelectLabel>
+                {opts.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+            <SelectItem value="custom">Custom text…</SelectItem>
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
         {entry.source === 'custom' ? (
-          <input
-            className="pg-custom-input"
+          <Input
+            className="h-8"
             placeholder="Type a part (e.g. MSI B850 Tomahawk WiFi)"
             value={entry.customText ?? ''}
             onChange={(e) => onChange((prev) => ({ ...prev, customText: e.target.value }))}
           />
         ) : (
-          <span className="pg-part-label">{resolveEntryLabel(entry, inv)}</span>
+          <span className="text-sm text-foreground">{resolveEntryLabel(entry, inv)}</span>
         )}
-      </td>
-      <td className="col-watts">
-        <input
-          type="number"
-          className="pg-watts"
-          inputMode="numeric"
-          min={0}
-          placeholder={slot.isPsu ? '850' : '—'}
-          value={entry.watts ?? ''}
-          onChange={(e) => {
-            const raw = e.target.value;
-            onChange((prev) => ({
-              ...prev,
-              watts: raw === '' ? undefined : Math.max(0, Number(raw) || 0),
-            }));
-          }}
-          aria-label={`${slot.label} ${wattsLabel} in watts`}
-        />
-      </td>
-      <td className={`col-status ${statusClass}`} aria-label={statusClass === 'ok' ? 'filled' : statusClass === 'bad' ? 'missing' : 'empty (optional)'}>
-        {statusGlyph}
-      </td>
-    </tr>
+      </TableCell>
+      <TableCell>
+        <div className="flex justify-end">
+          <Input
+            type="number"
+            className="h-8 w-20 text-right tabular-nums"
+            inputMode="numeric"
+            min={0}
+            placeholder={slot.isPsu ? '850' : '—'}
+            value={entry.watts ?? ''}
+            onChange={(e) => {
+              const raw = e.target.value;
+              onChange((prev) => ({
+                ...prev,
+                watts: raw === '' ? undefined : Math.max(0, Number(raw) || 0),
+              }));
+            }}
+            aria-label={`${slot.label} ${wattsLabel} in watts`}
+          />
+        </div>
+      </TableCell>
+      <TableCell className="text-center">
+        <span
+          className={cn(
+            'text-sm',
+            statusClass === 'ok' ? 'text-ok' : statusClass === 'bad' ? 'text-bad' : 'text-muted-foreground',
+          )}
+          aria-label={statusClass === 'ok' ? 'filled' : statusClass === 'bad' ? 'missing' : 'empty (optional)'}
+        >
+          {statusGlyph}
+        </span>
+      </TableCell>
+    </TableRow>
   );
 }
-

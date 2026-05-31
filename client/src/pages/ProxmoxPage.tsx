@@ -5,6 +5,11 @@ import {
 import { Donut } from '../components/charts';
 import { GPUTile } from '../components/widgets';
 import { BrandIcon } from '../components/icons/BrandIcon';
+import { SectionCard, DataTableCard, StatusBadge } from '@/components/common';
+import { spanClass } from '@/components/common';
+import { TableCell, TableHead, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
 import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '../lib/units';
 
@@ -38,10 +43,12 @@ function SensorChip({
   icon?: ReactNode;
 }) {
   return (
-    <div className="sensor-chip">
-      {icon ? <span className="icon-text" style={{ marginRight: 6 }}>{icon}</span> : null}
-      <span className="lbl">{label}</span>
-      <span className="val" style={color ? { color } : undefined}>{value}</span>
+    <div className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-sm">
+      {icon ? <span className="text-muted-foreground [&_svg]:size-3.5">{icon}</span> : null}
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="font-semibold tabular-nums" style={color ? { color } : undefined}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -74,12 +81,12 @@ function SensorSection({
   children: ReactNode;
 }) {
   return (
-    <div className="sensor-section">
-      <div className="section-head">
-        {icon}
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-2 text-[12px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+        <span className="[&_svg]:size-3.5">{icon}</span>
         {title}
       </div>
-      <div className="sensor-chips">{children}</div>
+      <div className="flex flex-wrap gap-2">{children}</div>
     </div>
   );
 }
@@ -117,32 +124,29 @@ function TempCard({
       : tempC >= warnAt
         ? 'warm'
         : 'normal';
-  const pillKind = !known ? '' : tempC >= badAt ? 'bad' : tempC >= warnAt ? 'warn' : 'ok';
+  const pillKind = !known ? 'idle' : tempC >= badAt ? 'bad' : tempC >= warnAt ? 'warn' : 'ok';
   return (
-    <div className="tile span-4">
-      <div className="t-head">
-        <div className="t-title">{icon}{title}</div>
-        <span className={`pill ${pillKind}`}><span className="dot" />{statusLabel}</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 8 }}>
-        <div
-          className="tnum mono"
-          style={{
-            fontSize: 56,
-            fontWeight: 600,
-            lineHeight: 1,
-            color,
-            letterSpacing: '-0.02em',
-          }}
+    <SectionCard
+      span={4}
+      title={
+        <span className="flex items-center gap-1.5">
+          {icon}
+          {title}
+        </span>
+      }
+      actions={<StatusBadge kind={pillKind}>{statusLabel}</StatusBadge>}
+    >
+      <div className="flex items-baseline gap-1">
+        <span
+          className="font-mono text-[56px] leading-none font-semibold tracking-tight tabular-nums"
+          style={{ color }}
         >
           {shownTemp}
-        </div>
-        <div style={{ fontSize: 22, color: 'var(--ink-3)', fontWeight: 500 }}>
-          {tempSuffix(unit)}
-        </div>
+        </span>
+        <span className="text-[22px] font-medium text-muted-foreground">{tempSuffix(unit)}</span>
       </div>
-      <div className="t-sub" style={{ marginTop: 4 }}>{sub}</div>
-    </div>
+      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
+    </SectionCard>
   );
 }
 
@@ -168,9 +172,12 @@ function MetricCard({
   warn?: boolean;
 }) {
   return (
-    <div className="tile span-3">
-      <div className="t-title">{icon}{title}</div>
-      <div className="metric-row" style={{ alignItems: 'center', gap: 16 }}>
+    <div className={cn('flex flex-col gap-3 rounded-xl border border-border bg-card p-[var(--pad)] shadow-card', spanClass(3))}>
+      <div className="flex items-center gap-1.5 text-[12.5px] font-semibold tracking-wide text-muted-foreground">
+        {icon}
+        {title}
+      </div>
+      <div className="flex items-center gap-4">
         <Donut
           value={value}
           max={max}
@@ -178,9 +185,9 @@ function MetricCard({
           sub={donutSub}
           color={warn ? 'var(--warn)' : 'var(--accent)'}
         />
-        <div className="meta flex1">
-          <div className="v">{primary}</div>
-          {secondary && <div className="lbl">{secondary}</div>}
+        <div className="min-w-0 flex-1">
+          <div className="font-medium text-foreground">{primary}</div>
+          {secondary && <div className="text-sm text-muted-foreground">{secondary}</div>}
         </div>
       </div>
     </div>
@@ -199,37 +206,38 @@ function Compute({ data }: { data: DashboardState }) {
   const runningCount = data.proxmox.vms.filter((v) => v.state === 'running').length;
   const totalCount = data.proxmox.vms.length;
 
+  const fact = (label: string, value: ReactNode) => (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm font-medium text-foreground">{value}</span>
+    </div>
+  );
+
   return (
-    <div className="grid">
-      <div className="tile span-12">
-        <div className="metric-row" style={{ alignItems: 'center', gap: 32, flexWrap: 'wrap' }}>
-          <div>
-            <div className="t-title"><BrandIcon name="proxmox" alt="Proxmox" /> Node</div>
-            <div className="t-big" style={{ marginTop: 4 }}>{n.name}</div>
-            <div className="t-sub" style={{ marginTop: 4 }}>{n.cpuModel}</div>
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <SectionCard span={12}>
+        <div className="flex flex-wrap items-center gap-x-10 gap-y-6">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-[12.5px] font-semibold tracking-wide text-muted-foreground">
+              <BrandIcon name="proxmox" alt="Proxmox" /> Node
+            </div>
+            <div className="mt-1 font-display text-2xl font-semibold text-foreground">{n.name}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{n.cpuModel}</div>
           </div>
-          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-            <div>
-              <div className="t-sub">IP address</div>
-              <div className="mono" style={{ fontSize: 14, marginTop: 4 }}>{n.ip ?? '—'}</div>
-            </div>
-            <div>
-              <div className="t-sub">Version</div>
-              <div style={{ fontSize: 14, marginTop: 4, fontWeight: 500 }}>PVE {n.version}</div>
-            </div>
-            <div>
-              <div className="t-sub">Uptime</div>
-              <div style={{ fontSize: 14, marginTop: 4, fontWeight: 500 }}>{n.uptime}</div>
-            </div>
-            <div>
-              <div className="t-sub">Guests</div>
-              <div style={{ fontSize: 14, marginTop: 4, fontWeight: 500 }}>
-                {runningCount}<span style={{ color: 'var(--ink-3)' }}> running / {totalCount} total</span>
-              </div>
-            </div>
+          <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
+            {fact('IP address', <span className="font-mono">{n.ip ?? '—'}</span>)}
+            {fact('Version', `PVE ${n.version}`)}
+            {fact('Uptime', n.uptime)}
+            {fact(
+              'Guests',
+              <>
+                {runningCount}
+                <span className="text-muted-foreground"> running / {totalCount} total</span>
+              </>,
+            )}
           </div>
         </div>
-      </div>
+      </SectionCard>
 
       <MetricCard
         title="CPU Usage"
@@ -312,66 +320,58 @@ function Guests({ data }: { data: DashboardState }) {
   const vms = data.proxmox.vms;
   const running = vms.filter((v) => v.state === 'running').length;
   return (
-    <div className="grid">
-      <div className="tile span-12">
-        <div className="t-head">
-          <div className="t-title"><Server size={14} strokeWidth={1.75} />VMs &amp; LXCs <span className="t-sub">· {running}/{vms.length} running</span></div>
-        </div>
-        {vms.length === 0 ? (
-          <div className="page-empty">No virtual machines or containers detected</div>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>State</th>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Type</th>
-                <th>IP</th>
-                <th className="num">CPU</th>
-                <th className="num">RAM</th>
-                <th className="num">Disk</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vms.map((v) => {
-                const stateClass = v.state === 'stopped' ? 'idle' : v.state === 'paused' ? 'warn' : 'ok';
-                const pillKind = v.state === 'stopped' ? '' : v.state === 'paused' ? 'warn' : 'ok';
-                const isLxc = /lxc|ct|container/i.test(v.type);
-                const TypeIcon = isLxc ? Box : Server;
-                return (
-                  <tr key={v.id}>
-                    <td>
-                      <span className={`pill ${pillKind}`}>
-                        <span className={`dot ${stateClass}`} />
-                        {v.state}
-                      </span>
-                    </td>
-                    <td className="tnum">{v.id}</td>
-                    <td>{v.name}</td>
-                    <td className="muted">
-                      <span className="icon-text">
-                        <TypeIcon size={13} strokeWidth={1.75} />
-                        {v.type}
-                      </span>
-                    </td>
-                    <td className="mono">{v.ip ?? <span className="muted">—</span>}</td>
-                    <td className="tnum num">{v.cpu.toFixed(1)}%</td>
-                    <td className="tnum num">{v.ram}%</td>
-                    <td className="tnum num">{v.disk} GB</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <DataTableCard
+        span={12}
+        title="VMs & LXCs"
+        sub={`${running}/${vms.length} running`}
+        icon={<Server size={14} strokeWidth={1.75} />}
+        isEmpty={vms.length === 0}
+        empty="No virtual machines or containers detected"
+        head={
+          <>
+            <TableHead>State</TableHead>
+            <TableHead>ID</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>IP</TableHead>
+            <TableHead className="text-right">CPU</TableHead>
+            <TableHead className="text-right">RAM</TableHead>
+            <TableHead className="text-right">Disk</TableHead>
+          </>
+        }
+      >
+        {vms.map((v) => {
+          const pillKind = v.state === 'stopped' ? 'idle' : v.state === 'paused' ? 'warn' : 'ok';
+          const isLxc = /lxc|ct|container/i.test(v.type);
+          const TypeIcon = isLxc ? Box : Server;
+          return (
+            <TableRow key={v.id}>
+              <TableCell>
+                <StatusBadge kind={pillKind}>{v.state}</StatusBadge>
+              </TableCell>
+              <TableCell className="tabular-nums text-muted-foreground">{v.id}</TableCell>
+              <TableCell className="font-medium text-foreground">{v.name}</TableCell>
+              <TableCell className="text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <TypeIcon size={13} strokeWidth={1.75} />
+                  {v.type}
+                </span>
+              </TableCell>
+              <TableCell className="font-mono text-muted-foreground">{v.ip ?? '—'}</TableCell>
+              <TableCell className="text-right tabular-nums">{v.cpu.toFixed(1)}%</TableCell>
+              <TableCell className="text-right tabular-nums">{v.ram}%</TableCell>
+              <TableCell className="text-right tabular-nums">{v.disk} GB</TableCell>
+            </TableRow>
+          );
+        })}
+      </DataTableCard>
     </div>
   );
 }
 
-function zfsPillKind(health: string | null): '' | 'ok' | 'warn' | 'bad' {
-  if (!health) return '';
+function zfsPillKind(health: string | null): 'idle' | 'ok' | 'warn' | 'bad' {
+  if (!health) return 'idle';
   const normalized = health.toUpperCase();
   if (normalized === 'ONLINE') return 'ok';
   if (normalized === 'DEGRADED') return 'warn';
@@ -384,13 +384,17 @@ function Storage({ data }: { data: DashboardState }) {
   const disks = data.proxmox.disks;
   const totalBytes = disks.reduce((sum, d) => sum + d.sizeBytes, 0);
   return (
-    <div className="grid">
-      <div className="tile span-4">
-        <div className="t-title">
-          <Disc size={14} strokeWidth={1.75} {...throbProps(n.storagePct > 90)} />
-          Storage Usage
-        </div>
-        <div className="metric-row" style={{ alignItems: 'center', gap: 24 }}>
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <SectionCard
+        span={4}
+        title={
+          <span className="flex items-center gap-1.5">
+            <Disc size={14} strokeWidth={1.75} {...throbProps(n.storagePct > 90)} />
+            Storage Usage
+          </span>
+        }
+      >
+        <div className="flex items-center gap-6">
           <Donut
             value={n.storagePct}
             max={100}
@@ -398,135 +402,119 @@ function Storage({ data }: { data: DashboardState }) {
             sub="used"
             color={n.storagePct > 90 ? 'var(--bad)' : n.storagePct > 75 ? 'var(--warn)' : 'var(--accent)'}
           />
-          <div className="meta flex1">
-            <div className="v" style={{ fontSize: 18 }}>
-              {n.storageUsedTB.toFixed(2)} TB <span style={{ color: 'var(--ink-3)' }}>of</span>{' '}
+          <div className="min-w-0 flex-1">
+            <div className="text-lg font-medium text-foreground">
+              {n.storageUsedTB.toFixed(2)} TB <span className="text-muted-foreground">of</span>{' '}
               {n.storageTotalTB.toFixed(2)} TB
             </div>
-            <div className="lbl">
+            <div className="text-sm text-muted-foreground">
               {(n.storageTotalTB - n.storageUsedTB).toFixed(2)} TB free
             </div>
           </div>
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="tile span-8">
-        <div className="t-head">
-          <div className="t-title">
-            <Disc size={14} strokeWidth={1.75} />
-            Storage Backends <span className="t-sub">· {storages.length}</span>
-          </div>
-        </div>
-        {storages.length === 0 ? (
-          <div className="page-empty">No Proxmox storage backends reported</div>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Content</th>
-                <th>ZFS</th>
-                <th className="num">Used</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {storages.map((s) => {
-                const pct = s.totalTB > 0 ? (s.usedTB / s.totalTB) * 100 : 0;
-                const pillKind = s.active ? 'ok' : 'warn';
-                const zfsKind = zfsPillKind(s.zfsHealth);
-                return (
-                  <tr key={s.name}>
-                    <td className="mono">{s.name}</td>
-                    <td className="muted">{s.type}</td>
-                    <td>{s.content || <span className="muted">—</span>}</td>
-                    <td>
-                      {s.zfsHealth ? (
-                        <span className={`pill ${zfsKind}`}>
-                          <span className="dot" />
-                          {s.zfsHealth}
-                        </span>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td className="tnum num">
-                      {s.totalTB > 0 ? `${pct.toFixed(0)}%` : '—'}
-                    </td>
-                    <td>
-                      <span className={`pill ${pillKind}`}>
-                        <span className="dot" />
-                        {s.active ? 'active' : 'inactive'}
-                      </span>
-                      {s.shared ? <span className="t-tag" style={{ marginLeft: 6 }}>shared</span> : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <DataTableCard
+        span={8}
+        title="Storage Backends"
+        sub={storages.length}
+        icon={<Disc size={14} strokeWidth={1.75} />}
+        isEmpty={storages.length === 0}
+        empty="No Proxmox storage backends reported"
+        head={
+          <>
+            <TableHead>Name</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Content</TableHead>
+            <TableHead>ZFS</TableHead>
+            <TableHead className="text-right">Used</TableHead>
+            <TableHead>Status</TableHead>
+          </>
+        }
+      >
+        {storages.map((s) => {
+          const pct = s.totalTB > 0 ? (s.usedTB / s.totalTB) * 100 : 0;
+          const zfsKind = zfsPillKind(s.zfsHealth);
+          return (
+            <TableRow key={s.name}>
+              <TableCell className="font-mono">{s.name}</TableCell>
+              <TableCell className="text-muted-foreground">{s.type}</TableCell>
+              <TableCell>{s.content || <span className="text-muted-foreground">—</span>}</TableCell>
+              <TableCell>
+                {s.zfsHealth ? (
+                  <StatusBadge kind={zfsKind}>{s.zfsHealth}</StatusBadge>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{s.totalTB > 0 ? `${pct.toFixed(0)}%` : '—'}</TableCell>
+              <TableCell>
+                <span className="flex items-center gap-1.5">
+                  <StatusBadge kind={s.active ? 'ok' : 'warn'}>{s.active ? 'active' : 'inactive'}</StatusBadge>
+                  {s.shared ? (
+                    <Badge variant="secondary" className="lowercase">
+                      shared
+                    </Badge>
+                  ) : null}
+                </span>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </DataTableCard>
 
-      <div className="tile span-12">
-        <div className="t-head">
-          <div className="t-title">
-            <HardDrive size={14} strokeWidth={1.75} />
-            Physical Drives <span className="t-sub">· {disks.length} drives · {formatBytes(totalBytes)} total</span>
-          </div>
-        </div>
-        {disks.length === 0 ? (
-          <div className="page-empty">No physical drives reported</div>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Device</th>
-                <th>Model</th>
-                <th>Type</th>
-                <th className="num">Size</th>
-                <th>Used by</th>
-                <th>Health</th>
-                <th className="num">Wear</th>
-              </tr>
-            </thead>
-            <tbody>
-              {disks.map((d) => {
-                const healthOk = d.health === 'PASSED';
-                const healthBad = d.health === 'FAILED';
-                const healthColor = healthOk ? 'var(--ok)' : healthBad ? 'var(--bad)' : 'var(--ink-3)';
-                const typeLabel =
-                  d.type === 'nvme'
-                    ? 'NVMe'
-                    : d.type === 'ssd'
-                      ? 'SSD'
-                      : d.type === 'hdd'
-                        ? `HDD${d.rpm > 0 ? ` · ${d.rpm} RPM` : ''}`
-                        : d.type === 'usb'
-                          ? 'USB'
-                          : d.type.toUpperCase();
-                return (
-                  <tr key={d.devpath}>
-                    <td className="mono">{d.devpath}</td>
-                    <td>
-                      {d.vendor && <span className="muted">{d.vendor} </span>}
-                      {d.model || <span className="muted">unknown</span>}
-                    </td>
-                    <td className="muted">{typeLabel}</td>
-                    <td className="tnum num">{formatBytes(d.sizeBytes)}</td>
-                    <td className="muted">{d.used || '—'}</td>
-                    <td style={{ color: healthColor }}>{d.health || '—'}</td>
-                    <td className="tnum num">
-                      {d.wearout != null ? `${d.wearout}%` : <span className="muted">—</span>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <DataTableCard
+        span={12}
+        title="Physical Drives"
+        sub={`${disks.length} drives · ${formatBytes(totalBytes)} total`}
+        icon={<HardDrive size={14} strokeWidth={1.75} />}
+        isEmpty={disks.length === 0}
+        empty="No physical drives reported"
+        head={
+          <>
+            <TableHead>Device</TableHead>
+            <TableHead>Model</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead className="text-right">Size</TableHead>
+            <TableHead>Used by</TableHead>
+            <TableHead>Health</TableHead>
+            <TableHead className="text-right">Wear</TableHead>
+          </>
+        }
+      >
+        {disks.map((d) => {
+          const healthOk = d.health === 'PASSED';
+          const healthBad = d.health === 'FAILED';
+          const typeLabel =
+            d.type === 'nvme'
+              ? 'NVMe'
+              : d.type === 'ssd'
+                ? 'SSD'
+                : d.type === 'hdd'
+                  ? `HDD${d.rpm > 0 ? ` · ${d.rpm} RPM` : ''}`
+                  : d.type === 'usb'
+                    ? 'USB'
+                    : d.type.toUpperCase();
+          return (
+            <TableRow key={d.devpath}>
+              <TableCell className="font-mono">{d.devpath}</TableCell>
+              <TableCell>
+                {d.vendor && <span className="text-muted-foreground">{d.vendor} </span>}
+                {d.model || <span className="text-muted-foreground">unknown</span>}
+              </TableCell>
+              <TableCell className="text-muted-foreground">{typeLabel}</TableCell>
+              <TableCell className="text-right tabular-nums">{formatBytes(d.sizeBytes)}</TableCell>
+              <TableCell className="text-muted-foreground">{d.used || '—'}</TableCell>
+              <TableCell className={healthOk ? 'text-ok' : healthBad ? 'text-bad' : 'text-muted-foreground'}>
+                {d.health || '—'}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {d.wearout != null ? `${d.wearout}%` : <span className="text-muted-foreground">—</span>}
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </DataTableCard>
     </div>
   );
 }
@@ -540,46 +528,30 @@ function Sensors({ data }: { data: DashboardState }) {
     data.sensors.fans.some((f) => f.rpm > 0);
 
   return (
-    <div className="grid">
-      <div className="tile span-12">
-        <div className="t-title"><Thermometer size={14} strokeWidth={1.75} />Hardware Sensors</div>
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <SectionCard span={12} title="Hardware Sensors" icon={<Thermometer size={14} strokeWidth={1.75} />} bodyClassName="flex flex-col gap-5">
         {!hasAny ? (
-          <div className="page-empty">No hardware sensors detected</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">No hardware sensors detected</div>
         ) : (
           <>
             {data.sensors.disks.length > 0 && (
               <SensorSection title="Drives" icon={<HardDrive size={14} strokeWidth={1.75} />}>
                 {data.sensors.disks.map((d) => (
-                  <SensorChip
-                    key={d.name}
-                    label={d.name}
-                    value={fmtTemp(d.tempC, unit)}
-                    color={tempColor(d.tempC, 60, 70)}
-                  />
+                  <SensorChip key={d.name} label={d.name} value={fmtTemp(d.tempC, unit)} color={tempColor(d.tempC, 60, 70)} />
                 ))}
               </SensorSection>
             )}
             {data.sensors.memory.length > 0 && (
               <SensorSection title="Memory" icon={<MemoryStick size={14} strokeWidth={1.75} />}>
                 {data.sensors.memory.map((m) => (
-                  <SensorChip
-                    key={m.name}
-                    label={m.name}
-                    value={fmtTemp(m.tempC, unit)}
-                    color={tempColor(m.tempC, 55, 70)}
-                  />
+                  <SensorChip key={m.name} label={m.name} value={fmtTemp(m.tempC, unit)} color={tempColor(m.tempC, 55, 70)} />
                 ))}
               </SensorSection>
             )}
             {data.sensors.network.length > 0 && (
               <SensorSection title="Network" icon={<Network size={14} strokeWidth={1.75} />}>
                 {data.sensors.network.map((nic) => (
-                  <SensorChip
-                    key={nic.name}
-                    label={nic.name}
-                    value={fmtTemp(nic.tempC, unit)}
-                    color={tempColor(nic.tempC, 70, 85)}
-                  />
+                  <SensorChip key={nic.name} label={nic.name} value={fmtTemp(nic.tempC, unit)} color={tempColor(nic.tempC, 70, 85)} />
                 ))}
               </SensorSection>
             )}
@@ -599,7 +571,7 @@ function Sensors({ data }: { data: DashboardState }) {
             )}
           </>
         )}
-      </div>
+      </SectionCard>
     </div>
   );
 }

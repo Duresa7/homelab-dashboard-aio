@@ -8,8 +8,9 @@ export function Clock() {
   }, []);
   const pad = (n: number) => String(n).padStart(2, '0');
   return (
-    <div className="tb-clock">
-      {pad(t.getHours())}:{pad(t.getMinutes())}:{pad(t.getSeconds())}
+    <div className="hidden font-mono text-[13px] tabular-nums text-muted-foreground md:block">
+      {pad(t.getHours())}:{pad(t.getMinutes())}
+      <span className="opacity-50">:{pad(t.getSeconds())}</span>
     </div>
   );
 }

@@ -1,4 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { StatusBadge } from '@/components/common';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { INTEGRATIONS } from '../lib/integrations';
 import type { IntegrationKey } from '../lib/telemetry';
 
@@ -37,9 +48,9 @@ function statusKind(p: ProbeResult | undefined, clientEnabled: boolean) {
 
 function fmtLatency(ms: number | null): { label: string; kind: '' | 'warn' | 'bad' } {
   if (ms == null) return { label: '—', kind: '' };
-  if (ms >= 2000) return { label: `${ms} ms`, kind: 'bad' };
-  if (ms >= 750) return { label: `${ms} ms`, kind: 'warn' };
-  return { label: `${ms} ms`, kind: '' };
+  if (ms >= 2000) return { label: `${ms} ms`, kind: 'bad' };
+  if (ms >= 750) return { label: `${ms} ms`, kind: 'warn' };
+  return { label: `${ms} ms`, kind: '' };
 }
 
 function fmtStamp(iso: string | null): string {
@@ -86,23 +97,23 @@ export function HealthPage({ integrations }: Props) {
   const probes = data?.integrations ?? {};
 
   return (
-    <div className="page">
-      <div className="health-summary">
-        <div className="hs-meta">
-          <div className="hs-title">
-            API Health
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5 shadow-card">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-display text-lg tracking-tight text-foreground">API Health</h2>
             {summary ? (
-              <span className="hs-counts">
-                <span className="pill ok"><span className="dot" />{summary.ok}&nbsp;ok</span>
-                <span className="pill bad"><span className="dot" />{summary.down}&nbsp;down</span>
-                <span className="pill info"><span className="dot" />{summary.skipped}&nbsp;skipped</span>
-              </span>
+              <div className="flex flex-wrap gap-1.5">
+                <StatusBadge kind="ok">{summary.ok} ok</StatusBadge>
+                <StatusBadge kind="bad">{summary.down} down</StatusBadge>
+                <StatusBadge kind="info">{summary.skipped} skipped</StatusBadge>
+              </div>
             ) : null}
           </div>
-          <div className="hs-stamp">
+          <div className="text-xs text-muted-foreground">
             {data ? (
               <>
-                Last checked <b>{fmtStamp(data.checkedAt)}</b>
+                Last checked <b className="font-medium text-foreground">{fmtStamp(data.checkedAt)}</b>
                 {data.fromCache ? <> · cached ({fmtAge(data.ageMs)})</> : <> · live</>}
                 {data.cacheTtlMs ? <> · ttl {Math.round(data.cacheTtlMs / 1000)}s</> : null}
               </>
@@ -115,38 +126,29 @@ export function HealthPage({ integrations }: Props) {
             )}
           </div>
         </div>
-        <div className="hs-actions">
-          <button
-            type="button"
-            className="btn"
-            onClick={() => load(false)}
-            disabled={loading}
-          >
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => load(false)} disabled={loading}>
             Refresh
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => load(true)}
-            disabled={loading}
-          >
+          </Button>
+          <Button size="sm" onClick={() => load(true)} disabled={loading}>
+            <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
             Re-check now
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="health-table-wrap">
-        <table className="health-table">
-          <thead>
-            <tr>
-              <th>Integration</th>
-              <th>Status</th>
-              <th className="num">Latency</th>
-              <th>Last error</th>
-              <th>Checked</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Integration</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Latency</TableHead>
+              <TableHead>Last error</TableHead>
+              <TableHead>Checked</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {INTEGRATIONS.map((def) => {
               const clientEnabled = !!integrations[def.key];
               const p = probes[def.healthField];
@@ -154,36 +156,29 @@ export function HealthPage({ integrations }: Props) {
               const lat = fmtLatency(p?.latencyMs ?? null);
               const isDown = p?.status === 'down';
               return (
-                <tr key={def.key}>
-                  <td>
-                    <div className="h-name">
-                      <b>{def.label}</b>
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`pill ${s.kind}`}>
-                      <span className="dot" />
-                      {s.label}
+                <TableRow key={def.key}>
+                  <TableCell className="font-medium text-foreground">{def.label}</TableCell>
+                  <TableCell>
+                    <StatusBadge kind={s.kind}>{s.label}</StatusBadge>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <span className={lat.kind === 'bad' ? 'text-bad' : lat.kind === 'warn' ? 'text-warn' : 'text-muted-foreground'}>
+                      {lat.label}
                     </span>
-                  </td>
-                  <td className="num">
-                    <span className={`h-lat ${lat.kind}`}>{lat.label}</span>
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell className="max-w-[320px]">
                     {isDown && p?.error ? (
-                      <code className="h-err bad" title={p.error}>{p.error}</code>
+                      <code className="block truncate font-mono text-xs text-bad" title={p.error}>{p.error}</code>
                     ) : (
-                      <span className="h-err">—</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
-                  </td>
-                  <td>
-                    <span className="h-stamp">{fmtStamp(p?.checkedAt ?? null)}</span>
-                  </td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">{fmtStamp(p?.checkedAt ?? null)}</TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

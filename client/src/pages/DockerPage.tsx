@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Play, Square, Server, Layers } from 'lucide-react';
 import { BrandIcon } from '../components/icons/BrandIcon';
+import { SectionCard, StatCard, StatList, StatRow, StatusBadge, Segmented } from '@/components/common';
+import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
 
 interface Props {
@@ -14,76 +16,71 @@ function Hosts({ data }: { data: DashboardState }) {
   const stacks = [...new Set(c.map((x) => x.stack))];
   const running = c.filter((x) => x.state === 'running').length;
   const stopped = c.length - running;
-  return (
-    <div className="grid">
-      <div className="tile span-3">
-        <div className="t-title"><Play size={14} strokeWidth={1.75} />Running</div>
-        <div className="t-big" style={{ color: 'var(--ok)' }}>{running}</div>
-        <div className="t-sub">of {c.length} containers</div>
-      </div>
-      <div className="tile span-3">
-        <div className="t-title"><Square size={14} strokeWidth={1.75} />Stopped</div>
-        <div className="t-big" style={{ color: stopped > 0 ? 'var(--warn)' : 'var(--ink-3)' }}>{stopped}</div>
-        <div className="t-sub">{stopped === 0 ? 'all healthy' : 'not running'}</div>
-      </div>
-      <div className="tile span-3">
-        <div className="t-title"><Server size={14} strokeWidth={1.75} />Hosts</div>
-        <div className="t-big">{hosts.length}</div>
-        <div className="t-sub">{hosts.map((h) => h.name).join(' · ')}</div>
-      </div>
-      <div className="tile span-3">
-        <div className="t-title"><Layers size={14} strokeWidth={1.75} />Stacks</div>
-        <div className="t-big">{stacks.length}</div>
-        <div className="t-sub">{stacks.join(', ')}</div>
-      </div>
 
-      <div className="tile span-12">
-        <div className="t-title"><BrandIcon name="docker" alt="Docker" /> Docker hosts</div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(${Math.min(Math.max(hosts.length, 1), 3)}, 1fr)`,
-            gap: 12,
-            marginTop: 8,
-          }}
-        >
-          {hosts.map((h) => {
-            const list = c.filter((x) => x.host === h.id);
-            const up = list.filter((x) => x.state === 'running').length;
-            const hostOk = h.status === 'online';
-            return (
-              <div
-                key={h.id}
-                style={{
-                  border: '1px solid var(--line)',
-                  borderRadius: 'var(--radius)',
-                  padding: 14,
-                  background: 'var(--surface-2)',
-                }}
-              >
-                <div className="between">
-                  <div style={{ fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className={`status-dot ${hostOk ? 'ok' : 'bad'}`} />
-                    {h.name}
-                  </div>
-                  <span className={`pill ${hostOk ? 'ok' : 'bad'}`}>
-                    <span className="dot" />
-                    {hostOk ? 'online' : 'offline'}
-                  </span>
+  return (
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <StatCard
+        span={3}
+        tone="ok"
+        icon={<Play strokeWidth={1.75} />}
+        label="Running"
+        value={running}
+        hint={`of ${c.length} containers`}
+      />
+      <StatCard
+        span={3}
+        tone={stopped > 0 ? 'warn' : 'default'}
+        icon={<Square strokeWidth={1.75} />}
+        label="Stopped"
+        value={stopped}
+        hint={stopped === 0 ? 'all healthy' : 'not running'}
+      />
+      <StatCard
+        span={3}
+        icon={<Server strokeWidth={1.75} />}
+        label="Hosts"
+        value={hosts.length}
+        hint={hosts.map((h) => h.name).join(' · ')}
+      />
+      <StatCard
+        span={3}
+        icon={<Layers strokeWidth={1.75} />}
+        label="Stacks"
+        value={stacks.length}
+        hint={stacks.join(', ')}
+      />
+
+      <SectionCard
+        span={12}
+        title="Docker hosts"
+        icon={<BrandIcon name="docker" alt="Docker" />}
+        bodyClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      >
+        {hosts.map((h) => {
+          const list = c.filter((x) => x.host === h.id);
+          const up = list.filter((x) => x.state === 'running').length;
+          const hostOk = h.status === 'online';
+          return (
+            <div key={h.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2 text-[15px] font-semibold text-foreground">
+                  <span className={cn('size-2 shrink-0 rounded-full', hostOk ? 'bg-ok' : 'bg-bad')} />
+                  <span className="truncate">{h.name}</span>
                 </div>
-                <div className="t-sub" style={{ marginTop: 4 }}>
-                  {h.addr} · {h.os} · engine {h.engine}
-                </div>
-                <dl className="kv" style={{ marginTop: 12 }}>
-                  <dt>Containers</dt><dd>{up}/{list.length}</dd>
-                  <dt>CPU</dt><dd>{h.cpu}%</dd>
-                  <dt>RAM</dt><dd>{h.ram}%</dd>
-                </dl>
+                <StatusBadge kind={hostOk ? 'ok' : 'bad'}>{hostOk ? 'online' : 'offline'}</StatusBadge>
               </div>
-            );
-          })}
-        </div>
-      </div>
+              <div className="truncate text-xs text-muted-foreground">
+                {h.addr} · {h.os} · engine {h.engine}
+              </div>
+              <StatList>
+                <StatRow label="Containers" value={`${up}/${list.length}`} />
+                <StatRow label="CPU" value={`${h.cpu}%`} />
+                <StatRow label="RAM" value={`${h.ram}%`} />
+              </StatList>
+            </div>
+          );
+        })}
+      </SectionCard>
     </div>
   );
 }
@@ -103,61 +100,29 @@ function Containers({ data }: { data: DashboardState }) {
   const visibleHosts = hosts.filter((h) => hostFilter === 'all' || hostFilter === h.id);
 
   return (
-    <div className="grid">
-      <div className="tile span-12">
-        <div className="t-head">
-          <div className="t-title">Filter</div>
-          <div className="t-sub">{filtered.length} containers</div>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div className="t-sub" style={{ fontFamily: 'var(--font-sans)' }}>host</div>
-            <div className="chart-pick">
-              <button
-                className={hostFilter === 'all' ? 'is-on' : ''}
-                onClick={() => setHostFilter('all')}
-                style={{ width: 'auto', padding: '0 12px', fontSize: 12 }}
-              >
-                all
-              </button>
-              {hosts.map((h) => (
-                <button
-                  key={h.id}
-                  className={hostFilter === h.id ? 'is-on' : ''}
-                  onClick={() => setHostFilter(h.id)}
-                  style={{ width: 'auto', padding: '0 12px', fontSize: 12 }}
-                >
-                  {h.name}
-                </button>
-              ))}
-            </div>
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <SectionCard span={12} title="Filter" sub={`${filtered.length} containers`}>
+        <div className="flex flex-wrap items-end gap-6">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground">host</span>
+            <Segmented
+              value={hostFilter}
+              onChange={setHostFilter}
+              options={[{ value: 'all', label: 'all' }, ...hosts.map((h) => ({ value: h.id, label: h.name }))]}
+            />
           </div>
           {allStacks.length > 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div className="t-sub" style={{ fontFamily: 'var(--font-sans)' }}>stack</div>
-              <div className="chart-pick">
-                <button
-                  className={stackFilter === 'all' ? 'is-on' : ''}
-                  onClick={() => setStackFilter('all')}
-                  style={{ width: 'auto', padding: '0 12px', fontSize: 12 }}
-                >
-                  all
-                </button>
-                {allStacks.map((s) => (
-                  <button
-                    key={s}
-                    className={stackFilter === s ? 'is-on' : ''}
-                    onClick={() => setStackFilter(s)}
-                    style={{ width: 'auto', padding: '0 12px', fontSize: 12 }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-muted-foreground">stack</span>
+              <Segmented
+                value={stackFilter}
+                onChange={setStackFilter}
+                options={[{ value: 'all', label: 'all' }, ...allStacks.map((s) => ({ value: s, label: s }))]}
+              />
             </div>
           )}
         </div>
-      </div>
+      </SectionCard>
 
       {visibleHosts.flatMap((h) => {
         const hostCs = filtered.filter((x) => x.host === h.id);
@@ -166,36 +131,47 @@ function Containers({ data }: { data: DashboardState }) {
         return hostStacks.map((s) => {
           const list = hostCs.filter((x) => x.stack === s);
           return (
-            <div key={`${h.id}/${s}`} className="tile span-6">
-              <div className="t-head">
-                <div className="t-title">
-                  <BrandIcon name="docker" alt="Docker" size={16} />
-                  {h.name} <span style={{ color: 'var(--ink-4)' }}>/</span> {s}
-                </div>
-                <div className="t-sub">{list.length} containers</div>
-              </div>
-              <div className="containers">
-                {list.map((x) => (
-                  <div key={x.name} className="container-card">
-                    <div className="name">
-                      <span className={`d ${x.state === 'stopped' ? 'idle' : x.state === 'paused' ? 'warn' : ''}`} />
-                      {x.name}
-                    </div>
-                    <div className="image">{x.image}</div>
-                    <div className="meta">cpu {x.cpu.toFixed(1)}% · {x.memMB} MB</div>
-                    <div className="meta" style={{ color: 'var(--ink-4)' }}>up {x.uptime}</div>
+            <SectionCard
+              key={`${h.id}/${s}`}
+              span={6}
+              icon={<BrandIcon name="docker" alt="Docker" size={16} />}
+              title={
+                <span className="flex items-center gap-1.5">
+                  {h.name} <span className="text-muted-foreground/50">/</span> {s}
+                </span>
+              }
+              sub={`${list.length} containers`}
+              bodyClassName="flex flex-col gap-2"
+            >
+              {list.map((x) => (
+                <div key={x.name} className="flex flex-col gap-0.5 rounded-lg border border-border p-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <span
+                      className={cn(
+                        'size-1.5 shrink-0 rounded-full',
+                        x.state === 'stopped' ? 'bg-idle' : x.state === 'paused' ? 'bg-warn' : 'bg-ok',
+                      )}
+                    />
+                    <span className="truncate">{x.name}</span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div className="truncate font-mono text-xs text-muted-foreground">{x.image}</div>
+                  <div className="text-xs tabular-nums text-muted-foreground">
+                    cpu {x.cpu.toFixed(1)}% · {x.memMB} MB
+                  </div>
+                  <div className="text-xs tabular-nums text-muted-foreground/70">up {x.uptime}</div>
+                </div>
+              ))}
+            </SectionCard>
           );
         });
       })}
 
       {filtered.length === 0 && (
-        <div className="tile span-12">
-          <div className="page-empty">No containers match the current filters</div>
-        </div>
+        <SectionCard span={12}>
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            No containers match the current filters
+          </div>
+        </SectionCard>
       )}
     </div>
   );

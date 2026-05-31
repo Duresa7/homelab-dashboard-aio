@@ -1,8 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+// globals.css imports components.css into a low-priority `legacy` cascade layer.
 import './styles/globals.css';
-import './styles/components.css';
 import { App } from './App';
 import { TempUnitProvider } from './lib/units';
 import { hydrateStore } from './lib/store';

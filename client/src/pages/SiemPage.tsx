@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Search } from 'lucide-react';
 
 import type {
   SiemStatus,
@@ -16,6 +17,10 @@ import {
   severityToUi,
   summary,
 } from '../lib/syslog';
+import { Segmented } from '@/components/common';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 type UiSeverity = 'info' | 'warn' | 'bad';
 type SeverityFilter = 'all' | UiSeverity;
@@ -44,6 +49,47 @@ function fmtAgo(ts: number): string {
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
   return `${Math.floor(diff / 86400_000)}d ago`;
+}
+
+type ChipKind = 'brand' | 'neutral' | 'ok' | 'warn' | 'bad' | 'info';
+
+const CHIP_ACTIVE: Record<ChipKind, string> = {
+  brand: 'border-[color-mix(in_oklab,var(--accent)_40%,transparent)] bg-[color-mix(in_oklab,var(--accent)_12%,transparent)] text-brand',
+  neutral: 'border-border bg-muted text-foreground',
+  ok: 'border-[color-mix(in_oklab,var(--ok)_35%,transparent)] bg-[color-mix(in_oklab,var(--ok)_12%,transparent)] text-ok',
+  warn: 'border-[color-mix(in_oklab,var(--warn)_35%,transparent)] bg-[color-mix(in_oklab,var(--warn)_12%,transparent)] text-warn',
+  bad: 'border-[color-mix(in_oklab,var(--bad)_35%,transparent)] bg-[color-mix(in_oklab,var(--bad)_12%,transparent)] text-bad',
+  info: 'border-[color-mix(in_oklab,var(--info)_35%,transparent)] bg-[color-mix(in_oklab,var(--info)_12%,transparent)] text-info',
+};
+
+function FilterChip({
+  active,
+  kind = 'neutral',
+  onClick,
+  count,
+  children,
+}: {
+  active: boolean;
+  kind?: ChipKind;
+  onClick: () => void;
+  count?: number;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+        active
+          ? CHIP_ACTIVE[kind]
+          : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground',
+      )}
+    >
+      {children}
+      {count != null ? <span className="tabular-nums opacity-70">{count}</span> : null}
+    </button>
+  );
 }
 
 export function SiemPage() {
@@ -205,142 +251,154 @@ export function SiemPage() {
   }, [categoryCounts]);
 
   return (
-    <div className="page">
+    <div className="flex flex-col gap-4">
       <SiemStatusBanner
         status={status}
         setupOpen={setupOpen}
         onToggleSetup={() => setSetupOpen((s) => !s)}
       />
 
-      <div className="logs-summary">
-        <div className="ls-meta">
-          <div className="ls-title">
-            SIEM
-            <span className="ls-count">
-              {device === 'all' ? 'All devices' : deviceKindLabel(device)}
-              {category !== 'all' ? ` · ${categoryLabel(category)}` : ''}
-              {' · '}{sevCounts.all} in last {range}
-            </span>
+      {/* Summary + stats */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5 shadow-card">
+        <div className="flex flex-col gap-1">
+          <h2 className="font-display text-lg tracking-tight text-foreground">SIEM</h2>
+          <div className="text-xs text-muted-foreground">
+            {device === 'all' ? 'All devices' : deviceKindLabel(device)}
+            {category !== 'all' ? ` · ${categoryLabel(category)}` : ''}
+            {' · '}
+            {sevCounts.all} in last {range}
           </div>
         </div>
-        <div className="ls-stats">
-          <Stat label="Errors" value={sevCounts.bad} kind="bad" />
-          <Stat label="Warnings" value={sevCounts.warn} kind="warn" />
-          <Stat label="Info" value={sevCounts.info} />
-          <Stat label="Newest" value={newest ? fmtAgo(newest.receivedAt) : '—'} mono />
+        <div className="flex items-center gap-6">
+          <SiemStat label="Errors" value={sevCounts.bad} tone="bad" />
+          <SiemStat label="Warnings" value={sevCounts.warn} tone="warn" />
+          <SiemStat label="Info" value={sevCounts.info} />
+          <SiemStat label="Newest" value={newest ? fmtAgo(newest.receivedAt) : '—'} mono />
         </div>
       </div>
 
-      <div className="logs-toolbar">
-        <div className="lt-chips">
-          <DeviceChip active={device === 'all'} onClick={() => setDevice('all')} accent>
-            All <span className="ct">{deviceCounts.all}</span>
-          </DeviceChip>
-          {(['gateway', 'ap', 'switch', 'controller', 'unknown'] as SyslogDeviceKind[]).map((k) => (
-            (deviceCounts[k] ?? 0) === 0 ? null : (
-              <DeviceChip key={k} active={device === k} onClick={() => setDevice(k)}>
-                {deviceKindLabel(k)} <span className="ct">{deviceCounts[k]}</span>
-              </DeviceChip>
-            )
-          ))}
-        </div>
-        <div className="lt-right">
-          <button
-            type="button"
-            className={`lt-chip ${liveTail ? 'is-on ok' : ''}`}
-            onClick={() => setLiveTail((v) => !v)}
-            title={liveTail ? 'Pause live updates' : 'Resume live updates'}
-          >
-            <span className={`status-dot ${liveTail ? 'ok' : 'warn'}`} />
-            {liveTail ? 'Live' : 'Paused'}
-          </button>
-          <div className="lt-range">
-            {(['1h', '24h', '7d', '30d'] as Range[]).map((r) => (
-              <button
-                key={r}
-                type="button"
-                className={r === range ? 'is-on' : ''}
-                onClick={() => setRange(r)}
-              >
-                {r}
-              </button>
-            ))}
+      {/* Filters */}
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <FilterChip active={device === 'all'} kind="brand" count={deviceCounts.all} onClick={() => setDevice('all')}>
+              All
+            </FilterChip>
+            {(['gateway', 'ap', 'switch', 'controller', 'unknown'] as SyslogDeviceKind[]).map((k) =>
+              (deviceCounts[k] ?? 0) === 0 ? null : (
+                <FilterChip key={k} active={device === k} count={deviceCounts[k]} onClick={() => setDevice(k)}>
+                  {deviceKindLabel(k)}
+                </FilterChip>
+              ),
+            )}
           </div>
-          <input
-            type="search"
-            className="lt-search"
-            placeholder="Filter messages, hosts, IPs…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setLiveTail((v) => !v)}
+              title={liveTail ? 'Pause live updates' : 'Resume live updates'}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                liveTail ? CHIP_ACTIVE.ok : 'border-border bg-card text-muted-foreground hover:bg-muted',
+              )}
+            >
+              <span className={cn('size-1.5 rounded-full', liveTail ? 'bg-ok icon-pulse' : 'bg-warn')} />
+              {liveTail ? 'Live' : 'Paused'}
+            </button>
+            <Segmented
+              value={range}
+              onChange={(v) => setRange(v as Range)}
+              options={(['1h', '24h', '7d', '30d'] as Range[]).map((r) => ({ value: r, label: r }))}
+            />
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Filter messages, hosts, IPs…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="h-8 w-56 pl-8"
+              />
+            </div>
+          </div>
         </div>
-      </div>
 
-      {visibleCategories.length > 0 ? (
-        <div className="logs-toolbar logs-toolbar-sub">
-          <div className="lt-chips">
-            <CategoryChip active={category === 'all'} onClick={() => setCategory('all')}>
-              All <span className="ct">{categoryCounts.all ?? 0}</span>
-            </CategoryChip>
+        {visibleCategories.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3">
+            <FilterChip active={category === 'all'} count={categoryCounts.all ?? 0} onClick={() => setCategory('all')}>
+              All
+            </FilterChip>
             {visibleCategories.map((c) => (
-              <CategoryChip key={c} active={category === c} onClick={() => setCategory(c)}>
-                {categoryLabel(c)} <span className="ct">{categoryCounts[c]}</span>
-              </CategoryChip>
+              <FilterChip key={c} active={category === c} count={categoryCounts[c]} onClick={() => setCategory(c)}>
+                {categoryLabel(c)}
+              </FilterChip>
             ))}
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      <div className="logs-toolbar logs-toolbar-sub">
-        <div className="lt-chips">
-          <SevChip active={severity === 'all'} onClick={() => setSeverity('all')}>
-            All <span className="ct">{sevCounts.all}</span>
-          </SevChip>
-          <SevChip active={severity === 'bad'} kind="bad" onClick={() => setSeverity('bad')}>
-            Errors <span className="ct">{sevCounts.bad}</span>
-          </SevChip>
-          <SevChip active={severity === 'warn'} kind="warn" onClick={() => setSeverity('warn')}>
-            Warnings <span className="ct">{sevCounts.warn}</span>
-          </SevChip>
-          <SevChip active={severity === 'info'} kind="info" onClick={() => setSeverity('info')}>
-            Info <span className="ct">{sevCounts.info}</span>
-          </SevChip>
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3">
+          <FilterChip active={severity === 'all'} count={sevCounts.all} onClick={() => setSeverity('all')}>
+            All
+          </FilterChip>
+          <FilterChip active={severity === 'bad'} kind="bad" count={sevCounts.bad} onClick={() => setSeverity('bad')}>
+            Errors
+          </FilterChip>
+          <FilterChip active={severity === 'warn'} kind="warn" count={sevCounts.warn} onClick={() => setSeverity('warn')}>
+            Warnings
+          </FilterChip>
+          <FilterChip active={severity === 'info'} kind="info" count={sevCounts.info} onClick={() => setSeverity('info')}>
+            Info
+          </FilterChip>
         </div>
       </div>
 
-      <div className="logs-table-wrap">
+      {/* Log list */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
         {loading ? (
-          <div className="logs-empty">Loading events…</div>
+          <div className="p-10 text-center text-sm text-muted-foreground">Loading events…</div>
         ) : loadError ? (
-          <div className="logs-empty">Failed to load: {loadError}</div>
+          <div className="p-10 text-center text-sm text-bad">Failed to load: {loadError}</div>
         ) : filtered.length === 0 ? (
-          <div className="logs-empty">
+          <div className="p-10 text-center text-sm text-muted-foreground">
             {events.length === 0
               ? 'No syslog events yet. Configure your UniFi controller to send remote syslog to this server.'
               : 'No entries match the current filters.'}
           </div>
         ) : (
-          <ol className="logs-list">
+          <ol className="flex flex-col">
             {filtered.map((e) => {
               const isOpen = expandedId === e.id;
               const ui = severityToUi(e.severity);
               return (
                 <li
                   key={e.id}
-                  className={`log-row ${isOpen ? 'is-open' : ''}`}
+                  className={cn(
+                    'cursor-pointer border-b border-border/60 transition-colors last:border-0 hover:bg-muted/50',
+                    isOpen && 'bg-muted/50',
+                  )}
                   onClick={() => setExpandedId(isOpen ? null : e.id)}
                 >
-                  <div className="lr-line">
-                    <span className="lr-ts" title={new Date(e.receivedAt).toLocaleString()}>
+                  <div className="flex items-center gap-3 px-4 py-2 text-sm">
+                    <span
+                      className="w-20 shrink-0 font-mono text-xs tabular-nums text-muted-foreground"
+                      title={new Date(e.receivedAt).toLocaleString()}
+                    >
                       {fmtTime(e.receivedAt)}
                     </span>
-                    <span className={`status-dot ${ui}`} />
-                    <span className={`lr-source src-${e.deviceKind}`}>
+                    <span
+                      className={cn(
+                        'size-2 shrink-0 rounded-full',
+                        ui === 'bad' ? 'bg-bad' : ui === 'warn' ? 'bg-warn' : 'bg-info',
+                      )}
+                    />
+                    <span className="w-24 shrink-0 truncate text-xs font-medium text-foreground">
                       {deviceKindLabel(e.deviceKind)}
                     </span>
-                    <span className="lr-comp">{componentLabel(e)}</span>
-                    <span className="lr-msg">{summary(e)}</span>
-                    <span className="lr-ago">{fmtAgo(e.receivedAt)}</span>
+                    <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
+                      {componentLabel(e)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{summary(e)}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtAgo(e.receivedAt)}</span>
                   </div>
                   {isOpen ? <SiemDetail evt={e} /> : null}
                 </li>
@@ -366,31 +424,33 @@ function SiemDetail({ evt }: { evt: SyslogEvent }) {
   ];
   if (evt.logTime) facts.push(['Log time', new Date(evt.logTime).toLocaleString()]);
 
+  const Facts = ({ entries }: { entries: [string, string][] }) => (
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
+      {entries.map(([k, v]) => (
+        <div key={k} className="flex flex-col gap-0.5">
+          <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">{k}</dt>
+          <dd className="text-sm break-words text-foreground">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+  const heading = (t: string) => (
+    <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{t}</div>
+  );
+
   return (
-    <div className="siem-detail">
-      <dl className="siem-facts">
-        {facts.map(([k, v]) => (
-          <div key={k} className="siem-fact">
-            <dt>{k}</dt>
-            <dd>{v}</dd>
-          </div>
-        ))}
-      </dl>
+    <div className="flex flex-col gap-3 border-t border-border bg-muted/30 px-4 py-3">
+      <Facts entries={facts} />
       {evt.extra && Object.keys(evt.extra).length > 0 ? (
         <>
-          <div className="siem-detail-h">CEF fields</div>
-          <dl className="siem-facts">
-            {Object.entries(evt.extra).map(([k, v]) => (
-              <div key={k} className="siem-fact">
-                <dt>{k}</dt>
-                <dd>{String(v)}</dd>
-              </div>
-            ))}
-          </dl>
+          {heading('CEF fields')}
+          <Facts entries={Object.entries(evt.extra).map(([k, v]) => [k, String(v)] as [string, string])} />
         </>
       ) : null}
-      <div className="siem-detail-h">Raw</div>
-      <pre className="lr-detail">{evt.raw}</pre>
+      {heading('Raw')}
+      <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs break-all whitespace-pre-wrap text-foreground">
+        {evt.raw}
+      </pre>
     </div>
   );
 }
@@ -404,38 +464,40 @@ function SiemStatusBanner({
   setupOpen: boolean;
   onToggleSetup: () => void;
 }) {
+  const shell = 'flex flex-wrap items-center gap-3 rounded-xl border border-border border-l-4 bg-card p-4 shadow-card';
+  const code = 'rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground';
+
   if (!status) {
     return (
-      <div className="siem-status">
-        <span className="status-dot info" />
-        <span className="ss-text">Connecting to SIEM…</span>
+      <div className={cn(shell, 'border-l-info')}>
+        <span className="size-2 shrink-0 rounded-full bg-info" />
+        <span className="text-sm text-muted-foreground">Connecting to SIEM…</span>
       </div>
     );
   }
   if (!status.enabled) {
     return (
-      <div className="siem-status warn">
-        <span className="status-dot warn" />
-        <span className="ss-text">
-          SIEM is disabled. Set <code>SIEM_ENABLED=true</code> in <code>.env</code> and restart the
-          server to start receiving UniFi syslog.
+      <div className={cn(shell, 'border-l-warn')}>
+        <span className="size-2 shrink-0 rounded-full bg-warn" />
+        <span className="text-sm text-muted-foreground">
+          SIEM is disabled. Set <code className={code}>SIEM_ENABLED=true</code> in{' '}
+          <code className={code}>.env</code> and restart the server to start receiving UniFi syslog.
         </span>
       </div>
     );
   }
   const addr = `${status.serverAddress}:${status.port}`;
   const isListening = status.listening;
-  const dotKind: UiSeverity = isListening ? 'info' : 'bad';
   const bindMsg = status.bindError;
   const lastAgo = status.lastEventAt ? fmtAgo(status.lastEventAt) : 'never';
   return (
-    <div className={`siem-status ${isListening ? '' : 'bad'}`}>
-      <span className={`status-dot ${dotKind === 'info' ? 'ok' : 'bad'}`} />
-      <div className="ss-text">
+    <div className={cn(shell, isListening ? 'border-l-ok' : 'border-l-bad')}>
+      <span className={cn('size-2 shrink-0 rounded-full', isListening ? 'bg-ok' : 'bg-bad')} />
+      <div className="min-w-0 flex-1 text-sm">
         {isListening ? (
           <>
-            <strong>Listening on UDP {addr}</strong>
-            <span className="ss-meta">
+            <span className="font-semibold text-foreground">Listening on UDP {addr}</span>
+            <span className="text-muted-foreground">
               {' · '}
               {status.eventsTotal.toLocaleString()} stored
               {' · '}
@@ -448,31 +510,34 @@ function SiemStatusBanner({
           </>
         ) : (
           <>
-            <strong>SIEM not listening</strong>
-            {bindMsg ? <span className="ss-meta"> · {bindMsg}</span> : null}
+            <span className="font-semibold text-foreground">SIEM not listening</span>
+            {bindMsg ? <span className="text-muted-foreground"> · {bindMsg}</span> : null}
           </>
         )}
       </div>
-      <button type="button" className="ss-toggle" onClick={onToggleSetup}>
+      <Button variant="outline" size="sm" onClick={onToggleSetup}>
         {setupOpen ? 'Hide setup' : 'Show setup'}
-      </button>
+      </Button>
       {setupOpen ? (
-        <div className="siem-setup">
-          <div className="siem-setup-h">Configure UniFi to send syslog here</div>
-          <ol>
+        <div className="basis-full border-t border-border pt-3 text-sm text-muted-foreground">
+          <div className="mb-2 font-semibold text-foreground">Configure UniFi to send syslog here</div>
+          <ol className="ml-4 list-decimal space-y-1">
             <li>Open your UniFi Network Application.</li>
-            <li>Go to <strong>Settings → System → Remote Logging</strong>.</li>
-            <li>Enable <em>Remote Syslog Server</em>.</li>
             <li>
-              Set the address to <code className="copy">{addr}</code>
-              {' '}(protocol: UDP).
+              Go to <strong className="text-foreground">Settings → System → Remote Logging</strong>.
+            </li>
+            <li>
+              Enable <em>Remote Syslog Server</em>.
+            </li>
+            <li>
+              Set the address to <code className={code}>{addr}</code> (protocol: UDP).
             </li>
             <li>Save. Devices will start streaming events within a minute.</li>
           </ol>
           {bindMsg ? (
-            <div className="siem-setup-warn">
-              Server reports: {bindMsg}. If port 514 won't bind, set
-              {' '}<code>SIEM_PORT=5514</code> in <code>.env</code> and use that in UniFi instead.
+            <div className="mt-2 text-warn">
+              Server reports: {bindMsg}. If port 514 won't bind, set <code className={code}>SIEM_PORT=5514</code> in{' '}
+              <code className={code}>.env</code> and use that in UniFi instead.
             </div>
           ) : null}
         </div>
@@ -481,85 +546,29 @@ function SiemStatusBanner({
   );
 }
 
-function Stat({
+function SiemStat({
   label,
   value,
-  kind,
+  tone,
   mono,
 }: {
   label: string;
   value: number | string;
-  kind?: 'bad' | 'warn';
+  tone?: 'bad' | 'warn';
   mono?: boolean;
 }) {
   return (
-    <div className="ls-stat">
-      <div className="ls-stat-lbl">{label}</div>
-      <div className={`ls-stat-v ${kind ?? ''} ${mono ? 'mono' : ''}`}>{value}</div>
+    <div className="flex flex-col items-end">
+      <span className="text-[11px] tracking-wide text-muted-foreground uppercase">{label}</span>
+      <span
+        className={cn(
+          'font-display text-xl font-semibold tabular-nums',
+          tone === 'bad' ? 'text-bad' : tone === 'warn' ? 'text-warn' : 'text-foreground',
+          mono && 'font-mono text-base',
+        )}
+      >
+        {value}
+      </span>
     </div>
-  );
-}
-
-function DeviceChip({
-  active,
-  accent,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  accent?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className={`lt-chip lt-chip-lg ${active ? (accent ? 'is-on' : 'is-on-neutral') : ''}`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
-
-function CategoryChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className={`lt-chip ${active ? 'is-on' : ''}`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SevChip({
-  active,
-  kind,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  kind?: 'bad' | 'warn' | 'info' | 'ok';
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className={`lt-chip ${active ? 'is-on' : ''} ${kind ?? ''}`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
   );
 }

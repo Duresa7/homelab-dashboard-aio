@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import Hls from 'hls.js';
+import type Hls from 'hls.js'; // type only — the runtime lib is lazy-loaded below
 import type { ProtectCamera } from '../../types';
 import { CameraSnapshot } from './CameraSnapshot';
 
@@ -65,6 +65,10 @@ export function CameraLiveStream({
         const playlist = payload.playlist as string;
         const video = videoRef.current;
         if (!video) return;
+
+        // Lazy-load hls.js (~520KB) only when a live stream is actually opened.
+        const Hls = (await import('hls.js')).default;
+        if (cancelledRef.current) return;
 
         if (Hls.isSupported()) {
           hls = new Hls({

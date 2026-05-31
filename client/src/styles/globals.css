@@ -1,184 +1,402 @@
 /* =========================================================
-   Homelab Dashboard — design tokens, reset, base.
-   Technical aesthetic, real text hierarchy, soft hairlines,
-   modern 8px radii, ambient elevation, mono numerics.
-   Themes: light (default) | dark.
-   Density: compact | regular | comfy (spacing only).
+   Homelab Dashboard — design system (Refined Light SaaS).
+   Tailwind v4 entry + design tokens + base.
+
+   - Single sharp indigo accent (#4F46E5), white surfaces on a
+     near-white canvas, soft layered shadows, 1px hairlines.
+   - Display: Clash Display. Body/data: General Sans. Logs: JetBrains Mono.
+   - Themes: light (default) | dark, via [data-theme] on <html>.
+   - Density: compact | regular | comfy (spacing only).
+
+   Token strategy: the legacy design tokens (--accent, --surface, --ink-*,
+   --line-*, …) are kept *by name* and consumed by both the existing CSS and
+   Tailwind, so restyling propagates everywhere. shadcn's semantic tokens are
+   layered on top and mostly *source* from these legacy tokens, so dark mode
+   flips automatically. The one name clash (shadcn's neutral `--accent`) is
+   sourced from `--sh-accent` instead, leaving our brand `--accent` = indigo.
    ========================================================= */
 
+/* Declare `legacy` first so it sits BELOW Tailwind's utilities layer — the
+   existing components.css is imported into it, so Tailwind utilities always
+   win over any same-named legacy class (e.g. `.grid`) during the migration. */
+@layer legacy;
+
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import './components.css' layer(legacy);
+
+/* Bridge shadcn's `dark:` variant to our existing [data-theme="dark"] hook. */
+@custom-variant dark (&:is([data-theme='dark'] *));
+
 :root {
-  /* ---- accent + status ---- */
-  --accent: #2563eb;
-  --accent-strong: #1d4ed8;
-  --accent-soft: rgba(37, 99, 235, 0.10);
+  /* ---- brand accent (indigo) + status ---- */
+  --accent: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-soft: rgba(79, 70, 229, 0.1);
   --accent-ink: #ffffff;
 
-  --ok:   #15803d;
+  --ok: #15803d;
   --warn: #b45309;
-  --bad:  #b91c1c;
-  --info: #0ea5e9;
-  --idle: #8a93a0;
+  --bad: #b91c1c;
+  --info: #0284c7;
+  --idle: #94a3b8;
 
   /* ---- surfaces (light) ---- */
-  --bg:        #f6f7f9; /* page background behind tiles */
-  --bg-2:      #eef0f3;
-  --bg-3:      #e4e6ea;
-  --surface:   #ffffff; /* tile fill */
-  --surface-2: #fafbfc; /* subtle inset (e.g. cards inside tiles) */
+  --bg: #fbfbfd; /* page canvas */
+  --bg-2: #f1f3f7; /* hover / muted fill */
+  --bg-3: #e7eaf0; /* tertiary */
+  --surface: #ffffff; /* card / tile fill */
+  --surface-2: #fafbfc; /* subtle inset */
 
-  /* ---- ink (real 4-step hierarchy, all AA+ on white) ---- */
-  --ink:   #0b0d12; /* primary metric, page title, tile value (~21:1) */
-  --ink-2: #1f2430; /* body, labels, key names (~14:1) */
-  --ink-3: #4b5563; /* muted: section labels, sub, captions (~7.5:1, AAA) */
-  --ink-4: #6b7280; /* deemphasized: stale timestamps (~4.8:1, AA) */
+  /* ---- ink (slate-tinted 4-step hierarchy, all AA+ on white) ---- */
+  --ink: #0b0f1a; /* primary: titles, metric values (~19:1) */
+  --ink-2: #1e293b; /* body, labels, key names (~13:1) */
+  --ink-3: #475569; /* muted: section labels, captions (~7:1, AAA) */
+  --ink-4: #64748b; /* deemphasized: stale timestamps (~4.9:1, AA) */
 
-  /* ---- lines ---- */
-  --line:        #e6e8ec; /* soft hairline */
-  --line-2:      #d1d5db; /* hover / divider */
-  --line-strong: #c9cdd3; /* tables that need defined edges */
-  --panel-line:  #000000; /* high-contrast panel outline */
+  /* ---- lines (soft hairlines — no more hard black borders) ---- */
+  --line: #ebedf0; /* soft hairline */
+  --line-2: #dce0e6; /* hover / divider */
+  --line-strong: #cbd2db; /* table edges */
+  --panel-line: #e6e8ec; /* card outline (was #000) */
+
+  /* ---- shadcn neutral accent (hover/highlight surfaces) ---- */
+  --sh-accent: #f1f3f7;
+  --sh-accent-foreground: #1e293b;
 
   /* ---- radii ---- */
-  --radius:     8px;  /* tiles, cards */
-  --radius-sm:  4px;  /* chips, inputs, pills inner */
-  --radius-lg:  12px; /* overlays, expanded panels */
+  --radius: 0.625rem; /* 10px base */
+  --radius-sm: 0.375rem; /* 6px */
+  --radius-md: 0.5rem; /* 8px */
+  --radius-lg: 0.875rem; /* 14px */
   --radius-pill: 999px;
 
   /* ---- spacing ---- */
-  --pad: 20px;
+  --pad: 18px;
   --gap: 16px;
-  --section-gap: 44px;
+  --section-gap: 40px;
 
-  /* ---- type ---- */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  /* ---- shadows (soft, layered) ---- */
+  --shadow-tile: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.03);
+  --shadow-tile-hover: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+  --shadow-overlay: 0 24px 56px -12px rgba(15, 23, 42, 0.22), 0 8px 24px -8px rgba(15, 23, 42, 0.12);
 
-  /* ---- shadows ---- */
-  --shadow-tile:       0 1px 2px rgba(15, 17, 21, 0.04);
-  --shadow-tile-hover: 0 2px 6px rgba(15, 17, 21, 0.06);
-  --shadow-overlay:    0 20px 50px -12px rgba(15, 17, 21, 0.18), 0 4px 16px rgba(15, 17, 21, 0.06);
+  /* ---- layout ---- */
+  --sidebar-w: 240px;
+  --sidebar-rail: 60px;
+  --content-max: 1600px; /* caps page content width so wide monitors don't stretch tables/rows */
 
-  /* layout */
-  --sidebar-w: 232px;
-  --sidebar-rail: 56px;
-
-  /* z-index scale */
-  --z-base:     1;
-  --z-sticky:   10;
+  /* ---- z-index scale ---- */
+  --z-base: 1;
+  --z-sticky: 10;
   --z-dropdown: 40;
-  --z-toast:    60;
-  --z-scrim:    100;
-  --z-panel:    110;
-  --z-overlay:  200;
-  --z-tooltip:  300;
+  --z-toast: 60;
+  --z-scrim: 100;
+  --z-panel: 110;
+  --z-overlay: 200;
+  --z-tooltip: 300;
 }
 
 [data-theme='dark'] {
-  --bg:        #0a0c10;
-  --bg-2:      #11141b;
-  --bg-3:      #1a1f29;
-  --surface:   #151924;
-  --surface-2: #1c2130;
+  /* brand accent brightens to pop on dark surfaces */
+  --accent: #6366f1;
+  --accent-strong: #818cf8;
+  --accent-soft: rgba(99, 102, 241, 0.18);
+  --accent-ink: #ffffff;
 
-  /* brighter ink for visibility on dark surfaces */
-  --ink:   #f4f6fa; /* primary (~17:1) */
-  --ink-2: #dde2eb; /* body (~13:1) */
-  --ink-3: #c3cad6; /* muted (~9:1) */
-  --ink-4: #99a1b0; /* deemphasized (~5.5:1, AA on dark surface) */
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --bad: #f87171;
+  --info: #38bdf8;
+  --idle: #64748b;
 
-  --line:        #232936;
-  --line-2:      #2f3645;
-  --line-strong: #3a4254;
-  --panel-line:  #ffffff; /* high-contrast panel outline */
+  --bg: #0b0e16; /* deep slate canvas */
+  --bg-2: #161c28;
+  --bg-3: #1f2738;
+  --surface: #131826; /* card fill */
+  --surface-2: #1a2030;
 
-  --accent-soft: rgba(59, 130, 246, 0.18);
+  --ink: #f8fafc; /* primary (~17:1) */
+  --ink-2: #e2e8f0; /* body (~13:1) */
+  --ink-3: #94a3b8; /* muted (~7:1) */
+  --ink-4: #64748b; /* deemphasized (AA on dark) */
 
-  --shadow-tile:       0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-tile-hover: 0 2px 6px rgba(0, 0, 0, 0.50);
-  --shadow-overlay:    0 24px 60px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.35);
+  --line: #222a39;
+  --line-2: #2e384a;
+  --line-strong: #3a4559;
+  --panel-line: #222a39;
+
+  --sh-accent: #1e2636;
+  --sh-accent-foreground: #e2e8f0;
+
+  --shadow-tile: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-tile-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-overlay: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
 }
 
 [data-density='compact'] {
-  --pad: 14px;
+  --pad: 13px;
   --gap: 12px;
-  --section-gap: 28px;
-  --sidebar-w: 208px;
+  --section-gap: 26px;
+  --sidebar-w: 216px;
 }
 [data-density='comfy'] {
   --pad: 24px;
-  --gap: 20px;
+  --gap: 22px;
   --section-gap: 56px;
-  --sidebar-w: 256px;
+  --sidebar-w: 264px;
+}
+
+/* Shell column width — flips to the rail width when the sidebar is collapsed. */
+:root {
+  --shell-sidebar: var(--sidebar-w);
+}
+[data-sidebar='collapsed'] {
+  --shell-sidebar: var(--sidebar-rail);
+}
+
+/* =========================================================
+   shadcn semantic tokens — sourced from the design tokens above
+   so they flip with [data-theme="dark"] automatically.
+   ========================================================= */
+:root {
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-ink);
+  --secondary: var(--bg-2);
+  --secondary-foreground: var(--ink-2);
+  --muted: var(--bg-2);
+  --muted-foreground: var(--ink-3);
+  --shadcn-accent: var(--sh-accent);
+  --shadcn-accent-foreground: var(--sh-accent-foreground);
+  --destructive: var(--bad);
+  --destructive-foreground: #ffffff;
+  --border: var(--line);
+  --input: var(--line-2);
+  --ring: var(--accent);
+
+  --chart-1: var(--accent);
+  --chart-2: var(--info);
+  --chart-3: var(--ok);
+  --chart-4: var(--warn);
+  --chart-5: var(--bad);
+
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--ink-2);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--accent-ink);
+  --sidebar-accent: var(--sh-accent);
+  --sidebar-accent-foreground: var(--sh-accent-foreground);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--accent);
+}
+
+/* =========================================================
+   Tailwind theme — map utilities to the tokens (inline so the
+   leaf variables flip in dark mode without extra indirection).
+   ========================================================= */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--shadcn-accent);
+  --color-accent-foreground: var(--shadcn-accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* brand + status as first-class utilities (text-brand, bg-ok/10, …) */
+  --color-brand: var(--accent);
+  --color-brand-foreground: var(--accent-ink);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --color-idle: var(--idle);
+
+  /* named box-shadow utilities (shadow-card, shadow-card-hover, shadow-pop) */
+  --shadow-card: var(--shadow-tile);
+  --shadow-card-hover: var(--shadow-tile-hover);
+  --shadow-pop: var(--shadow-overlay);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: calc(var(--radius) + 8px);
+}
+
+/* Fonts use a non-inline @theme so the variables are emitted to :root
+   (consumed by both Tailwind `font-*` utilities and legacy `var(--font-*)`). */
+@theme {
+  --font-display: 'Clash Display', 'General Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'General Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 }
 
 /* =========================================================
    Reset + base
    ========================================================= */
-*, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; height: 100%; }
-body {
-  font-family: var(--font-sans);
-  background: var(--bg);
-  color: var(--ink-2);
-  font-size: 16px;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  /* Inter alternate forms: cv02 disambiguates 1/l, cv11 single-storey a,
-     ss01 stylistic set, ss03 disambiguates 0/O. tnum for tabular numerics. */
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01', 'ss03';
-}
-button {
-  font-family: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-
-/* Keyboard focus baseline — components may override with their own
-   :focus-visible rule for tighter placement. */
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible,
-a:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    border-color: var(--border);
+  }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--ink-2);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'ss01', 'cv01';
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  button {
+    font-family: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  /* Keyboard focus baseline — components may tighten this. */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 }
 
 /* Thin, themed scrollbars for any scrollable container */
-* { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
-*::-webkit-scrollbar { width: 8px; height: 8px; }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
 *::-webkit-scrollbar-thumb {
   background: var(--line-2);
-  border-radius: 4px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
-*::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
-*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--line-strong);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
 
 /* =========================================================
-   Utility classes
+   Utility classes (kept — used across existing markup)
    ========================================================= */
-.muted { color: var(--ink-3); }
-.mono  { font-family: var(--font-mono); }
+.muted {
+  color: var(--ink-3);
+}
+.mono {
+  font-family: var(--font-mono);
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.flex1 {
+  flex: 1;
+  min-width: 0;
+}
+.center {
+  display: grid;
+  place-items: center;
+}
 
-/* Critical pulse — drawn attention for values crossing the `bad` threshold.
-   Animates a soft text-shadow halo; respects reduced-motion preferences. */
+/* Critical pulse — value crossing the `bad` threshold. Respects reduced-motion. */
 @keyframes pulse-bad {
-  0%, 100% { opacity: 1; filter: drop-shadow(0 0 0 rgba(185, 28, 28, 0)); }
-  50%      { opacity: 0.82; filter: drop-shadow(0 0 6px rgba(185, 28, 28, 0.6)); }
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 0 rgba(185, 28, 28, 0));
+  }
+  50% {
+    opacity: 0.82;
+    filter: drop-shadow(0 0 6px rgba(185, 28, 28, 0.6));
+  }
 }
-.crit { animation: pulse-bad 1.6s ease-in-out infinite; }
+.crit {
+  animation: pulse-bad 1.6s ease-in-out infinite;
+}
 @media (prefers-reduced-motion: reduce) {
-  .crit { animation: none; }
+  .crit {
+    animation: none;
+  }
 }
-.tnum  { font-variant-numeric: tabular-nums; }
-.row   { display: flex; align-items: center; gap: 8px; }
-.between { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.col   { display: flex; flex-direction: column; gap: 8px; }
-.flex1 { flex: 1; min-width: 0; }
-.center { display: grid; place-items: center; }
 
-/* Status pill — outlined, mono label, used for state badges */
+/* Status pill — outlined, used for state badges */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -187,8 +405,8 @@ a:focus-visible {
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   background: var(--surface);
-  font-family: var(--font-mono);
   font-size: 11.5px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
   line-height: 1.6;
@@ -196,34 +414,70 @@ a:focus-visible {
   letter-spacing: 0;
 }
 .pill .dot {
-  width: 6px; height: 6px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--idle);
   flex: 0 0 6px;
 }
-.pill.ok   { color: var(--ok);   border-color: color-mix(in oklab, var(--ok) 30%, var(--line)); }
-.pill.ok   .dot { background: var(--ok); }
-.pill.warn { color: var(--warn); border-color: color-mix(in oklab, var(--warn) 30%, var(--line)); }
-.pill.warn .dot { background: var(--warn); }
-.pill.bad  { color: var(--bad);  border-color: color-mix(in oklab, var(--bad) 30%, var(--line)); }
-.pill.bad  .dot { background: var(--bad); }
-.pill.info { color: var(--info); border-color: color-mix(in oklab, var(--info) 30%, var(--line)); }
-.pill.info .dot { background: var(--info); }
+.pill.ok {
+  color: var(--ok);
+  border-color: color-mix(in oklab, var(--ok) 30%, var(--line));
+  background: color-mix(in oklab, var(--ok) 8%, var(--surface));
+}
+.pill.ok .dot {
+  background: var(--ok);
+}
+.pill.warn {
+  color: var(--warn);
+  border-color: color-mix(in oklab, var(--warn) 30%, var(--line));
+  background: color-mix(in oklab, var(--warn) 8%, var(--surface));
+}
+.pill.warn .dot {
+  background: var(--warn);
+}
+.pill.bad {
+  color: var(--bad);
+  border-color: color-mix(in oklab, var(--bad) 30%, var(--line));
+  background: color-mix(in oklab, var(--bad) 8%, var(--surface));
+}
+.pill.bad .dot {
+  background: var(--bad);
+}
+.pill.info {
+  color: var(--info);
+  border-color: color-mix(in oklab, var(--info) 30%, var(--line));
+  background: color-mix(in oklab, var(--info) 8%, var(--surface));
+}
+.pill.info .dot {
+  background: var(--info);
+}
 
-/* Status dot — used inline, sized via font/em context */
+/* Status dot — inline, sized via font/em context */
 .status-dot {
   display: inline-block;
-  width: 7px; height: 7px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--idle);
   flex: 0 0 7px;
   vertical-align: middle;
 }
-.status-dot.ok   { background: var(--ok); }
-.status-dot.warn { background: var(--warn); }
-.status-dot.bad  { background: var(--bad); }
-.status-dot.info { background: var(--info); }
-.status-dot.idle { background: var(--idle); }
+.status-dot.ok {
+  background: var(--ok);
+}
+.status-dot.warn {
+  background: var(--warn);
+}
+.status-dot.bad {
+  background: var(--bad);
+}
+.status-dot.info {
+  background: var(--info);
+}
+.status-dot.idle {
+  background: var(--idle);
+}
 
 /* Hairline rule */
 .hairline {
@@ -234,14 +488,14 @@ a:focus-visible {
   margin: 0;
 }
 
-/* Section header used on detail pages — uppercase label + hairline */
+/* Section header — uppercase label + trailing hairline */
 .section-head {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0 0 12px;
   color: var(--ink-3);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -253,11 +507,23 @@ a:focus-visible {
   background: var(--line);
 }
 .section-head .count {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
   color: var(--ink-3);
   text-transform: none;
   letter-spacing: 0;
   font-size: 12px;
+}
+
+.text-ok {
+  color: var(--ok);
+}
+.text-warn {
+  color: var(--warn);
+}
+.text-bad {
+  color: var(--bad);
+}
+.text-muted {
+  color: var(--ink-3);
 }

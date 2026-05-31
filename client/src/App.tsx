@@ -3,8 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
 import { AlertBanner } from './components/layout/AlertBanner';
+import { CommandMenu } from './components/layout/CommandMenu';
 import { ExpandOverlay } from './components/tile/ExpandOverlay';
 import { ALL_TILES, type TileId } from './components/widgets';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { Toaster } from '@/components/ui/sonner';
+import { Checkbox } from '@/components/ui/checkbox';
 
 import { OverviewPage } from './pages/OverviewPage';
 import { ProxmoxPage } from './pages/ProxmoxPage';
@@ -82,6 +86,8 @@ export function App() {
   const [chartKinds, setChartKinds] = useState<Partial<Record<TileId, ChartKind>>>({});
   const [expanded, setExpanded] = useState<TileId | null>(null);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<number>>(new Set());
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const [tweaksOpen, setTweaksOpen] = useState(false);
   const integrations = useMemo(
     () => ({ ...DEFAULTS.integrations, ...t.integrations }),
     [t.integrations],
@@ -108,6 +114,10 @@ export function App() {
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setExpanded(null);
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCmdOpen((o) => !o);
+      }
     };
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
@@ -149,120 +159,128 @@ export function App() {
   const pageTitle = activeSub ? subLabel(route.section, activeSub) : SECTION_LABEL[route.section];
 
   return (
-    <div className="app">
-      <Sidebar
-        route={route}
-        setRoute={setRoute}
-        alerts={visibleAlerts}
-      />
-      <main className="main">
-        <Topbar
-          section={route.section}
-          activeSub={activeSub}
-          title={pageTitle}
-          theme={theme}
-          onToggleTheme={() => setTweak('theme', theme === 'dark' ? 'light' : 'dark')}
-        />
-        {t.showAlerts ? <AlertBanner alerts={visibleAlerts} onDismiss={dismiss} /> : null}
+    <TooltipProvider delayDuration={250}>
+      <div
+        className="grid min-h-screen text-foreground transition-[grid-template-columns] duration-200 ease-out"
+        style={{ gridTemplateColumns: 'var(--shell-sidebar) 1fr' }}
+      >
+        <Sidebar route={route} setRoute={setRoute} alerts={visibleAlerts} />
 
-        {route.section === 'overview' && (
-          <OverviewPage
-            data={data}
-            layout={t.overviewLayout}
-            chartKinds={chartKinds}
-            setChartKind={setChartKind}
-            onExpand={setExpanded}
+        <main className="flex min-w-0 flex-col">
+          <Topbar
+            section={route.section}
+            activeSub={activeSub}
+            title={pageTitle}
+            theme={theme}
+            onToggleTheme={() => setTweak('theme', theme === 'dark' ? 'light' : 'dark')}
+            onOpenSearch={() => setCmdOpen(true)}
+            onOpenTweaks={() => setTweaksOpen(true)}
           />
-        )}
-        {route.section === 'proxmox' && <ProxmoxPage data={data} sub={activeSub ?? 'compute'} />}
-        {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
-        {route.section === 'docker'  && <DockerPage  data={data} sub={activeSub ?? 'hosts'} />}
-        {route.section === 'nas'     && <NasPage     data={data} sub={activeSub ?? 'pools'} />}
-        {route.section === 'cameras' && <CamerasPage data={data} sub={activeSub ?? 'overview'} />}
-        {route.section === 'events'  && <EventsPage  data={data} />}
-        {route.section === 'alerts'  && <AlertsPage  alerts={visibleAlerts} onDismiss={dismiss} />}
-        {route.section === 'health'    && <HealthPage  integrations={integrations} />}
-        {route.section === 'siem'      && <SiemPage />}
-        {route.section === 'inventory' && (
-          <InventoryPage
-            selectedItemId={route.itemId}
-            onSelectItem={setInventoryItemId}
-          />
-        )}
-        {route.section === 'playground' && <PlaygroundPage />}
-        {route.section === 'settings' && (
-          <SettingsPage
-            integrations={integrations}
-            onChange={(next) => setTweak('integrations', next)}
-          />
-        )}
-      </main>
 
-      <ExpandOverlay
-        id={expanded}
-        data={data}
-        chartKind={expanded ? chartKinds[expanded] ?? 'area' : 'area'}
-        setChartKind={(k) => expanded && setChartKind(expanded, k)}
-        onClose={() => setExpanded(null)}
-      />
+          <div className="w-full max-w-[var(--content-max)] flex-1 px-6 py-5 pb-20">
+            {t.showAlerts ? <AlertBanner alerts={visibleAlerts} onDismiss={dismiss} /> : null}
 
-      <TweaksPanel title="Tweaks">
-        <TweakSection label="Appearance" />
-        <TweakRadio
-          label="Theme"
-          value={t.theme}
-          options={[
-            { value: 'light', label: 'light' },
-            { value: 'dark', label: 'dark' },
-            { value: 'system', label: 'auto' },
-          ]}
-          onChange={(v) => setTweak('theme', v)}
-        />
-        <TweakRadio
-          label="Density"
-          value={t.density}
-          options={[
-            { value: 'compact', label: 'compact' },
-            { value: 'regular', label: 'regular' },
-            { value: 'comfy', label: 'comfy' },
-          ]}
-          onChange={(v) => setTweak('density', v)}
-        />
-
-        <TweakSection label="Overview" />
-        <TweakToggle
-          label="Alert banner"
-          value={t.showAlerts}
-          onChange={(v) => setTweak('showAlerts', v)}
-        />
-
-        <div className="twk-row">
-          <div className="twk-lbl">
-            <span>Tiles on overview</span>
+            {route.section === 'overview' && (
+              <OverviewPage
+                data={data}
+                layout={t.overviewLayout}
+                chartKinds={chartKinds}
+                setChartKind={setChartKind}
+                onExpand={setExpanded}
+              />
+            )}
+            {route.section === 'proxmox' && <ProxmoxPage data={data} sub={activeSub ?? 'compute'} />}
+            {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
+            {route.section === 'docker'  && <DockerPage  data={data} sub={activeSub ?? 'hosts'} />}
+            {route.section === 'nas'     && <NasPage     data={data} sub={activeSub ?? 'pools'} />}
+            {route.section === 'cameras' && <CamerasPage data={data} sub={activeSub ?? 'overview'} />}
+            {route.section === 'events'  && <EventsPage  data={data} />}
+            {route.section === 'alerts'  && <AlertsPage  alerts={visibleAlerts} onDismiss={dismiss} />}
+            {route.section === 'health'    && <HealthPage  integrations={integrations} />}
+            {route.section === 'siem'      && <SiemPage />}
+            {route.section === 'inventory' && (
+              <InventoryPage
+                selectedItemId={route.itemId}
+                onSelectItem={setInventoryItemId}
+              />
+            )}
+            {route.section === 'playground' && <PlaygroundPage />}
+            {route.section === 'settings' && (
+              <SettingsPage
+                integrations={integrations}
+                onChange={(next) => setTweak('integrations', next)}
+              />
+            )}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
-            {ALL_TILES.map((tile) => {
-              const on = t.overviewLayout.includes(tile.id);
-              return (
-                <label key={tile.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={(e) => {
-                      const cur = t.overviewLayout.filter((x) => x !== tile.id);
-                      setTweak(
-                        'overviewLayout',
-                        e.target.checked ? [...cur, tile.id] : cur,
-                      );
-                    }}
-                  />
-                  {tile.label}
-                </label>
-              );
-            })}
+        </main>
+
+        <ExpandOverlay
+          id={expanded}
+          data={data}
+          chartKind={expanded ? chartKinds[expanded] ?? 'area' : 'area'}
+          setChartKind={(k) => expanded && setChartKind(expanded, k)}
+          onClose={() => setExpanded(null)}
+        />
+
+        <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} setRoute={setRoute} />
+
+        <TweaksPanel open={tweaksOpen} onOpenChange={setTweaksOpen} title="Customize">
+          <TweakSection label="Appearance" />
+          <TweakRadio
+            label="Theme"
+            value={t.theme}
+            options={[
+              { value: 'light', label: 'light' },
+              { value: 'dark', label: 'dark' },
+              { value: 'system', label: 'auto' },
+            ]}
+            onChange={(v) => setTweak('theme', v)}
+          />
+          <TweakRadio
+            label="Density"
+            value={t.density}
+            options={[
+              { value: 'compact', label: 'compact' },
+              { value: 'regular', label: 'regular' },
+              { value: 'comfy', label: 'comfy' },
+            ]}
+            onChange={(v) => setTweak('density', v)}
+          />
+
+          <TweakSection label="Overview" />
+          <TweakToggle
+            label="Alert banner"
+            value={t.showAlerts}
+            onChange={(v) => setTweak('showAlerts', v)}
+          />
+
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-foreground">Tiles on overview</span>
+            <div className="flex flex-col gap-1">
+              {ALL_TILES.map((tile) => {
+                const on = t.overviewLayout.includes(tile.id);
+                return (
+                  <label
+                    key={tile.id}
+                    className="flex cursor-pointer items-center gap-2.5 rounded-md px-1 py-1 text-sm text-foreground hover:bg-accent"
+                  >
+                    <Checkbox
+                      checked={on}
+                      onCheckedChange={(checked) => {
+                        const cur = t.overviewLayout.filter((x) => x !== tile.id);
+                        setTweak('overviewLayout', checked ? [...cur, tile.id] : cur);
+                      }}
+                    />
+                    {tile.label}
+                  </label>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      </TweaksPanel>
-    </div>
+        </TweaksPanel>
+
+        <Toaster />
+      </div>
+    </TooltipProvider>
   );
 }

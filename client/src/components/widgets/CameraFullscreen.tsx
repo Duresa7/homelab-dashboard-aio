@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../icons/Icon';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import type { ProtectCamera } from '../../types';
 import { CameraSnapshot } from './CameraSnapshot';
 import { CameraLiveStream } from './CameraLiveStream';
@@ -110,22 +113,22 @@ export function CameraFullscreen({ camera, initialMode = 'snapshot', onClose }: 
               Live
             </ModeButton>
             {mode === 'live' ? (
-              <select
-                value={quality}
-                onChange={(e) => setQuality(e.target.value as 'low' | 'medium' | 'high')}
-                style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: 4,
-                  padding: '4px 6px',
-                  fontSize: 12,
-                }}
-              >
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-              </select>
+              <Select value={quality} onValueChange={(v) => setQuality(v as 'low' | 'medium' | 'high')}>
+                <SelectTrigger
+                  size="sm"
+                  className="h-7 gap-1 border-white/20 bg-white/10 px-2 text-xs text-white shadow-none hover:bg-white/20 focus-visible:border-white/40 focus-visible:ring-white/40 dark:bg-white/10 dark:hover:bg-white/20 [&_svg]:!text-white/70"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  position="popper"
+                  className="z-[1100] min-w-[5rem] border-white/15 bg-neutral-900 text-white [&_[data-slot=select-item]:focus]:bg-white/15 [&_[data-slot=select-item]:focus]:text-white [&_[data-slot=select-item]]:text-white/90"
+                >
+                  <SelectItem value="low">low</SelectItem>
+                  <SelectItem value="medium">medium</SelectItem>
+                  <SelectItem value="high">high</SelectItem>
+                </SelectContent>
+              </Select>
             ) : null}
             <IconButton title={isFs ? 'Exit fullscreen' : 'Fullscreen'} onClick={toggleFullscreen}>
               <Icon name="expand" size={14} />

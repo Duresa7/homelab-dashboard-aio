@@ -46,20 +46,20 @@ export function OverviewPage({ data, layout, chartKinds, setChartKind, onExpand 
   };
 
   return (
-    <div className="dashboard">
+    <div className="flex flex-col gap-[var(--section-gap)]">
       {SECTIONS.map((section) => {
         const tiles = section.tiles.filter((id) => visible.has(id));
         if (tiles.length === 0) return null;
         const ordered = layout.filter((id) => section.tiles.includes(id));
         return (
-          <section key={section.id} className={`ov-section${section.bare ? ' ov-section--bare' : ''}`}>
+          <section key={section.id} className="flex flex-col gap-3">
             {section.label && (
-              <h2 className="ov-section-h">
+              <h2 className="flex items-baseline gap-2 text-[12px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                 {section.label}
-                <span className="count">{ordered.length}</span>
+                <span className="font-mono text-[11px] tabular-nums text-[var(--ink-4)]">{ordered.length}</span>
               </h2>
             )}
-            <div className="grid">{ordered.map(renderOne)}</div>
+            <div className="grid grid-cols-12 gap-[var(--gap)]">{ordered.map(renderOne)}</div>
           </section>
         );
       })}

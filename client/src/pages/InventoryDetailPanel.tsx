@@ -38,6 +38,7 @@ import {
 } from '../lib/inventory';
 import { BrandGlyph, categoryIcon, componentIcon, roleIcon } from '../lib/inventoryIcons';
 import { Editable } from './InventoryPage';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 
 type Mutator<T> = (mut: (cur: T) => T) => void;
 
@@ -54,6 +55,13 @@ const STATUS_OPTIONS: { value: ItemStatus; label: string }[] = [
   { value: 'in-repair', label: 'in-repair' },
   { value: 'retired',   label: 'retired' },
 ];
+
+const STRIPE_COLOR: Record<string, string> = {
+  ok: 'var(--ok)',
+  bad: 'var(--bad)',
+  warn: 'var(--warn)',
+  idle: 'var(--idle)',
+};
 
 const STATUS_ICON: Record<ItemStatus, LucideIcon> = {
   working:     CheckCircle2,
@@ -144,16 +152,16 @@ export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Pr
     :                              undefined;
 
   return (
-    <div className="inv-detail-scrim" onMouseDown={onClose}>
-      <aside
+    <Sheet open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent
         ref={panelRef}
-        className={`inv-detail-panel status-${kindClass}`}
-        role="dialog"
+        side="right"
+        showCloseButton={false}
         aria-label="Item details"
-        tabIndex={-1}
-        onMouseDown={(e) => e.stopPropagation()}
+        className="w-[min(560px,100vw)] gap-0 overflow-y-auto bg-card p-0 sm:max-w-[560px]"
       >
-        <div className="inv-detail-stripe" aria-hidden />
+        <SheetTitle className="sr-only">Item details</SheetTitle>
+        <div className="inv-detail-stripe" aria-hidden style={{ background: STRIPE_COLOR[kindClass] ?? 'var(--ok)' }} />
 
         <header className="inv-detail-head">
           {header}
@@ -188,6 +196,9 @@ export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Pr
             <Field label="Serial #"   icon={Hash}>
               <TextInput value={ids.serial}    onChange={(v) => setIds({ serial: v })}    placeholder="Manufacturer serial" mono />
             </Field>
+            <Field label="Part #"     icon={Hash}>
+              <TextInput value={ids.part}      onChange={(v) => setIds({ part: v })}      placeholder="Manufacturer part / model config" mono />
+            </Field>
             <Field label="UID"        icon={Sparkles}>
               <UidInput
                 value={ids.uid}
@@ -216,8 +227,8 @@ export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Pr
             onRemove={removeLogEntry}
           />
         </div>
-      </aside>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 

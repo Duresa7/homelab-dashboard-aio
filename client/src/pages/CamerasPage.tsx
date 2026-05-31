@@ -6,6 +6,13 @@ import { CameraSnapshot } from '../components/widgets/CameraSnapshot';
 import { CameraLiveStream } from '../components/widgets/CameraLiveStream';
 import { CameraFullscreen, type CameraViewMode } from '../components/widgets/CameraFullscreen';
 import { BrandIcon } from '../components/icons/BrandIcon';
+import { SectionCard, DataTableCard, StatList, StatRow, StatusBadge, Segmented } from '@/components/common';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import type {
   DashboardState,
   ProtectArmStatus,
@@ -32,7 +39,7 @@ function ClickableTile({
   return (
     <div
       onClick={onClick}
-      style={{ position: 'relative', cursor: 'zoom-in' }}
+      className="relative cursor-zoom-in"
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
@@ -56,10 +63,10 @@ function armSeverity(status: ProtectArmStatus): Severity {
 
 function armLabel(status: ProtectArmStatus): string {
   switch (status) {
-    case 'armed':    return 'Armed';
-    case 'arming':   return 'Arming';
-    case 'breach':   return 'BREACH';
-    case 'disabled': return 'Disarmed';
+    case 'armed':    return 'armed';
+    case 'arming':   return 'arming';
+    case 'breach':   return 'breach';
+    case 'disabled': return 'disarmed';
     default:         return String(status);
   }
 }
@@ -81,62 +88,58 @@ function NvrCard({ data }: { data: DashboardState }) {
   const { nvr } = protect;
   const sev = armSeverity(nvr.armMode.status);
   return (
-    <div className="tile span-4">
-      <div className="t-head">
-        <div className="t-title">
-          <BrandIcon name="unifi" alt="UniFi Protect" />
+    <SectionCard
+      span={4}
+      icon={<BrandIcon name="unifi" alt="UniFi Protect" />}
+      title={
+        <span className="flex items-center gap-2">
           NVR
-          <span className={`t-tag ${sev}`}>
-            {nvr.armMode.status === 'armed' ? <span className="pulse-dot icon-pulse" /> : null}
+          <StatusBadge kind={sev} pulse={nvr.armMode.status === 'armed'}>
             {armLabel(nvr.armMode.status)}
-          </span>
-        </div>
-      </div>
-      <dl className="kv">
-        <dt>Name</dt><dd>{nvr.name}</dd>
-        <dt>Model</dt><dd>{nvr.modelKey || '—'}</dd>
-        {nvr.armMode.status === 'armed' && (
-          <><dt>Armed</dt><dd>{formatSince(nvr.armMode.armedAt)}</dd></>
-        )}
+          </StatusBadge>
+        </span>
+      }
+    >
+      <StatList>
+        <StatRow label="Name" value={nvr.name} />
+        <StatRow label="Model" value={nvr.modelKey || '—'} />
+        {nvr.armMode.status === 'armed' && <StatRow label="Armed" value={formatSince(nvr.armMode.armedAt)} />}
         {nvr.armMode.status === 'arming' && (
-          <><dt>Activates</dt><dd>{nvr.armMode.willBeArmedAt ? new Date(nvr.armMode.willBeArmedAt).toLocaleTimeString() : '—'}</dd></>
+          <StatRow
+            label="Activates"
+            value={nvr.armMode.willBeArmedAt ? new Date(nvr.armMode.willBeArmedAt).toLocaleTimeString() : '—'}
+          />
         )}
         {nvr.armMode.status === 'breach' && (
           <>
-            <dt>Detected</dt><dd>{formatSince(nvr.armMode.breachDetectedAt)}</dd>
-            <dt>Events</dt><dd>{nvr.armMode.breachEventCount}</dd>
+            <StatRow label="Detected" value={formatSince(nvr.armMode.breachDetectedAt)} />
+            <StatRow label="Events" value={nvr.armMode.breachEventCount} />
           </>
         )}
-        {protect.appVersion && (
-          <><dt>App version</dt><dd>{protect.appVersion}</dd></>
-        )}
-      </dl>
-    </div>
+        {protect.appVersion ? <StatRow label="App version" value={protect.appVersion} /> : null}
+      </StatList>
+    </SectionCard>
   );
 }
 
 function StatusCard({ data }: { data: DashboardState }) {
   const { protect } = data;
-  return (
-    <div className="tile span-4">
-      <div className="t-title"><BrandIcon name="unifi" alt="UniFi Protect" /> Fleet</div>
-      <div className="row" style={{ gap: 14, paddingTop: 4 }}>
-        <div>
-          <div className="t-big" style={{ fontSize: 28 }}>{protect.connected}</div>
-          <div className="t-sub">online</div>
-        </div>
-        <div>
-          <div className="t-big" style={{ fontSize: 28, color: protect.disconnected ? 'var(--warn)' : '' }}>
-            {protect.disconnected}
-          </div>
-          <div className="t-sub">offline</div>
-        </div>
-        <div>
-          <div className="t-big" style={{ fontSize: 28 }}>{protect.total}</div>
-          <div className="t-sub">total</div>
-        </div>
-      </div>
+  const Stat = ({ value, label, tone }: { value: ReactNode; label: string; tone?: string }) => (
+    <div className="flex flex-col gap-0.5">
+      <span className={`font-display text-3xl leading-none font-semibold tabular-nums ${tone ?? 'text-foreground'}`}>
+        {value}
+      </span>
+      <span className="text-xs text-muted-foreground">{label}</span>
     </div>
+  );
+  return (
+    <SectionCard span={4} title="Fleet" icon={<BrandIcon name="unifi" alt="UniFi Protect" />}>
+      <div className="flex gap-8 pt-1">
+        <Stat value={protect.connected} label="online" />
+        <Stat value={protect.disconnected} label="offline" tone={protect.disconnected ? 'text-warn' : undefined} />
+        <Stat value={protect.total} label="total" />
+      </div>
+    </SectionCard>
   );
 }
 
@@ -148,18 +151,25 @@ function FeaturesCard({ data }: { data: DashboardState }) {
   const hasPkg = cams.filter((c) => c.hasPackageCamera).length;
   const smartTypes = new Set<string>();
   cams.forEach((c) => c.enabledObjectTypes.forEach((t) => smartTypes.add(t)));
+  const iconLabel = (icon: ReactNode, text: string) => (
+    <span className="flex items-center gap-1.5">
+      <span className="text-muted-foreground [&_svg]:size-3">{icon}</span>
+      {text}
+    </span>
+  );
   return (
-    <div className="tile span-4">
-      <div className="t-title"><Sparkles size={14} strokeWidth={1.75} />Capabilities</div>
-      <dl className="kv">
-        <dt><Mic size={12} strokeWidth={1.75} className="kv-icon" />With microphone</dt><dd>{hasMic}</dd>
-        <dt><Volume2 size={12} strokeWidth={1.75} className="kv-icon" />With speaker</dt><dd>{hasSpeaker}</dd>
-        <dt><Video size={12} strokeWidth={1.75} className="kv-icon" />HDR-capable</dt><dd>{hasHdr}</dd>
-        <dt><Package size={12} strokeWidth={1.75} className="kv-icon" />Package cam</dt><dd>{hasPkg}</dd>
-        <dt><ScanFace size={12} strokeWidth={1.75} className="kv-icon" />Smart detect</dt>
-        <dd>{smartTypes.size ? [...smartTypes].join(', ') : 'none enabled'}</dd>
-      </dl>
-    </div>
+    <SectionCard span={4} title="Capabilities" icon={<Sparkles size={14} strokeWidth={1.75} />}>
+      <StatList>
+        <StatRow label={iconLabel(<Mic strokeWidth={1.75} />, 'With microphone')} value={hasMic} />
+        <StatRow label={iconLabel(<Volume2 strokeWidth={1.75} />, 'With speaker')} value={hasSpeaker} />
+        <StatRow label={iconLabel(<Video strokeWidth={1.75} />, 'HDR-capable')} value={hasHdr} />
+        <StatRow label={iconLabel(<Package strokeWidth={1.75} />, 'Package cam')} value={hasPkg} />
+        <StatRow
+          label={iconLabel(<ScanFace strokeWidth={1.75} />, 'Smart detect')}
+          value={smartTypes.size ? [...smartTypes].join(', ') : 'none enabled'}
+        />
+      </StatList>
+    </SectionCard>
   );
 }
 
@@ -177,41 +187,34 @@ function Overview({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
 
   if (protect.total === 0) {
     return (
-      <div className="grid">
-        <div className="tile span-12">
-          <div className="t-title">UniFi Protect</div>
-          <div className="page-empty">
+      <div className="grid grid-cols-12 gap-[var(--gap)]">
+        <SectionCard span={12} title="UniFi Protect">
+          <div className="py-10 text-center text-sm text-muted-foreground">
             No cameras reported. Check that PROTECT_ENABLED is true and PROTECT_API_KEY is set.
           </div>
-        </div>
+        </SectionCard>
       </div>
     );
   }
 
   return (
-    <div className="grid">
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
       <StatusCard data={data} />
       <NvrCard data={data} />
       <FeaturesCard data={data} />
-      <div className="tile span-12">
-        <div className="t-head">
-          <div className="t-title"><CameraIcon size={14} strokeWidth={1.75} />Live snapshots <span className="t-sub">· top {preview.length}</span></div>
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-            gap: 10,
-            paddingTop: 8,
-          }}
-        >
-          {preview.map((cam) => (
-            <ClickableTile key={cam.id} onClick={() => onOpen(cam, 'snapshot')}>
-              <CameraSnapshot camera={cam} intervalMs={5000} />
-            </ClickableTile>
-          ))}
-        </div>
-      </div>
+      <SectionCard
+        span={12}
+        title="Live snapshots"
+        sub={`top ${preview.length}`}
+        icon={<CameraIcon size={14} strokeWidth={1.75} />}
+        bodyClassName="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]"
+      >
+        {preview.map((cam) => (
+          <ClickableTile key={cam.id} onClick={() => onOpen(cam, 'snapshot')}>
+            <CameraSnapshot camera={cam} intervalMs={5000} />
+          </ClickableTile>
+        ))}
+      </SectionCard>
     </div>
   );
 }
@@ -227,92 +230,84 @@ function Grid({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
 
   if (cams.length === 0) {
     return (
-      <div className="grid">
-        <div className="tile span-12">
-          <div className="page-empty">No cameras to display.</div>
-        </div>
+      <div className="grid grid-cols-12 gap-[var(--gap)]">
+        <SectionCard span={12}>
+          <div className="py-10 text-center text-sm text-muted-foreground">No cameras to display.</div>
+        </SectionCard>
       </div>
     );
   }
 
-  const radio = (val: 'live' | 'snapshot', label: string) => (
-    <label className="t-sub" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      <input
-        type="radio"
-        name="cam-mode"
-        checked={mode === val}
-        onChange={() => setMode(val)}
+  const controls = (
+    <div className="flex flex-wrap items-center gap-3">
+      <Segmented
+        value={mode}
+        onChange={(v) => setMode(v as 'live' | 'snapshot')}
+        options={[
+          { value: 'snapshot', label: 'Snapshots' },
+          { value: 'live', label: 'Live' },
+        ]}
       />
-      {label}
-    </label>
+      {mode === 'live' ? (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Quality</span>
+          <Select value={quality} onValueChange={(v) => setQuality(v as StreamQuality)}>
+            <SelectTrigger size="sm" className="w-[92px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">low</SelectItem>
+              <SelectItem value="medium">medium</SelectItem>
+              <SelectItem value="high">high</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Switch checked={hq} onCheckedChange={setHq} />
+            High quality
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Refresh</span>
+            <Select value={String(interval)} onValueChange={(v) => setIntervalMs(Number(v))}>
+              <SelectTrigger size="sm" className="w-[72px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2000">2s</SelectItem>
+                <SelectItem value="4000">4s</SelectItem>
+                <SelectItem value="8000">8s</SelectItem>
+                <SelectItem value="15000">15s</SelectItem>
+                <SelectItem value="30000">30s</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      )}
+    </div>
   );
 
   return (
-    <div className="grid">
-      <div className="tile span-12">
-        <div className="t-head">
-          <div className="t-title"><CameraIcon size={14} strokeWidth={1.75} />All cameras <span className="t-sub">· {cams.length}</span></div>
-          <div className="row" style={{ gap: 14, alignItems: 'center' }}>
-            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-              {radio('snapshot', 'Snapshots')}
-              {radio('live', 'Live')}
-            </div>
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <SectionCard
+        span={12}
+        title="All cameras"
+        sub={cams.length}
+        icon={<CameraIcon size={14} strokeWidth={1.75} />}
+        actions={controls}
+        bodyClassName="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]"
+      >
+        {cams.map((cam) => (
+          <ClickableTile key={cam.id} onClick={() => onOpen(cam, mode)}>
             {mode === 'live' ? (
-              <label className="t-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                Quality
-                <select
-                  value={quality}
-                  onChange={(e) => setQuality(e.target.value as StreamQuality)}
-                  style={{ background: 'transparent', color: 'inherit', border: '1px solid var(--line)', borderRadius: 4, padding: '2px 4px' }}
-                >
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
-                </select>
-              </label>
+              <CameraLiveStream camera={cam} quality={quality} />
             ) : (
-              <>
-                <label className="t-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <input type="checkbox" checked={hq} onChange={(e) => setHq(e.target.checked)} />
-                  High quality
-                </label>
-                <label className="t-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  Refresh
-                  <select
-                    value={interval}
-                    onChange={(e) => setIntervalMs(Number(e.target.value))}
-                    style={{ background: 'transparent', color: 'inherit', border: '1px solid var(--line)', borderRadius: 4, padding: '2px 4px' }}
-                  >
-                    <option value={2000}>2s</option>
-                    <option value={4000}>4s</option>
-                    <option value={8000}>8s</option>
-                    <option value={15000}>15s</option>
-                    <option value={30000}>30s</option>
-                  </select>
-                </label>
-              </>
+              <CameraSnapshot camera={cam} highQuality={hq} intervalMs={interval} />
             )}
-          </div>
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: 10,
-            paddingTop: 8,
-          }}
-        >
-          {cams.map((cam) => (
-            <ClickableTile key={cam.id} onClick={() => onOpen(cam, mode)}>
-              {mode === 'live' ? (
-                <CameraLiveStream camera={cam} quality={quality} />
-              ) : (
-                <CameraSnapshot camera={cam} highQuality={hq} intervalMs={interval} />
-              )}
-            </ClickableTile>
-          ))}
-        </div>
-      </div>
+          </ClickableTile>
+        ))}
+      </SectionCard>
     </div>
   );
 }
@@ -323,7 +318,7 @@ interface EventRow extends ProtectEvent {
 
 function deviceLabel(e: EventRow): ReactNode {
   if (e.cameraName) return e.cameraName;
-  if (e.device) return <span className="t-sub mono">device · {e.device.slice(0, 8)}</span>;
+  if (e.device) return <span className="font-mono text-xs text-muted-foreground">device · {e.device.slice(0, 8)}</span>;
   return '—';
 }
 
@@ -423,90 +418,90 @@ function Events({ data }: { data: DashboardState }) {
     return [...set].sort();
   }, [events, data.protect.recentEvents]);
 
-  return (
-    <div className="grid">
-      <div className="tile span-12">
-        <div className="t-head">
-          <div className="t-title">
-            <Activity size={14} strokeWidth={1.75} />
-            Events
-            <span className={`t-tag ${connected ? 'ok' : 'bad'}`}>
-              {connected ? <span className="pulse-dot icon-pulse" /> : null}
-              {connected ? 'live' : 'disconnected'}
-            </span>
-          </div>
-          <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-            <label className="t-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              Device
-              <select
-                value={filterDevice}
-                onChange={(e) => setFilterDevice(e.target.value)}
-                style={{ background: 'transparent', color: 'inherit', border: '1px solid var(--line)', borderRadius: 4, padding: '2px 4px' }}
-              >
-                <option value="all">all</option>
-                {data.protect.cameras.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="t-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              Type
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                style={{ background: 'transparent', color: 'inherit', border: '1px solid var(--line)', borderRadius: 4, padding: '2px 4px' }}
-              >
-                <option value="all">all</option>
-                {types.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </div>
-        {lastError ? (
-          <div className="t-sub" style={{ color: 'var(--bad)', paddingTop: 4 }}>
-            {lastError}
-          </div>
-        ) : null}
-        {visible.length === 0 ? (
-          <div className="page-empty">
-            {events === null ? 'loading…' : 'no events in buffer yet'}
-          </div>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>Device</th>
-                <th>Type</th>
-                <th>Duration</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((e) => {
-                const sev = eventSeverity(e);
-                const dur = e.end ? `${Math.max(1, Math.round((e.end - e.start) / 1000))}s` : 'ongoing';
-                return (
-                  <tr key={`${e.id}-${e.seq}`}>
-                    <td title={new Date(e.start).toLocaleString()}>{formatTimeAgo(e.start)}</td>
-                    <td>{deviceLabel(e)}</td>
-                    <td>
-                      <span className={`pill ${sev}`}>
-                        <span className="dot" />
-                        {formatEventType(e)}
-                      </span>
-                    </td>
-                    <td className="mono">{dur}</td>
-                    <td className="t-sub">{summariseMetadata(e)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+  const filters = (
+    <div className="flex flex-wrap items-center gap-3">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">Device</span>
+        <Select value={filterDevice} onValueChange={setFilterDevice}>
+          <SelectTrigger size="sm" className="w-[160px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">all</SelectItem>
+            {data.protect.cameras.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">Type</span>
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger size="sm" className="w-[160px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">all</SelectItem>
+            {types.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      {lastError ? (
+        <div className="rounded-lg border border-[color-mix(in_oklab,var(--bad)_30%,transparent)] bg-[color-mix(in_oklab,var(--bad)_8%,transparent)] px-3.5 py-2.5 text-sm text-bad">
+          {lastError}
+        </div>
+      ) : null}
+      <DataTableCard
+        span={12}
+        title={
+          <span className="flex items-center gap-2">
+            Events
+            <StatusBadge kind={connected ? 'ok' : 'bad'} pulse={connected}>
+              {connected ? 'live' : 'disconnected'}
+            </StatusBadge>
+          </span>
+        }
+        icon={<Activity size={14} strokeWidth={1.75} />}
+        actions={filters}
+        isEmpty={visible.length === 0}
+        empty={events === null ? 'loading…' : 'no events in buffer yet'}
+        head={
+          <>
+            <TableHead>When</TableHead>
+            <TableHead>Device</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Duration</TableHead>
+            <TableHead>Details</TableHead>
+          </>
+        }
+      >
+        {visible.map((e) => {
+          const sev = eventSeverity(e);
+          const dur = e.end ? `${Math.max(1, Math.round((e.end - e.start) / 1000))}s` : 'ongoing';
+          return (
+            <TableRow key={`${e.id}-${e.seq}`}>
+              <TableCell className="tabular-nums text-muted-foreground" title={new Date(e.start).toLocaleString()}>
+                {formatTimeAgo(e.start)}
+              </TableCell>
+              <TableCell className="text-foreground">{deviceLabel(e)}</TableCell>
+              <TableCell>
+                <StatusBadge kind={sev}>{formatEventType(e)}</StatusBadge>
+              </TableCell>
+              <TableCell className="font-mono text-xs tabular-nums">{dur}</TableCell>
+              <TableCell className="max-w-[280px] truncate text-xs text-muted-foreground">
+                {summariseMetadata(e)}
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </DataTableCard>
     </div>
   );
 }
@@ -519,82 +514,69 @@ function Devices({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
   const cams = data.protect.cameras;
   if (cams.length === 0) {
     return (
-      <div className="grid">
-        <div className="tile span-12"><div className="page-empty">No cameras.</div></div>
+      <div className="grid grid-cols-12 gap-[var(--gap)]">
+        <SectionCard span={12}>
+          <div className="py-10 text-center text-sm text-muted-foreground">No cameras.</div>
+        </SectionCard>
       </div>
     );
   }
   return (
-    <div className="grid">
-      <div className="tile span-12">
-        <div className="t-head">
-          <div className="t-title"><CameraIcon size={14} strokeWidth={1.75} />Devices <span className="t-sub">· {cams.length}</span></div>
-        </div>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>State</th>
-              <th>Name</th>
-              <th>Model</th>
-              <th>MAC</th>
-              <th>Video</th>
-              <th>HDR</th>
-              <th>Mic</th>
-              <th>Speaker</th>
-              <th>Smart detect</th>
-              <th>View</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cams.map((c) => {
-              const ok = c.state === 'CONNECTED';
-              const pill = ok ? 'ok' : c.state === 'CONNECTING' ? 'warn' : 'bad';
-              return (
-                <tr key={c.id}>
-                  <td>
-                    <span className={`pill ${pill}`}>
-                      <span className={`dot ${ok ? 'icon-pulse' : ''}`} />
-                      {c.state.toLowerCase()}
-                    </span>
-                  </td>
-                  <td>{c.name}</td>
-                  <td className="mono">{modelLabel(c)}</td>
-                  <td className="mono">{c.mac || '—'}</td>
-                  <td>{c.videoMode}</td>
-                  <td>{c.hasHdr ? c.hdrType : '—'}</td>
-                  <td>{c.hasMic ? (c.isMicEnabled ? `${c.micVolume}%` : 'muted') : '—'}</td>
-                  <td>{c.hasSpeaker ? 'yes' : '—'}</td>
-                  <td>{c.enabledObjectTypes.length ? c.enabledObjectTypes.join(', ') : '—'}</td>
-                  <td>
-                    {ok ? (
-                      <div className="row" style={{ gap: 6 }}>
-                        <button
-                          className="icon-btn"
-                          onClick={() => onOpen(c, 'snapshot')}
-                          title="View snapshot"
-                          style={{ padding: '2px 8px', height: 24 }}
-                        >
-                          Snapshot
-                        </button>
-                        <button
-                          className="icon-btn"
-                          onClick={() => onOpen(c, 'live')}
-                          title="View live"
-                          style={{ padding: '2px 8px', height: 24 }}
-                        >
-                          Live
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="t-sub">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
+      <DataTableCard
+        span={12}
+        title="Devices"
+        sub={cams.length}
+        icon={<CameraIcon size={14} strokeWidth={1.75} />}
+        head={
+          <>
+            <TableHead>State</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Model</TableHead>
+            <TableHead>MAC</TableHead>
+            <TableHead>Video</TableHead>
+            <TableHead>HDR</TableHead>
+            <TableHead>Mic</TableHead>
+            <TableHead>Speaker</TableHead>
+            <TableHead>Smart detect</TableHead>
+            <TableHead>View</TableHead>
+          </>
+        }
+      >
+        {cams.map((c) => {
+          const ok = c.state === 'CONNECTED';
+          const kind = ok ? 'ok' : c.state === 'CONNECTING' ? 'warn' : 'bad';
+          return (
+            <TableRow key={c.id}>
+              <TableCell>
+                <StatusBadge kind={kind} pulse={ok}>{c.state.toLowerCase()}</StatusBadge>
+              </TableCell>
+              <TableCell className="font-medium text-foreground">{c.name}</TableCell>
+              <TableCell className="font-mono text-muted-foreground">{modelLabel(c)}</TableCell>
+              <TableCell className="font-mono text-muted-foreground">{c.mac || '—'}</TableCell>
+              <TableCell>{c.videoMode}</TableCell>
+              <TableCell>{c.hasHdr ? c.hdrType : '—'}</TableCell>
+              <TableCell>{c.hasMic ? (c.isMicEnabled ? `${c.micVolume}%` : 'muted') : '—'}</TableCell>
+              <TableCell>{c.hasSpeaker ? 'yes' : '—'}</TableCell>
+              <TableCell>{c.enabledObjectTypes.length ? c.enabledObjectTypes.join(', ') : '—'}</TableCell>
+              <TableCell>
+                {ok ? (
+                  <div className="flex gap-1.5">
+                    <Button variant="outline" size="sm" onClick={() => onOpen(c, 'snapshot')} title="View snapshot">
+                      Snapshot
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => onOpen(c, 'live')} title="View live">
+                      Live
+                    </Button>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </DataTableCard>
     </div>
   );
 }

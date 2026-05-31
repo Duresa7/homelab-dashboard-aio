@@ -31,6 +31,8 @@ export interface PurchaseInfo {
 
 export interface ItemIds {
   serial?: string;
+  /** Manufacturer part / configuration number (e.g. Seagate "PART-EXAMPLE-001"). */
+  part?: string;
   uid?: string;
   mac?: string;
   assetTag?: string;
@@ -111,7 +113,7 @@ const c = (component: string, specification: string): SpecRow => ({
 
 function makeSeed(): Inventory {
   return {
-    lastUpdated: '2026-05-18',
+    lastUpdated: '2026-05-30',
     machines: [
       {
         id: genId('mach'),
@@ -154,8 +156,8 @@ function makeSeed(): Inventory {
           c('GPU',          'MSI NVIDIA GeForce RTX 3070 8GB'),
           c('Motherboard',  'ASUS TUF Gaming B650-PLUS WiFi — AM5 / B650'),
           c('RAM',          'G.SKILL F5-6000J3636F16G — DDR5-6000 32 GB (2×16 GB)'),
-          c('Storage 1',    'WDC PC SN720 SDAQNTW — 512 GB NVMe SSD'),
-          c('Storage 2',    'Crucial CT500P310SSD8 — 500 GB NVMe SSD'),
+          c('Storage 1',    'Crucial CT500P310SSD8 — 500 GB NVMe SSD'),
+          c('Storage 2',    'Empty (M.2 NVMe slot)'),
           c('PSU',          'CORSAIR 750 W'),
           c('Case',         'NZXT H5 Flow (2023)'),
           c('Thermal Paste','Thermal Grizzly Kryonaut'),
@@ -180,7 +182,7 @@ function makeSeed(): Inventory {
           c('RAM',          'G.SKILL Ripjaws V — DDR4-3600 64 GB (4×16 GB), 2× F4-3600C18D-32GVK kits, CL18, XMP'),
           c('Storage 1',    'Crucial CT1000P310SSD8 — 1 TB NVMe SSD'),
           c('Storage 2',    'Crucial CT2000BX500SSD1 — 2 TB SATA SSD'),
-          c('Storage 3',    'WD WD40EFPX-68C6CN0 — 4 TB HDD'),
+          c('Storage 3',    'Toshiba DT01ACA200 — 2 TB 3.5" SATA HDD'),
           c('PSU',          'Powerspec 750 W ATX (Non-Modular)'),
           c('Case',         'NZXT H510i'),
           c('Thermal Paste','Thermal Grizzly Kryonaut'),
@@ -200,11 +202,11 @@ function makeSeed(): Inventory {
         components: [
           c('CPU',         'Quad-core ARM Cortex-A55 @ 1.7 GHz'),
           c('RAM',         '4 GB'),
-          c('Drive Bay 1', 'WD Purple WD40PURX-64GVNY0 — 4 TB 3.5" SATA HDD (surveillance)'),
+          c('Drive Bay 1', 'WD Red Plus WD40EFPX-68C6CN0 — 4 TB 3.5" SATA HDD'),
           c('Drive Bay 2', 'WD Purple WD60PURX-64LZMY0 — 6 TB 3.5" SATA HDD (surveillance)'),
-          c('Drive Bay 3', 'Empty'),
-          c('Drive Bay 4', 'Empty'),
-          c('NVMe Slot 1', 'Empty (M.2 NVMe, up to 2 TiB)'),
+          c('Drive Bay 3', 'WD Blue WD5000LPVX-08V0TT5 — 500 GB 2.5" SATA HDD'),
+          c('Drive Bay 4', 'HGST HTS725050A7E630 — 500 GB 2.5" SATA HDD'),
+          c('NVMe Slot 1', 'WDC PC SN720 SDAQNTW — 512 GB NVMe M.2'),
           c('NVMe Slot 2', 'Empty (M.2 NVMe, up to 2 TiB)'),
           c('NIC',         '2.5 GbE RJ45 (PoE+++ powered)'),
           c('USB',         'USB-C 5 Gbps'),
@@ -212,6 +214,50 @@ function makeSeed(): Inventory {
           c('Display',     '1.47" color LCM'),
           c('Power',       '90 W PoE+++'),
         ],
+      },
+      {
+        id: genId('mach'),
+        ordinal: '05',
+        name: 'node-b',
+        role: 'Proxmox host',
+        meta: [
+          m('Hostname', 'node-b'),
+          m('IP',       '198.51.100.10'),
+          m('OS',       'Proxmox VE 9'),
+          m('Model',    'Lenovo ThinkCentre M920q Tiny'),
+        ],
+        components: [
+          c('CPU',          'Intel 8th-gen Core (T-series, LGA1151)'),
+          c('RAM (DIMM1)',  'Micron MTA8ATF1G64HZ-2G6E1 — 8 GB DDR4-2666 SO-DIMM (Lenovo FRU 01AG841)'),
+          c('RAM (DIMM2)',  'SK hynix HMA81GS6AFR8N-UH — 8 GB DDR4-2400 SO-DIMM'),
+          c('RAM total',    '16 GB (2×8 GB; runs at 2400 MT/s — slower module sets the bus)'),
+          c('Storage 1',    'Samsung PM981 (MZ-VLB2560) — 256 GB NVMe M.2 (slot 1)'),
+          c('Chassis',      'Lenovo ThinkCentre M920q Tiny — MTM ASSET-EXAMPLE-001, 20 V / 3.25 A'),
+          c('NIC',          'Onboard 1 GbE'),
+        ],
+        ids: { serial: 'SERIAL-EXAMPLE-001', assetTag: 'ASSET-EXAMPLE-001' },
+      },
+      {
+        id: genId('mach'),
+        ordinal: '06',
+        name: 'node-c',
+        role: 'Proxmox host',
+        meta: [
+          m('Hostname', 'node-c'),
+          m('IP',       '198.51.100.10'),
+          m('OS',       'Proxmox VE 9'),
+          m('Model',    'Lenovo ThinkCentre M910q Tiny'),
+        ],
+        components: [
+          c('CPU',          'Intel 6th/7th-gen Core (T-series, LGA1151)'),
+          c('RAM (DIMM1)',  'SK hynix HMA81GS6CJR8N-VK — 8 GB DDR4-2666 SO-DIMM (Lenovo FRU 01AG824, factory)'),
+          c('RAM (DIMM2)',  'SK hynix HMA851S6AFR6N-UH — 4 GB DDR4-2400 SO-DIMM'),
+          c('RAM total',    '12 GB (8 GB + 4 GB; runs at 2400 MT/s — slower module sets the bus)'),
+          c('Storage 1',    'Samsung PM961 (MZ-VLW2560) — 256 GB NVMe M.2 (slot 1, Lenovo FRU 00UP436)'),
+          c('Chassis',      'Lenovo ThinkCentre M910q Tiny — MTM 10MU / S08B00, MFG 04/2018, 20 V / 3.25 A'),
+          c('NIC',          'Onboard 1 GbE'),
+        ],
+        ids: { serial: 'SERIAL-EXAMPLE-002', assetTag: 'ASSET-EXAMPLE-002' },
       },
     ],
     spares: [
@@ -288,18 +334,8 @@ function makeSeed(): Inventory {
           { id: 'form',     label: 'Form Factor' },
         ],
         items: [
-          { id: genId('s'), values: { brand: 'Samsung',  model: '850 EVO',                  capacity: '250 GB', form: '2.5" SATA' } },
-          { id: genId('s'), values: { brand: 'Kingston', model: 'RBU-SNS4151S3/16GD',       capacity: '16 GB',  form: 'OEM SSD'   } },
-          {
-            id: genId('s'),
-            values: { brand: 'Samsung', model: 'PM981 (MZ-VLB2560)', capacity: '256 GB', form: 'M.2 2280 PCIe NVMe' },
-            ids: { serial: 'S41GNX1M405659', location: 'Installed in Lenovo ThinkCentre M920q' },
-          },
-          {
-            id: genId('s'),
-            values: { brand: 'Samsung', model: 'PM961 (MZ-VLW2560) — Lenovo FRU 00UP436', capacity: '256 GB', form: 'M.2 2280 PCIe NVMe' },
-            ids: { serial: 'S35ENX0K441210', location: 'Installed in Lenovo ThinkCentre M910q' },
-          },
+          { id: genId('s'), values: { brand: 'Samsung',  model: '850 EVO',            capacity: '250 GB', form: '2.5" SATA' } },
+          { id: genId('s'), values: { brand: 'Kingston', model: 'RBU-SNS4151S3/16GD', capacity: '16 GB',  form: 'OEM SSD'   } },
         ],
       },
       {
@@ -312,10 +348,9 @@ function makeSeed(): Inventory {
           { id: 'form',     label: 'Form Factor' },
         ],
         items: [
-          { id: genId('s'), values: { brand: 'HGST',    model: 'HTS725050A7E630', capacity: '500 GB', form: '2.5"' } },
-          { id: genId('s'), values: { brand: 'WD Blue', model: 'WD5000LPVX',      capacity: '500 GB', form: '2.5"' } },
-          { id: genId('s'), values: { brand: 'Seagate', model: '(laptop HDD)',    capacity: '1 TB',   form: '2.5"' } },
-          { id: genId('s'), values: { brand: 'Toshiba', model: 'DT01ACA200',      capacity: '2 TB',   form: '3.5"' } },
+          { id: genId('s'), ids: { serial: 'SERIAL-EXAMPLE-003', part: 'PART-EXAMPLE-001' }, values: { brand: 'Seagate', model: 'ST1000LM035 (Mobile HDD)', capacity: '1 TB', form: '2.5"' } },
+          { id: genId('s'), ids: { serial: 'WXE1A35D6NSN' }, values: { brand: 'WD Blue', model: 'WD5000LPVX-08V0T', capacity: '500 GB', form: '2.5" SATA 6Gb/s · 5400 RPM' } },
+          { id: genId('s'), status: 'broken', problemLog: [{ id: genId('p'), date: '2026-05-30', note: 'Bad sectors detected, end of life — failed its SMART test.' }], values: { brand: 'WD Purple', model: 'WD40PURX-64GVNY0', capacity: '4 TB', form: '3.5"' } },
         ],
       },
       {
@@ -330,18 +365,6 @@ function makeSeed(): Inventory {
         items: [
           { id: genId('s'), values: { brand: 'SK hynix', part: 'HMT351S6EFR8A',    capacity: '4 GB', type: 'DDR3L-1600 SO-DIMM (PC3L-12800S), 2Rx8' } },
           { id: genId('s'), values: { brand: 'Samsung',  part: 'M471A5644EB0-CPB', capacity: '2 GB', type: 'DDR4-2133 SO-DIMM (PC4-2133P), 1Rx16'  } },
-          { id: genId('s'), values: { brand: 'SK hynix', part: 'HMA81GS6AFR8N-UH', capacity: '8 GB', type: 'DDR4-2400 SO-DIMM (PC4-2400T-SA1-11), 1Rx8'  } },
-          { id: genId('s'), values: { brand: 'SK hynix', part: 'HMA851S6AFR6N-UH', capacity: '4 GB', type: 'DDR4-2400 SO-DIMM (PC4-2400T-SC0-11), 1Rx16' } },
-          {
-            id: genId('s'),
-            values: { brand: 'Micron', part: 'MTA8ATF1G64HZ-2G6E1', capacity: '8 GB', type: 'DDR4-2666 SO-DIMM (PC4-2666V-SA2-11), 1Rx8 — Lenovo FRU 01AG841' },
-            ids: { location: 'Installed in Lenovo ThinkCentre M920q (DIMM1)' },
-          },
-          {
-            id: genId('s'),
-            values: { brand: 'SK hynix', part: 'HMA81GS6CJR8N-VK', capacity: '8 GB', type: 'DDR4-2666 SO-DIMM (PC4-2666V-SA1-11), 1Rx8 — Lenovo FRU 01AG824' },
-            ids: { location: 'Installed in Lenovo ThinkCentre M910q' },
-          },
         ],
       },
       {
@@ -362,45 +385,6 @@ function makeSeed(): Inventory {
           { id: genId('s'), values: { brand: 'Netgear',   model: 'GS608',           type: '8-port unmanaged switch (1 GbE)',         notes: '' } },
           { id: genId('s'), values: { brand: 'Netgear',   model: 'FS726TP ProSafe', type: '24-port smart switch (10/100) + 2× 1 GbE', notes: 'PoE' } },
           { id: genId('s'), values: { brand: '(Generic)', model: 'PS1080',          type: '8-port PoE unmanaged switch (1 GbE)',     notes: 'IEEE 802.3af, 100–240 VAC input, 48 VDC output' } },
-        ],
-      },
-      {
-        id: genId('cat'),
-        name: 'Desktops',
-        note: 'Tiny / SFF desktops kept as spares.',
-        columns: [
-          { id: 'brand',   label: 'Brand' },
-          { id: 'model',   label: 'Model' },
-          { id: 'cpu',     label: 'CPU' },
-          { id: 'ram',     label: 'RAM' },
-          { id: 'storage', label: 'Storage' },
-          { id: 'notes',   label: 'Notes' },
-        ],
-        items: [
-          {
-            id: genId('s'),
-            values: {
-              brand:   'Lenovo',
-              model:   'ThinkCentre M920q Tiny',
-              cpu:     'Unknown — verify on boot (Intel 8th/9th gen LGA1151)',
-              ram:     '8 GB DDR4-2666 (1×8 GB, DIMM2 empty)',
-              storage: 'Samsung PM981 256 GB NVMe',
-              notes:   'MTM ASSET-EXAMPLE-001 · 20 V / 3.25 A PSU',
-            },
-            ids: { serial: 'SERIAL-EXAMPLE-001', assetTag: 'ASSET-EXAMPLE-001' },
-          },
-          {
-            id: genId('s'),
-            values: {
-              brand:   'Lenovo',
-              model:   'ThinkCentre M910q Tiny',
-              cpu:     'Unknown — verify on boot (Intel 6th/7th gen LGA1151)',
-              ram:     '8 GB DDR4-2666 (1×8 GB, second slot empty)',
-              storage: 'Samsung PM961 256 GB NVMe',
-              notes:   'MTM 10MU · Model S08B00 · MFG 04/2018 · 20 V / 3.25 A PSU · Made in Mexico',
-            },
-            ids: { serial: 'SERIAL-EXAMPLE-002', assetTag: 'ASSET-EXAMPLE-002' },
-          },
         ],
       },
       {
