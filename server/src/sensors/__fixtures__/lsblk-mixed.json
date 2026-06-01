@@ -1,0 +1,36 @@
+{
+  "blockdevices": [
+    {
+      "name": "nvme0n1",
+      "path": "/dev/nvme0n1",
+      "model": "CT1000P3SSD8",
+      "vendor": null,
+      "serial": "AAA111",
+      "tran": "nvme",
+      "type": "disk"
+    },
+    {
+      "name": "sda",
+      "path": "/dev/sda",
+      "model": "ST4000VN008-2DR166",
+      "vendor": "ATA",
+      "serial": "BBB222",
+      "tran": "sata",
+      "type": "disk"
+    },
+    {
+      "name": "sdb",
+      "path": "/dev/sdb",
+      "model": "ST4000VN008-2DR166",
+      "vendor": "ATA",
+      "serial": "CCC333",
+      "tran": "sata",
+      "type": "disk"
+    },
+    {
+      "name": "sda1",
+      "path": "/dev/sda1",
+      "type": "part"
+    }
+  ]
+}

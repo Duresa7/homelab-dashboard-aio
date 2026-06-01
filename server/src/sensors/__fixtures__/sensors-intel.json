@@ -1,0 +1,7 @@
+{
+  "coretemp-isa-0000": {
+    "Package id 0": { "temp1_input": 60.0 },
+    "Core 0": { "temp2_input": 55.0 },
+    "Core 1": { "temp3_input": 56.0 }
+  }
+}

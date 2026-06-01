@@ -1,0 +1,30 @@
+{
+  "k10temp-pci-00c3": {
+    "Tctl": { "temp1_input": 55.2 },
+    "Tdie": { "temp2_input": 50.0 },
+    "Tccd1": { "temp3_input": 48.0 }
+  },
+  "nvme-pci-0100": {
+    "Composite": { "temp1_input": 41.85 }
+  },
+  "drivetemp-scsi-0-0": {
+    "temp1": { "temp1_input": 33.0 }
+  },
+  "drivetemp-scsi-1-0": {
+    "temp1": { "temp1_input": 35.0 }
+  },
+  "jc42-i2c-0-18": {
+    "temp1": { "temp1_input": 42.0 }
+  },
+  "r8169_0_500:00": {
+    "temp1": { "temp1_input": 58.0 }
+  },
+  "nct6798-isa-0290": {
+    "SYSTIN": { "temp2_input": 36.0 },
+    "fan1": { "fan1_input": 1200 },
+    "fan2": { "fan2_input": 0 }
+  },
+  "acpitz-acpi-0": {
+    "temp1": { "temp1_input": 38.0 }
+  }
+}
