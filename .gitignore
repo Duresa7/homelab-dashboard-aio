@@ -21,7 +21,9 @@ dist-ssr
 *.log
 
 # Reference docs (local only)
-docs
+docs/*
+# ...but track the agent-skills config
+!docs/agents/
 
 # OS
 .DS_Store
