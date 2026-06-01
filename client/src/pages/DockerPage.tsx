@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Play, Square, Server, Layers } from 'lucide-react';
 import { BrandIcon } from '../components/icons/BrandIcon';
 import { SectionCard, StatCard, StatList, StatRow, StatusBadge, Segmented } from '@/components/common';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
 
@@ -143,24 +144,44 @@ function Containers({ data }: { data: DashboardState }) {
               sub={`${list.length} containers`}
               bodyClassName="flex flex-col gap-2"
             >
-              {list.map((x) => (
-                <div key={x.name} className="flex flex-col gap-0.5 rounded-lg border border-border p-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <span
-                      className={cn(
-                        'size-1.5 shrink-0 rounded-full',
-                        x.state === 'stopped' ? 'bg-idle' : x.state === 'paused' ? 'bg-warn' : 'bg-ok',
-                      )}
-                    />
-                    <span className="truncate">{x.name}</span>
-                  </div>
-                  <div className="truncate font-mono text-xs text-muted-foreground">{x.image}</div>
-                  <div className="text-xs tabular-nums text-muted-foreground">
-                    cpu {x.cpu.toFixed(1)}% · {x.memMB} MB
-                  </div>
-                  <div className="text-xs tabular-nums text-muted-foreground/70">up {x.uptime}</div>
-                </div>
-              ))}
+              {list.map((x) => {
+                const dot = x.state === 'stopped' ? 'bg-idle' : x.state === 'paused' ? 'bg-warn' : 'bg-ok';
+                const kind = x.state === 'stopped' ? 'idle' : x.state === 'paused' ? 'warn' : 'ok';
+                return (
+                  <HoverCard key={x.name} openDelay={140} closeDelay={80}>
+                    <HoverCardTrigger asChild>
+                      <div className="flex cursor-default flex-col gap-0.5 rounded-lg border border-border p-3 transition-colors hover:border-border/80 hover:bg-muted/40">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <span className={cn('size-1.5 shrink-0 rounded-full', dot)} />
+                          <span className="truncate">{x.name}</span>
+                        </div>
+                        <div className="truncate font-mono text-xs text-muted-foreground">{x.image}</div>
+                        <div className="text-xs tabular-nums text-muted-foreground">
+                          cpu {x.cpu.toFixed(1)}% · {x.memMB} MB
+                        </div>
+                        <div className="text-xs tabular-nums text-muted-foreground/70">up {x.uptime}</div>
+                      </div>
+                    </HoverCardTrigger>
+                    <HoverCardContent side="top" align="start" className="w-72">
+                      <div className="flex flex-col gap-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-semibold text-foreground">{x.name}</span>
+                          <StatusBadge kind={kind}>{x.state}</StatusBadge>
+                        </div>
+                        <div>
+                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Image</span>
+                          <p className="break-all font-mono text-xs text-foreground">{x.image}</p>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 border-t border-border/60 pt-2 text-xs">
+                          <div><div className="text-muted-foreground">CPU</div><div className="tabular-nums text-foreground">{x.cpu.toFixed(1)}%</div></div>
+                          <div><div className="text-muted-foreground">Memory</div><div className="tabular-nums text-foreground">{x.memMB} MB</div></div>
+                          <div><div className="text-muted-foreground">Uptime</div><div className="tabular-nums text-foreground">{x.uptime}</div></div>
+                        </div>
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
+                );
+              })}
             </SectionCard>
           );
         });

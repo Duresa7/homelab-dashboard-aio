@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
 import { INTEGRATIONS } from '../lib/integrations';
 import type { IntegrationKey } from '../lib/telemetry';
 
@@ -97,7 +98,7 @@ export function HealthPage({ integrations }: Props) {
   const probes = data?.integrations ?? {};
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-[var(--page-gap)]">
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5 shadow-card">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
@@ -149,7 +150,17 @@ export function HealthPage({ integrations }: Props) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {INTEGRATIONS.map((def) => {
+            {loading && !data
+              ? INTEGRATIONS.map((def) => (
+                  <TableRow key={def.key}>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="ml-auto h-4 w-12" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  </TableRow>
+                ))
+              : INTEGRATIONS.map((def) => {
               const clientEnabled = !!integrations[def.key];
               const p = probes[def.healthField];
               const s = statusKind(p, clientEnabled);

@@ -55,7 +55,7 @@
   --ink-4: #64748b; /* deemphasized: stale timestamps (~4.9:1, AA) */
 
   /* ---- lines (soft hairlines — no more hard black borders) ---- */
-  --line: #ebedf0; /* soft hairline */
+  --line: #eef0f4; /* soft hairline (lightened) */
   --line-2: #dce0e6; /* hover / divider */
   --line-strong: #cbd2db; /* table edges */
   --panel-line: #e6e8ec; /* card outline (was #000) */
@@ -64,22 +64,29 @@
   --sh-accent: #f1f3f7;
   --sh-accent-foreground: #1e293b;
 
-  /* ---- radii ---- */
-  --radius: 0.625rem; /* 10px base */
-  --radius-sm: 0.375rem; /* 6px */
-  --radius-md: 0.5rem; /* 8px */
+  /* ---- radii (softer / rounder surfaces) ---- */
+  --radius: 0.75rem; /* 12px base */
+  --radius-sm: 0.5rem; /* 8px */
+  --radius-md: 0.625rem; /* 10px */
   --radius-lg: 0.875rem; /* 14px */
   --radius-pill: 999px;
 
-  /* ---- spacing ---- */
-  --pad: 18px;
-  --gap: 16px;
-  --section-gap: 40px;
+  /* ---- spacing (density-aware; regular tuned airier) ----
+     --pad      card interior padding
+     --gap      grid / tile gap
+     --page-gap vertical rhythm between stacked page sections/cards
+     --page-pad outer page content padding
+     --section-gap gap between titled overview section groups */
+  --pad: 20px;
+  --gap: 18px;
+  --page-gap: 24px;
+  --page-pad: 28px;
+  --section-gap: 44px;
 
-  /* ---- shadows (soft, layered) ---- */
-  --shadow-tile: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.03);
-  --shadow-tile-hover: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
-  --shadow-overlay: 0 24px 56px -12px rgba(15, 23, 42, 0.22), 0 8px 24px -8px rgba(15, 23, 42, 0.12);
+  /* ---- shadows (soft, layered, diffuse) ---- */
+  --shadow-tile: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 6px -1px rgba(15, 23, 42, 0.05);
+  --shadow-tile-hover: 0 6px 20px -4px rgba(15, 23, 42, 0.1), 0 3px 8px -2px rgba(15, 23, 42, 0.06);
+  --shadow-overlay: 0 32px 64px -16px rgba(15, 23, 42, 0.24), 0 12px 28px -12px rgba(15, 23, 42, 0.14);
 
   /* ---- layout ---- */
   --sidebar-w: 240px;
@@ -129,21 +136,25 @@
   --sh-accent: #1e2636;
   --sh-accent-foreground: #e2e8f0;
 
-  --shadow-tile: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-tile-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
-  --shadow-overlay: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  --shadow-tile: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 6px -1px rgba(0, 0, 0, 0.35);
+  --shadow-tile-hover: 0 6px 20px -4px rgba(0, 0, 0, 0.55), 0 3px 8px -2px rgba(0, 0, 0, 0.4);
+  --shadow-overlay: 0 32px 64px -16px rgba(0, 0, 0, 0.7), 0 12px 28px -12px rgba(0, 0, 0, 0.5);
 }
 
 [data-density='compact'] {
-  --pad: 13px;
+  --pad: 14px;
   --gap: 12px;
-  --section-gap: 26px;
+  --page-gap: 16px;
+  --page-pad: 18px;
+  --section-gap: 28px;
   --sidebar-w: 216px;
 }
 [data-density='comfy'] {
-  --pad: 24px;
-  --gap: 22px;
-  --section-gap: 56px;
+  --pad: 26px;
+  --gap: 24px;
+  --page-gap: 32px;
+  --page-pad: 40px;
+  --section-gap: 60px;
   --sidebar-w: 264px;
 }
 
@@ -259,9 +270,9 @@
 /* Fonts use a non-inline @theme so the variables are emitted to :root
    (consumed by both Tailwind `font-*` utilities and legacy `var(--font-*)`). */
 @theme {
-  --font-display: 'Clash Display', 'General Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-sans: 'General Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+  --font-display: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 }
 
 /* =========================================================
@@ -289,7 +300,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    font-feature-settings: 'ss01', 'cv01';
+    /* Inter: contextual alternates + disambiguated l/I/1 for legibility. */
+    font-feature-settings: 'cv05', 'cv08';
   }
   h1,
   h2,

@@ -1,6 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+// Self-hosted fonts (variable, latin subset fetched on demand via unicode-range).
+// Works offline on an isolated LAN — no Fontshare/Google CDN dependency.
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
+
 // globals.css imports components.css into a low-priority `legacy` cascade layer.
 import './styles/globals.css';
 import { App } from './App';

@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Briefcase,
   Calendar,
   CheckCircle2,
-  ChevronDown,
   CircleSlash,
   Cpu,
   Fingerprint,
@@ -23,6 +22,7 @@ import {
 
 import {
   genId,
+  splitSpec,
   suggestComponentUid,
   suggestMachineUid,
   type FoundItem,
@@ -38,7 +38,17 @@ import {
 } from '../lib/inventory';
 import { BrandGlyph, categoryIcon, componentIcon, roleIcon } from '../lib/inventoryIcons';
 import { Editable } from './InventoryPage';
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 type Mutator<T> = (mut: (cur: T) => T) => void;
 
@@ -77,6 +87,13 @@ const STATUS_KIND: Record<ItemStatus, 'ok' | 'bad' | 'warn' | 'idle'> = {
   retired:     'idle',
 };
 
+const TONE_TEXT: Record<'ok' | 'bad' | 'warn' | 'idle', string> = {
+  ok: 'text-ok',
+  bad: 'text-bad',
+  warn: 'text-warn',
+  idle: 'text-idle',
+};
+
 export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Props) {
   const itemId =
     found.kind === 'machine'   ? found.machine.id
@@ -87,20 +104,6 @@ export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Pr
     : found.kind === 'spare'   ? found.item
     :                            found.component;
   const status: ItemStatus = detail.status ?? 'working';
-
-  useEffect(() => {
-    const fn = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', fn);
-    return () => window.removeEventListener('keydown', fn);
-  }, [onClose]);
-
-  // Trap initial focus on the panel for a11y.
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    panelRef.current?.focus();
-  }, [itemId]);
 
   const mutDetail: Mutator<ItemDetail> = (mut) => {
     onChange(itemId, (cur) => ({ ...cur, ...mut(cur) }) as Machine | SpareItem | SpecRow);
@@ -135,10 +138,8 @@ export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Pr
   const purchase = detail.purchase ?? {};
   const ids = detail.ids ?? {};
   const log = detail.problemLog ?? [];
-
   const kindClass = STATUS_KIND[status];
 
-  // Header label content
   const header =
     found.kind === 'machine'
       ? <MachineHeader machine={found.machine} isEditing={isEditing} onChange={(mut) => onChange(itemId, mut as (m: Machine | SpareItem | SpecRow) => Machine | SpareItem | SpecRow)} />
@@ -152,68 +153,65 @@ export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Pr
     :                              undefined;
 
   return (
-    <Sheet open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <SheetContent
-        ref={panelRef}
-        side="right"
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent
         showCloseButton={false}
         aria-label="Item details"
-        className="w-[min(560px,100vw)] gap-0 overflow-y-auto bg-card p-0 sm:max-w-[560px]"
+        className="flex max-h-[90vh] w-[92vw] max-w-[1100px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1100px]"
       >
-        <SheetTitle className="sr-only">Item details</SheetTitle>
-        <div className="inv-detail-stripe" aria-hidden style={{ background: STRIPE_COLOR[kindClass] ?? 'var(--ok)' }} />
+        <DialogTitle className="sr-only">Item details</DialogTitle>
+        <DialogDescription className="sr-only">Purchase, identifiers, components and problem log for this inventory item.</DialogDescription>
+        <div className="h-1 w-full shrink-0" aria-hidden style={{ background: STRIPE_COLOR[kindClass] ?? 'var(--ok)' }} />
 
-        <header className="inv-detail-head">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-6 py-4">
           {header}
-          <div className="inv-detail-head-actions">
-            <StatusPicker status={status} onChange={setStatus} />
-            <button type="button" className="iconbtn ghost" onClick={onClose} title="Close (Esc)">
-              <X size={14} strokeWidth={1.75} />
-            </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <StatusSelect status={status} onChange={setStatus} />
+            <DialogClose asChild>
+              <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" title="Close (Esc)">
+                <X size={16} strokeWidth={1.75} />
+              </Button>
+            </DialogClose>
           </div>
         </header>
 
-        <div className="inv-detail-body">
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-6 md:grid-cols-2">
           <Section icon={Receipt} title="Provenance">
-            <Field label="Purchased"  icon={Calendar}>
-              <DateInput value={purchase.date}        onChange={(v) => setPurchase({ date: v })} />
+            <Field label="Purchased" icon={Calendar}>
+              <DateInput value={purchase.date} onChange={(v) => setPurchase({ date: v })} />
             </Field>
-            <Field label="Vendor"     icon={Briefcase}>
-              <TextInput value={purchase.vendor}      onChange={(v) => setPurchase({ vendor: v })} placeholder="Where you bought it" />
+            <Field label="Vendor" icon={Briefcase}>
+              <TextInput value={purchase.vendor} onChange={(v) => setPurchase({ vendor: v })} placeholder="Where you bought it" />
             </Field>
-            <Field label="Price"      icon={Tag}>
-              <TextInput value={purchase.price}       onChange={(v) => setPurchase({ price: v })}  placeholder="$0.00" mono />
+            <Field label="Price" icon={Tag}>
+              <TextInput value={purchase.price} onChange={(v) => setPurchase({ price: v })} placeholder="$0.00" mono />
             </Field>
-            <Field label="Receipt #"  icon={Hash}>
-              <TextInput value={purchase.receiptRef}  onChange={(v) => setPurchase({ receiptRef: v })} placeholder="Order or receipt reference" mono />
+            <Field label="Receipt #" icon={Hash}>
+              <TextInput value={purchase.receiptRef} onChange={(v) => setPurchase({ receiptRef: v })} placeholder="Order or receipt reference" mono />
             </Field>
-            <Field label="Warranty"   icon={ShieldCheck}>
+            <Field label="Warranty" icon={ShieldCheck}>
               <DateInput value={purchase.warrantyEnd} onChange={(v) => setPurchase({ warrantyEnd: v })} hint={warrantyHint(purchase.warrantyEnd)} />
             </Field>
           </Section>
 
           <Section icon={Fingerprint} title="Identifiers">
-            <Field label="Serial #"   icon={Hash}>
-              <TextInput value={ids.serial}    onChange={(v) => setIds({ serial: v })}    placeholder="Manufacturer serial" mono />
+            <Field label="Serial #" icon={Hash}>
+              <TextInput value={ids.serial} onChange={(v) => setIds({ serial: v })} placeholder="Manufacturer serial" mono />
             </Field>
-            <Field label="Part #"     icon={Hash}>
-              <TextInput value={ids.part}      onChange={(v) => setIds({ part: v })}      placeholder="Manufacturer part / model config" mono />
+            <Field label="Part #" icon={Hash}>
+              <TextInput value={ids.part} onChange={(v) => setIds({ part: v })} placeholder="Manufacturer part / model config" mono />
             </Field>
-            <Field label="UID"        icon={Sparkles}>
-              <UidInput
-                value={ids.uid}
-                suggestion={suggestedUid}
-                onChange={(v) => setIds({ uid: v })}
-              />
+            <Field label="UID" icon={Sparkles}>
+              <UidInput value={ids.uid} suggestion={suggestedUid} onChange={(v) => setIds({ uid: v })} />
             </Field>
-            <Field label="MAC"        icon={Wifi}>
-              <TextInput value={ids.mac}       onChange={(v) => setIds({ mac: v })}       placeholder="AA:BB:CC:DD:EE:FF" mono />
+            <Field label="MAC" icon={Wifi}>
+              <TextInput value={ids.mac} onChange={(v) => setIds({ mac: v })} placeholder="AA:BB:CC:DD:EE:FF" mono />
             </Field>
-            <Field label="Asset tag"  icon={Tag}>
-              <TextInput value={ids.assetTag}  onChange={(v) => setIds({ assetTag: v })}  placeholder="Internal asset tag" mono />
+            <Field label="Asset tag" icon={Tag}>
+              <TextInput value={ids.assetTag} onChange={(v) => setIds({ assetTag: v })} placeholder="Internal asset tag" mono />
             </Field>
-            <Field label="Location"   icon={MapPin}>
-              <TextInput value={ids.location}  onChange={(v) => setIds({ location: v })}  placeholder="Office · rack · shelf" />
+            <Field label="Location" icon={MapPin}>
+              <TextInput value={ids.location} onChange={(v) => setIds({ location: v })} placeholder="Office · rack · shelf" />
             </Field>
           </Section>
 
@@ -227,8 +225,8 @@ export function InventoryDetailPanel({ found, isEditing, onChange, onClose }: Pr
             onRemove={removeLogEntry}
           />
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -241,28 +239,18 @@ function MachineHeader({
 }: { machine: Machine; isEditing: boolean; onChange: (mut: (m: Machine) => Machine) => void }) {
   const RoleIcon = roleIcon(machine.role, machine.name);
   return (
-    <div className="inv-detail-head-id">
-      <div className="inv-detail-ordinal">
-        <span className="ord mono tnum">{machine.ordinal ?? '—'}</span>
-        <span className="ord-of">/ machine</span>
+    <div className="flex min-w-0 items-center gap-4">
+      <div className="flex w-14 shrink-0 flex-col items-center">
+        <span className="font-display text-2xl font-semibold tabular-nums leading-none text-brand">{machine.ordinal ?? '—'}</span>
+        <span className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">machine</span>
       </div>
-      <div className="inv-detail-id-text">
-        <h2 className="inv-detail-name">
-          <Editable
-            value={machine.name}
-            editing={isEditing}
-            onChange={(name) => onChange((cur) => ({ ...cur, name }))}
-            placeholder="Machine name"
-          />
+      <div className="min-w-0">
+        <h2 className="truncate font-display text-xl font-semibold tracking-tight text-foreground">
+          <Editable value={machine.name} editing={isEditing} onChange={(name) => onChange((cur) => ({ ...cur, name }))} placeholder="Machine name" />
         </h2>
-        <div className="inv-detail-sub">
-          <RoleIcon size={12} strokeWidth={1.75} />
-          <Editable
-            value={machine.role}
-            editing={isEditing}
-            onChange={(role) => onChange((cur) => ({ ...cur, role }))}
-            placeholder="Role / purpose"
-          />
+        <div className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <RoleIcon size={13} strokeWidth={1.75} />
+          <Editable value={machine.role} editing={isEditing} onChange={(role) => onChange((cur) => ({ ...cur, role }))} placeholder="Role / purpose" />
         </div>
       </div>
     </div>
@@ -276,34 +264,34 @@ function SpareHeader({
   const title = describeSpare(item, category);
   const brand = item.values.brand ?? '';
   return (
-    <div className="inv-detail-head-id">
-      <div className="inv-detail-ordinal">
-        <span className="ord-of mono">spare</span>
-        <span className="ord-cat"><CatIcon size={14} strokeWidth={1.75} /> {category.name}</span>
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <span className="uppercase tracking-wider">spare</span>
+        <span className="text-muted-foreground/50">·</span>
+        <CatIcon size={13} strokeWidth={1.75} />
+        <span>{category.name}</span>
       </div>
-      <div className="inv-detail-id-text">
-        <h2 className="inv-detail-name">
-          {brand ? <BrandGlyph text={brand} size={18} /> : null}
-          <span className="spare-title-text">{title}</span>
-        </h2>
-        <div className="inv-detail-sub">
-          {category.columns.slice(0, 4).map((col) => {
-            const v = item.values[col.id];
-            if (!v) return null;
-            return (
-              <span key={col.id} className="inv-detail-chip">
-                <span className="lbl">{col.label}</span>
-                <Editable
-                  value={v}
-                  editing={isEditing}
-                  onChange={(nv) => onChange((cur) => ({ ...cur, values: { ...cur.values, [col.id]: nv } }))}
-                  placeholder="—"
-                  mono={col.id === 'model' || col.id === 'part'}
-                />
-              </span>
-            );
-          })}
-        </div>
+      <h2 className="flex min-w-0 items-center gap-2 font-display text-xl font-semibold tracking-tight text-foreground">
+        {brand ? <BrandGlyph text={brand} size={18} /> : null}
+        <span className="truncate">{title}</span>
+      </h2>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+        {category.columns.slice(0, 4).map((col) => {
+          const v = item.values[col.id];
+          if (!v) return null;
+          return (
+            <span key={col.id} className="flex items-center gap-1">
+              <span className="text-xs uppercase tracking-wide text-muted-foreground/70">{col.label}</span>
+              <Editable
+                value={v}
+                editing={isEditing}
+                onChange={(nv) => onChange((cur) => ({ ...cur, values: { ...cur.values, [col.id]: nv } }))}
+                placeholder="—"
+                mono={col.id === 'model' || col.id === 'part'}
+              />
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -315,32 +303,21 @@ function ComponentHeader({
   const CompIcon = componentIcon(component.component);
   const RoleIcon = roleIcon(machine.role, machine.name);
   return (
-    <div className="inv-detail-head-id">
-      <div className="inv-detail-ordinal">
-        <span className="ord-of mono">component</span>
-        <span className="ord-cat">
-          {CompIcon ? <CompIcon size={14} strokeWidth={1.75} /> : null}
-          {component.component}
-        </span>
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <span className="uppercase tracking-wider">component</span>
+        <span className="text-muted-foreground/50">·</span>
+        {CompIcon ? <CompIcon size={13} strokeWidth={1.75} /> : null}
+        <span>{component.component}</span>
       </div>
-      <div className="inv-detail-id-text">
-        <h2 className="inv-detail-name">
-          <BrandGlyph text={component.specification} size={18} />
-          <Editable
-            value={component.specification}
-            editing={isEditing}
-            onChange={(specification) => onChange((cur) => ({ ...cur, specification }))}
-            placeholder="Specification"
-            multiline
-          />
-        </h2>
-        <div className="inv-detail-sub">
-          <span className="inv-detail-chip">
-            <span className="lbl">installed in</span>
-            <RoleIcon size={11} strokeWidth={1.75} />
-            <span>{machine.name}</span>
-          </span>
-        </div>
+      <h2 className="flex min-w-0 items-center gap-2 font-display text-xl font-semibold tracking-tight text-foreground">
+        <BrandGlyph text={component.specification} size={18} />
+        <Editable value={component.specification} editing={isEditing} onChange={(specification) => onChange((cur) => ({ ...cur, specification }))} placeholder="Specification" multiline />
+      </h2>
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <span className="text-xs uppercase tracking-wide text-muted-foreground/70">installed in</span>
+        <RoleIcon size={12} strokeWidth={1.75} />
+        <span>{machine.name}</span>
       </div>
     </div>
   );
@@ -356,64 +333,36 @@ function describeSpare(item: SpareItem, category: SpareCategory): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* Status picker                                                      */
+/* Status select (shadcn)                                             */
 /* ------------------------------------------------------------------ */
 
-function StatusPicker({ status, onChange }: { status: ItemStatus; onChange: (s: ItemStatus) => void }) {
-  const [open, setOpen] = useState(false);
-  const Glyph = STATUS_ICON[status];
+function StatusSelect({ status, onChange }: { status: ItemStatus; onChange: (s: ItemStatus) => void }) {
   const kind = STATUS_KIND[status];
-  const ref = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const fn = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener('mousedown', fn);
-    return () => window.removeEventListener('mousedown', fn);
-  }, [open]);
-
+  const Glyph = STATUS_ICON[status];
   return (
-    <div className="inv-detail-status-wrap" ref={ref}>
-      <button
-        type="button"
-        className={`pill ${kind} inv-detail-status`}
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        title="Change status"
+    <Select value={status} onValueChange={(v) => onChange(v as ItemStatus)}>
+      <SelectTrigger
+        size="sm"
+        aria-label="Change status"
+        className={cn('h-8 w-auto gap-1.5 rounded-full border-border bg-muted/50 px-3 text-xs font-medium lowercase', TONE_TEXT[kind])}
       >
-        <Glyph size={12} strokeWidth={1.75} />
-        <span>{status}</span>
-        <ChevronDown size={11} strokeWidth={2} />
-      </button>
-      {open ? (
-        <ul className="inv-detail-status-menu" role="listbox">
-          {STATUS_OPTIONS.map((opt) => {
-            const OptGlyph = STATUS_ICON[opt.value];
-            const optKind = STATUS_KIND[opt.value];
-            const isCurrent = opt.value === status;
-            return (
-              <li key={opt.value}>
-                <button
-                  type="button"
-                  className={`inv-detail-status-opt ${isCurrent ? 'is-on' : ''}`}
-                  onClick={() => { onChange(opt.value); setOpen(false); }}
-                  role="option"
-                  aria-selected={isCurrent}
-                >
-                  <span className={`pill ${optKind}`}>
-                    <OptGlyph size={11} strokeWidth={1.75} />
-                    {opt.label}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-    </div>
+        <Glyph size={13} strokeWidth={2} />
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {STATUS_OPTIONS.map((o) => {
+          const OptGlyph = STATUS_ICON[o.value];
+          return (
+            <SelectItem key={o.value} value={o.value}>
+              <span className={cn('flex items-center gap-1.5', TONE_TEXT[STATUS_KIND[o.value]])}>
+                <OptGlyph size={13} strokeWidth={2} />
+                {o.label}
+              </span>
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -421,39 +370,48 @@ function StatusPicker({ status, onChange }: { status: ItemStatus; onChange: (s: 
 /* Section + Field building blocks                                    */
 /* ------------------------------------------------------------------ */
 
-interface SectionProps {
+function Section({
+  icon: Icon,
+  title,
+  count,
+  accent,
+  className,
+  children,
+}: {
   icon: LucideIcon;
   title: string;
-  children: React.ReactNode;
+  count?: number;
   accent?: 'bad' | 'warn';
-}
-
-function Section({ icon: Icon, title, children, accent }: SectionProps) {
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className={`inv-detail-section ${accent ? `accent-${accent}` : ''}`}>
-      <h3 className="inv-detail-section-head">
-        <Icon size={12} strokeWidth={1.75} />
+    <section
+      className={cn(
+        'rounded-xl border border-border bg-muted/30 p-4',
+        accent === 'bad' && 'border-l-2 border-l-bad',
+        accent === 'warn' && 'border-l-2 border-l-warn',
+        className,
+      )}
+    >
+      <h3 className="mb-3 flex items-center gap-1.5 text-[12.5px] font-semibold tracking-wide text-muted-foreground">
+        <Icon size={14} strokeWidth={1.75} />
         <span>{title}</span>
+        {count != null ? <span className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">{count}</span> : null}
       </h3>
-      <div className="inv-detail-fields">{children}</div>
+      <div className="flex flex-col gap-2.5">{children}</div>
     </section>
   );
 }
 
-interface FieldProps {
-  label: string;
-  icon?: LucideIcon;
-  children: React.ReactNode;
-}
-
-function Field({ label, icon: Icon, children }: FieldProps) {
+function Field({ label, icon: Icon, children }: { label: string; icon?: LucideIcon; children: React.ReactNode }) {
   return (
-    <div className="inv-detail-field">
-      <div className="inv-detail-field-lbl">
-        {Icon ? <Icon size={11} strokeWidth={1.75} /> : null}
+    <div className="grid grid-cols-[104px_1fr] items-center gap-3">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        {Icon ? <Icon size={12} strokeWidth={1.75} /> : null}
         <span>{label}</span>
       </div>
-      <div className="inv-detail-field-val">{children}</div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
@@ -471,9 +429,9 @@ function TextInput({
     if (!focused) setDraft(value ?? '');
   }, [value, focused]);
   return (
-    <input
+    <Input
       type="text"
-      className={`inv-detail-input ${mono ? 'mono' : ''}`}
+      className={cn('h-8', mono && 'font-mono text-[13px]')}
       value={draft}
       placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
@@ -488,14 +446,14 @@ function DateInput({
   value, onChange, hint,
 }: { value?: string; onChange: (v: string) => void; hint?: { text: string; kind: 'ok' | 'warn' | 'bad' | 'idle' } | null }) {
   return (
-    <div className="inv-detail-date-wrap">
-      <input
+    <div className="flex items-center gap-2">
+      <Input
         type="date"
-        className="inv-detail-input mono"
+        className="h-8 w-auto font-mono text-[13px]"
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value)}
       />
-      {hint ? <span className={`inv-detail-hint ${hint.kind}`}>{hint.text}</span> : null}
+      {hint ? <span className={cn('text-xs', TONE_TEXT[hint.kind])}>{hint.text}</span> : null}
     </div>
   );
 }
@@ -505,17 +463,19 @@ function UidInput({
 }: { value?: string; onChange: (v: string) => void; suggestion?: string }) {
   const empty = !value || !value.trim();
   return (
-    <div className="inv-detail-uid-wrap">
+    <div className="flex items-center gap-2">
       <TextInput value={value} onChange={onChange} placeholder={suggestion ? `auto: ${suggestion}` : 'Custom UID'} mono />
       {empty && suggestion ? (
-        <button
+        <Button
           type="button"
-          className="inv-detail-uid-apply"
+          variant="outline"
+          size="xs"
+          className="shrink-0 gap-1"
           onClick={() => onChange(suggestion)}
           title={`Use suggested UID: ${suggestion}`}
         >
           <Sparkles size={11} strokeWidth={1.75} /> use
-        </button>
+        </Button>
       ) : null}
     </div>
   );
@@ -527,30 +487,27 @@ function UidInput({
 
 function ComponentsSection({ machine }: { machine: Machine }) {
   return (
-    <section className="inv-detail-section">
-      <h3 className="inv-detail-section-head">
-        <Settings2 size={12} strokeWidth={1.75} />
-        <span>Components</span>
-        <span className="ct mono tnum">{machine.components.length}</span>
-      </h3>
-      <ul className="inv-detail-comps">
+    <Section icon={Settings2} title="Components" count={machine.components.length} className="md:col-span-2">
+      <div className="grid gap-1.5 sm:grid-cols-2">
         {machine.components.map((row) => {
           const CompIcon = componentIcon(row.component);
+          const { name, detail } = splitSpec(row.specification);
           return (
-            <li key={row.id} className="inv-detail-comp-row">
-              <span className="inv-detail-comp-lbl">
-                {CompIcon ? <CompIcon size={11} strokeWidth={1.75} /> : <Cpu size={11} strokeWidth={1.75} />}
-                {row.component}
+            <div key={row.id} className="flex items-start gap-2 rounded-md border border-border/60 bg-card px-2.5 py-2">
+              <span className="flex w-28 shrink-0 items-center gap-1.5 pt-0.5 text-xs font-medium text-muted-foreground">
+                {CompIcon ? <CompIcon size={12} strokeWidth={1.75} /> : <Cpu size={12} strokeWidth={1.75} />}
+                <span className="truncate">{row.component}</span>
               </span>
-              <span className="inv-detail-comp-val">
-                <BrandGlyph text={row.specification} size={14} reserveSpace />
-                <span>{row.specification || '—'}</span>
-              </span>
-            </li>
+              <BrandGlyph text={row.specification} size={14} reserveSpace />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-foreground">{name || '—'}</div>
+                {detail ? <div className="mt-0.5 text-xs leading-snug text-muted-foreground">{detail}</div> : null}
+              </div>
+            </div>
           );
         })}
-      </ul>
-    </section>
+      </div>
+    </Section>
   );
 }
 
@@ -573,43 +530,42 @@ function ProblemLogSection({ log, status, onAdd, onUpdate, onRemove }: ProblemLo
   const accent = status === 'broken' ? 'bad' : status === 'in-repair' ? 'warn' : undefined;
 
   return (
-    <section className={`inv-detail-section ${accent ? `accent-${accent}` : ''}`}>
-      <h3 className="inv-detail-section-head">
-        <Wrench size={12} strokeWidth={1.75} />
-        <span>Problem log</span>
-        <span className="ct mono tnum">{log.length}</span>
-      </h3>
-      <ul className="inv-detail-log">
+    <Section icon={Wrench} title="Problem log" count={log.length} accent={accent} className="md:col-span-2">
+      <ul className="flex flex-col gap-2">
         {log.length === 0 ? (
-          <li className="inv-detail-log-empty">No entries yet — describe the issue below.</li>
+          <li className="rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+            No entries yet — describe the issue below.
+          </li>
         ) : null}
         {log.map((entry) => (
-          <li key={entry.id} className="inv-detail-log-row">
-            <input
+          <li key={entry.id} className="flex items-start gap-2 rounded-md border border-border/60 bg-card p-2">
+            <Input
               type="date"
-              className="inv-detail-log-date mono"
+              className="h-8 w-auto shrink-0 font-mono text-[13px]"
               value={entry.date}
               onChange={(e) => onUpdate(entry.id, { date: e.target.value })}
             />
             <textarea
-              className="inv-detail-log-note"
+              className="min-h-8 flex-1 resize-y rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               value={entry.note}
               rows={2}
               onChange={(e) => onUpdate(entry.id, { note: e.target.value })}
             />
-            <button
+            <Button
               type="button"
-              className="iconbtn ghost inv-detail-log-del"
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0 text-muted-foreground hover:text-bad"
               onClick={() => onRemove(entry.id)}
               title="Remove entry"
             >
-              <X size={11} strokeWidth={2} />
-            </button>
+              <X size={13} strokeWidth={2} />
+            </Button>
           </li>
         ))}
       </ul>
       {allowAdd ? <AddLogEntry onAdd={onAdd} /> : null}
-    </section>
+    </Section>
   );
 }
 
@@ -623,15 +579,15 @@ function AddLogEntry({ onAdd }: { onAdd: (note: string, date: string) => void })
     setDate(today());
   };
   return (
-    <div className="inv-detail-log-add">
-      <input
+    <div className="mt-1 flex items-start gap-2 rounded-md border border-dashed border-border p-2">
+      <Input
         type="date"
-        className="inv-detail-log-date mono"
+        className="h-8 w-auto shrink-0 font-mono text-[13px]"
         value={date}
         onChange={(e) => setDate(e.target.value)}
       />
       <textarea
-        className="inv-detail-log-note"
+        className="min-h-8 flex-1 resize-y rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         placeholder="Symptoms, repair notes, next steps…"
         value={note}
         rows={2}
@@ -643,15 +599,9 @@ function AddLogEntry({ onAdd }: { onAdd: (note: string, date: string) => void })
           }
         }}
       />
-      <button
-        type="button"
-        className="inv-detail-log-submit"
-        onClick={submit}
-        disabled={!note.trim()}
-        title="Add entry (Ctrl/Cmd+Enter)"
-      >
-        <Plus size={12} strokeWidth={2} /> log
-      </button>
+      <Button type="button" size="sm" className="shrink-0 gap-1" onClick={submit} disabled={!note.trim()} title="Add entry (Ctrl/Cmd+Enter)">
+        <Plus size={13} strokeWidth={2} /> log
+      </Button>
     </div>
   );
 }

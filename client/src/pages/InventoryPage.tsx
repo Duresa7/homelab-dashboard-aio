@@ -32,6 +32,7 @@ import {
   nextSpareUid,
   resetInventory,
   saveInventory,
+  splitSpec,
   suggestCategoryPrefix,
   summarize,
   tryImportInventoryJSON,
@@ -57,7 +58,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 type Tab = 'machines' | 'service' | 'spares' | 'network';
 type Mode = 'browse' | 'edit';
@@ -78,7 +81,6 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   const [mode, setMode] = useState<Mode>('browse');
   const [query, setQuery] = useState('');
   const [jumpTo, setJumpTo] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectItem = useCallback(
@@ -95,12 +97,6 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     if (!didMountInv.current) { didMountInv.current = true; return; }
     saveInventory(inv);
   }, [inv]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const tm = window.setTimeout(() => setToast(null), 2200);
-    return () => window.clearTimeout(tm);
-  }, [toast]);
 
   useEffect(() => {
     if (!jumpTo) return;
@@ -249,7 +245,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setToast('Exported inventory JSON');
+    toast.success('Exported inventory JSON');
   };
 
   const onPickImport = () => fileInputRef.current?.click();
@@ -261,18 +257,18 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     const text = await file.text();
     const parsed = tryImportInventoryJSON(text);
     if (!parsed) {
-      setToast('Import failed — not a valid inventory file');
+      toast.error('Import failed — not a valid inventory file');
       return;
     }
     if (!confirm('Replace current inventory with imported data?')) return;
     setInv({ ...parsed, lastUpdated: today() });
-    setToast('Imported inventory');
+    toast.success('Imported inventory');
   };
 
   const onReset = () => {
     if (!confirm('Reset to default seed inventory? Local changes will be lost.')) return;
     setInv(resetInventory());
-    setToast('Reset to default inventory');
+    toast.success('Reset to default inventory');
   };
 
 
@@ -293,7 +289,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   }, [selectedItemId, selectedFound, selectItem]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-[var(--page-gap)]">
       <Masthead
         inv={inv}
         stats={stats}
@@ -371,8 +367,6 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
           onClose={() => selectItem(undefined)}
         />
       ) : null}
-
-      {toast ? <div className="inv-toast" role="status">{toast}</div> : null}
     </div>
   );
 }
@@ -466,15 +460,30 @@ function Masthead({
             <Pencil className="size-3.5" />
             {isEditing ? 'Done editing' : 'Edit'}
           </Button>
-          <Button variant="outline" size="icon-sm" onClick={onExport} title="Export JSON">
-            <Download className="size-3.5" />
-          </Button>
-          <Button variant="outline" size="icon-sm" onClick={onImport} title="Import JSON">
-            <Upload className="size-3.5" />
-          </Button>
-          <Button variant="outline" size="icon-sm" onClick={onReset} title="Reset to defaults">
-            <RefreshCw className="size-3.5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon-sm" onClick={onExport} aria-label="Export JSON">
+                <Download className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Export JSON</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon-sm" onClick={onImport} aria-label="Import JSON">
+                <Upload className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Import JSON</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon-sm" onClick={onReset} aria-label="Reset to defaults">
+                <RefreshCw className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Reset to defaults</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </section>
@@ -711,16 +720,20 @@ function MachineCard({ machine, isEditing, onChange, onDelete, onOpen, isOpen }:
                     className="text-sm"
                   />
                 </div>
-                <div className="min-w-0 text-sm text-foreground">
+                <div className="flex min-w-0 items-center gap-2 text-sm text-foreground">
                   <BrandGlyph text={row.specification} size={16} />
-                  <Editable
-                    value={row.specification}
-                    editing={isEditing}
-                    onChange={(v) => updateComp(row.id, 'specification', v)}
-                    placeholder="Specification"
-                    multiline
-                    className="text-sm"
-                  />
+                  {isEditing ? (
+                    <Editable
+                      value={row.specification}
+                      editing
+                      onChange={(v) => updateComp(row.id, 'specification', v)}
+                      placeholder="Specification"
+                      multiline
+                      className="text-sm"
+                    />
+                  ) : (
+                    <span className="truncate">{splitSpec(row.specification).name || '—'}</span>
+                  )}
                 </div>
                 {isEditing ? (
                   <button type="button" className={GHOST_ICON_BTN} onClick={() => removeComp(row.id)} title="Remove component">
@@ -993,7 +1006,7 @@ function CategoryBlock({ category, isEditing, onChange, onDelete, onOpenItem, op
                   return (
                     <TableCell key={col.id} className={col.align === 'right' ? 'text-right tabular-nums' : ''}>
                       {isBrand ? (
-                        <span className="flex items-center gap-1.5">
+                        <span className="flex items-center gap-2">
                           <BrandGlyph text={value} size={16} reserveSpace />
                           <Editable value={value} editing={isEditing} onChange={(v) => setItemValue(it.id, col.id, v)} placeholder="—" mono={isMono} />
                         </span>
@@ -1126,7 +1139,7 @@ function ServiceTab({ machines, query, onOpenItem, openItemId }: ServiceTabProps
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="flex items-center gap-1.5">
+                        <span className="flex items-center gap-2">
                           <BrandGlyph text={c.specification} size={16} reserveSpace />
                           {c.specification || '—'}
                         </span>

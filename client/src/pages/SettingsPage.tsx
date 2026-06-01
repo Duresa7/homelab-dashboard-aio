@@ -158,7 +158,7 @@ export function SettingsPage({ integrations, onChange }: Props) {
   };
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8">
+    <div className="mx-auto flex max-w-5xl flex-col gap-[var(--page-gap)]">
       <section className="flex flex-col gap-4">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-baseline gap-2.5">

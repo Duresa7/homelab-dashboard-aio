@@ -251,7 +251,7 @@ export function SiemPage() {
   }, [categoryCounts]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-[var(--page-gap)]">
       <SiemStatusBanner
         status={status}
         setupOpen={setupOpen}

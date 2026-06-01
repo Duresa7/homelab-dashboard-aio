@@ -38,6 +38,8 @@ import {
   type SlotId,
 } from '../lib/playground';
 import { PageHeader } from '@/components/common';
+import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -140,7 +142,6 @@ function parsePickerValue(v: string): SlotEntry {
 export function PlaygroundPage() {
   const [state, setState] = useState<PlaygroundState>(() => loadPlayground());
   const [inv] = useState<Inventory>(() => loadInventory());
-  const [toast, setToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Skip initial mount; loadPlayground returned the persisted value.
@@ -149,12 +150,6 @@ export function PlaygroundPage() {
     if (!didMount.current) { didMount.current = true; return; }
     savePlayground(state);
   }, [state]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const tm = window.setTimeout(() => setToast(null), 2200);
-    return () => window.clearTimeout(tm);
-  }, [toast]);
 
   const patch = useCallback((mut: (draft: PlaygroundState) => PlaygroundState) => {
     setState((prev) => mut(prev));
@@ -191,7 +186,7 @@ export function PlaygroundPage() {
       lastUpdated: today(),
       builds: [...prev.builds, buildFromMachine(machine)],
     }));
-    setToast(`Cloned ${machine.name} into a new build`);
+    toast.success(`Cloned ${machine.name} into a new build`);
   };
 
   const deleteBuild = (id: string) => {
@@ -214,7 +209,7 @@ export function PlaygroundPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setToast('Exported playground JSON');
+    toast.success('Exported playground JSON');
   };
 
   const onPickImport = () => fileInputRef.current?.click();
@@ -226,22 +221,22 @@ export function PlaygroundPage() {
     const text = await file.text();
     const parsed = tryImportPlaygroundJSON(text);
     if (!parsed) {
-      setToast('Import failed — not a valid playground file');
+      toast.error('Import failed — not a valid playground file');
       return;
     }
     if (!confirm('Replace current playground with imported data?')) return;
     setState({ ...parsed, lastUpdated: today() });
-    setToast('Imported playground');
+    toast.success('Imported playground');
   };
 
   const onReset = () => {
     if (!confirm('Reset all builds to the seed example? Local changes will be lost.')) return;
     setState(resetPlayground());
-    setToast('Reset to default playground');
+    toast.success('Reset to default playground');
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-[var(--page-gap)]">
       <PageHeader
         eyebrow="Build workbench"
         title="Playground"
@@ -309,8 +304,6 @@ export function PlaygroundPage() {
           />
         ))
       )}
-
-      {toast ? <div className="inv-toast" role="status">{toast}</div> : null}
     </div>
   );
 }
@@ -410,15 +403,17 @@ function BuildCard({ build, inv, onChangeName, onChangeNotes, onChangeSlot, onDe
                 {status.powerDraw} / {status.psuRating} W ({Math.round(status.powerPct)}%)
                 {status.powerOk ? ' ✓' : ' — over budget'}
               </span>
-              <div className="h-2 w-40 overflow-hidden rounded-full bg-muted">
-                <div
-                  className={cn(
-                    'h-full rounded-full transition-[width]',
-                    powerBarColor === 'bad' ? 'bg-bad' : powerBarColor === 'warn' ? 'bg-warn' : 'bg-ok',
-                  )}
-                  style={{ width: `${Math.min(100, status.powerPct)}%` }}
-                />
-              </div>
+              <Progress
+                value={Math.min(100, status.powerPct)}
+                className={cn(
+                  'h-2 w-40 bg-muted',
+                  powerBarColor === 'bad'
+                    ? '[&>[data-slot=progress-indicator]]:bg-bad'
+                    : powerBarColor === 'warn'
+                      ? '[&>[data-slot=progress-indicator]]:bg-warn'
+                      : '[&>[data-slot=progress-indicator]]:bg-ok',
+                )}
+              />
             </>
           )}
         </div>

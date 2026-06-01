@@ -104,6 +104,17 @@ export function genId(prefix = 'x'): string {
   return `${prefix}_${t}${r}${_idTick.toString(36)}`;
 }
 
+/** Split a "Name — detail" component spec into a concise name + trailing detail.
+ *  Cards show just `name` at-a-glance; the full `detail` lives in the item view. */
+export function splitSpec(spec: string): { name: string; detail: string } {
+  const sep = (spec ?? '').match(/\s+[—–]\s+/);
+  if (!sep || sep.index == null) return { name: (spec ?? '').trim(), detail: '' };
+  return {
+    name: spec.slice(0, sep.index).trim(),
+    detail: spec.slice(sep.index + sep[0].length).trim(),
+  };
+}
+
 /* ---------- seed (from markdown) ---------- */
 
 const m = (label: string, value: string): MetaRow => ({ id: genId('m'), label, value });

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
-import { Sidebar } from './components/layout/Sidebar';
+import { AppSidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
 import { AlertBanner } from './components/layout/AlertBanner';
 import { CommandMenu } from './components/layout/CommandMenu';
@@ -9,6 +9,8 @@ import { ALL_TILES, type TileId } from './components/widgets';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { Checkbox } from '@/components/ui/checkbox';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { getState, setState } from './lib/store';
 
 import { OverviewPage } from './pages/OverviewPage';
 import { ProxmoxPage } from './pages/ProxmoxPage';
@@ -35,11 +37,9 @@ import {
 } from './lib/tweaks';
 import {
   DEFAULT_SUB,
-  SECTION_LABEL,
   resolveSub,
   saveRoute,
   loadRoute,
-  subLabel,
   type Route,
   type Section,
 } from './lib/route';
@@ -88,6 +88,11 @@ export function App() {
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<number>>(new Set());
   const [cmdOpen, setCmdOpen] = useState(false);
   const [tweaksOpen, setTweaksOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => !getState<boolean>('sidebarCollapsed', false));
+  const handleSidebarOpenChange = (open: boolean) => {
+    setSidebarOpen(open);
+    setState<boolean>('sidebarCollapsed', !open);
+  };
   const integrations = useMemo(
     () => ({ ...DEFAULTS.integrations, ...t.integrations }),
     [t.integrations],
@@ -156,28 +161,28 @@ export function App() {
   const dismiss = (i: number) => setDismissedAlerts((prev) => new Set(prev).add(i));
 
   const activeSub = resolveSub(route.section, route.sub);
-  const pageTitle = activeSub ? subLabel(route.section, activeSub) : SECTION_LABEL[route.section];
 
   return (
     <TooltipProvider delayDuration={250}>
-      <div
-        className="grid min-h-screen text-foreground transition-[grid-template-columns] duration-200 ease-out"
-        style={{ gridTemplateColumns: 'var(--shell-sidebar) 1fr' }}
+      <SidebarProvider
+        open={sidebarOpen}
+        onOpenChange={handleSidebarOpenChange}
+        style={{ '--sidebar-width': 'var(--sidebar-w)', '--sidebar-width-icon': 'var(--sidebar-rail)' } as CSSProperties}
       >
-        <Sidebar route={route} setRoute={setRoute} alerts={visibleAlerts} />
+        <AppSidebar route={route} setRoute={setRoute} alerts={visibleAlerts} />
 
-        <main className="flex min-w-0 flex-col">
+        <SidebarInset>
           <Topbar
             section={route.section}
             activeSub={activeSub}
-            title={pageTitle}
             theme={theme}
+            onNavigateSection={(s) => setRoute(s)}
             onToggleTheme={() => setTweak('theme', theme === 'dark' ? 'light' : 'dark')}
             onOpenSearch={() => setCmdOpen(true)}
             onOpenTweaks={() => setTweaksOpen(true)}
           />
 
-          <div className="w-full max-w-[var(--content-max)] flex-1 px-6 py-5 pb-20">
+          <div className="w-full max-w-[var(--content-max)] flex-1 px-[var(--page-pad)] pt-[var(--page-pad)] pb-24">
             {t.showAlerts ? <AlertBanner alerts={visibleAlerts} onDismiss={dismiss} /> : null}
 
             {route.section === 'overview' && (
@@ -212,7 +217,7 @@ export function App() {
               />
             )}
           </div>
-        </main>
+        </SidebarInset>
 
         <ExpandOverlay
           id={expanded}
@@ -222,7 +227,15 @@ export function App() {
           onClose={() => setExpanded(null)}
         />
 
-        <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} setRoute={setRoute} />
+        <CommandMenu
+          open={cmdOpen}
+          onOpenChange={setCmdOpen}
+          setRoute={setRoute}
+          theme={theme}
+          onToggleTheme={() => setTweak('theme', theme === 'dark' ? 'light' : 'dark')}
+          density={t.density}
+          onSetDensity={(d) => setTweak('density', d)}
+        />
 
         <TweaksPanel open={tweaksOpen} onOpenChange={setTweaksOpen} title="Customize">
           <TweakSection label="Appearance" />
@@ -280,7 +293,7 @@ export function App() {
         </TweaksPanel>
 
         <Toaster />
-      </div>
+      </SidebarProvider>
     </TooltipProvider>
   );
 }

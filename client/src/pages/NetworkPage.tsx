@@ -4,6 +4,7 @@ import { Activity, Wifi, Cable, Globe, Shield, Lock, Router } from 'lucide-react
 import { InternetTile, NetworkTile, TopTalkersTile } from '../components/widgets';
 import { BrandIcon, vpnBrand } from '../components/icons/BrandIcon';
 import { SectionCard, StatList, StatRow } from '@/components/common';
+import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
 import { fmtTemp, useTempUnit } from '../lib/units';
@@ -159,9 +160,7 @@ function Devices({ data }: { data: DashboardState }) {
                   {s.poeMaxW > 0 && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="w-9 shrink-0">PoE</span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
-                      </div>
+                      <Progress value={pct} className="h-1.5 flex-1 bg-muted" />
                       <span className="shrink-0 tabular-nums">
                         {s.poeUsedW}/{s.poeMaxW} W
                       </span>
