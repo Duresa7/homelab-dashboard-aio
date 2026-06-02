@@ -192,6 +192,34 @@ describe('migrateInventory (v6 → v7)', () => {
     expect(new Set(flex.map((it) => it.ids?.uid)).size).toBe(2);
   });
 
+  it('repairs already-v7 inventories that still have a qty-2 USW-Flex row', () => {
+    const inv7 = {
+      lastUpdated: '2026-06-01',
+      machines: [],
+      components: [],
+      spares: [
+        {
+          id: 'cat_net', name: 'Network', deviceType: 'network' as const, prefix: '04',
+          columns: [{ id: 'model', label: 'Model' }, { id: 'qty', label: 'Qty' }],
+          items: [
+            { id: 's_ucg', deployment: 'in-service' as const, values: { model: 'UCG-Fiber (UniFi Cloud Gateway Fiber)', qty: '1' }, name: 'Gateway Gateway', ids: { uid: '0401' } },
+            { id: 's_flex', deployment: 'in-service' as const, values: { model: 'USW-Flex-2.5G-5 (Flex 2.5G 5-port)', qty: '2' }, ids: { uid: '0402' } },
+            { id: 's_switch', deployment: 'in-service' as const, values: { model: 'USW-Pro-Max-16-PoE (Pro Max 16 PoE)', qty: '1' }, name: 'Switch Switch PoE', ids: { uid: '0403' } },
+          ],
+        },
+      ],
+    };
+
+    const repaired = migrateInventory(inv7);
+    const net = repaired.spares[0];
+    const flex = net.items.filter((it) => /USW-Flex/.test(it.values.model));
+    expect(flex).toHaveLength(2);
+    expect(flex.map((it) => it.name)).toEqual(['SwitchA-Switch', 'SwitchB-Switch']);
+    expect(flex.map((it) => it.values.qty)).toEqual(['1', '1']);
+    expect(flex.map((it) => it.ids?.uid)).toEqual(['0402', '0403']);
+    expect(net.items.find((it) => it.id === 's_switch')?.ids?.uid).toBe('0404');
+  });
+
   it('reclassifies the UVC camera out of the network category into Cameras', () => {
     const cams = inv.spares.find((c) => c.deviceType === 'camera');
     expect(cams).toBeTruthy();

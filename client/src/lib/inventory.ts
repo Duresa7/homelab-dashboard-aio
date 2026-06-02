@@ -639,7 +639,7 @@ function makeSeed(): Inventory {
 /* ---------- storage ---------- */
 
 const STORAGE_KEY = 'inventory';
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 interface Persisted {
   v: number;
@@ -849,6 +849,7 @@ function ensureNew(data: Inventory): Inventory {
   if (!Array.isArray(inv.machines)) inv.machines = [];
   if (!Array.isArray(inv.components)) inv.components = [];
   if (!Array.isArray(inv.spares)) inv.spares = [];
+  const renumberPrefixes = expandKnownQuantityDevices(inv);
 
   for (const machine of inv.machines) {
     if (!machine.deployment) machine.deployment = 'in-service';
@@ -873,7 +874,57 @@ function ensureNew(data: Inventory): Inventory {
       if (!it.ids!.uid) it.ids!.uid = nextDeviceUid(cat.prefix!, allDeviceUids(inv.spares));
     }
   }
+  if (renumberPrefixes.size) renumberDevicePrefixes(inv, renumberPrefixes);
   return inv;
+}
+
+function expandKnownQuantityDevices(inv: Inventory): Set<string> {
+  const renumberPrefixes = new Set<string>();
+  for (const cat of inv.spares) {
+    const deviceType = cat.deviceType ?? (cat.kind === 'network' ? 'network' : detectDeviceType(cat.name));
+    const activeCategory = deviceType === 'network' && !/legacy/i.test(cat.name);
+    const nextItems: SpareItem[] = [];
+
+    for (const it of cat.items ?? []) {
+      const model = stripModel(it.values?.model ?? '');
+      const splitNames = activeCategory ? NETWORK_SPLIT[model] : undefined;
+      const qty = parseInt(it.values?.qty ?? '1', 10) || 1;
+      if (!splitNames || qty <= 1) {
+        nextItems.push(it);
+        continue;
+      }
+
+      renumberPrefixes.add(cat.prefix ?? DEVICE_BLOCKS[deviceType]);
+      for (let i = 0; i < qty; i += 1) {
+        nextItems.push({
+          ...it,
+          id: i === 0 ? it.id : genId('s'),
+          values: { ...it.values, qty: '1' },
+          name: splitNames[i],
+          status: i === 0 ? it.status : 'working',
+          purchase: i === 0 ? it.purchase : {},
+          ids: i === 0 ? { ...(it.ids ?? {}) } : {},
+          problemLog: i === 0 ? it.problemLog : [],
+        });
+      }
+    }
+
+    cat.items = nextItems;
+  }
+  return renumberPrefixes;
+}
+
+function renumberDevicePrefixes(inv: Inventory, prefixes: Set<string>): void {
+  const nextByPrefix = new Map<string, number>();
+  for (const cat of inv.spares) {
+    const prefix = cat.prefix ?? DEVICE_BLOCKS[cat.deviceType ?? detectDeviceType(cat.name)];
+    if (!prefixes.has(prefix)) continue;
+    for (const it of cat.items) {
+      const next = nextByPrefix.get(prefix) ?? 1;
+      it.ids = { ...(it.ids ?? {}), uid: `${prefix}${String(next).padStart(2, '0')}` };
+      nextByPrefix.set(prefix, next + 1);
+    }
+  }
 }
 
 export function migrateInventory(data: Inventory | OldInventory): Inventory {
