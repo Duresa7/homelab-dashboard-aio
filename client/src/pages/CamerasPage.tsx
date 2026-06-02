@@ -23,6 +23,7 @@ import {
 } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { formatSince } from '@/lib/format';
 import {
   Select,
   SelectContent,
@@ -86,17 +87,6 @@ function armLabel(status: ProtectArmStatus): string {
     default:
       return String(status);
   }
-}
-
-function formatSince(ts: number | null): string {
-  if (!ts) return '—';
-  const diff = Math.max(0, Date.now() - ts);
-  const m = Math.floor(diff / 60000);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ${m % 60}m ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ${h % 24}h ago`;
 }
 
 function NvrCard({ data }: { data: DashboardState }) {
