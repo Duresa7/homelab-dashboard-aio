@@ -88,10 +88,6 @@
     "*.{js,mjs,cjs,ts,tsx}": [
       "prettier --write",
       "eslint --fix"
-    ],
-    "{client,server}/**/*.{js,ts,tsx}": [
-      "prettier --write",
-      "eslint --fix"
     ]
   }
 }
