@@ -24,6 +24,16 @@ import {
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
+// Surface otherwise-invisible async failures. A promise rejection with no
+// handler would otherwise vanish (or, on newer Node, terminate the process)
+// with no log line explaining why. Skipped under test so it doesn't outlive
+// the suite's module re-imports.
+if (process.env.NODE_ENV !== 'test') {
+  process.on('unhandledRejection', (reason) => {
+    console.error(`Unhandled promise rejection: ${errorMessage(reason)}`);
+  });
+}
+
 const SIEM_ENABLED = isEnabled(process.env.SIEM_ENABLED, false);
 const SIEM_PORT = Number(process.env.SIEM_PORT) || 514;
 const SIEM_HOST = process.env.SIEM_HOST || '0.0.0.0';
@@ -239,7 +249,7 @@ if (process.env.NODE_ENV !== 'test') {
 // Persistent app-state DB (inventory, thresholds, tweaks, etc.). Core, always on.
 const stateHandle = await initState(app, { dbPath: STATE_DB_PATH }).catch((err) => {
   console.error(`State: init failed - ${err.message}`);
-  return { shutdown() {}, recordMetric() {} };
+  return { shutdown() {} };
 });
 if (process.env.NODE_ENV !== 'test') {
   process.on('SIGINT', () => {

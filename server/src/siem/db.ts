@@ -71,29 +71,50 @@ export interface QueryEventsOpts {
   order?: string;
 }
 
-const SCHEMA_STATEMENTS = [
-  `CREATE TABLE IF NOT EXISTS syslog_events (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    received_at INTEGER NOT NULL,
-    log_time    INTEGER,
-    source_ip   TEXT NOT NULL,
-    hostname    TEXT,
-    facility    INTEGER,
-    severity    INTEGER NOT NULL,
-    tag         TEXT,
-    message     TEXT NOT NULL,
-    raw         TEXT NOT NULL,
-    format      TEXT NOT NULL,
-    device_kind TEXT NOT NULL,
-    category    TEXT NOT NULL,
-    extra       TEXT
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_received_at ON syslog_events(received_at DESC)`,
-  `CREATE INDEX IF NOT EXISTS idx_severity    ON syslog_events(severity)`,
-  `CREATE INDEX IF NOT EXISTS idx_device_kind ON syslog_events(device_kind)`,
-  `CREATE INDEX IF NOT EXISTS idx_category    ON syslog_events(category)`,
-  `CREATE INDEX IF NOT EXISTS idx_source_ip   ON syslog_events(source_ip)`,
+// Ordered schema migrations, tracked by the DB's `user_version` pragma — append
+// a function here for a future schema change rather than editing SQL in place.
+// Fresh and pre-versioning DBs start at user_version 0; the idempotent v1
+// statements bring both to 1.
+const MIGRATIONS: Array<(db: Database.Database) => void> = [
+  // v1 — syslog_events table + query indexes.
+  (db) => {
+    const statements = [
+      `CREATE TABLE IF NOT EXISTS syslog_events (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        received_at INTEGER NOT NULL,
+        log_time    INTEGER,
+        source_ip   TEXT NOT NULL,
+        hostname    TEXT,
+        facility    INTEGER,
+        severity    INTEGER NOT NULL,
+        tag         TEXT,
+        message     TEXT NOT NULL,
+        raw         TEXT NOT NULL,
+        format      TEXT NOT NULL,
+        device_kind TEXT NOT NULL,
+        category    TEXT NOT NULL,
+        extra       TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_received_at ON syslog_events(received_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_severity    ON syslog_events(severity)`,
+      `CREATE INDEX IF NOT EXISTS idx_device_kind ON syslog_events(device_kind)`,
+      `CREATE INDEX IF NOT EXISTS idx_category    ON syslog_events(category)`,
+      `CREATE INDEX IF NOT EXISTS idx_source_ip   ON syslog_events(source_ip)`,
+    ];
+    for (const stmt of statements) db.prepare(stmt).run();
+  },
 ];
+
+function migrate(db: Database.Database): void {
+  const current = db.pragma('user_version', { simple: true }) as number;
+  for (let v = current; v < MIGRATIONS.length; v++) {
+    const apply = db.transaction(() => {
+      MIGRATIONS[v](db);
+      db.pragma(`user_version = ${v + 1}`);
+    });
+    apply();
+  }
+}
 
 const VALID_CATEGORIES = new Set([
   'firewall',
@@ -114,7 +135,7 @@ export async function openSiemDb(dbPath: string) {
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('synchronous = NORMAL');
-  for (const stmt of SCHEMA_STATEMENTS) db.prepare(stmt).run();
+  migrate(db);
 
   const insertStmt = db.prepare(`
     INSERT INTO syslog_events

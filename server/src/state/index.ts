@@ -140,14 +140,5 @@ export async function initState(app: Express, opts: { dbPath?: string } = {}) {
     }
   }
 
-  // Metrics writer is intentionally a no-op for now. The `metrics` table is
-  // created on init so future telemetry-retention work can flip this on
-  // without a schema migration. Call sites live in the integration cache
-  // update paths in server/src/index.ts (UniFi, Proxmox, Docker, CPU, GPU,
-  // RAM, sensors); they should pass through `recordMetric` once enabled.
-  function recordMetric(_integration: string, _key: string, _value: unknown) {
-    /* stubbed */
-  }
-
-  return { shutdown, recordMetric };
+  return { shutdown };
 }

@@ -11,28 +11,42 @@ interface CountRow {
   n: number;
 }
 
-const SCHEMA_STATEMENTS = [
-  `CREATE TABLE IF NOT EXISTS app_state (
-    key        TEXT PRIMARY KEY,
-    value      TEXT NOT NULL,
-    updated_at INTEGER NOT NULL
-  )`,
-  `CREATE TABLE IF NOT EXISTS metrics (
-    ts          INTEGER NOT NULL,
-    integration TEXT NOT NULL,
-    key         TEXT NOT NULL,
-    value       REAL,
-    value_json  TEXT
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_metrics_lookup ON metrics(integration, key, ts DESC)`,
+// Ordered schema migrations. The DB's `user_version` pragma records how many
+// have run, so the only step for a future schema change is to append a function
+// here — no manual SQL on deploy. Existing DBs created before versioning (and
+// fresh ones) start at user_version 0; the idempotent v1 CREATE brings both to 1.
+// (The client carries its own inventory schema version independently — see
+// client/src/lib; the server `user_version` is unrelated to it.)
+const MIGRATIONS: Array<(db: Database.Database) => void> = [
+  // v1 — initial app_state table.
+  (db) => {
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS app_state (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      )`,
+    ).run();
+  },
 ];
+
+function migrate(db: Database.Database): void {
+  const current = db.pragma('user_version', { simple: true }) as number;
+  for (let v = current; v < MIGRATIONS.length; v++) {
+    const apply = db.transaction(() => {
+      MIGRATIONS[v](db);
+      db.pragma(`user_version = ${v + 1}`);
+    });
+    apply();
+  }
+}
 
 export async function openStateDb(dbPath: string) {
   await mkdir(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('synchronous = NORMAL');
-  for (const stmt of SCHEMA_STATEMENTS) db.prepare(stmt).run();
+  migrate(db);
 
   const getAllStmt = db.prepare(`SELECT key, value, updated_at FROM app_state`);
   const getOneStmt = db.prepare(`SELECT value, updated_at FROM app_state WHERE key = ?`);
@@ -42,7 +56,6 @@ export async function openStateDb(dbPath: string) {
   `);
   const deleteStmt = db.prepare(`DELETE FROM app_state WHERE key = ?`);
   const countStmt = db.prepare(`SELECT COUNT(*) AS n FROM app_state`);
-  const metricsCount = db.prepare(`SELECT COUNT(*) AS n FROM metrics`);
   const upsertMany = db.transaction((entries: [string, unknown][]) => {
     const now = Date.now();
     for (const [key, value] of entries) {
@@ -102,7 +115,7 @@ export async function openStateDb(dbPath: string) {
       path: dbPath,
       fileSize,
       keys: (countStmt.get() as CountRow).n,
-      metricsRows: (metricsCount.get() as CountRow).n,
+      schemaVersion: db.pragma('user_version', { simple: true }) as number,
     };
   }
 
