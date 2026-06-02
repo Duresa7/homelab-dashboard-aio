@@ -7,41 +7,21 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { Agent, fetch as undiciFetch, WebSocket as UndiciWebSocket } from 'undici';
+import { WebSocket as UndiciWebSocket } from 'undici';
 
 import { initSiem } from './siem/index.js';
 import { initState } from './state/index.js';
 import { normalizeDiskParts } from './sensors/parse.js';
 import { runRemote } from './lib/remote.js';
 import { initSensors } from './sensors/index.js';
+import { insecureFetch, insecureDispatcher } from './lib/http.js';
+import { isEnabled, trimBaseUrl, formatUptime } from './lib/env.js';
+import { registerDocker, dockerStatus, probeDocker } from './integrations/docker.js';
 
 const execFileP = promisify(execFile);
 
-// Homelab gear uses self-signed certs; skip TLS verification on these fetches only.
-const insecureDispatcher = new Agent({ connect: { rejectUnauthorized: false } });
-const insecureFetch = (url, opts = {}) =>
-  undiciFetch(url, { ...opts, dispatcher: insecureDispatcher });
-
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
-
-const FALSY_ENV = ['false', '0', 'no', 'off', 'disabled'];
-
-function isEnabled(value, defaultEnabled = true) {
-  // DISABLE_ALL is a master kill-switch: when truthy, every integration is
-  // forced off regardless of its individual *_ENABLED flag. Useful for
-  // smoke-testing the UI without any backend integrations configured.
-  const disableAll = String(process.env.DISABLE_ALL || '')
-    .trim()
-    .toLowerCase();
-  if (disableAll && !FALSY_ENV.includes(disableAll)) return false;
-  if (value === undefined || value === null || value === '') return defaultEnabled;
-  return !FALSY_ENV.includes(String(value).trim().toLowerCase());
-}
-
-function trimBaseUrl(url) {
-  return String(url || '').replace(/\/+$/, '');
-}
 
 const UNIFI_ENABLED = isEnabled(process.env.UNIFI_ENABLED);
 const BASE_URL = process.env.UNIFI_BASE_URL;
@@ -52,12 +32,6 @@ if (UNIFI_ENABLED && !BASE_URL) {
 const API_KEY = process.env.UNIFI_API_KEY || '';
 const SITE = process.env.UNIFI_SITE || 'default';
 const CACHE_TTL = Number(process.env.UNIFI_POLL_INTERVAL) || 10000;
-
-const PORTAINER_ENABLED = isEnabled(process.env.PORTAINER_ENABLED, false);
-const PORTAINER_BASE_URL = trimBaseUrl(process.env.PORTAINER_BASE_URL);
-const PORTAINER_API_KEY = process.env.PORTAINER_API_KEY || process.env.PORTAINER_TOKEN || '';
-const PORTAINER_CACHE_TTL = Number(process.env.PORTAINER_POLL_INTERVAL) || 10000;
-const PORTAINER_STATS_ENABLED = isEnabled(process.env.PORTAINER_STATS_ENABLED, true);
 
 const PROXMOX_ENABLED = isEnabled(process.env.PROXMOX_ENABLED);
 const PVE_BASE_URL = process.env.PROXMOX_BASE_URL;
@@ -115,13 +89,6 @@ async function uniFetch(path) {
     throw new Error(`UniFi API ${res.status} ${res.statusText} — ${path} — ${body.slice(0, 200)}`);
   }
   return res.json();
-}
-
-function formatUptime(seconds) {
-  if (!seconds) return '—';
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  return d > 0 ? `${d}d ${h}h` : `${h}h`;
 }
 
 async function fetchAllPages(basePath, limit = 200) {
@@ -393,8 +360,8 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     unifi: { enabled: UNIFI_ENABLED, configured: !!API_KEY, hasKey: !!API_KEY },
     portainer: {
-      enabled: PORTAINER_ENABLED,
-      configured: !!(PORTAINER_BASE_URL && PORTAINER_API_KEY),
+      enabled: dockerStatus.enabled,
+      configured: dockerStatus.configured,
     },
     proxmox: {
       enabled: PROXMOX_ENABLED,
@@ -485,8 +452,8 @@ app.get('/api/health/live', async (req, res) => {
     runProbe('unifi', UNIFI_ENABLED && !!BASE_URL && !!API_KEY, () =>
       uniFetch('/proxy/network/integration/v1/sites'),
     ),
-    runProbe('portainer', PORTAINER_ENABLED && !!PORTAINER_BASE_URL && !!PORTAINER_API_KEY, () =>
-      portainerFetch('/api/endpoints', { timeoutMs: LIVE_HEALTH_PROBE_TIMEOUT_MS }),
+    runProbe('portainer', dockerStatus.enabled && dockerStatus.configured, () =>
+      probeDocker(LIVE_HEALTH_PROBE_TIMEOUT_MS),
     ),
     runProbe(
       'proxmox',
@@ -526,238 +493,7 @@ app.get('/api/health/live', async (req, res) => {
   res.json({ ...result, fromCache: false, ageMs: 0, cacheTtlMs: LIVE_HEALTH_CACHE_TTL_MS });
 });
 
-let portainerCache = { data: null, ts: 0 };
-let portainerLastError = null;
-
-async function portainerFetch(path, { timeoutMs = 10000 } = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await insecureFetch(`${PORTAINER_BASE_URL}${path}`, {
-      headers: {
-        'X-API-Key': PORTAINER_API_KEY,
-        Accept: 'application/json',
-      },
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw new Error(
-        `Portainer API ${res.status} ${res.statusText} — ${path} — ${body.slice(0, 200)}`,
-      );
-    }
-    if (res.status === 204) return null;
-    return res.json();
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function safePortainerFetch(path, fallback = null) {
-  try {
-    return await portainerFetch(path);
-  } catch (err) {
-    console.warn(`Portainer: ${path} failed → ${err.message}`);
-    return fallback;
-  }
-}
-
-function endpointId(endpoint) {
-  return endpoint.Id ?? endpoint.ID ?? endpoint.id;
-}
-
-function endpointName(endpoint) {
-  return endpoint.Name || endpoint.name || `Docker ${endpointId(endpoint)}`;
-}
-
-function endpointAddress(endpoint) {
-  const raw =
-    endpoint.PublicURL || endpoint.URL || endpoint.Url || endpoint.EdgeID || endpoint.EdgeId || '';
-  return (
-    String(raw)
-      .replace(/^tcp:\/\//, '')
-      .replace(/^https?:\/\//, '') || '—'
-  );
-}
-
-function endpointOnline(endpoint, dockerReachable) {
-  const status = endpoint.Status ?? endpoint.status;
-  if (dockerReachable) return true;
-  if (typeof status === 'number') return status === 1;
-  if (typeof status === 'string')
-    return ['up', 'online', 'active', 'healthy'].includes(status.toLowerCase());
-  return false;
-}
-
-function containerName(container) {
-  const names = Array.isArray(container.Names) ? container.Names : [];
-  return (names[0] || container.Name || container.Id || 'container').replace(/^\/+/, '');
-}
-
-function containerState(container) {
-  const raw = String(container.State || container.Status || '').toLowerCase();
-  if (raw.includes('pause')) return 'paused';
-  if (raw.includes('running') || raw === 'up') return 'running';
-  return 'stopped';
-}
-
-function containerStack(container) {
-  const labels = container.Labels || {};
-  return (
-    labels['com.docker.compose.project'] ||
-    labels['io.portainer.stack.name'] ||
-    labels['com.docker.stack.namespace'] ||
-    'standalone'
-  );
-}
-
-function containerUptime(container) {
-  if (containerState(container) !== 'running' || !container.Created) return '—';
-  return formatUptime(Math.max(0, Math.floor(Date.now() / 1000) - Number(container.Created)));
-}
-
-function cpuPctFromStats(stats) {
-  const cpuDelta =
-    (stats?.cpu_stats?.cpu_usage?.total_usage || 0) -
-    (stats?.precpu_stats?.cpu_usage?.total_usage || 0);
-  const systemDelta =
-    (stats?.cpu_stats?.system_cpu_usage || 0) - (stats?.precpu_stats?.system_cpu_usage || 0);
-  const onlineCpus =
-    stats?.cpu_stats?.online_cpus || stats?.cpu_stats?.cpu_usage?.percpu_usage?.length || 1;
-  if (cpuDelta <= 0 || systemDelta <= 0) return 0;
-  return Math.max(0, (cpuDelta / systemDelta) * onlineCpus * 100);
-}
-
-function memMbFromStats(stats) {
-  const usage = stats?.memory_stats?.usage || 0;
-  const cache = stats?.memory_stats?.stats?.cache || 0;
-  return Math.max(0, Math.round((usage - cache) / 1024 ** 2));
-}
-
-async function containerStats(endpointIdValue, containerId) {
-  if (!PORTAINER_STATS_ENABLED) return { cpu: 0, memMB: 0 };
-  const stats = await safePortainerFetch(
-    `/api/endpoints/${endpointIdValue}/docker/containers/${containerId}/stats?stream=false`,
-    null,
-  );
-  if (!stats) return { cpu: 0, memMB: 0 };
-  return {
-    cpu: cpuPctFromStats(stats),
-    memMB: memMbFromStats(stats),
-  };
-}
-
-async function fetchEndpointDocker(endpoint) {
-  const id = endpointId(endpoint);
-  const [containers, info, version] = await Promise.all([
-    safePortainerFetch(`/api/endpoints/${id}/docker/containers/json?all=true`, null),
-    safePortainerFetch(`/api/endpoints/${id}/docker/info`, null),
-    safePortainerFetch(`/api/endpoints/${id}/docker/version`, null),
-  ]);
-
-  const reachable = Array.isArray(containers);
-  const mappedContainers = await Promise.all(
-    (containers || []).map(async (c) => {
-      const state = containerState(c);
-      const stats = state === 'running' ? await containerStats(id, c.Id) : { cpu: 0, memMB: 0 };
-      return {
-        name: containerName(c),
-        host: String(id),
-        image: c.Image || 'unknown',
-        state,
-        cpu: stats.cpu,
-        memMB: stats.memMB,
-        uptime: containerUptime(c),
-        stack: containerStack(c),
-      };
-    }),
-  );
-
-  const memTotal = info?.MemTotal || 0;
-  const hostMemMb = mappedContainers.reduce((sum, c) => sum + c.memMB, 0);
-  const hostRamPct = memTotal ? Math.round(((hostMemMb * 1024 ** 2) / memTotal) * 100) : 0;
-  const hostCpuPct = Math.round(mappedContainers.reduce((sum, c) => sum + c.cpu, 0) * 10) / 10;
-
-  return {
-    host: {
-      id: String(id),
-      name: endpointName(endpoint),
-      addr: endpointAddress(endpoint),
-      os: info?.OperatingSystem || info?.OSType || endpoint.Platform || 'Docker',
-      engine: version?.Version || info?.ServerVersion || '—',
-      cpu: hostCpuPct,
-      ram: hostRamPct,
-      status: endpointOnline(endpoint, reachable) ? 'online' : 'offline',
-    },
-    containers: mappedContainers,
-  };
-}
-
-async function fetchPortainerDockerData() {
-  const now = Date.now();
-  if (portainerCache.data && now - portainerCache.ts < PORTAINER_CACHE_TTL) {
-    return portainerCache.data;
-  }
-
-  const endpoints = await portainerFetch('/api/endpoints');
-  const endpointList = Array.isArray(endpoints) ? endpoints : [];
-  const dockerResults = await Promise.all(endpointList.map(fetchEndpointDocker));
-  const hosts = dockerResults.map((r) => r.host);
-  const containers = dockerResults.flatMap((r) => r.containers);
-  const running = containers.filter((c) => c.state === 'running').length;
-  const stopped = containers.filter((c) => c.state !== 'running').length;
-
-  const result = {
-    docker: {
-      running,
-      stopped,
-      total: containers.length,
-      updates: 0,
-      hosts,
-      containers,
-    },
-  };
-
-  portainerCache = { data: result, ts: now };
-  portainerLastError = null;
-  return result;
-}
-
-app.get('/api/docker', async (_req, res) => {
-  if (!PORTAINER_ENABLED) return res.json({ disabled: true });
-  if (!PORTAINER_BASE_URL || !PORTAINER_API_KEY) {
-    return res.status(503).json({
-      error: 'Portainer not configured. Set PORTAINER_BASE_URL and PORTAINER_API_KEY in .env',
-    });
-  }
-  try {
-    const data = await fetchPortainerDockerData();
-    res.json(data);
-  } catch (err) {
-    portainerLastError = err.message;
-    console.error('Portainer API error:', err.message);
-    res.status(502).json({ error: err.message });
-  }
-});
-
-app.get('/api/docker/debug', async (_req, res) => {
-  if (!PORTAINER_ENABLED) return res.json({ disabled: true });
-  res.json({
-    config: {
-      baseUrl: PORTAINER_BASE_URL || null,
-      hasKey: !!PORTAINER_API_KEY,
-      statsEnabled: PORTAINER_STATS_ENABLED,
-    },
-    cache: portainerCache.data
-      ? {
-          ageMs: Date.now() - portainerCache.ts,
-          hosts: portainerCache.data.docker.hosts.length,
-          containers: portainerCache.data.docker.containers.length,
-        }
-      : null,
-    lastError: portainerLastError,
-  });
-});
+registerDocker(app);
 
 let pveCache = { data: null, ts: 0 };
 
@@ -2188,10 +1924,9 @@ if (process.env.NODE_ENV !== 'test') {
     } else {
       console.log('Proxmox: DISABLED (set PROXMOX_ENABLED=true in .env to enable)');
     }
-    if (PORTAINER_ENABLED) {
-      const portainerOk = !!(PORTAINER_BASE_URL && PORTAINER_API_KEY);
+    if (dockerStatus.enabled) {
       console.log(
-        `Portainer: ${portainerOk ? `enabled — ${PORTAINER_BASE_URL}` : 'enabled but NOT configured — set PORTAINER_* in .env'}`,
+        `Portainer: ${dockerStatus.configured ? `enabled — ${dockerStatus.baseUrl}` : 'enabled but NOT configured — set PORTAINER_* in .env'}`,
       );
     } else {
       console.log('Portainer: DISABLED (set PORTAINER_ENABLED=true in .env to enable)');
