@@ -11,7 +11,6 @@ import { WebSocket as UndiciWebSocket } from 'undici';
 
 import { initSiem } from './siem/index.js';
 import { initState } from './state/index.js';
-import { runRemote } from './lib/remote.js';
 import { initSensors } from './sensors/index.js';
 import { insecureFetch, insecureDispatcher } from './lib/http.js';
 import { isEnabled, trimBaseUrl } from './lib/env.js';
@@ -19,6 +18,7 @@ import { registerDocker, dockerStatus, probeDocker } from './integrations/docker
 import { registerProxmox, proxmoxStatus, probeProxmox } from './integrations/proxmox.js';
 import { registerUnas, unasStatus, probeUnas } from './integrations/unas.js';
 import { registerUnifi, unifiStatus, probeUnifi } from './integrations/unifi.js';
+import { registerGpu, gpuStatus, probeGpu } from './integrations/gpu.js';
 
 const execFileP = promisify(execFile);
 
@@ -79,8 +79,8 @@ app.get('/api/health', (_req, res) => {
       configured: !!(PROTECT_BASE_URL && PROTECT_API_KEY),
     },
     gpu: {
-      enabled: GPU_ENABLED,
-      configured: GPU_MODE === 'local' || !!GPU_SSH_HOST,
+      enabled: gpuStatus.enabled,
+      configured: gpuStatus.configured,
     },
     sensors: {
       enabled: SENSORS_ENABLED,
@@ -163,7 +163,7 @@ app.get('/api/health/live', async (req, res) => {
     runProbe('protect', PROTECT_ENABLED && !!PROTECT_BASE_URL && !!PROTECT_API_KEY, () =>
       protectFetchJson('/v1/meta/info'),
     ),
-    runProbe('gpu', GPU_ENABLED && (GPU_MODE === 'local' || !!GPU_SSH_HOST), () => runNvidiaSmi()),
+    runProbe('gpu', gpuStatus.enabled && gpuStatus.configured, () => probeGpu()),
     runProbe('sensors', SENSORS_ENABLED && (SENSORS_MODE === 'local' || !!SENSORS_SSH_HOST), () =>
       sensorsHandle.runSensors(),
     ),
@@ -194,139 +194,16 @@ registerUnifi(app);
 registerDocker(app);
 
 registerProxmox(app);
-
-const GPU_ENABLED = isEnabled(process.env.GPU_ENABLED);
-const GPU_MODE = (process.env.GPU_MODE || 'ssh').toLowerCase();
-const GPU_SSH_HOST = process.env.GPU_SSH_HOST || '';
-const GPU_SSH_USER = process.env.GPU_SSH_USER || 'root';
-const GPU_SSH_PORT = Number(process.env.GPU_SSH_PORT) || 22;
-const GPU_SSH_KEY_PATH = process.env.GPU_SSH_KEY_PATH || '';
-const GPU_CACHE_TTL = Number(process.env.GPU_POLL_INTERVAL) || 5000;
-
-const NVIDIA_SMI_FIELDS = [
-  'name',
-  'utilization.gpu',
-  'memory.used',
-  'memory.total',
-  'temperature.gpu',
-  'power.draw',
-  'power.limit',
-  'fan.speed',
-  'clocks.current.graphics',
-  'clocks.current.memory',
-].join(',');
-
-let gpuCache = { data: null, ts: 0 };
-let gpuLastError = null;
-
-function runNvidiaSmi() {
-  const queryArg = `--query-gpu=${NVIDIA_SMI_FIELDS}`;
-  const formatArg = '--format=csv,noheader,nounits';
-  return runRemote({
-    mode: GPU_MODE,
-    host: GPU_SSH_HOST,
-    user: GPU_SSH_USER,
-    port: GPU_SSH_PORT,
-    keyPath: GPU_SSH_KEY_PATH,
-    localCmd: 'nvidia-smi',
-    localArgs: [queryArg, formatArg],
-    remoteCmd: `nvidia-smi ${queryArg} ${formatArg}`,
-  });
-}
-
-function parseNvidiaSmiCsv(output) {
-  const lines = output.trim().split('\n').filter(Boolean);
-  return lines.map((line) => {
-    const p = line.split(',').map((s) => s.trim());
-    const num = (i) => {
-      const v = Number(p[i]);
-      return Number.isFinite(v) ? v : 0;
-    };
-    return {
-      name: p[0] || 'GPU',
-      usage: num(1),
-      memUsedMB: num(2),
-      memTotalMB: num(3),
-      tempC: num(4),
-      powerW: num(5),
-      powerMaxW: num(6),
-      fanPct: num(7),
-      gpuClockMHz: num(8),
-      memClockMHz: num(9),
-    };
-  });
-}
-
-async function fetchGpuData() {
-  const now = Date.now();
-  if (gpuCache.data && now - gpuCache.ts < GPU_CACHE_TTL) return gpuCache.data;
-
-  const output = await runNvidiaSmi();
-  const gpus = parseNvidiaSmiCsv(output);
-  if (gpus.length === 0) throw new Error('nvidia-smi returned no GPUs');
-
-  const primary = gpus[0];
-  const result = {
-    gpu: {
-      model: primary.name,
-      usage: primary.usage,
-      target: primary.usage,
-      memUsedGB: primary.memUsedMB / 1024,
-      memTotalGB: Math.round((primary.memTotalMB / 1024) * 10) / 10,
-      tempC: primary.tempC,
-      powerW: primary.powerW,
-      powerMaxW: primary.powerMaxW,
-      fanPct: primary.fanPct,
-      gpuClockMHz: primary.gpuClockMHz,
-      memClockMHz: primary.memClockMHz,
-    },
-    gpus,
-  };
-
-  gpuCache = { data: result, ts: now };
-  gpuLastError = null;
-  return result;
-}
-
-app.get('/api/gpu', async (_req, res) => {
-  if (!GPU_ENABLED) return res.json({ disabled: true });
-  if (GPU_MODE === 'ssh' && !GPU_SSH_HOST) {
-    return res.status(503).json({ error: 'GPU_MODE=ssh but GPU_SSH_HOST is not set in .env' });
-  }
-  try {
-    const data = await fetchGpuData();
-    res.json(data);
-  } catch (err) {
-    gpuLastError = err.message;
-    console.warn(`GPU: nvidia-smi failed (${GPU_MODE}) → ${err.message.split('\n')[0]}`);
-    res.status(502).json({ error: err.message });
-  }
-});
-
-app.get('/api/gpu/debug', async (_req, res) => {
-  if (!GPU_ENABLED) return res.json({ disabled: true });
-  const config = { mode: GPU_MODE };
-  if (GPU_MODE === 'ssh') {
-    config.host = GPU_SSH_HOST;
-    config.user = GPU_SSH_USER;
-    config.port = GPU_SSH_PORT;
-    config.keyPath = GPU_SSH_KEY_PATH || '(default)';
-  }
-  res.json({
-    config,
-    cache: gpuCache.data ? { ageMs: Date.now() - gpuCache.ts, gpus: gpuCache.data.gpus } : null,
-    lastError: gpuLastError,
-  });
-});
+registerGpu(app);
 
 // Sensors share the GPU SSH config by default — both usually target the same host.
 
 const SENSORS_ENABLED = isEnabled(process.env.SENSORS_ENABLED);
-const SENSORS_MODE = (process.env.SENSORS_MODE || GPU_MODE).toLowerCase();
-const SENSORS_SSH_HOST = process.env.SENSORS_SSH_HOST || GPU_SSH_HOST;
-const SENSORS_SSH_USER = process.env.SENSORS_SSH_USER || GPU_SSH_USER;
-const SENSORS_SSH_PORT = Number(process.env.SENSORS_SSH_PORT) || GPU_SSH_PORT;
-const SENSORS_SSH_KEY_PATH = process.env.SENSORS_SSH_KEY_PATH || GPU_SSH_KEY_PATH;
+const SENSORS_MODE = (process.env.SENSORS_MODE || gpuStatus.mode).toLowerCase();
+const SENSORS_SSH_HOST = process.env.SENSORS_SSH_HOST || gpuStatus.host;
+const SENSORS_SSH_USER = process.env.SENSORS_SSH_USER || gpuStatus.user;
+const SENSORS_SSH_PORT = Number(process.env.SENSORS_SSH_PORT) || gpuStatus.port;
+const SENSORS_SSH_KEY_PATH = process.env.SENSORS_SSH_KEY_PATH || gpuStatus.keyPath;
 const SENSORS_CACHE_TTL = Number(process.env.SENSORS_POLL_INTERVAL) || 5000;
 
 const sensorsHandle = initSensors(app, {
@@ -1108,11 +985,11 @@ if (process.env.NODE_ENV !== 'test') {
     } else {
       console.log('Protect: DISABLED (set PROTECT_ENABLED=true in .env to enable)');
     }
-    if (GPU_ENABLED) {
-      if (GPU_MODE === 'local') {
+    if (gpuStatus.enabled) {
+      if (gpuStatus.mode === 'local') {
         console.log('GPU: enabled — local nvidia-smi');
-      } else if (GPU_SSH_HOST) {
-        console.log(`GPU: enabled — ssh ${GPU_SSH_USER}@${GPU_SSH_HOST}:${GPU_SSH_PORT}`);
+      } else if (gpuStatus.host) {
+        console.log(`GPU: enabled — ssh ${gpuStatus.user}@${gpuStatus.host}:${gpuStatus.port}`);
       } else {
         console.log('GPU: enabled but NOT configured — set GPU_SSH_HOST or GPU_MODE=local in .env');
       }
