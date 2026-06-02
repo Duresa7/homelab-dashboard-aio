@@ -1,7 +1,5 @@
-import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useRef } from 'react';
+import type { CSSProperties } from 'react';
 import { AreaChart, Donut } from '../charts';
-import { Icon } from '../icons/Icon';
 import { ALL_TILES, renderTile, tileData, type TileId } from '../widgets/registry';
 import { CameraSnapshot } from '../widgets/CameraSnapshot';
 import { TempHeatTile } from '../widgets/TempHeatTile';
@@ -70,13 +68,11 @@ function ExpandedBody({ id, data, chartKind, setChartKind }: Omit<Props, 'onClos
 
   switch (id) {
     case 'cpu':
-      return <ExpandedCPU data={data} chartKind={chartKind} setChartKind={setChartKind} />;
+      return <ExpandedCPU data={data} />;
     case 'ram':
-      return <ExpandedRAM data={data} chartKind={chartKind} setChartKind={setChartKind} />;
+      return <ExpandedRAM data={data} />;
     case 'gpu':
-      return (
-        <ExpandedGPU data={data} chartKind={chartKind} setChartKind={setChartKind} unit={unit} />
-      );
+      return <ExpandedGPU data={data} unit={unit} />;
     case 'smart':
       return <ExpandedSmart data={data} unit={unit} />;
     case 'ups':
@@ -94,7 +90,7 @@ function ExpandedBody({ id, data, chartKind, setChartKind }: Omit<Props, 'onClos
     case 'unifi':
       return <ExpandedUnifi data={data} />;
     case 'network':
-      return <ExpandedNetwork data={data} chartKind={chartKind} setChartKind={setChartKind} />;
+      return <ExpandedNetwork data={data} />;
     case 'topTalkers':
       return <ExpandedTopTalkers data={data} />;
     case 'proxmox':
@@ -129,15 +125,7 @@ function ExpandedBody({ id, data, chartKind, setChartKind }: Omit<Props, 'onClos
 /* Per-tile expanded views                                            */
 /* ------------------------------------------------------------------ */
 
-function ExpandedCPU({
-  data,
-  chartKind,
-  setChartKind,
-}: {
-  data: DashboardState;
-  chartKind: ChartKind;
-  setChartKind: (k: ChartKind) => void;
-}) {
+function ExpandedCPU({ data }: { data: DashboardState }) {
   const { unit } = useTempUnit();
   const cpu = data.cpu;
   const usageKind = cpuUsageSeverity(cpu.usage);
@@ -194,15 +182,7 @@ function ExpandedCPU({
   );
 }
 
-function ExpandedRAM({
-  data,
-  chartKind,
-  setChartKind,
-}: {
-  data: DashboardState;
-  chartKind: ChartKind;
-  setChartKind: (k: ChartKind) => void;
-}) {
+function ExpandedRAM({ data }: { data: DashboardState }) {
   const ram = data.ram;
   const pct = (ram.usedGB / ram.totalGB) * 100;
   const freeGB = ram.totalGB - ram.usedGB;
@@ -241,17 +221,7 @@ function ExpandedRAM({
   );
 }
 
-function ExpandedGPU({
-  data,
-  chartKind,
-  setChartKind,
-  unit,
-}: {
-  data: DashboardState;
-  chartKind: ChartKind;
-  setChartKind: (k: ChartKind) => void;
-  unit: 'C' | 'F';
-}) {
+function ExpandedGPU({ data, unit }: { data: DashboardState; unit: 'C' | 'F' }) {
   const gpu = data.gpu;
   const tempKind = gpuTempSeverity(gpu.tempC);
   const fanKind = fanSeverity(gpu.fanPct);
@@ -784,15 +754,7 @@ function ExpandedUnifi({ data }: { data: DashboardState }) {
   );
 }
 
-function ExpandedNetwork({
-  data,
-  chartKind,
-  setChartKind,
-}: {
-  data: DashboardState;
-  chartKind: ChartKind;
-  setChartKind: (k: ChartKind) => void;
-}) {
+function ExpandedNetwork({ data }: { data: DashboardState }) {
   const n = data.network;
   return (
     <div className="ov-grid">
