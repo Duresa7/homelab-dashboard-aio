@@ -41,7 +41,7 @@ import {
   type SpecField,
 } from '../lib/inventory';
 import { BrandGlyph, categoryIcon, componentIcon, roleIcon } from '../lib/inventoryIcons';
-import { Editable } from './InventoryPage';
+import { Editable } from './inventory/Editable';
 import {
   Dialog,
   DialogClose,
