@@ -4,7 +4,7 @@
    Persisted via lib/store.ts under the `playground` key.
    ========================================================= */
 
-import { genId, type Machine } from './inventory';
+import { genId, type Component, type Machine } from './inventory';
 import { getState, setState } from './store';
 
 export type SlotId =
@@ -93,13 +93,13 @@ export function emptyBuild(name = 'New build'): PlaygroundBuild {
   };
 }
 
-/** Clone a Machine into a build by matching each component row to a slot. */
-export function buildFromMachine(machine: Machine): PlaygroundBuild {
+/** Clone a Machine into a build by matching each of its components to a slot. */
+export function buildFromMachine(machine: Machine, components: Component[]): PlaygroundBuild {
   const build = emptyBuild(`${machine.name} (copy)`);
-  for (const row of machine.components) {
+  for (const c of components) {
     for (const def of SLOT_DEFS) {
-      if (def.componentMatch?.test(row.component) && build.slots[def.id].source === 'empty') {
-        build.slots[def.id] = { source: 'machine-component', componentId: row.id };
+      if (def.componentMatch?.test(c.label) && build.slots[def.id].source === 'empty') {
+        build.slots[def.id] = { source: 'machine-component', componentId: c.id };
         break;
       }
     }

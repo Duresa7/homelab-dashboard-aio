@@ -16,7 +16,9 @@ import {
 } from 'lucide-react';
 
 import {
+  componentTitle,
   loadInventory,
+  SPARE,
   type Inventory,
   type Machine,
   type SpareItem,
@@ -75,10 +77,8 @@ function resolveEntryLabel(entry: SlotEntry, inv: Inventory): string {
     return '(missing spare)';
   }
   if (entry.source === 'machine-component' && entry.componentId) {
-    for (const m of inv.machines) {
-      const c = m.components.find((x) => x.id === entry.componentId);
-      if (c) return c.specification || c.component;
-    }
+    const c = inv.components.find((x) => x.id === entry.componentId);
+    if (c) return componentTitle(c) || c.label;
     return '(missing component)';
   }
   return '—';
@@ -95,29 +95,23 @@ function buildPickerOptions(slot: SlotDef, inv: Inventory): PickerOption[] {
 
   // Spare-parts options, filtered by category regex if defined; otherwise everything.
   for (const cat of inv.spares) {
-    if (cat.kind === 'network') continue;
+    if (cat.deviceType === 'network') continue;
     if (slot.categoryMatch && !slot.categoryMatch.test(cat.name)) continue;
     for (const it of cat.items) {
       opts.push({
         value: `spare:${it.id}`,
-        label: spareLabel(it),
+        label: it.name?.trim() || spareLabel(it),
         group: `Spare — ${cat.name}`,
       });
     }
   }
 
-  // Machine-component options for slots that match a component-name regex.
+  // Spare components from the pool (CPUs, RAM, drives, …) also fill build slots.
   if (slot.componentMatch) {
-    for (const m of inv.machines) {
-      for (const c of m.components) {
-        if (slot.componentMatch.test(c.component)) {
-          opts.push({
-            value: `mc:${c.id}`,
-            label: c.specification || c.component,
-            group: `Machine — ${m.name}`,
-          });
-        }
-      }
+    for (const c of inv.components) {
+      if (!slot.componentMatch.test(c.label)) continue;
+      const where = c.assignment === SPARE ? 'Spare components' : `Machine — ${inv.machines.find((m) => m.id === c.assignment)?.name ?? 'unknown'}`;
+      opts.push({ value: `mc:${c.id}`, label: componentTitle(c) || c.label, group: where });
     }
   }
 
@@ -184,7 +178,7 @@ export function PlaygroundPage() {
     patch((prev) => ({
       ...prev,
       lastUpdated: today(),
-      builds: [...prev.builds, buildFromMachine(machine)],
+      builds: [...prev.builds, buildFromMachine(machine, inv.components.filter((c) => c.assignment === machine.id))],
     }));
     toast.success(`Cloned ${machine.name} into a new build`);
   };

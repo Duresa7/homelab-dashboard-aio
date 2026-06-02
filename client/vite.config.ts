@@ -26,7 +26,12 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: `http://localhost:${serverPort}`,
-          changeOrigin: true,
+          // Keep the original Host header so it matches the browser Origin.
+          // With changeOrigin:true the server's same-origin write guard
+          // (server/src/state/index.js) sees Host=:3001 vs Origin=:5173 and
+          // rejects every PUT/DELETE with 403 — silently dropping edits made
+          // on the dev site. Same Host as Origin → writes persist in dev.
+          changeOrigin: false,
         },
       },
     },

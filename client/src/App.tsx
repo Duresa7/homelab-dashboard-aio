@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { CloudOff } from 'lucide-react';
 
 import { AppSidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
@@ -10,7 +11,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { getState, setState } from './lib/store';
+import { getState, setState, isDegraded } from './lib/store';
 
 import { OverviewPage } from './pages/OverviewPage';
 import { ProxmoxPage } from './pages/ProxmoxPage';
@@ -162,6 +163,11 @@ export function App() {
 
   const activeSub = resolveSub(route.section, route.sub);
 
+  // Determined at boot in store.hydrate(): the server was unreachable, so we're
+  // running off in-memory defaults/seed. Surface it instead of silently showing
+  // seed data that looks real — the user's saved inventory lives in the backend.
+  const backendOffline = isDegraded();
+
   return (
     <TooltipProvider delayDuration={250}>
       <SidebarProvider
@@ -183,6 +189,22 @@ export function App() {
           />
 
           <div className="w-full max-w-[var(--content-max)] flex-1 px-[var(--page-pad)] pt-[var(--page-pad)] pb-24">
+            {backendOffline ? (
+              <div
+                role="status"
+                className="mb-[var(--page-gap)] flex items-start gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-foreground"
+              >
+                <CloudOff strokeWidth={1.75} className="mt-0.5 size-4 shrink-0 text-warn" />
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium">Backend offline — showing defaults, not your saved data.</span>
+                  <span className="text-muted-foreground">
+                    Live telemetry and your saved inventory are stored by the server. Start it with{' '}
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">npm run server</code>{' '}
+                    and reload, or your edits here won't be saved.
+                  </span>
+                </div>
+              </div>
+            ) : null}
             {t.showAlerts ? <AlertBanner alerts={visibleAlerts} onDismiss={dismiss} /> : null}
 
             {route.section === 'overview' && (

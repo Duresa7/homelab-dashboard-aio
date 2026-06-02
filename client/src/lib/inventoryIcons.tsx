@@ -1,5 +1,6 @@
 import {
   Box,
+  Camera,
   CircuitBoard,
   Cpu,
   Disc,
@@ -7,6 +8,7 @@ import {
   Fan,
   Gpu,
   HardDrive,
+  Keyboard,
   Laptop,
   MemoryStick,
   Monitor,
@@ -15,6 +17,7 @@ import {
   Printer,
   Router,
   Server,
+  Smartphone,
   Thermometer,
   Usb,
   Wifi,
@@ -149,8 +152,12 @@ export function componentIcon(label: string): LucideIcon | null {
 
 export function categoryIcon(name: string): LucideIcon {
   const k = name.toLowerCase();
-  if (/network/.test(k))                      return Network;
-  if (/laptop/.test(k))                       return Laptop;
+  if (/network|switch|router|gateway|wi[- ]?fi/.test(k)) return Network;
+  if (/laptop|notebook/.test(k))              return Laptop;
+  if (/phone/.test(k))                        return Smartphone;
+  if (/camera|\bcam\b|protect/.test(k))       return Camera;
+  if (/monitor|display|screen/.test(k))       return Monitor;
+  if (/peripheral|keyboard|mouse|dock/.test(k)) return Keyboard;
   if (/\bcpus?\b|processor/.test(k))          return Cpu;
   if (/cooler|fan/.test(k))                   return Fan;
   if (/\bssds?\b|nvme/.test(k))               return HardDrive;
