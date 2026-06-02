@@ -16,6 +16,15 @@ cp .env.example .env
 npm install
 ```
 
+## Development
+
+The repo has one mechanical Prettier formatting commit recorded in
+`.git-blame-ignore-revs`. After cloning, configure Git blame to skip it:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
 ## Run (development)
 
 ```bash
