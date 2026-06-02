@@ -11,12 +11,12 @@ import { WebSocket as UndiciWebSocket } from 'undici';
 
 import { initSiem } from './siem/index.js';
 import { initState } from './state/index.js';
-import { normalizeDiskParts } from './sensors/parse.js';
 import { runRemote } from './lib/remote.js';
 import { initSensors } from './sensors/index.js';
 import { insecureFetch, insecureDispatcher } from './lib/http.js';
 import { isEnabled, trimBaseUrl, formatUptime } from './lib/env.js';
 import { registerDocker, dockerStatus, probeDocker } from './integrations/docker.js';
+import { registerProxmox, proxmoxStatus, probeProxmox } from './integrations/proxmox.js';
 
 const execFileP = promisify(execFile);
 
@@ -32,13 +32,6 @@ if (UNIFI_ENABLED && !BASE_URL) {
 const API_KEY = process.env.UNIFI_API_KEY || '';
 const SITE = process.env.UNIFI_SITE || 'default';
 const CACHE_TTL = Number(process.env.UNIFI_POLL_INTERVAL) || 10000;
-
-const PROXMOX_ENABLED = isEnabled(process.env.PROXMOX_ENABLED);
-const PVE_BASE_URL = process.env.PROXMOX_BASE_URL;
-const PVE_TOKEN_ID = process.env.PROXMOX_TOKEN_ID;
-const PVE_TOKEN_SECRET = process.env.PROXMOX_TOKEN_SECRET;
-const PVE_NODE_HINT = process.env.PROXMOX_NODE || '';
-const PVE_CACHE_TTL = Number(process.env.PROXMOX_POLL_INTERVAL) || 5000;
 
 const UNAS_ENABLED = isEnabled(process.env.UNAS_ENABLED, false);
 const UNAS_BASE_URL = trimBaseUrl(process.env.UNAS_BASE_URL);
@@ -364,8 +357,8 @@ app.get('/api/health', (_req, res) => {
       configured: dockerStatus.configured,
     },
     proxmox: {
-      enabled: PROXMOX_ENABLED,
-      configured: !!(PVE_BASE_URL && PVE_TOKEN_ID && PVE_TOKEN_SECRET),
+      enabled: proxmoxStatus.enabled,
+      configured: proxmoxStatus.configured,
     },
     unas: {
       enabled: UNAS_ENABLED,
@@ -455,11 +448,7 @@ app.get('/api/health/live', async (req, res) => {
     runProbe('portainer', dockerStatus.enabled && dockerStatus.configured, () =>
       probeDocker(LIVE_HEALTH_PROBE_TIMEOUT_MS),
     ),
-    runProbe(
-      'proxmox',
-      PROXMOX_ENABLED && !!PVE_BASE_URL && !!PVE_TOKEN_ID && !!PVE_TOKEN_SECRET,
-      () => pveFetch('/api2/json/version'),
-    ),
+    runProbe('proxmox', proxmoxStatus.enabled && proxmoxStatus.configured, () => probeProxmox()),
     runProbe('unas', UNAS_ENABLED && !!UNAS_BASE_URL && !!UNAS_API_KEY, () =>
       unasFetch('/proxy/drive/api/v2/storage'),
     ),
@@ -495,292 +484,7 @@ app.get('/api/health/live', async (req, res) => {
 
 registerDocker(app);
 
-let pveCache = { data: null, ts: 0 };
-
-async function pveFetch(path) {
-  const url = `${PVE_BASE_URL}${path}`;
-  const res = await insecureFetch(url, {
-    headers: {
-      Authorization: `PVEAPIToken=${PVE_TOKEN_ID}=${PVE_TOKEN_SECRET}`,
-      Accept: 'application/json',
-    },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(
-      `Proxmox API ${res.status} ${res.statusText} — ${path} — ${body.slice(0, 200)}`,
-    );
-  }
-  const json = await res.json();
-  return json.data;
-}
-
-async function safePveFetch(path) {
-  try {
-    return await pveFetch(path);
-  } catch (err) {
-    console.warn(`Proxmox: ${path} failed → ${err.message}`);
-    return null;
-  }
-}
-
-function mapVmState(s) {
-  if (s === 'running') return 'running';
-  if (s === 'paused' || s === 'suspended') return 'paused';
-  return 'stopped';
-}
-
-function trimPveVersion(raw) {
-  if (!raw) return 'n/a';
-  // "pve-manager/9.1.6/71482d1833ded40a" → "9.1.6"
-  const m = String(raw).match(/(\d+\.\d+\.\d+)/);
-  return m ? m[1] : String(raw);
-}
-
-function pickNodeIp(networks) {
-  if (!Array.isArray(networks)) return null;
-  const bridgeWithIp = networks.find((n) => n.active && n.address && n.type === 'bridge');
-  if (bridgeWithIp) return bridgeWithIp.address;
-  const anyWithIp = networks.find((n) => n.active && n.address);
-  return anyWithIp ? anyWithIp.address : null;
-}
-
-async function getQemuIp(node, vmid) {
-  // Requires qemu-guest-agent installed AND running inside the VM.
-  const data = await safePveFetch(
-    `/api2/json/nodes/${node}/qemu/${vmid}/agent/network-get-interfaces`,
-  );
-  if (!data?.result) return null;
-  for (const iface of data.result) {
-    if (iface.name === 'lo') continue;
-    const addrs = iface['ip-addresses'] || [];
-    const v4 = addrs.find(
-      (a) => a['ip-address-type'] === 'ipv4' && !a['ip-address'].startsWith('127.'),
-    );
-    if (v4) return v4['ip-address'];
-  }
-  return null;
-}
-
-async function getLxcIp(node, vmid) {
-  // Runtime IPs via /interfaces (only works while running).
-  const ifaces = await safePveFetch(`/api2/json/nodes/${node}/lxc/${vmid}/interfaces`);
-  if (Array.isArray(ifaces)) {
-    for (const iface of ifaces) {
-      if (iface.name === 'lo') continue;
-      const ip = iface.inet || iface.inet6;
-      if (ip) return String(ip).split('/')[0];
-    }
-  }
-  // Fallback: parse static IP from /config (net0: ...,ip=198.51.100.30/24)
-  const cfg = await safePveFetch(`/api2/json/nodes/${node}/lxc/${vmid}/config`);
-  if (cfg) {
-    for (const key of Object.keys(cfg)) {
-      if (!key.startsWith('net')) continue;
-      const m = String(cfg[key]).match(/ip=([\d.]+)/);
-      if (m) return m[1];
-    }
-  }
-  return null;
-}
-
-async function fetchProxmoxData() {
-  const now = Date.now();
-  if (pveCache.data && now - pveCache.ts < PVE_CACHE_TTL) return pveCache.data;
-
-  const nodes = (await pveFetch('/api2/json/nodes')) || [];
-  if (!Array.isArray(nodes) || nodes.length === 0) {
-    throw new Error('No Proxmox nodes returned');
-  }
-
-  const primary =
-    nodes.find((n) => n.node === PVE_NODE_HINT) ||
-    nodes.find((n) => n.status === 'online') ||
-    nodes[0];
-
-  const [nodeStatus, vmResources, storageList, networks, physicalDisks, zfsPools] =
-    await Promise.all([
-      safePveFetch(`/api2/json/nodes/${primary.node}/status`),
-      safePveFetch('/api2/json/cluster/resources?type=vm'),
-      safePveFetch(`/api2/json/nodes/${primary.node}/storage`),
-      safePveFetch(`/api2/json/nodes/${primary.node}/network`),
-      safePveFetch(`/api2/json/nodes/${primary.node}/disks/list`),
-      safePveFetch(`/api2/json/nodes/${primary.node}/disks/zfs`),
-    ]);
-
-  const totalCores = nodes.reduce((sum, n) => sum + (n.maxcpu || 0), 0);
-  const vms = Array.isArray(vmResources) ? vmResources : [];
-
-  const runningVms = vms.filter((v) => v.status === 'running');
-  const coresAllocated = runningVms.reduce((sum, v) => sum + (v.maxcpu || 0), 0);
-  const ramAllocatedBytes = runningVms.reduce((sum, v) => sum + (v.maxmem || 0), 0);
-
-  // QEMU IPs need qemu-guest-agent in the VM; without it we just return null.
-  const vmIps = {};
-  await Promise.all(
-    runningVms.map(async (v) => {
-      try {
-        const ip =
-          v.type === 'lxc' ? await getLxcIp(v.node, v.vmid) : await getQemuIp(v.node, v.vmid);
-        if (ip) vmIps[v.vmid] = ip;
-      } catch {
-        /* ignore */
-      }
-    }),
-  );
-
-  // Dedupe by storage name so shared pools aren't counted twice.
-  const seenStorage = new Set();
-  let storageUsed = 0;
-  let storageTotal = 0;
-  if (Array.isArray(storageList)) {
-    for (const s of storageList) {
-      if (!s.enabled || !s.active || !s.total) continue;
-      if (seenStorage.has(s.storage)) continue;
-      seenStorage.add(s.storage);
-      storageUsed += s.used || 0;
-      storageTotal += s.total || 0;
-    }
-  }
-
-  const zfsHealthByName = new Map();
-  if (Array.isArray(zfsPools)) {
-    for (const z of zfsPools) {
-      if (z?.name) zfsHealthByName.set(String(z.name), z.health || null);
-    }
-  }
-
-  const memTotalBytes = nodeStatus?.memory?.total ?? primary.maxmem ?? 0;
-  const memUsedBytes = nodeStatus?.memory?.used ?? primary.mem ?? 0;
-  const memUsedPct = memTotalBytes ? (memUsedBytes / memTotalBytes) * 100 : 0;
-
-  const cpuPct = (nodeStatus?.cpu ?? primary.cpu ?? 0) * 100;
-  const uptimeSec = nodeStatus?.uptime ?? primary.uptime ?? 0;
-  const pveVersion = trimPveVersion(nodeStatus?.pveversion || primary.level);
-  const cpuModel = (nodeStatus?.cpuinfo?.model || 'Unknown CPU')
-    .replace(/\s+\d+-Core Processor$/i, '')
-    .replace(/\(R\)|\(TM\)/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const cpuCores = nodeStatus?.cpuinfo?.cores || 0;
-  const cpuThreads = nodeStatus?.cpuinfo?.cpus || primary.maxcpu || 0;
-
-  const GB = 1024 ** 3;
-  const TB = 1024 ** 4;
-
-  const result = {
-    proxmox: {
-      nodes: nodes.length,
-      node: {
-        name: primary.node,
-        ip: pickNodeIp(networks),
-        cpu: cpuPct,
-        ram: memUsedPct,
-        ramUsedGB: memUsedBytes / GB,
-        ramTotalGB: memTotalBytes / GB,
-        ramAllocatedGB: ramAllocatedBytes / GB,
-        cpuModel,
-        cpuCores,
-        cpuThreads,
-        storageUsedTB: storageUsed / TB,
-        storageTotalTB: storageTotal / TB,
-        storagePct: storageTotal ? (storageUsed / storageTotal) * 100 : 0,
-        uptime: formatUptime(uptimeSec),
-        version: pveVersion,
-      },
-      vms: vms.map((v) => ({
-        id: v.vmid,
-        name: v.name || `vm-${v.vmid}`,
-        type: v.type === 'lxc' ? 'LXC' : 'VM',
-        state: mapVmState(v.status),
-        cpu: (v.cpu || 0) * 100,
-        ram: v.maxmem ? Math.round((v.mem / v.maxmem) * 100) : 0,
-        disk: v.maxdisk ? Math.round(v.maxdisk / GB) : 0,
-        ip: vmIps[v.vmid] || null,
-      })),
-      disks: (Array.isArray(physicalDisks) ? physicalDisks : []).map((d) => {
-        const friendly = normalizeDiskParts(d);
-        return {
-          devpath: d.devpath || '',
-          model: friendly.model,
-          vendor: friendly.vendor,
-          serial: d.serial || null,
-          sizeBytes: Number(d.size) || 0,
-          type: (d.type || 'unknown').toLowerCase(), // nvme | ssd | hdd | usb
-          used: d.used || null, // "LVM", "ZFS", "partitions", null
-          health: d.health || null, // "PASSED", "FAILED", "UNKNOWN"
-          wearout: typeof d.wearout === 'number' ? d.wearout : null,
-          rpm: Number(d.rpm) || 0,
-        };
-      }),
-      storages: (Array.isArray(storageList) ? storageList : []).map((s) => {
-        const zfsKey = String(s.pool || s.storage || '');
-        return {
-          name: s.storage || '',
-          type: s.type || '',
-          content: s.content || '',
-          usedTB: (s.used || 0) / TB,
-          totalTB: (s.total || 0) / TB,
-          active: !!s.active,
-          shared: !!s.shared,
-          zfsHealth:
-            zfsHealthByName.get(zfsKey) || zfsHealthByName.get(String(s.storage || '')) || null,
-        };
-      }),
-      coresAllocated,
-      coresTotal: totalCores,
-    },
-  };
-
-  pveCache = { data: result, ts: now };
-  return result;
-}
-
-app.get('/api/proxmox/debug', async (_req, res) => {
-  if (!PROXMOX_ENABLED) return res.status(503).json({ error: 'Proxmox disabled' });
-  if (!PVE_BASE_URL || !PVE_TOKEN_ID || !PVE_TOKEN_SECRET) {
-    return res.status(503).json({ error: 'Proxmox not configured' });
-  }
-  const out = {};
-  try {
-    out.nodes = await pveFetch('/api2/json/nodes');
-  } catch (e) {
-    out.nodesError = e.message;
-  }
-  const nodeName = PVE_NODE_HINT || out.nodes?.[0]?.node;
-  if (nodeName) {
-    try {
-      out.nodeStatus = await pveFetch(`/api2/json/nodes/${nodeName}/status`);
-    } catch (e) {
-      out.nodeStatusError = e.message;
-    }
-  }
-  try {
-    out.clusterResources = await pveFetch('/api2/json/cluster/resources?type=vm');
-  } catch (e) {
-    out.clusterResourcesError = e.message;
-  }
-  res.json(out);
-});
-
-app.get('/api/proxmox', async (_req, res) => {
-  if (!PROXMOX_ENABLED) {
-    return res.json({ disabled: true });
-  }
-  if (!PVE_BASE_URL || !PVE_TOKEN_ID || !PVE_TOKEN_SECRET) {
-    return res.status(503).json({
-      error:
-        'Proxmox not configured. Set PROXMOX_BASE_URL, PROXMOX_TOKEN_ID, PROXMOX_TOKEN_SECRET in .env',
-    });
-  }
-  try {
-    const data = await fetchProxmoxData();
-    res.json(data);
-  } catch (err) {
-    console.error('Proxmox API error:', err.message);
-    res.status(502).json({ error: err.message });
-  }
-});
+registerProxmox(app);
 
 app.get('/api/debug', async (_req, res) => {
   if (process.env.NODE_ENV !== 'development') {
@@ -1916,10 +1620,9 @@ if (process.env.NODE_ENV !== 'test') {
     } else {
       console.log('UniFi: DISABLED (set UNIFI_ENABLED=true in .env to enable)');
     }
-    if (PROXMOX_ENABLED) {
-      const pveOk = !!(PVE_BASE_URL && PVE_TOKEN_ID && PVE_TOKEN_SECRET);
+    if (proxmoxStatus.enabled) {
       console.log(
-        `Proxmox: ${pveOk ? `enabled — ${PVE_BASE_URL}` : 'enabled but NOT configured — set PROXMOX_* in .env'}`,
+        `Proxmox: ${proxmoxStatus.configured ? `enabled — ${proxmoxStatus.baseUrl}` : 'enabled but NOT configured — set PROXMOX_* in .env'}`,
       );
     } else {
       console.log('Proxmox: DISABLED (set PROXMOX_ENABLED=true in .env to enable)');
