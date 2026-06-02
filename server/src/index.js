@@ -17,6 +17,7 @@ import { insecureFetch, insecureDispatcher } from './lib/http.js';
 import { isEnabled, trimBaseUrl, formatUptime } from './lib/env.js';
 import { registerDocker, dockerStatus, probeDocker } from './integrations/docker.js';
 import { registerProxmox, proxmoxStatus, probeProxmox } from './integrations/proxmox.js';
+import { registerUnas, unasStatus, probeUnas } from './integrations/unas.js';
 
 const execFileP = promisify(execFile);
 
@@ -32,11 +33,6 @@ if (UNIFI_ENABLED && !BASE_URL) {
 const API_KEY = process.env.UNIFI_API_KEY || '';
 const SITE = process.env.UNIFI_SITE || 'default';
 const CACHE_TTL = Number(process.env.UNIFI_POLL_INTERVAL) || 10000;
-
-const UNAS_ENABLED = isEnabled(process.env.UNAS_ENABLED, false);
-const UNAS_BASE_URL = trimBaseUrl(process.env.UNAS_BASE_URL);
-const UNAS_API_KEY = process.env.UNAS_API_KEY || '';
-const UNAS_CACHE_TTL = Number(process.env.UNAS_POLL_INTERVAL) || 30000;
 
 const PROTECT_ENABLED = isEnabled(process.env.PROTECT_ENABLED, false);
 const PROTECT_BASE_URL = trimBaseUrl(process.env.PROTECT_BASE_URL);
@@ -361,8 +357,8 @@ app.get('/api/health', (_req, res) => {
       configured: proxmoxStatus.configured,
     },
     unas: {
-      enabled: UNAS_ENABLED,
-      configured: !!(UNAS_BASE_URL && UNAS_API_KEY),
+      enabled: unasStatus.enabled,
+      configured: unasStatus.configured,
     },
     protect: {
       enabled: PROTECT_ENABLED,
@@ -449,9 +445,7 @@ app.get('/api/health/live', async (req, res) => {
       probeDocker(LIVE_HEALTH_PROBE_TIMEOUT_MS),
     ),
     runProbe('proxmox', proxmoxStatus.enabled && proxmoxStatus.configured, () => probeProxmox()),
-    runProbe('unas', UNAS_ENABLED && !!UNAS_BASE_URL && !!UNAS_API_KEY, () =>
-      unasFetch('/proxy/drive/api/v2/storage'),
-    ),
+    runProbe('unas', unasStatus.enabled && unasStatus.configured, () => probeUnas()),
     runProbe('protect', PROTECT_ENABLED && !!PROTECT_BASE_URL && !!PROTECT_API_KEY, () =>
       protectFetchJson('/v1/meta/info'),
     ),
@@ -692,202 +686,7 @@ const sensorsHandle = initSensors(app, {
   cacheTtl: SENSORS_CACHE_TTL,
 });
 
-let unasCache = { data: null, ts: 0 };
-let unasLastError = null;
-
-async function unasFetch(path) {
-  const res = await insecureFetch(`${UNAS_BASE_URL}${path}`, {
-    headers: { 'X-API-Key': UNAS_API_KEY, Accept: 'application/json' },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`UNAS API ${res.status} ${res.statusText} — ${path} — ${body.slice(0, 200)}`);
-  }
-  return res.json();
-}
-
-async function safeUnasFetch(path, fallback = null) {
-  try {
-    return await unasFetch(path);
-  } catch (err) {
-    console.warn(`UNAS: ${path} failed → ${err.message}`);
-    return fallback;
-  }
-}
-
-function formatRaidLevel(preferLevel) {
-  if (!preferLevel) return 'JBOD';
-  const m = String(preferLevel).match(/^raid(\d+)$/i);
-  return m ? `RAID ${m[1]}` : String(preferLevel).toUpperCase();
-}
-
-function poolStatus(status) {
-  const s = String(status || '').toLowerCase();
-  if (s === 'fullyoperational' || s === 'optimal') return 'online';
-  if (s.includes('degrade') || s.includes('rebuild') || s.includes('resync')) return 'degraded';
-  return 'offline';
-}
-
-const UNAS_MODEL_NAMES = {
-  UNAS2B: 'UNAS 2',
-  UNAS2: 'UNAS 2',
-  UNAS4B: 'UNAS 4',
-  UNAS4: 'UNAS 4',
-  UNASPRO: 'UNAS Pro',
-  'UNAS-PRO': 'UNAS Pro',
-};
-
-function unasModelLabel(hardwareShort) {
-  const code = String(hardwareShort || '').toUpperCase();
-  if (!code) return 'UNAS';
-  if (UNAS_MODEL_NAMES[code]) return UNAS_MODEL_NAMES[code];
-  // Generic fallback for future models — e.g. "UNAS3B" → "UNAS 3B".
-  return (
-    code
-      .replace(/^UNAS[-_ ]?/, 'UNAS ')
-      .replace(/\s+/g, ' ')
-      .trim() || 'UNAS'
-  );
-}
-
-function diskSmart(disk) {
-  const state = String(disk.state || '').toLowerCase();
-  const risks = Array.isArray(disk.riskReasons) ? disk.riskReasons.length : 0;
-  const badSectors =
-    (Number(disk.badSectorCount) || 0) + (Number(disk.uncorrectableSectorCount) || 0);
-  if (state !== 'optimal' || badSectors > 50) return 'bad';
-  if (risks > 0 || badSectors > 0) return 'warn';
-  return 'ok';
-}
-
-const INCOMPAT_LABELS = {
-  DISK_INCOMPATIBLE_REASON_SMALLER_SIZE: 'smaller capacity',
-  DISK_INCOMPATIBLE_REASON_LARGER_SIZE: 'larger than usable',
-  DISK_INCOMPATIBLE_REASON_LOWER_RPM: 'slower RPM',
-  DISK_INCOMPATIBLE_REASON_HIGHER_RPM: 'faster RPM',
-  DISK_INCOMPATIBLE_REASON_DIFFERENT_MODEL: 'different model',
-  DISK_INCOMPATIBLE_REASON_DIFFERENT_TYPE: 'different type',
-};
-
-function formatIncompatibility(code) {
-  if (INCOMPAT_LABELS[code]) return INCOMPAT_LABELS[code];
-  return String(code)
-    .replace(/^DISK_INCOMPATIBLE_REASON_/, '')
-    .toLowerCase()
-    .replace(/_/g, ' ');
-}
-
-const TB = 1024 ** 4;
-const GB = 1024 ** 3;
-
-async function fetchUnasData() {
-  const now = Date.now();
-  if (unasCache.data && now - unasCache.ts < UNAS_CACHE_TTL) return unasCache.data;
-
-  const [storage, fanCtl, system] = await Promise.all([
-    unasFetch('/proxy/drive/api/v2/storage'),
-    safeUnasFetch('/proxy/drive/api/v2/systems/fan-control', null),
-    safeUnasFetch('/api/system', null),
-  ]);
-
-  const rawPools = Array.isArray(storage?.pools) ? storage.pools : [];
-  const rawDisks = Array.isArray(storage?.disks) ? storage.disks : [];
-
-  const pools = rawPools.map((p) => {
-    const incompatSet = new Set();
-    for (const d of rawDisks) {
-      if (d.poolId !== p.id) continue;
-      for (const code of d.incompatibleReasons || []) incompatSet.add(code);
-    }
-    const scrub = p.dataScrubbing
-      ? {
-          status: p.dataScrubbing.status || 'unknown',
-          scheduleEnabled: !!p.dataScrubbing.schedule?.enabled,
-          lastRun: p.dataScrubbing.lastTaskRun || null,
-          nextRun: p.dataScrubbing.nextRun || null,
-        }
-      : null;
-    return {
-      name: `Pool ${p.number ?? ''}`.trim() || 'Pool',
-      type: formatRaidLevel(p.preferLevel),
-      usedTB: (p.usage || 0) / TB,
-      totalTB: (p.capacity || 0) / TB,
-      status: poolStatus(p.status),
-      scrub,
-      incompatibilities: [...incompatSet].map(formatIncompatibility),
-    };
-  });
-
-  const disks = rawDisks.map((d) => ({
-    slot: String(d.slotId ?? '?'),
-    model: String(d.model || 'unknown').trim(),
-    tempC: Number(d.temperature) || 0,
-    sizeGB: Math.round((Number(d.size) || 0) / GB),
-    smart: diskSmart(d),
-    powerOnHours: Number(d.powerOnHours) || 0,
-    rpm: Number(d.rpm) || 0,
-    badSectors: Number(d.badSectorCount) || 0,
-    uncorrectableSectors: Number(d.uncorrectableSectorCount) || 0,
-    lastSmartTest: d.smartTest
-      ? {
-          type: d.smartTest.type || 'unknown',
-          status: d.smartTest.status || 'unknown',
-          result: d.smartTest.result || 'unknown',
-          finishedAt: d.smartTest.finishedAt || null,
-        }
-      : null,
-  }));
-
-  const maxDiskTemp = disks.reduce((m, d) => Math.max(m, d.tempC), 0);
-
-  const modelLabel = unasModelLabel(system?.hardware?.shortname);
-
-  const result = {
-    unas: {
-      name: system?.name || 'UNAS',
-      model: modelLabel,
-      tempC: maxDiskTemp,
-      fanProfile: fanCtl?.currentProfile || '—',
-      pools,
-      disks,
-    },
-  };
-
-  unasCache = { data: result, ts: now };
-  unasLastError = null;
-  return result;
-}
-
-app.get('/api/unas', async (_req, res) => {
-  if (!UNAS_ENABLED) return res.json({ disabled: true });
-  if (!UNAS_BASE_URL || !UNAS_API_KEY) {
-    return res.status(503).json({
-      error: 'UNAS not configured. Set UNAS_BASE_URL and UNAS_API_KEY in .env',
-    });
-  }
-  try {
-    res.json(await fetchUnasData());
-  } catch (err) {
-    unasLastError = err.message;
-    console.error('UNAS API error:', err.message);
-    res.status(502).json({ error: err.message });
-  }
-});
-
-app.get('/api/unas/debug', async (_req, res) => {
-  if (!UNAS_ENABLED) return res.json({ disabled: true });
-  res.json({
-    config: { baseUrl: UNAS_BASE_URL || null, hasKey: !!UNAS_API_KEY },
-    cache: unasCache.data
-      ? {
-          ageMs: Date.now() - unasCache.ts,
-          pools: unasCache.data.unas.pools.length,
-          disks: unasCache.data.unas.disks.length,
-        }
-      : null,
-    lastError: unasLastError,
-  });
-});
+registerUnas(app);
 
 let protectCache = { data: null, ts: 0 };
 let protectLastError = null;
@@ -1634,10 +1433,9 @@ if (process.env.NODE_ENV !== 'test') {
     } else {
       console.log('Portainer: DISABLED (set PORTAINER_ENABLED=true in .env to enable)');
     }
-    if (UNAS_ENABLED) {
-      const unasOk = !!(UNAS_BASE_URL && UNAS_API_KEY);
+    if (unasStatus.enabled) {
       console.log(
-        `UNAS: ${unasOk ? `enabled — ${UNAS_BASE_URL}` : 'enabled but NOT configured — set UNAS_* in .env'}`,
+        `UNAS: ${unasStatus.configured ? `enabled — ${unasStatus.baseUrl}` : 'enabled but NOT configured — set UNAS_* in .env'}`,
       );
     } else {
       console.log('UNAS: DISABLED (set UNAS_ENABLED=true in .env to enable)');
