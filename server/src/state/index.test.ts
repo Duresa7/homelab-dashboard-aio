@@ -7,9 +7,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { initState } from './index.js';
 
-let tempDir;
-let stateHandle;
-let api;
+let tempDir: string;
+let stateHandle: Awaited<ReturnType<typeof initState>>;
+let api: ReturnType<typeof request>;
 
 beforeEach(async () => {
   tempDir = await mkdtemp(path.join(os.tmpdir(), 'homelab-state-test-'));
@@ -87,7 +87,7 @@ describe('state API contract', () => {
   // would silently break persistence of these reserved/primitive keys; the
   // route uses `strict: false` precisely so they round-trip.
   it('round-trips primitive values that strict JSON parsing would reject', async () => {
-    const putJson = (key, raw) =>
+    const putJson = (key: string, raw: string) =>
       api.put(`/api/state/${key}`).set('Content-Type', 'application/json').send(raw).expect(200);
 
     await putJson('tempUnit', '"f"');

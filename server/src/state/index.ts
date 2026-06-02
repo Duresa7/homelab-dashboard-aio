@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Express, Request, Response, NextFunction } from 'express';
 import path from 'node:path';
 
 import { openStateDb } from './db.js';
@@ -14,7 +15,7 @@ const RESERVED_KEYS = new Set([
   'bookmarksOrder',
 ]);
 
-function isAllowedKey(key) {
+function isAllowedKey(key: unknown): boolean {
   if (typeof key !== 'string') return false;
   if (RESERVED_KEYS.has(key)) return true;
   return /^[a-zA-Z][a-zA-Z0-9._-]{0,63}$/.test(key);
@@ -26,13 +27,13 @@ function isAllowedKey(key) {
 // development) may issue mutating calls. CSRF-style requests from a
 // malicious LAN-local page get rejected.
 function makeSameOriginGuard() {
-  const allow = new Set();
+  const allow = new Set<string>();
   const extra = String(process.env.STATE_ALLOWED_ORIGINS || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
   for (const o of extra) allow.add(o);
-  return function sameOriginGuard(req, res, next) {
+  return function sameOriginGuard(req: Request, res: Response, next: NextFunction) {
     const origin = req.headers.origin;
     const referer = req.headers.referer;
     // Allow CLI / server-internal calls (no Origin AND no Referer — never
@@ -46,12 +47,12 @@ function makeSameOriginGuard() {
       origin ||
       (() => {
         try {
-          return new URL(referer).origin;
+          return new URL(String(referer)).origin;
         } catch {
           return null;
         }
       })();
-    if (!source || !expected.has(source)) {
+    if (typeof source !== 'string' || !expected.has(source)) {
       return res.status(403).json({ error: 'cross-origin write rejected' });
     }
     return next();
@@ -62,7 +63,7 @@ function makeSameOriginGuard() {
 // particular passes JSON.parse but downstream consumers (loadInventory,
 // loadOrder, thresholds.load) all treat null as "no value" → which would
 // silently wipe the user's saved data when persisted back via PUT.
-function isValidStateBody(body) {
+function isValidStateBody(body: unknown): boolean {
   if (body === null || body === undefined) return false;
   const t = typeof body;
   if (t === 'string' || t === 'number' || t === 'boolean') return true;
@@ -71,12 +72,12 @@ function isValidStateBody(body) {
   return false;
 }
 
-export async function initState(app, opts = {}) {
+export async function initState(app: Express, opts: { dbPath?: string } = {}) {
   const { dbPath = path.resolve('data/dashboard.sqlite') } = opts;
 
   const db = await openStateDb(dbPath);
   const jsonBody = express.json({ limit: '4mb', strict: false });
-  const parseJsonBody = (req, res, next) => {
+  const parseJsonBody = (req: Request, res: Response, next: NextFunction) => {
     jsonBody(req, res, (err) => {
       if (err) return res.status(400).json({ error: 'invalid JSON body' });
       return next();
@@ -84,16 +85,16 @@ export async function initState(app, opts = {}) {
   };
   const sameOrigin = makeSameOriginGuard();
 
-  app.get('/api/state', (_req, res) => {
+  app.get('/api/state', (_req: Request, res: Response) => {
     const { values, updatedAt } = db.getAll();
     res.json({ values, updatedAt });
   });
 
-  app.get('/api/state/debug', async (_req, res) => {
+  app.get('/api/state/debug', async (_req: Request, res: Response) => {
     res.json(await db.stats());
   });
 
-  app.get('/api/state/:key', (req, res) => {
+  app.get('/api/state/:key', (req: Request, res: Response) => {
     const { key } = req.params;
     if (!isAllowedKey(key)) return res.status(400).json({ error: 'invalid key' });
     const row = db.get(key);
@@ -101,7 +102,7 @@ export async function initState(app, opts = {}) {
     res.json(row);
   });
 
-  app.put('/api/state/:key', sameOrigin, parseJsonBody, (req, res) => {
+  app.put('/api/state/:key', sameOrigin, parseJsonBody, (req: Request, res: Response) => {
     const { key } = req.params;
     if (!isAllowedKey(key)) return res.status(400).json({ error: 'invalid key' });
     if (!isValidStateBody(req.body)) {
@@ -111,19 +112,19 @@ export async function initState(app, opts = {}) {
     res.json({ key, updatedAt });
   });
 
-  app.delete('/api/state/:key', sameOrigin, (req, res) => {
+  app.delete('/api/state/:key', sameOrigin, (req: Request, res: Response) => {
     const { key } = req.params;
     if (!isAllowedKey(key)) return res.status(400).json({ error: 'invalid key' });
     const removed = db.delete(key);
     res.json({ key, removed });
   });
 
-  app.post('/api/state/_import', sameOrigin, parseJsonBody, (req, res) => {
+  app.post('/api/state/_import', sameOrigin, parseJsonBody, (req: Request, res: Response) => {
     const body = req.body;
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return res.status(400).json({ error: 'body must be a JSON object of key→value pairs' });
     }
-    const filtered = {};
+    const filtered: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(body)) {
       if (isAllowedKey(k) && isValidStateBody(v)) filtered[k] = v;
     }
@@ -142,9 +143,9 @@ export async function initState(app, opts = {}) {
   // Metrics writer is intentionally a no-op for now. The `metrics` table is
   // created on init so future telemetry-retention work can flip this on
   // without a schema migration. Call sites live in the integration cache
-  // update paths in server/src/index.js (UniFi, Proxmox, Docker, CPU, GPU,
+  // update paths in server/src/index.ts (UniFi, Proxmox, Docker, CPU, GPU,
   // RAM, sensors); they should pass through `recordMetric` once enabled.
-  function recordMetric(_integration, _key, _value) {
+  function recordMetric(_integration: string, _key: string, _value: unknown) {
     /* stubbed */
   }
 

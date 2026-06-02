@@ -12,7 +12,7 @@ export default defineWorkspace([
     test: {
       name: 'server',
       environment: 'node',
-      include: ['server/**/*.test.js'],
+      include: ['server/**/*.test.ts'],
     },
   },
   {

@@ -1,13 +1,15 @@
-const HOSTNAME_RULES = [
+import type { ParsedSyslog } from './parser.js';
+
+const HOSTNAME_RULES: [RegExp, string][] = [
   [/^(UDM|UCG|UDMP|UDR|UXG)/i, 'gateway'],
   [/^(USW|US-|USL|USP|USXG)/i, 'switch'],
   [/^(UAP|U7|U6|UFLHD|UAC)/i, 'ap'],
   [/^(UNVR|UNAS|UCKP|UCK|CKG2|CK)/i, 'controller'],
 ];
 
-function inferDeviceKind(parsed) {
+function inferDeviceKind(parsed: ParsedSyslog): string {
   const cefHost = parsed.cef?.fields?.UNIFIhost || parsed.cef?.fields?.dvchost;
-  const candidates = [cefHost, parsed.hostname].filter(Boolean);
+  const candidates = [cefHost, parsed.hostname].filter((c): c is string => Boolean(c));
   for (const candidate of candidates) {
     for (const [re, kind] of HOSTNAME_RULES) {
       if (re.test(candidate)) return kind;
@@ -31,8 +33,8 @@ const CEF_CATEGORIES = new Set([
   'ids',
 ]);
 
-function inferCategory(parsed) {
-  const cefFields = parsed.cef?.fields || {};
+function inferCategory(parsed: ParsedSyslog): string {
+  const cefFields: Record<string, string> = parsed.cef?.fields || {};
   const cefCat = (cefFields.UNIFIcategory || cefFields.cat || '').toLowerCase();
   if (CEF_CATEGORIES.has(cefCat)) return cefCat;
   const cefSub = (cefFields.UNIFIsubCategory || '').toLowerCase();
@@ -78,7 +80,7 @@ function inferCategory(parsed) {
   return 'system';
 }
 
-export function classifySyslog(parsed, sourceIp) {
+export function classifySyslog(parsed: ParsedSyslog, sourceIp: string) {
   const device_kind = inferDeviceKind(parsed);
   const category = inferCategory(parsed);
   return { device_kind, category, source_ip: sourceIp };

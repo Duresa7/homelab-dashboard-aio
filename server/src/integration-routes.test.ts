@@ -3,7 +3,10 @@ import request from 'supertest';
 
 import { loadServerApp, withJsonUpstream } from './test/serverApp.js';
 
-async function usingApp(env, fn) {
+async function usingApp(
+  env: Record<string, string>,
+  fn: (api: ReturnType<typeof request>) => Promise<unknown>,
+) {
   const ctx = await loadServerApp(env);
   try {
     return await fn(request(ctx.app));
@@ -45,7 +48,7 @@ describe('Integration route contracts', () => {
         SENSORS_MODE: 'ssh',
       },
       async (api) => {
-        const expectations = [
+        const expectations: [string, RegExp][] = [
           ['/api/unifi', /UNIFI_API_KEY/i],
           ['/api/docker', /Portainer not configured/i],
           ['/api/proxmox', /Proxmox not configured/i],
@@ -437,7 +440,11 @@ describe('Integration route contracts', () => {
   it('maps a failing primary upstream to 502 for every HTTP integration', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const cases = [
+    const cases: {
+      route: string;
+      failPath: string;
+      env: (baseUrl: string) => Record<string, string>;
+    }[] = [
       {
         route: '/api/unifi',
         failPath: '/proxy/network/integration/v1/sites',

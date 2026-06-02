@@ -4,17 +4,20 @@
 //  3. Per-camera ffmpeg RTSPS→HLS restreaming for the browser.
 // Snapshot bytes + HLS are proxied because browsers can't reach Protect directly
 // (self-signed TLS + API-key auth).
-import { spawn, execFile } from 'node:child_process';
+import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, readFile, rm } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { WebSocket as UndiciWebSocket } from 'undici';
+import type { Express, Request, Response } from 'express';
 
 import { insecureFetch, insecureDispatcher } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isEnabled, trimBaseUrl } from '../lib/env.js';
+import { errorMessage, errorName } from '../lib/errors.js';
+import type { Upstream } from '../types.js';
 
 const execFileP = promisify(execFile);
 
@@ -34,21 +37,56 @@ const PROTECT_EVENTS_ENABLED = isEnabled(process.env.PROTECT_EVENTS_ENABLED, tru
 // use /integration at the root — override PROTECT_API_PREFIX in that case.
 const PROTECT_API_PREFIX = process.env.PROTECT_API_PREFIX || '/proxy/protect/integration';
 
+/** Normalized event held in the in-memory ring buffer fed by the WS subscriber. */
+interface ProtectEvent {
+  seq: number;
+  action: string;
+  id: string;
+  modelKey: string;
+  type: string;
+  device: string;
+  start: number;
+  end: number | null;
+  smartDetectTypes: string[];
+  metadata: Record<string, unknown>;
+}
+
+/** One live ffmpeg RTSPS→HLS restream session, keyed by camera id. */
+interface StreamSession {
+  id: string;
+  quality: string;
+  rtsps: string;
+  dir: string;
+  proc: ChildProcessWithoutNullStreams;
+  startedAt: number;
+  lastAccess: number;
+  playlistReady: boolean;
+  lastError: string | null;
+  reaperId: ReturnType<typeof setInterval> | null;
+}
+
+interface ListEventsOpts {
+  limit?: number;
+  device?: string | null;
+  type?: string | null;
+  since?: number | null;
+}
+
 let shuttingDown = false;
 
-async function protectFetch(path, { accept = 'application/json', timeoutMs = 8000 } = {}) {
+async function protectFetch(path: string, { accept = 'application/json', timeoutMs = 8000 } = {}) {
   const url = `${PROTECT_BASE_URL}${PROTECT_API_PREFIX}${path}`;
-  let res;
+  let res: Awaited<ReturnType<typeof insecureFetch>>;
   try {
     res = await insecureFetch(url, {
       headers: { 'X-API-Key': PROTECT_API_KEY, Accept: accept },
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
-    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+    if (errorName(err) === 'TimeoutError' || errorName(err) === 'AbortError') {
       throw new Error(`Protect API timeout (${timeoutMs}ms) — ${path}`);
     }
-    throw new Error(`Protect API network error — ${path} — ${err.message}`);
+    throw new Error(`Protect API network error — ${path} — ${errorMessage(err)}`);
   }
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -61,20 +99,20 @@ async function protectFetch(path, { accept = 'application/json', timeoutMs = 800
   return res;
 }
 
-async function protectFetchJson(path) {
+async function protectFetchJson(path: string): Promise<Upstream> {
   const res = await protectFetch(path);
   return res.json();
 }
 
-const safeProtectFetchJson = (path, fallback = null) =>
+const safeProtectFetchJson = (path: string, fallback: Upstream = null): Promise<Upstream> =>
   protectFetchJson(path).catch((err) => {
-    console.warn(`Protect: ${path} failed → ${err.message}`);
+    console.warn(`Protect: ${path} failed → ${errorMessage(err)}`);
     return fallback;
   });
 
 // The Protect API encodes camera/nvr names as oneOf — sometimes a plain
 // string, sometimes a wrapper object. Flatten to a string defensively.
-function protectName(value, fallback = '—') {
+function protectName(value: Upstream, fallback = '—') {
   if (typeof value === 'string') return value || fallback;
   if (value && typeof value === 'object') {
     return value.name || value.value || value.text || fallback;
@@ -82,7 +120,7 @@ function protectName(value, fallback = '—') {
   return fallback;
 }
 
-function mapProtectCamera(raw) {
+function mapProtectCamera(raw: Upstream) {
   const flags = raw.featureFlags || {};
   const smart = raw.smartDetectSettings || {};
   return {
@@ -113,7 +151,7 @@ function mapProtectCamera(raw) {
   };
 }
 
-function mapProtectNvr(raw) {
+function mapProtectNvr(raw: Upstream) {
   if (!raw) return null;
   const arm = raw.armMode || {};
   return {
@@ -165,22 +203,22 @@ const fetchProtectData = withTtlCache(fetchProtectDataRaw, PROTECT_CACHE_TTL);
 // { type: 'add'|'update'|'remove', item: {...} }. One persistent socket;
 // events normalized and held in an in-memory ring buffer for REST polling.
 
-const protectEvents = [];
+const protectEvents: ProtectEvent[] = [];
 let protectEventsSeq = 0;
-let protectWs = null;
+let protectWs: UndiciWebSocket | null = null;
 let protectWsRetryMs = 1000;
-let protectWsLastError = null;
-let protectWsConnectedAt = null;
+let protectWsLastError: string | null = null;
+let protectWsConnectedAt: number | null = null;
 
-function pushProtectEvent(raw) {
+function pushProtectEvent(raw: Upstream) {
   const item = raw?.item;
   if (!item || typeof item !== 'object') return;
   if (raw.type === 'remove') return;
 
   // Flatten Protect's {text:"foo"} / {number:5} metadata wrappers.
-  const metadata = {};
+  const metadata: Record<string, unknown> = {};
   if (item.metadata && typeof item.metadata === 'object') {
-    for (const [k, v] of Object.entries(item.metadata)) {
+    for (const [k, v] of Object.entries<Upstream>(item.metadata)) {
       if (v && typeof v === 'object') {
         if ('text' in v) metadata[k] = v.text;
         else if ('number' in v) metadata[k] = v.number;
@@ -191,7 +229,7 @@ function pushProtectEvent(raw) {
     }
   }
 
-  const evt = {
+  const evt: ProtectEvent = {
     seq: ++protectEventsSeq,
     action: String(raw.type || 'add'),
     id: String(item.id || ''),
@@ -216,7 +254,7 @@ function pushProtectEvent(raw) {
   while (protectEvents.length > PROTECT_EVENT_BUFFER) protectEvents.shift();
 }
 
-function decodeWsPayload(data) {
+function decodeWsPayload(data: unknown): string | null {
   if (typeof data === 'string') return data;
   if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
   if (Buffer.isBuffer(data)) return data.toString('utf8');
@@ -231,15 +269,15 @@ function startProtectEventSubscriber() {
   const wsBase = PROTECT_BASE_URL.replace(/^http/i, 'ws');
   const url = `${wsBase}${PROTECT_API_PREFIX}/v1/subscribe/events`;
 
-  let ws;
+  let ws: UndiciWebSocket;
   try {
     ws = new UndiciWebSocket(url, {
       headers: { 'X-API-Key': PROTECT_API_KEY },
       dispatcher: insecureDispatcher,
     });
   } catch (err) {
-    protectWsLastError = err.message;
-    console.warn(`Protect events: WebSocket init failed → ${err.message}`);
+    protectWsLastError = errorMessage(err);
+    console.warn(`Protect events: WebSocket init failed → ${errorMessage(err)}`);
     scheduleProtectReconnect();
     return;
   }
@@ -286,7 +324,7 @@ function startProtectEventSubscriber() {
   });
 }
 
-let protectReconnectTimer = null;
+let protectReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleProtectReconnect() {
   if (protectReconnectTimer || shuttingDown) return;
   protectReconnectTimer = setTimeout(() => {
@@ -296,7 +334,12 @@ function scheduleProtectReconnect() {
   }, protectWsRetryMs);
 }
 
-function listProtectEvents({ limit = 50, device = null, type = null, since = null } = {}) {
+function listProtectEvents({
+  limit = 50,
+  device = null,
+  type = null,
+  since = null,
+}: ListEventsOpts = {}) {
   let out = protectEvents;
   if (device) out = out.filter((e) => e.device === device);
   if (type) out = out.filter((e) => e.type === type);
@@ -307,9 +350,9 @@ function listProtectEvents({ limit = 50, device = null, type = null, since = nul
 // Browsers can't play RTSPS; one ffmpeg per camera repackages to HLS into
 // PROTECT_STREAM_DIR/<cameraId>. Sessions are shared across tabs and reaped
 // after PROTECT_STREAM_IDLE_MS without a segment fetch.
-const protectStreams = new Map();
-let ffmpegAvailable = null;
-let ffmpegVersionInfo = null;
+const protectStreams = new Map<string, StreamSession>();
+let ffmpegAvailable: boolean | null = null;
+let ffmpegVersionInfo: string | null = null;
 
 async function detectFfmpeg() {
   if (ffmpegAvailable !== null) return ffmpegAvailable;
@@ -320,7 +363,7 @@ async function detectFfmpeg() {
     console.log(`Protect streams: ${ffmpegVersionInfo}`);
   } catch (err) {
     ffmpegAvailable = false;
-    ffmpegVersionInfo = `not found: ${err.message}`;
+    ffmpegVersionInfo = `not found: ${errorMessage(err)}`;
     console.warn(
       `Protect streams: ffmpeg not available at "${PROTECT_FFMPEG}". ` +
         `Install ffmpeg or set PROTECT_FFMPEG to its absolute path. Live video will be disabled.`,
@@ -329,7 +372,7 @@ async function detectFfmpeg() {
   return ffmpegAvailable;
 }
 
-async function ensureRtspsUrl(cameraId, quality) {
+async function ensureRtspsUrl(cameraId: string, quality: string): Promise<string> {
   const existing = await safeProtectFetchJson(`/v1/cameras/${cameraId}/rtsps-stream`, null);
   if (existing && existing[quality]) return existing[quality];
 
@@ -349,12 +392,12 @@ async function ensureRtspsUrl(cameraId, quality) {
     const body = await res.text().catch(() => '');
     throw new Error(`Protect RTSPS create failed: ${res.status} ${body.slice(0, 200)}`);
   }
-  const created = await res.json();
+  const created = (await res.json()) as Upstream;
   if (!created[quality]) throw new Error(`Protect did not return a "${quality}" stream URL`);
   return created[quality];
 }
 
-function killStreamSession(cameraId, reason) {
+function killStreamSession(cameraId: string, reason?: string) {
   const session = protectStreams.get(cameraId);
   if (!session) return;
   protectStreams.delete(cameraId);
@@ -363,12 +406,12 @@ function killStreamSession(cameraId, reason) {
   } catch {
     /* ignore */
   }
-  clearInterval(session.reaperId);
+  clearInterval(session.reaperId ?? undefined);
   rm(session.dir, { recursive: true, force: true }).catch(() => {});
   if (reason) console.log(`Protect stream ${cameraId} stopped: ${reason}`);
 }
 
-async function startStreamSession(cameraId, quality) {
+async function startStreamSession(cameraId: string, quality: string): Promise<StreamSession> {
   if (!ffmpegAvailable) throw new Error('ffmpeg is not available on the server');
   const id = String(cameraId).replace(/[^a-zA-Z0-9-]/g, '');
   if (!id) throw new Error('invalid camera id');
@@ -416,7 +459,7 @@ async function startStreamSession(cameraId, quality) {
   ];
 
   const proc = spawn(PROTECT_FFMPEG, args, { windowsHide: true });
-  const session = {
+  const session: StreamSession = {
     id,
     quality,
     rtsps,
@@ -464,7 +507,7 @@ async function startStreamSession(cameraId, quality) {
   return session;
 }
 
-async function waitForPlaylist(session, timeoutMs = 8000) {
+async function waitForPlaylist(session: StreamSession, timeoutMs = 8000): Promise<boolean> {
   if (session.playlistReady) return true;
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -506,8 +549,8 @@ export function startProtect() {
   startProtectEventSubscriber();
 }
 
-export function registerProtect(app) {
-  app.get('/api/protect', async (_req, res) => {
+export function registerProtect(app: Express) {
+  app.get('/api/protect', async (_req: Request, res: Response) => {
     if (!PROTECT_ENABLED) return res.json({ disabled: true });
     if (!PROTECT_BASE_URL || !PROTECT_API_KEY) {
       return res.status(503).json({
@@ -517,14 +560,14 @@ export function registerProtect(app) {
     try {
       res.json(await fetchProtectData());
     } catch (err) {
-      console.error('Protect API error:', err.message);
-      res.status(502).json({ error: err.message });
+      console.error('Protect API error:', errorMessage(err));
+      res.status(502).json({ error: errorMessage(err) });
     }
   });
 
   // Proxy snapshot bytes — browsers can't reach Protect directly (TLS + auth).
   // Not cached server-side so client poll cadence drives freshness.
-  app.get('/api/protect/cameras/:id/snapshot', async (req, res) => {
+  app.get('/api/protect/cameras/:id/snapshot', async (req: Request, res: Response) => {
     if (!PROTECT_ENABLED) return res.status(503).json({ error: 'Protect disabled' });
     if (!PROTECT_BASE_URL || !PROTECT_API_KEY) {
       return res.status(503).json({ error: 'Protect not configured' });
@@ -549,7 +592,7 @@ export function registerProtect(app) {
       res.send(buf);
     } catch (err) {
       // 503 maps to "camera offline" upstream; pass through cleanly.
-      const msg = err.message || 'snapshot failed';
+      const msg = errorMessage(err) || 'snapshot failed';
       const code = /\b503\b/.test(msg) ? 503 : /timeout/i.test(msg) ? 504 : 502;
       if (code !== 503) {
         console.warn(`Protect snapshot ${id} failed in ${Date.now() - t0}ms: ${msg}`);
@@ -558,7 +601,7 @@ export function registerProtect(app) {
     }
   });
 
-  app.get('/api/protect/events', (req, res) => {
+  app.get('/api/protect/events', (req: Request, res: Response) => {
     if (!PROTECT_ENABLED) return res.json({ disabled: true });
     const limit = Math.min(Math.max(1, Number(req.query.limit) || 50), PROTECT_EVENT_BUFFER);
     const device = req.query.device ? String(req.query.device) : null;
@@ -573,7 +616,7 @@ export function registerProtect(app) {
     });
   });
 
-  app.post('/api/protect/cameras/:id/stream/start', async (req, res) => {
+  app.post('/api/protect/cameras/:id/stream/start', async (req: Request, res: Response) => {
     if (!PROTECT_ENABLED) return res.status(503).json({ error: 'Protect disabled' });
     if (!PROTECT_BASE_URL || !PROTECT_API_KEY) {
       return res.status(503).json({ error: 'Protect not configured' });
@@ -611,19 +654,19 @@ export function registerProtect(app) {
         playlist: `/api/protect/cameras/${id}/stream/index.m3u8`,
       });
     } catch (err) {
-      console.error(`Protect stream start (${id}):`, err.message);
-      res.status(502).json({ error: err.message });
+      console.error(`Protect stream start (${id}):`, errorMessage(err));
+      res.status(502).json({ error: errorMessage(err) });
     }
   });
 
-  app.post('/api/protect/cameras/:id/stream/stop', (req, res) => {
+  app.post('/api/protect/cameras/:id/stream/stop', (req: Request, res: Response) => {
     if (!PROTECT_ENABLED) return res.status(503).json({ error: 'Protect disabled' });
     const id = String(req.params.id).replace(/[^a-zA-Z0-9-]/g, '');
     killStreamSession(id, 'client requested stop');
     res.json({ ok: true });
   });
 
-  app.get('/api/protect/cameras/:id/stream/:file', (req, res) => {
+  app.get('/api/protect/cameras/:id/stream/:file', (req: Request, res: Response) => {
     if (!PROTECT_ENABLED) return res.status(503).json({ error: 'Protect disabled' });
     const id = String(req.params.id).replace(/[^a-zA-Z0-9-]/g, '');
     const file = String(req.params.file);
@@ -646,7 +689,7 @@ export function registerProtect(app) {
     stream.pipe(res);
   });
 
-  app.get('/api/protect/streams', (_req, res) => {
+  app.get('/api/protect/streams', (_req: Request, res: Response) => {
     if (!PROTECT_ENABLED) return res.json({ disabled: true });
     const sessions = [...protectStreams.values()].map((s) => ({
       cameraId: s.id,
@@ -663,7 +706,7 @@ export function registerProtect(app) {
     });
   });
 
-  app.get('/api/protect/debug', async (_req, res) => {
+  app.get('/api/protect/debug', async (_req: Request, res: Response) => {
     if (!PROTECT_ENABLED) return res.json({ disabled: true });
     const c = fetchProtectData.peek();
     res.json({

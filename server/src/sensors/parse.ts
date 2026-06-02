@@ -7,7 +7,7 @@
 
    Both own their JSON.parse and THROW on malformed input. The
    degradation policy (e.g. "lsblk failed → empty inventory, but
-   still show temperatures") lives at the I/O edge in ./index.js,
+   still show temperatures") lives at the I/O edge in ./index.ts,
    not here. `normalizeDiskParts` is also exported because the
    Proxmox integration reuses it for disk friendly-names.
 
@@ -16,50 +16,81 @@
    interface (callers use the two transforms above).
    ========================================================= */
 
+import type { Upstream } from '../types.js';
+
+export interface CoreReading {
+  name: string;
+  tempC: number;
+}
+export interface DiskReading {
+  name: string;
+  tempC: number;
+  type: string;
+}
+export interface MemReading {
+  name: string;
+  tempC: number;
+  type: string;
+}
+export interface NetReading {
+  name: string;
+  tempC: number;
+  type: string;
+}
+export interface FanReading {
+  chip: string;
+  name: string;
+  rpm: number;
+}
+export interface OtherReading {
+  chip: string;
+  name: string;
+  tempC: number;
+}
+
 /**
- * @typedef {{ name: string, tempC: number }} CoreReading
- * @typedef {{ name: string, tempC: number, type: string }} DiskReading
- * @typedef {{ name: string, tempC: number, type: string }} MemReading
- * @typedef {{ name: string, tempC: number, type: string }} NetReading
- * @typedef {{ chip: string, name: string, rpm: number }} FanReading
- * @typedef {{ chip: string, name: string, tempC: number }} OtherReading
- *
  * SensorTree — the parsed lm-sensors output. Mirrors the client's
  * DashboardState['sensors'] shape (client/src/types/index.ts).
- * @typedef {{
- *   cpuTempC: number|null,
- *   systemTempC: number|null,
- *   systemTempLabel: string|null,
- *   cores: CoreReading[],
- *   disks: DiskReading[],
- *   memory: MemReading[],
- *   network: NetReading[],
- *   fans: FanReading[],
- *   other: OtherReading[],
- * }} SensorTree
- *
- * DiskInfo — one physical disk derived from `lsblk -J`.
- * @typedef {{
- *   kind: 'nvme'|'sata',
- *   name: string,
- *   path: string|null,
- *   serial: string|null,
- * }} DiskInfo
  */
+export interface SensorTree {
+  cpuTempC: number | null;
+  systemTempC: number | null;
+  systemTempLabel: string | null;
+  cores: CoreReading[];
+  disks: DiskReading[];
+  memory: MemReading[];
+  network: NetReading[];
+  fans: FanReading[];
+  other: OtherReading[];
+}
 
-function cleanDiskPart(value) {
+/** DiskInfo — one physical disk derived from `lsblk -J`. */
+export interface DiskInfo {
+  kind: 'nvme' | 'sata';
+  name: string;
+  path: string | null;
+  serial: string | null;
+}
+
+/** Friendly `{ vendor, model }` pair produced by the detect* helpers. */
+export interface DetectedDisk {
+  vendor: string;
+  model: string;
+}
+
+function cleanDiskPart(value: unknown): string {
   return String(value || '')
     .replace(/_/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function cleanUsefulDiskPart(value) {
+function cleanUsefulDiskPart(value: unknown): string {
   const cleaned = cleanDiskPart(value);
   return /^(unknown|n\/a|none|null|-+)$/i.test(cleaned) ? '' : cleaned;
 }
 
-function diskToken(...parts) {
+function diskToken(...parts: unknown[]): string {
   return parts
     .map(cleanUsefulDiskPart)
     .filter(Boolean)
@@ -69,7 +100,7 @@ function diskToken(...parts) {
 }
 
 // Render a gigabyte count as a friendly capacity. 1000 GB and up collapses to TB.
-function capacityFromGb(gb) {
+function capacityFromGb(gb: number | string): string {
   const n = Number(gb);
   if (!Number.isFinite(n) || n <= 0) return '';
   if (n >= 1000) {
@@ -80,7 +111,7 @@ function capacityFromGb(gb) {
 }
 
 // WD: 2-3 digits = TB×10 (WD80→8TB), 4 digits = GB×10 (WD5000→500GB).
-function wdCapacityFromDigits(digits) {
+function wdCapacityFromDigits(digits: string): string {
   const n = Number(digits);
   if (!Number.isFinite(n) || n <= 0) return '';
   if (digits.length >= 4) {
@@ -92,7 +123,7 @@ function wdCapacityFromDigits(digits) {
 }
 
 // 4-letter WD family code, read from the suffix after the capacity digits.
-const WD_FAMILY = {
+const WD_FAMILY: Record<string, string> = {
   // Red — CMR NAS HDD (consumer)
   EFRX: 'Red',
   EFAX: 'Red',
@@ -131,7 +162,7 @@ const WD_FAMILY = {
 };
 
 // Seagate 2-letter family code after the GB digits: ST4000VN008 → VN → IronWolf.
-const SEAGATE_FAMILY = {
+const SEAGATE_FAMILY: Record<string, string> = {
   VN: 'IronWolf', // NAS
   NE: 'IronWolf Pro',
   NT: 'IronWolf Pro',
@@ -145,7 +176,7 @@ const SEAGATE_FAMILY = {
 };
 
 // Crucial: CT<capacityGB><family>SSD<rev>.
-const CRUCIAL_FAMILY = {
+const CRUCIAL_FAMILY: Record<string, { label: string; bus: string }> = {
   P3P: { label: 'P3 Plus', bus: 'NVMe' },
   P5P: { label: 'P5 Plus', bus: 'NVMe' },
   P3: { label: 'P3', bus: 'NVMe' },
@@ -172,7 +203,7 @@ const CRUCIAL_FAMILY_REGEX = new RegExp(
     ')SSD\\d?',
 );
 
-export function detectCrucial(token) {
+export function detectCrucial(token: string): DetectedDisk | null {
   const m = token.match(CRUCIAL_FAMILY_REGEX);
   if (!m) return null;
   const sizeGb = Number(m[1]);
@@ -185,14 +216,14 @@ export function detectCrucial(token) {
   };
 }
 
-export function detectWesternDigital(token) {
+export function detectWesternDigital(token: string): DetectedDisk | null {
   if (!/WD/.test(token)) return null;
   const m = token.match(/(?:WDC)?WD(\d{2,4})([A-Z]+)/);
   if (!m) return null;
   const capStr = wdCapacityFromDigits(m[1]);
   const suffix = m[2];
 
-  let family = null;
+  let family: string | null = null;
   // 4-letter family code may be anywhere in the suffix; scan for it.
   for (let i = 0; i + 4 <= suffix.length; i++) {
     const code = suffix.slice(i, i + 4);
@@ -215,7 +246,7 @@ export function detectWesternDigital(token) {
   };
 }
 
-export function detectSeagate(token) {
+export function detectSeagate(token: string): DetectedDisk | null {
   // ST<capacityGB><2-letter family><revision digits>
   const m = token.match(/ST(\d{3,5})([A-Z]{2})\d/);
   if (!m) return null;
@@ -228,7 +259,7 @@ export function detectSeagate(token) {
   };
 }
 
-export function detectSamsung(token, rawModel) {
+export function detectSamsung(token: string, rawModel: string): DetectedDisk | null {
   if (!/SAMSUNG|^MZ[VN]|^MZQL/.test(token)) return null;
   // Raw model already reads like "Samsung SSD 990 PRO 1TB"; strip leading vendor.
   const cleaned = String(rawModel || '')
@@ -238,7 +269,7 @@ export function detectSamsung(token, rawModel) {
   return { vendor: 'Samsung', model: cleaned || rawModel || '' };
 }
 
-export function detectKingston(token, rawModel) {
+export function detectKingston(token: string, rawModel: string): DetectedDisk | null {
   if (!/KINGSTON|^(KC|SKC|SA400|SNV|NV[12])/.test(token)) return null;
   const cleaned = String(rawModel || '')
     .replace(/^kingston[\s_]*/i, '')
@@ -246,7 +277,7 @@ export function detectKingston(token, rawModel) {
   return { vendor: 'Kingston', model: cleaned || rawModel || '' };
 }
 
-export function detectToshibaKioxia(token, rawModel) {
+export function detectToshibaKioxia(token: string, rawModel: string): DetectedDisk | null {
   if (!/TOSHIBA|KIOXIA|^MG\d|^MQ\d|^DT\d/.test(token)) return null;
   const isKioxia = /KIOXIA/.test(token);
   const cleaned = String(rawModel || '')
@@ -256,7 +287,7 @@ export function detectToshibaKioxia(token, rawModel) {
   return { vendor: isKioxia ? 'Kioxia' : 'Toshiba', model: cleaned || rawModel || '' };
 }
 
-export function detectHgstHitachi(token, rawModel) {
+export function detectHgstHitachi(token: string, rawModel: string): DetectedDisk | null {
   if (!/HITACHI|HGST|^HUS|^HDN/.test(token)) return null;
   const cleaned = String(rawModel || '')
     .replace(/^(hitachi|hgst)[\s_]*/i, '')
@@ -268,7 +299,7 @@ export function detectHgstHitachi(token, rawModel) {
  * Normalize a disk's raw model/vendor into friendly `{ vendor, model }`.
  * Shared with the Proxmox integration (physical disk friendly-names).
  */
-export function normalizeDiskParts(disk) {
+export function normalizeDiskParts(disk: Upstream): DetectedDisk {
   const rawModel = cleanUsefulDiskPart(disk?.model);
   const rawVendor = cleanUsefulDiskPart(disk?.vendor);
   // Some kernels report the bus type as the vendor — drop those.
@@ -288,7 +319,7 @@ export function normalizeDiskParts(disk) {
   return { vendor, model: rawModel };
 }
 
-export function diskDisplayName(disk) {
+export function diskDisplayName(disk: Upstream): string | null {
   const { model, vendor } = normalizeDiskParts(disk);
   if (!model) return vendor || null;
   if (!vendor || model.toLowerCase().includes(vendor.toLowerCase())) return model;
@@ -296,7 +327,7 @@ export function diskDisplayName(disk) {
 }
 
 // Map lm-sensors chip+sensor names to a friendly UI label without leaking the chip ID.
-function friendlySystemSensorLabel(chipKey, sensorName) {
+function friendlySystemSensorLabel(chipKey: string, sensorName?: string): string {
   const chip = String(chipKey || '').toLowerCase();
   const sensor = String(sensorName || '').trim();
   if (/^(chipset|pch)$/i.test(sensor)) return 'Chipset';
@@ -306,7 +337,7 @@ function friendlySystemSensorLabel(chipKey, sensorName) {
   return 'System';
 }
 
-function diskKind(disk) {
+function diskKind(disk: Upstream): 'nvme' | 'sata' {
   const name = String(disk.name || '').toLowerCase();
   const path = String(disk.path || '').toLowerCase();
   const tran = String(disk.tran || '').toLowerCase();
@@ -314,7 +345,7 @@ function diskKind(disk) {
   return 'sata';
 }
 
-function deviceShortName(path) {
+function deviceShortName(path: string | null | undefined): string {
   return (
     String(path || '')
       .split(/[\\/]/)
@@ -323,11 +354,11 @@ function deviceShortName(path) {
   );
 }
 
-function withUniqueDiskDisplayNames(disks) {
+function withUniqueDiskDisplayNames(disks: DiskInfo[]): DiskInfo[] {
   const counts = disks.reduce((acc, d) => {
     acc.set(d.name, (acc.get(d.name) || 0) + 1);
     return acc;
-  }, new Map());
+  }, new Map<string, number>());
 
   return disks.map((d, idx) => {
     if ((counts.get(d.name) || 0) <= 1) return d;
@@ -340,36 +371,36 @@ function withUniqueDiskDisplayNames(disks) {
 /**
  * Pure transform: raw `lsblk -J -o NAME,PATH,MODEL,VENDOR,SERIAL,TRAN,TYPE`
  * stdout → normalized disk inventory. Throws if `lsblkRaw` is not valid JSON;
- * the I/O edge (./index.js) owns the fall-back to an empty inventory.
- * @param {string|object} lsblkRaw
- * @returns {DiskInfo[]}
+ * the I/O edge (./index.ts) owns the fall-back to an empty inventory.
  */
-export function parseDiskInventory(lsblkRaw) {
-  const json = typeof lsblkRaw === 'string' ? JSON.parse(lsblkRaw) : lsblkRaw;
+export function parseDiskInventory(lsblkRaw: string | object): DiskInfo[] {
+  const json: Upstream = typeof lsblkRaw === 'string' ? JSON.parse(lsblkRaw) : lsblkRaw;
   const devices = Array.isArray(json.blockdevices) ? json.blockdevices : [];
   const disks = devices
-    .filter((d) => d?.type === 'disk')
-    .map((d) => ({
-      kind: diskKind(d),
-      name: diskDisplayName(d),
-      path: d.path || (d.name ? `/dev/${d.name}` : null),
-      serial: d.serial || null,
-    }))
-    .filter((d) => d.name);
+    .filter((d: Upstream) => d?.type === 'disk')
+    .map(
+      (d: Upstream): DiskInfo => ({
+        kind: diskKind(d),
+        name: diskDisplayName(d) ?? '',
+        path: d.path || (d.name ? `/dev/${d.name}` : null),
+        serial: d.serial || null,
+      }),
+    )
+    .filter((d: DiskInfo) => d.name);
   return withUniqueDiskDisplayNames(disks);
 }
 
-function diskNameQueues(inventory) {
+function diskNameQueues(inventory: DiskInfo[]): { nvme: string[]; sata: string[] } {
   return inventory.reduce(
     (acc, d) => {
       acc[d.kind === 'nvme' ? 'nvme' : 'sata'].push(d.name);
       return acc;
     },
-    { nvme: [], sata: [] },
+    { nvme: [] as string[], sata: [] as string[] },
   );
 }
 
-function findFirstNumeric(obj, predicate) {
+function findFirstNumeric(obj: unknown, predicate: (key: string) => boolean): number | null {
   if (!obj || typeof obj !== 'object') return null;
   for (const [k, v] of Object.entries(obj)) {
     if (typeof v === 'number' && predicate(k)) return v;
@@ -381,26 +412,23 @@ function findFirstNumeric(obj, predicate) {
  * Pure transform: raw `sensors -j` stdout (+ a disk inventory for friendly
  * disk labels) → SensorTree. Throws if `raw` is a string that is not valid
  * JSON; the route's try/catch turns that into a 502 at the edge.
- * @param {string|object} raw
- * @param {DiskInfo[]} [diskInventory]
- * @returns {SensorTree}
  */
-export function parseSensorsJson(raw, diskInventory = []) {
-  const json = typeof raw === 'string' ? JSON.parse(raw) : raw;
+export function parseSensorsJson(raw: string | object, diskInventory: DiskInfo[] = []): SensorTree {
+  const json: Upstream = typeof raw === 'string' ? JSON.parse(raw) : raw;
   const diskNames = diskNameQueues(diskInventory);
 
-  let cpuTempC = null;
-  let systemTempC = null;
-  let systemTempLabel = null;
-  let acpiTempC = null;
+  let cpuTempC: number | null = null;
+  let systemTempC: number | null = null;
+  let systemTempLabel: string | null = null;
+  let acpiTempC: number | null = null;
   let nvmeCount = 0;
   let dimmCount = 0;
-  const cores = [];
-  const disks = [];
-  const memory = [];
-  const network = [];
-  const fans = [];
-  const other = [];
+  const cores: CoreReading[] = [];
+  const disks: DiskReading[] = [];
+  const memory: MemReading[] = [];
+  const network: NetReading[] = [];
+  const fans: FanReading[] = [];
+  const other: OtherReading[] = [];
 
   // Motherboard/system temp labels in priority order. First match wins.
   const SYSTEM_LABEL_PATTERNS = [
@@ -416,8 +444,9 @@ export function parseSensorsJson(raw, diskInventory = []) {
     /^diode[ _]*0/i,
   ];
 
-  for (const [chipKey, chip] of Object.entries(json || {})) {
-    if (!chip || typeof chip !== 'object') continue;
+  for (const [chipKey, rawChip] of Object.entries(json || {})) {
+    if (!rawChip || typeof rawChip !== 'object') continue;
+    const chip: Upstream = rawChip;
 
     const lcChip = chipKey.toLowerCase();
 

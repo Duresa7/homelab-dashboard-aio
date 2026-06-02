@@ -1,8 +1,11 @@
 // GPU integration. Runs `nvidia-smi` (locally or over SSH via runRemote) and
 // normalizes the CSV into the dashboard's `gpu` slice.
+import type { Express, Request, Response } from 'express';
+
 import { runRemote } from '../lib/remote.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isEnabled } from '../lib/env.js';
+import { errorMessage } from '../lib/errors.js';
 
 const GPU_ENABLED = isEnabled(process.env.GPU_ENABLED);
 const GPU_MODE = (process.env.GPU_MODE || 'ssh').toLowerCase();
@@ -40,11 +43,11 @@ function runNvidiaSmi() {
   });
 }
 
-function parseNvidiaSmiCsv(output) {
+function parseNvidiaSmiCsv(output: string) {
   const lines = output.trim().split('\n').filter(Boolean);
   return lines.map((line) => {
     const p = line.split(',').map((s) => s.trim());
-    const num = (i) => {
+    const num = (i: number) => {
       const v = Number(p[i]);
       return Number.isFinite(v) ? v : 0;
     };
@@ -106,8 +109,8 @@ export function probeGpu() {
   return runNvidiaSmi();
 }
 
-export function registerGpu(app) {
-  app.get('/api/gpu', async (_req, res) => {
+export function registerGpu(app: Express) {
+  app.get('/api/gpu', async (_req: Request, res: Response) => {
     if (!GPU_ENABLED) return res.json({ disabled: true });
     if (GPU_MODE === 'ssh' && !GPU_SSH_HOST) {
       return res.status(503).json({ error: 'GPU_MODE=ssh but GPU_SSH_HOST is not set in .env' });
@@ -115,14 +118,15 @@ export function registerGpu(app) {
     try {
       res.json(await fetchGpuData());
     } catch (err) {
-      console.warn(`GPU: nvidia-smi failed (${GPU_MODE}) → ${err.message.split('\n')[0]}`);
-      res.status(502).json({ error: err.message });
+      console.warn(`GPU: nvidia-smi failed (${GPU_MODE}) → ${errorMessage(err).split('\n')[0]}`);
+      res.status(502).json({ error: errorMessage(err) });
     }
   });
 
-  app.get('/api/gpu/debug', async (_req, res) => {
+  app.get('/api/gpu/debug', async (_req: Request, res: Response) => {
     if (!GPU_ENABLED) return res.json({ disabled: true });
-    const config = { mode: GPU_MODE };
+    const config: { mode: string; host?: string; user?: string; port?: number; keyPath?: string } =
+      { mode: GPU_MODE };
     if (GPU_MODE === 'ssh') {
       config.host = GPU_SSH_HOST;
       config.user = GPU_SSH_USER;

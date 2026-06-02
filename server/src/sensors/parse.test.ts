@@ -18,7 +18,7 @@ import {
 } from './parse.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const fixture = (name) => readFileSync(path.join(here, '__fixtures__', name), 'utf8');
+const fixture = (name: string) => readFileSync(path.join(here, '__fixtures__', name), 'utf8');
 
 // NOTE: fixtures under __fixtures__/ are PROVISIONAL — synthesized from the
 // family tables, not yet real captures. See __fixtures__/README.md.
@@ -83,7 +83,7 @@ describe('detect* — vendor family tables (token in → {vendor, model})', () =
 
   it('Crucial: longest family code wins (P3P over P3, MX500 over MX)', () => {
     // Regex is ordered longest-first; P3P must not be read as P3 + leftover.
-    expect(detectCrucial('CT4000T700SSD5').model).toContain('T700');
+    expect(detectCrucial('CT4000T700SSD5')?.model).toContain('T700');
   });
 
   it('Samsung / Kingston / Toshiba / Kioxia / HGST: strip leading vendor noise', () => {
@@ -99,7 +99,7 @@ describe('detect* — vendor family tables (token in → {vendor, model})', () =
       vendor: 'Toshiba',
       model: 'MG08ACA16TE',
     });
-    expect(detectToshibaKioxia('KIOXIAKXG60ZNV256G', 'KIOXIA KXG60ZNV256G').vendor).toBe('Kioxia');
+    expect(detectToshibaKioxia('KIOXIAKXG60ZNV256G', 'KIOXIA KXG60ZNV256G')?.vendor).toBe('Kioxia');
     expect(detectHgstHitachi('HGSTHUS726T4TALA6L4', 'HGST HUS726T4TALA6L4')).toEqual({
       vendor: 'HGST',
       model: 'HUS726T4TALA6L4',

@@ -2,6 +2,75 @@ import Database from 'better-sqlite3';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
+/** Input accepted by insertEvent() (camelCase, pre-DB shape). */
+export interface InsertEventInput {
+  receivedAt: number;
+  logTime?: number | null;
+  sourceIp: string;
+  hostname?: string | null;
+  facility?: number | null;
+  severity: number;
+  tag?: string | null;
+  message: string;
+  raw: string;
+  format: string;
+  deviceKind: string;
+  category: string;
+  extra?: unknown;
+}
+
+/** A row as stored in syslog_events (snake_case). */
+export interface SyslogRow {
+  id: number;
+  received_at: number;
+  log_time: number | null;
+  source_ip: string;
+  hostname: string | null;
+  facility: number | null;
+  severity: number;
+  tag: string | null;
+  message: string;
+  raw: string;
+  format: string;
+  device_kind: string;
+  category: string;
+  extra: string | null;
+}
+
+/** What insertEvent() returns: the stored row plus its new id. */
+export type StoredEvent = SyslogRow;
+
+/** Normalized (camelCase) event shape returned to API/SSE consumers. */
+export interface SyslogEvent {
+  id: number;
+  receivedAt: number;
+  logTime: number | null;
+  sourceIp: string;
+  hostname: string | null;
+  facility: number | null;
+  severity: number;
+  tag: string | null;
+  message: string;
+  raw: string;
+  format: string;
+  deviceKind: string;
+  category: string;
+  extra: unknown;
+}
+
+export interface QueryEventsOpts {
+  since?: number | string | null;
+  until?: number | string | null;
+  severity?: unknown;
+  deviceKind?: unknown;
+  category?: unknown;
+  sourceIp?: unknown;
+  q?: unknown;
+  afterId?: number | string | null;
+  limit?: number | string;
+  order?: string;
+}
+
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS syslog_events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +109,7 @@ const VALID_CATEGORIES = new Set([
 ]);
 const VALID_DEVICE_KINDS = new Set(['gateway', 'ap', 'switch', 'controller', 'unknown']);
 
-export async function openSiemDb(dbPath) {
+export async function openSiemDb(dbPath: string) {
   await mkdir(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
@@ -72,7 +141,7 @@ export async function openSiemDb(dbPath) {
   const replayStmt = db.prepare(`SELECT * FROM syslog_events WHERE id > ? ORDER BY id ASC LIMIT ?`);
   const byIdStmt = db.prepare(`SELECT * FROM syslog_events WHERE id = ?`);
 
-  function insertEvent(evt) {
+  function insertEvent(evt: InsertEventInput): StoredEvent {
     const row = {
       received_at: evt.receivedAt,
       log_time: evt.logTime ?? null,
@@ -103,9 +172,9 @@ export async function openSiemDb(dbPath) {
     afterId = null,
     limit = 200,
     order = 'desc',
-  } = {}) {
-    const where = [];
-    const params = [];
+  }: QueryEventsOpts = {}): SyslogEvent[] {
+    const where: string[] = [];
+    const params: unknown[] = [];
 
     if (since != null) {
       where.push('received_at >= ?');
@@ -156,35 +225,35 @@ export async function openSiemDb(dbPath) {
 
     const sql = `SELECT * FROM syslog_events ${whereSql} ORDER BY id ${orderSql} LIMIT ?`;
     params.push(lim);
-    const rows = db.prepare(sql).all(...params);
+    const rows = db.prepare(sql).all(...params) as SyslogRow[];
     return rows.map(rowToEvent);
   }
 
-  function getStats({ since = Date.now() - 3600_000 } = {}) {
+  function getStats({ since = Date.now() - 3600_000 }: { since?: number } = {}) {
     const bySeverity = db
       .prepare(
         `SELECT severity, COUNT(*) AS n FROM syslog_events
        WHERE received_at >= ? GROUP BY severity`,
       )
-      .all(since);
+      .all(since) as { severity: number; n: number }[];
     const byCategory = db
       .prepare(
         `SELECT category, COUNT(*) AS n FROM syslog_events
        WHERE received_at >= ? GROUP BY category`,
       )
-      .all(since);
+      .all(since) as { category: string; n: number }[];
     const byKind = db
       .prepare(
         `SELECT device_kind, COUNT(*) AS n FROM syslog_events
        WHERE received_at >= ? GROUP BY device_kind`,
       )
-      .all(since);
+      .all(since) as { device_kind: string; n: number }[];
     const bySource = db
       .prepare(
         `SELECT source_ip, COUNT(*) AS n FROM syslog_events
        WHERE received_at >= ? GROUP BY source_ip ORDER BY n DESC LIMIT 20`,
       )
-      .all(since);
+      .all(since) as { source_ip: string; n: number }[];
     return {
       sinceMs: since,
       bySeverity: Object.fromEntries(bySeverity.map((r) => [r.severity, r.n])),
@@ -195,25 +264,27 @@ export async function openSiemDb(dbPath) {
   }
 
   function totals() {
-    const total = countStmt.get().n;
-    const lastHour = countSinceStmt.get(Date.now() - 3600_000).n;
-    const last = lastEventStmt.get().ts;
+    const total = (countStmt.get() as { n: number }).n;
+    const lastHour = (countSinceStmt.get(Date.now() - 3600_000) as { n: number }).n;
+    const last = (lastEventStmt.get() as { ts: number | null }).ts;
     return { total, lastHour, lastEventAt: last ?? null };
   }
 
   // Delete one batch of rows older than `cutoffMs`. Returns the number of
   // rows actually removed. Caller loops until 0 is returned, awaiting an
   // event-loop tick between calls so HTTP, SSE, and UDP handlers keep flowing.
-  function purgeOlderThanChunk(cutoffMs, chunkSize = 1000) {
+  function purgeOlderThanChunk(cutoffMs: number, chunkSize = 1000): number {
     return purgeChunkStmt.run(cutoffMs, chunkSize).changes;
   }
 
-  function replayAfter(lastId, limit = 500) {
-    return replayStmt.all(Number(lastId), Math.max(1, Math.min(limit, 5000))).map(rowToEvent);
+  function replayAfter(lastId: number | string, limit = 500): SyslogEvent[] {
+    return (replayStmt.all(Number(lastId), Math.max(1, Math.min(limit, 5000))) as SyslogRow[]).map(
+      rowToEvent,
+    );
   }
 
-  function getById(id) {
-    const row = byIdStmt.get(Number(id));
+  function getById(id: number | string): SyslogEvent | null {
+    const row = byIdStmt.get(Number(id)) as SyslogRow | undefined;
     return row ? rowToEvent(row) : null;
   }
 
@@ -233,7 +304,7 @@ export async function openSiemDb(dbPath) {
   };
 }
 
-function parseCsv(v) {
+function parseCsv(v: unknown): string[] {
   if (v == null) return [];
   if (Array.isArray(v)) return v.flatMap(parseCsv);
   return String(v)
@@ -242,7 +313,7 @@ function parseCsv(v) {
     .filter(Boolean);
 }
 
-function rowToEvent(row) {
+function rowToEvent(row: SyslogRow): SyslogEvent {
   return {
     id: row.id,
     receivedAt: row.received_at,
@@ -261,7 +332,7 @@ function rowToEvent(row) {
   };
 }
 
-function safeJsonParse(text) {
+function safeJsonParse(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {

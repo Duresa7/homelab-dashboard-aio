@@ -1,16 +1,30 @@
+import type { Request, Response } from 'express';
+import type { SyslogEvent } from './db.js';
+
 const HEARTBEAT_MS = 25_000;
 const REPLAY_LIMIT = 1000;
 
-export function createSseBus({ replayAfter }) {
+interface Client {
+  res: Response;
+  lastSent: number;
+  ka: NodeJS.Timeout | null;
+  removed: boolean;
+}
+
+export interface SseBusOpts {
+  replayAfter: (lastId: number, limit?: number) => SyslogEvent[];
+}
+
+export function createSseBus({ replayAfter }: SseBusOpts) {
   // Each client is tracked by an object that carries the response handle,
   // its keepalive interval, and the highest event id we've already sent it.
   // The lastSent counter lets broadcast() skip events the client received
   // during initial replay (replay and live broadcast can overlap if any
   // future code introduces an `await` inside handle()) — and lets us assert
   // strictly-monotonic delivery so a client never sees an out-of-order id.
-  const clients = new Set();
+  const clients = new Set<Client>();
 
-  function writeEvent(client, evt, eventName) {
+  function writeEvent(client: Client, evt: SyslogEvent, eventName?: string): boolean | undefined {
     if (evt.id != null && evt.id <= client.lastSent) return;
     const header = eventName ? `event: ${eventName}\n` : '';
     const payload = `${header}id: ${evt.id}\ndata: ${JSON.stringify(evt)}\n\n`;
@@ -24,20 +38,20 @@ export function createSseBus({ replayAfter }) {
     }
   }
 
-  function removeClient(client) {
+  function removeClient(client: Client) {
     if (client.removed) return;
     client.removed = true;
     if (client.ka) clearInterval(client.ka);
     clients.delete(client);
   }
 
-  function broadcast(evt) {
+  function broadcast(evt: SyslogEvent) {
     for (const client of clients) {
       writeEvent(client, evt);
     }
   }
 
-  function handle(req, res) {
+  function handle(req: Request, res: Response) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
@@ -51,7 +65,7 @@ export function createSseBus({ replayAfter }) {
     const sinceRaw = Number(lastEventIdHeader ?? lastEventIdQuery ?? 0);
     const since = Number.isFinite(sinceRaw) && sinceRaw > 0 ? sinceRaw : 0;
 
-    const client = { res, lastSent: since, ka: null, removed: false };
+    const client: Client = { res, lastSent: since, ka: null, removed: false };
 
     // Subscribe BEFORE replay. broadcast() filters by lastSent so we
     // can't deliver the same event twice, and any live insert during
@@ -59,7 +73,7 @@ export function createSseBus({ replayAfter }) {
     clients.add(client);
 
     if (since > 0) {
-      let missed;
+      let missed: SyslogEvent[];
       try {
         missed = replayAfter(since, REPLAY_LIMIT);
       } catch {

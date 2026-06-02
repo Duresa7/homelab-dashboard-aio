@@ -1,7 +1,33 @@
 // UniFi gear emits RFC 3164 from gateway/AP/switch and CEF (9.3+) for admin,
 // IDS, VPN, and client events. parseSyslog() tries 3164 first, then layers
 // CEF if the body starts with "CEF:".
-const MONTHS = {
+
+/** Parsed CEF header + extension fields. */
+export interface CefData {
+  cefVersion: number;
+  vendor: string;
+  product: string;
+  productVersion: string;
+  signatureId: string;
+  name: string;
+  cefSeverity: number;
+  fields: Record<string, string>;
+}
+
+/** Normalized syslog event produced by parseSyslog()/parseRfc3164(). */
+export interface ParsedSyslog {
+  format: string;
+  facility: number | null;
+  severity: number;
+  logTime: number | null;
+  hostname: string | null;
+  tag: string | null;
+  pid: number | null;
+  message: string;
+  cef?: CefData;
+}
+
+const MONTHS: Record<string, number> = {
   Jan: 0,
   Feb: 1,
   Mar: 2,
@@ -23,13 +49,19 @@ const RFC3164_RE =
 // Fallback shape: <PRI>tag: msg with no timestamp/hostname.
 const RFC3164_SHORT_RE = /^<(\d+)>\s*([^:\[\s]+?)(?:\[(\d+)\])?:\s*(.*)$/s;
 
-function decodePriority(pri) {
+function decodePriority(pri: string): { facility: number | null; severity: number } {
   const n = Number(pri);
   if (!Number.isFinite(n)) return { facility: null, severity: 6 };
   return { facility: n >>> 3, severity: n & 7 };
 }
 
-function parseBsdTimestamp(month, day, hh, mm, ss) {
+function parseBsdTimestamp(
+  month: string,
+  day: string,
+  hh: string,
+  mm: string,
+  ss: string,
+): number | null {
   const monthIdx = MONTHS[month];
   if (monthIdx == null) return null;
   // BSD timestamps (RFC 3164) lack both year AND timezone. The protocol
@@ -60,7 +92,7 @@ function parseBsdTimestamp(month, day, hh, mm, ss) {
   return candidate.getTime();
 }
 
-export function parseRfc3164(raw) {
+export function parseRfc3164(raw: string): ParsedSyslog | null {
   const m = raw.match(RFC3164_RE);
   if (m) {
     const [, pri, mon, day, hh, mm, ss, hostname, tag, pid, message] = m;
@@ -100,11 +132,11 @@ export function parseRfc3164(raw) {
 const CEF_HEADER_RE =
   /^CEF:(\d+)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|(.*)$/s;
 
-function unescapeCefHeader(s) {
+function unescapeCefHeader(s: string): string {
   return s.replace(/\\([|\\])/g, '$1');
 }
 
-function unescapeCefValue(s) {
+function unescapeCefValue(s: string): string {
   return s.replace(/\\([=\\rn])/g, (_, c) => {
     if (c === 'n') return '\n';
     if (c === 'r') return '\r';
@@ -123,14 +155,14 @@ const CEF_EXT_MAX_LEN = 16 * 1024;
 // an escaped value (\=) does not begin a new key.
 const CEF_KEY_RE = /(^|\s)([A-Za-z][A-Za-z0-9_]*)=/g;
 
-function parseCefExtension(ext) {
-  const fields = {};
+function parseCefExtension(ext: string): Record<string, string> {
+  const fields: Record<string, string> = {};
   if (!ext) return fields;
   const src = ext.length > CEF_EXT_MAX_LEN ? ext.slice(0, CEF_EXT_MAX_LEN) : ext;
   // Single pass to locate every key boundary.
-  const boundaries = [];
+  const boundaries: { key: string; valueStart: number }[] = [];
   CEF_KEY_RE.lastIndex = 0;
-  let m;
+  let m: RegExpExecArray | null;
   while ((m = CEF_KEY_RE.exec(src)) !== null) {
     boundaries.push({ key: m[2], valueStart: m.index + m[0].length });
     if (boundaries.length > 1024) break; // sanity cap
@@ -148,7 +180,7 @@ function parseCefExtension(ext) {
   return fields;
 }
 
-export function parseCef(text) {
+export function parseCef(text: string): CefData | null {
   const m = text.match(CEF_HEADER_RE);
   if (!m) return null;
   return {
@@ -164,7 +196,7 @@ export function parseCef(text) {
 }
 
 // CEF severity (0–10, high=bad) → syslog severity (0–7, low=bad).
-function cefToSyslogSeverity(cefSev) {
+function cefToSyslogSeverity(cefSev: number): number {
   if (!Number.isFinite(cefSev)) return 6;
   if (cefSev >= 9) return 1;
   if (cefSev >= 7) return 3;
@@ -173,7 +205,7 @@ function cefToSyslogSeverity(cefSev) {
   return 6;
 }
 
-export function parseSyslog(raw) {
+export function parseSyslog(raw: string): ParsedSyslog | null {
   const trimmed = String(raw || '')
     .replace(/\0+$/, '')
     .trim();

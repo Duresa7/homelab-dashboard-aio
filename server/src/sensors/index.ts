@@ -1,31 +1,37 @@
+import type { Express, Request, Response } from 'express';
 import { runRemote } from '../lib/remote.js';
-import { parseSensorsJson, parseDiskInventory } from './parse.js';
+import { errorMessage } from '../lib/errors.js';
+import { parseSensorsJson, parseDiskInventory, type SensorTree } from './parse.js';
+
+export interface SensorsConfig {
+  enabled: boolean;
+  mode: string;
+  sshHost: string;
+  sshUser: string;
+  sshPort: number;
+  sshKeyPath: string;
+  cacheTtl: number;
+}
 
 /**
  * Sensors integration — the I/O edge.
  *
  * Owns the shell-out (`sensors -j` / `lsblk -J`, local or over SSH), the
  * response cache, the degradation policy, and the `/api/sensors[/debug]`
- * routes. All pure parsing lives in ./parse.js and is unit-tested there.
+ * routes. All pure parsing lives in ./parse.ts and is unit-tested there.
  *
- * Config is passed in (resolved from env in index.js) rather than read from
+ * Config is passed in (resolved from env in index.ts) rather than read from
  * process.env here, so the health routes can keep reporting the same values.
  *
- * @param {import('express').Express} app
- * @param {{
- *   enabled: boolean, mode: string, sshHost: string, sshUser: string,
- *   sshPort: number, sshKeyPath: string, cacheTtl: number,
- * }} config
- * @returns {{ runSensors: () => Promise<string>, fetchSensorsData: () => Promise<object> }}
- *   A handle the caller's health probes use (e.g. /api/health/live).
+ * Returns a handle the caller's health probes use (e.g. /api/health/live).
  */
-export function initSensors(app, config) {
+export function initSensors(app: Express, config: SensorsConfig) {
   const { enabled, mode, sshHost, sshUser, sshPort, sshKeyPath, cacheTtl } = config;
 
-  let sensorsCache = { data: null, ts: 0 };
-  let sensorsLastError = null;
+  let sensorsCache: { data: SensorTree | null; ts: number } = { data: null, ts: 0 };
+  let sensorsLastError: string | null = null;
 
-  function runSensorsRemote(localCmd, localArgs, remoteCmd) {
+  function runSensorsRemote(localCmd: string, localArgs: string[], remoteCmd: string) {
     return runRemote({
       mode,
       host: sshHost,
@@ -59,7 +65,7 @@ export function initSensors(app, config) {
     }
   }
 
-  async function fetchSensorsData() {
+  async function fetchSensorsData(): Promise<SensorTree> {
     const now = Date.now();
     if (sensorsCache.data && now - sensorsCache.ts < cacheTtl) return sensorsCache.data;
 
@@ -71,7 +77,7 @@ export function initSensors(app, config) {
     return parsed;
   }
 
-  app.get('/api/sensors', async (_req, res) => {
+  app.get('/api/sensors', async (_req: Request, res: Response) => {
     if (!enabled) return res.json({ disabled: true });
     if (mode === 'ssh' && !sshHost) {
       return res.status(503).json({
@@ -82,15 +88,17 @@ export function initSensors(app, config) {
       const data = await fetchSensorsData();
       res.json({ sensors: data });
     } catch (err) {
-      sensorsLastError = err.message;
-      console.warn(`Sensors: ${mode} sensors -j failed → ${err.message.split('\n')[0]}`);
-      res.status(502).json({ error: err.message });
+      sensorsLastError = errorMessage(err);
+      console.warn(`Sensors: ${mode} sensors -j failed → ${errorMessage(err).split('\n')[0]}`);
+      res.status(502).json({ error: errorMessage(err) });
     }
   });
 
-  app.get('/api/sensors/debug', async (_req, res) => {
+  app.get('/api/sensors/debug', async (_req: Request, res: Response) => {
     if (!enabled) return res.json({ disabled: true });
-    const cfg = { mode };
+    const cfg: { mode: string; host?: string; user?: string; port?: number; keyPath?: string } = {
+      mode,
+    };
     if (mode === 'ssh') {
       cfg.host = sshHost;
       cfg.user = sshUser;
@@ -104,10 +112,10 @@ export function initSensors(app, config) {
         diskInventory,
         raw: JSON.parse(raw),
         parsed: parseSensorsJson(raw, diskInventory),
-        lastError: null,
+        lastError: sensorsLastError,
       });
     } catch (err) {
-      res.json({ config: cfg, raw: null, parsed: null, lastError: err.message });
+      res.json({ config: cfg, raw: null, parsed: null, lastError: errorMessage(err) });
     }
   });
 

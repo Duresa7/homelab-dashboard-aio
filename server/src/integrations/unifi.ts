@@ -1,9 +1,13 @@
 // UniFi Network integration. Normalizes the gateway, switches, APs, clients,
 // networks/SSIDs, firewall, VPN, and DNS into the dashboard's `unifi` slice
 // (plus a derived `network` slice).
+import type { Express, Request, Response } from 'express';
+
 import { insecureFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isEnabled, formatUptime } from '../lib/env.js';
+import { errorMessage } from '../lib/errors.js';
+import type { Upstream } from '../types.js';
 
 const UNIFI_ENABLED = isEnabled(process.env.UNIFI_ENABLED);
 const BASE_URL = process.env.UNIFI_BASE_URL;
@@ -15,7 +19,7 @@ const API_KEY = process.env.UNIFI_API_KEY || '';
 const SITE = process.env.UNIFI_SITE || 'default';
 const CACHE_TTL = Number(process.env.UNIFI_POLL_INTERVAL) || 10000;
 
-async function uniFetch(path) {
+async function uniFetch(path: string): Promise<Upstream> {
   const url = `${BASE_URL}${path}`;
   const res = await insecureFetch(url, {
     headers: {
@@ -30,8 +34,8 @@ async function uniFetch(path) {
   return res.json();
 }
 
-async function fetchAllPages(basePath, limit = 200) {
-  let all = [];
+async function fetchAllPages(basePath: string, limit = 200): Promise<Upstream[]> {
+  let all: Upstream[] = [];
   let offset = 0;
   while (true) {
     const sep = basePath.includes('?') ? '&' : '?';
@@ -44,7 +48,7 @@ async function fetchAllPages(basePath, limit = 200) {
   return all;
 }
 
-async function safeFetch(path) {
+async function safeFetch(path: string): Promise<Upstream> {
   try {
     return await uniFetch(path);
   } catch {
@@ -52,7 +56,7 @@ async function safeFetch(path) {
   }
 }
 
-async function safeFetchAllPages(basePath, limit = 200) {
+async function safeFetchAllPages(basePath: string, limit = 200): Promise<Upstream[]> {
   try {
     return await fetchAllPages(basePath, limit);
   } catch {
@@ -60,28 +64,28 @@ async function safeFetchAllPages(basePath, limit = 200) {
   }
 }
 
-let resolvedSiteId = null;
+let resolvedSiteId: string | null = null;
 
-async function getSiteId() {
+async function getSiteId(): Promise<string> {
   if (resolvedSiteId) return resolvedSiteId;
   const res = await uniFetch('/proxy/network/integration/v1/sites');
   const sites = res.data || res;
   if (!Array.isArray(sites) || sites.length === 0) {
     throw new Error('No sites found from UniFi API');
   }
-  const site = sites.find((s) => s.name === SITE || s.id === SITE) || sites[0];
+  const site = sites.find((s: Upstream) => s.name === SITE || s.id === SITE) || sites[0];
   resolvedSiteId = site.id || site._id || site.name;
-  return resolvedSiteId;
+  return resolvedSiteId as string;
 }
 
-function hasFeature(d, name) {
+function hasFeature(d: Upstream, name: string) {
   const f = d.features;
   if (Array.isArray(f)) return f.includes(name);
   if (f && typeof f === 'object') return f[name] !== undefined && f[name] !== null;
   return false;
 }
 
-function classifyDevice(d) {
+function classifyDevice(d: Upstream) {
   const model = (d.model || '').toLowerCase();
 
   const gwKeywords = ['ucg', 'udm', 'uxg', 'gateway', 'dream machine', 'cloud key'];
@@ -105,7 +109,9 @@ async function fetchUnifiDataRaw() {
   const siteId = await getSiteId();
   const prefix = `/proxy/network/integration/v1/sites/${siteId}`;
 
-  const [devices, clients, networks, ssids, wans, fwZones, fwPolicies, vpnServers, dnsRecords] =
+  // The 5th call (`/wans`) is still issued for parity, but its result isn't
+  // surfaced in this slice — an array hole skips binding it without a lint flag.
+  const [devices, clients, networks, ssids, , fwZones, fwPolicies, vpnServers, dnsRecords] =
     await Promise.all([
       fetchAllPages(`${prefix}/devices`),
       fetchAllPages(`${prefix}/clients`),
@@ -122,10 +128,10 @@ async function fetchUnifiDataRaw() {
   const appInfo = await safeFetch('/proxy/network/integration/v1/info');
   if (appInfo) appVersion = appInfo.applicationVersion || null;
 
-  const statsMap = {};
-  const detailMap = {};
+  const statsMap: Record<string, Upstream> = {};
+  const detailMap: Record<string, Upstream> = {};
   await Promise.all(
-    devices.map(async (d) => {
+    devices.map(async (d: Upstream) => {
       const [stats, detail] = await Promise.all([
         safeFetch(`${prefix}/devices/${d.id}/statistics/latest`),
         safeFetch(`${prefix}/devices/${d.id}`),
@@ -135,14 +141,17 @@ async function fetchUnifiDataRaw() {
     }),
   );
 
-  const classified = devices.map((d) => ({ ...d, _role: classifyDevice(d) }));
+  const classified: Upstream[] = devices.map((d: Upstream) => ({
+    ...d,
+    _role: classifyDevice(d),
+  }));
 
-  const gateway = classified.find((d) => d._role === 'gateway') || {};
-  const gwStats = statsMap[gateway.id] || {};
-  const switches = classified.filter((d) => d._role === 'switch');
-  const aps = classified.filter((d) => d._role === 'ap');
+  const gateway: Upstream = classified.find((d: Upstream) => d._role === 'gateway') || {};
+  const gwStats: Upstream = statsMap[gateway.id] || {};
+  const switches = classified.filter((d: Upstream) => d._role === 'switch');
+  const aps = classified.filter((d: Upstream) => d._role === 'ap');
 
-  const clientsByDeviceId = {};
+  const clientsByDeviceId: Record<string, number> = {};
   let wirelessCount = 0;
   let wiredCount = 0;
   let vpnCount = 0;
@@ -156,7 +165,7 @@ async function fetchUnifiDataRaw() {
   }
 
   const sortedClients = [...clients]
-    .sort((a, b) => {
+    .sort((a: Upstream, b: Upstream) => {
       const ta = a.connectedAt ? new Date(a.connectedAt).getTime() : 0;
       const tb = b.connectedAt ? new Date(b.connectedAt).getTime() : 0;
       return tb - ta;
@@ -177,11 +186,13 @@ async function fetchUnifiDataRaw() {
         uptime: formatUptime(gwStats.uptimeSec ?? gwStats.uptime_sec ?? 0),
         fwVersion: gateway.firmwareVersion || 'n/a',
       },
-      switches: switches.map((s) => {
+      switches: switches.map((s: Upstream) => {
         const sStats = statsMap[s.id] || {};
         const detail = detailMap[s.id] || {};
         const ports = detail.interfaces?.ports || [];
-        const portsUp = ports.filter((p) => (p.state || '').toUpperCase() === 'UP').length;
+        const portsUp = ports.filter(
+          (p: Upstream) => (p.state || '').toUpperCase() === 'UP',
+        ).length;
         return {
           name: s.name || s.model || 'Switch',
           model: s.model || '',
@@ -193,7 +204,7 @@ async function fetchUnifiDataRaw() {
           portsActive: clientsByDeviceId[s.id] || 0,
         };
       }),
-      aps: aps.map((ap) => {
+      aps: aps.map((ap: Upstream) => {
         const apDetail = detailMap[ap.id] || {};
         const radios = apDetail.interfaces?.radios || [];
         const primaryRadio = radios[0] || {};
@@ -210,7 +221,7 @@ async function fetchUnifiDataRaw() {
       }),
       clients: clients.length,
       clientBreakdown: { wireless: wirelessCount, wired: wiredCount, vpn: vpnCount },
-      topTalkers: sortedClients.map((c) => ({
+      topTalkers: sortedClients.map((c: Upstream) => ({
         name: c.name || c.macAddress || 'unknown',
         ip: c.ipAddress || 'n/a',
         type: c.type || 'UNKNOWN',
@@ -226,7 +237,7 @@ async function fetchUnifiDataRaw() {
         upMax: 1000,
         public: gwStats.wanIp || gateway.ipAddress || 'n/a',
       },
-      networks: networks.map((n) => ({
+      networks: networks.map((n: Upstream) => ({
         id: n.id,
         name: n.name || 'Unnamed',
         vlanId: n.vlanId ?? null,
@@ -234,7 +245,7 @@ async function fetchUnifiDataRaw() {
         management: n.management || 'UNMANAGED',
         isDefault: n.default ?? false,
       })),
-      ssids: ssids.map((s) => ({
+      ssids: ssids.map((s: Upstream) => ({
         id: s.id,
         name: s.name || 'Unnamed',
         enabled: s.enabled ?? true,
@@ -244,15 +255,15 @@ async function fetchUnifiDataRaw() {
       firewall: {
         zones: fwZones.length,
         policies: fwPolicies.length,
-        policiesEnabled: fwPolicies.filter((p) => p.enabled).length,
+        policiesEnabled: fwPolicies.filter((p: Upstream) => p.enabled).length,
       },
-      vpnServers: vpnServers.map((v) => ({
+      vpnServers: vpnServers.map((v: Upstream) => ({
         id: v.id,
         name: v.name || 'VPN Server',
         type: v.type || 'unknown',
         enabled: v.enabled ?? true,
       })),
-      dnsRecords: dnsRecords.map((r) => ({
+      dnsRecords: dnsRecords.map((r: Upstream) => ({
         id: r.id,
         type: r.type || 'unknown',
         domain: r.domain || '',
@@ -284,8 +295,8 @@ export function probeUnifi() {
   return uniFetch('/proxy/network/integration/v1/sites');
 }
 
-export function registerUnifi(app) {
-  app.get('/api/unifi', async (_req, res) => {
+export function registerUnifi(app: Express) {
+  app.get('/api/unifi', async (_req: Request, res: Response) => {
     if (!UNIFI_ENABLED) {
       return res.json({ disabled: true });
     }
@@ -298,13 +309,13 @@ export function registerUnifi(app) {
       const data = await fetchUnifiData();
       res.json(data);
     } catch (err) {
-      console.error('UniFi API error:', err.message);
-      res.status(502).json({ error: err.message });
+      console.error('UniFi API error:', errorMessage(err));
+      res.status(502).json({ error: errorMessage(err) });
     }
   });
 
   // Development-only raw passthrough for debugging UniFi API shapes.
-  app.get('/api/debug', async (_req, res) => {
+  app.get('/api/debug', async (_req: Request, res: Response) => {
     if (process.env.NODE_ENV !== 'development') {
       return res.status(404).json({ error: 'Not found' });
     }
@@ -362,7 +373,7 @@ export function registerUnifi(app) {
         wans,
       });
     } catch (err) {
-      res.status(502).json({ error: err.message });
+      res.status(502).json({ error: errorMessage(err) });
     }
   });
 }

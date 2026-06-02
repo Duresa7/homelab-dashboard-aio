@@ -1,10 +1,12 @@
 import dgram from 'node:dgram';
 import os from 'node:os';
 import path from 'node:path';
+import type { Express, Request, Response } from 'express';
 
+import { errorMessage } from '../lib/errors.js';
 import { parseSyslog } from './parser.js';
 import { classifySyslog } from './classifier.js';
-import { openSiemDb } from './db.js';
+import { openSiemDb, type StoredEvent } from './db.js';
 import { createSseBus } from './sse.js';
 
 const RETENTION_SWEEP_INTERVAL_MS = 6 * 60 * 60_000;
@@ -21,9 +23,18 @@ const RATE_BUCKETS_MAX = 4096; // cap distinct sources tracked
 // event loop so HTTP/SSE/UDP handlers keep flowing.
 const RETENTION_CHUNK_ROWS = 1000;
 
-function bestLanIp() {
+export interface SiemOptions {
+  enabled: boolean;
+  port?: number;
+  host?: string;
+  dbPath?: string;
+  retentionDays?: number;
+  maxPerQuery?: number;
+}
+
+function bestLanIp(): string {
   const ifaces = os.networkInterfaces();
-  const candidates = [];
+  const candidates: string[] = [];
   for (const list of Object.values(ifaces)) {
     if (!list) continue;
     for (const iface of list) {
@@ -40,7 +51,7 @@ function bestLanIp() {
   return priv || candidates[0] || '127.0.0.1';
 }
 
-export async function initSiem(app, opts) {
+export async function initSiem(app: Express, opts: SiemOptions) {
   const {
     enabled,
     port = 514,
@@ -51,7 +62,7 @@ export async function initSiem(app, opts) {
   } = opts;
 
   if (!enabled) {
-    app.get('/api/siem/status', (_req, res) => {
+    app.get('/api/siem/status', (_req: Request, res: Response) => {
       res.json({
         enabled: false,
         listening: false,
@@ -68,16 +79,29 @@ export async function initSiem(app, opts) {
         bindError: null,
       });
     });
-    app.get('/api/siem/logs', (_req, res) => res.json({ disabled: true, events: [] }));
-    app.get('/api/siem/stats', (_req, res) => res.json({ disabled: true }));
-    app.get('/api/siem/stream', (_req, res) => res.status(503).end('SIEM disabled'));
+    app.get('/api/siem/logs', (_req: Request, res: Response) =>
+      res.json({ disabled: true, events: [] }),
+    );
+    app.get('/api/siem/stats', (_req: Request, res: Response) => res.json({ disabled: true }));
+    app.get('/api/siem/stream', (_req: Request, res: Response) =>
+      res.status(503).end('SIEM disabled'),
+    );
     return { shutdown() {} };
   }
 
   const db = await openSiemDb(dbPath);
   const sse = createSseBus({ replayAfter: db.replayAfter });
 
-  const stats = {
+  const stats: {
+    packetsReceived: number;
+    bytesReceived: number;
+    parseErrors: number;
+    packetsTruncated: number;
+    packetsRateLimited: number;
+    lastEventAt: number | null;
+    bindError: string | null;
+    boundAt: number | null;
+  } = {
     packetsReceived: 0,
     bytesReceived: 0,
     parseErrors: 0,
@@ -96,8 +120,8 @@ export async function initSiem(app, opts) {
   const sourceAllowSet = allowedSources.length ? new Set(allowedSources) : null;
 
   // Per-source token bucket. Map<ip, {tokens, lastRefillMs}>.
-  const rateBuckets = new Map();
-  function admit(ip) {
+  const rateBuckets = new Map<string, { tokens: number; lastRefillMs: number }>();
+  function admit(ip: string): boolean {
     const now = Date.now();
     let b = rateBuckets.get(ip);
     if (!b) {
@@ -154,7 +178,7 @@ export async function initSiem(app, opts) {
     const cefFields = parsed.cef?.fields;
     const extra = cefFields || (parsed.cef ? { _cef: parsed.cef } : null);
 
-    let stored;
+    let stored: StoredEvent;
     try {
       stored = db.insertEvent({
         receivedAt: Date.now(),
@@ -173,7 +197,7 @@ export async function initSiem(app, opts) {
       });
     } catch (err) {
       stats.parseErrors += 1;
-      console.warn(`SIEM: insert failed - ${err.message}`);
+      console.warn(`SIEM: insert failed - ${errorMessage(err)}`);
       return;
     }
     stats.lastEventAt = stored.received_at;
@@ -207,7 +231,7 @@ export async function initSiem(app, opts) {
     console.log(`SIEM: listening for syslog on UDP ${addr.address}:${addr.port}`);
   });
 
-  await new Promise((resolve) => {
+  await new Promise<void>((resolve) => {
     sock.bind(port, host, () => resolve());
     sock.once('error', (err) => {
       stats.bindError = err.message;
@@ -235,13 +259,13 @@ export async function initSiem(app, opts) {
         const removed = db.purgeOlderThanChunk(cutoff, RETENTION_CHUNK_ROWS);
         total += removed;
         if (removed < RETENTION_CHUNK_ROWS) break;
-        await new Promise((r) => setImmediate(r));
+        await new Promise<void>((r) => setImmediate(() => r()));
       }
       if (total > 0) {
         console.log(`SIEM: retention sweep removed ${total} events older than ${retentionDays}d`);
       }
     } catch (err) {
-      console.warn(`SIEM: retention sweep failed - ${err.message}`);
+      console.warn(`SIEM: retention sweep failed - ${errorMessage(err)}`);
     } finally {
       sweepRunning = false;
     }
@@ -252,7 +276,7 @@ export async function initSiem(app, opts) {
   }, RETENTION_SWEEP_INTERVAL_MS);
   sweepTimer.unref?.();
 
-  app.get('/api/siem/status', (_req, res) => {
+  app.get('/api/siem/status', (_req: Request, res: Response) => {
     const t = db.totals();
     res.json({
       enabled: true,
@@ -278,7 +302,7 @@ export async function initSiem(app, opts) {
     });
   });
 
-  app.get('/api/siem/logs', (req, res) => {
+  app.get('/api/siem/logs', (req: Request, res: Response) => {
     const limit = Math.min(Number(req.query.limit) || 200, maxPerQuery);
     const events = db.queryEvents({
       since: req.query.since ? Number(req.query.since) : null,
@@ -295,20 +319,20 @@ export async function initSiem(app, opts) {
     res.json({ events, limit });
   });
 
-  app.get('/api/siem/stats', (req, res) => {
+  app.get('/api/siem/stats', (req: Request, res: Response) => {
     const win = req.query.window || '1h';
-    const map = {
+    const map: Record<string, number> = {
       '15m': 900_000,
       '1h': 3600_000,
       '24h': 86400_000,
       '7d': 7 * 86400_000,
       '30d': 30 * 86400_000,
     };
-    const ms = map[win] ?? 3600_000;
+    const ms = map[String(win)] ?? 3600_000;
     res.json({ window: win, ...db.getStats({ since: Date.now() - ms }) });
   });
 
-  app.get('/api/siem/stream', (req, res) => sse.handle(req, res));
+  app.get('/api/siem/stream', (req: Request, res: Response) => sse.handle(req, res));
 
   function shutdown() {
     clearInterval(sweepTimer);

@@ -2,6 +2,15 @@ import Database from 'better-sqlite3';
 import { mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
+interface AppStateRow {
+  key: string;
+  value: string;
+  updated_at: number;
+}
+interface CountRow {
+  n: number;
+}
+
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS app_state (
     key        TEXT PRIMARY KEY,
@@ -18,7 +27,7 @@ const SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_metrics_lookup ON metrics(integration, key, ts DESC)`,
 ];
 
-export async function openStateDb(dbPath) {
+export async function openStateDb(dbPath: string) {
   await mkdir(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
@@ -34,7 +43,7 @@ export async function openStateDb(dbPath) {
   const deleteStmt = db.prepare(`DELETE FROM app_state WHERE key = ?`);
   const countStmt = db.prepare(`SELECT COUNT(*) AS n FROM app_state`);
   const metricsCount = db.prepare(`SELECT COUNT(*) AS n FROM metrics`);
-  const upsertMany = db.transaction((entries) => {
+  const upsertMany = db.transaction((entries: [string, unknown][]) => {
     const now = Date.now();
     for (const [key, value] of entries) {
       upsertStmt.run({ key, value: JSON.stringify(value), updated_at: now });
@@ -42,9 +51,9 @@ export async function openStateDb(dbPath) {
   });
 
   function getAll() {
-    const rows = getAllStmt.all();
-    const out = {};
-    const meta = {};
+    const rows = getAllStmt.all() as AppStateRow[];
+    const out: Record<string, unknown> = {};
+    const meta: Record<string, number> = {};
     for (const row of rows) {
       try {
         out[row.key] = JSON.parse(row.value);
@@ -56,8 +65,8 @@ export async function openStateDb(dbPath) {
     return { values: out, updatedAt: meta };
   }
 
-  function get(key) {
-    const row = getOneStmt.get(key);
+  function get(key: string) {
+    const row = getOneStmt.get(key) as { value: string; updated_at: number } | undefined;
     if (!row) return null;
     try {
       return { value: JSON.parse(row.value), updatedAt: row.updated_at };
@@ -66,23 +75,23 @@ export async function openStateDb(dbPath) {
     }
   }
 
-  function put(key, value) {
+  function put(key: string, value: unknown) {
     const now = Date.now();
     upsertStmt.run({ key, value: JSON.stringify(value), updated_at: now });
     return now;
   }
 
-  function del(key) {
+  function del(key: string) {
     return deleteStmt.run(key).changes;
   }
 
-  function importBulk(entries) {
+  function importBulk(entries: Record<string, unknown>) {
     upsertMany(Object.entries(entries));
     return Object.keys(entries).length;
   }
 
   async function stats() {
-    let fileSize = null;
+    let fileSize: number | null = null;
     try {
       const s = await stat(dbPath);
       fileSize = s.size;
@@ -92,8 +101,8 @@ export async function openStateDb(dbPath) {
     return {
       path: dbPath,
       fileSize,
-      keys: countStmt.get().n,
-      metricsRows: metricsCount.get().n,
+      keys: (countStmt.get() as CountRow).n,
+      metricsRows: (metricsCount.get() as CountRow).n,
     };
   }
 

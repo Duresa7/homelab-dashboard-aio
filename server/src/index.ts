@@ -7,6 +7,7 @@ import { initSiem } from './siem/index.js';
 import { initState } from './state/index.js';
 import { initSensors } from './sensors/index.js';
 import { isEnabled } from './lib/env.js';
+import { errorMessage } from './lib/errors.js';
 import { registerDocker, dockerStatus, probeDocker } from './integrations/docker.js';
 import { registerProxmox, proxmoxStatus, probeProxmox } from './integrations/proxmox.js';
 import { registerUnas, unasStatus, probeUnas } from './integrations/unas.js';
@@ -73,9 +74,30 @@ app.get('/api/health', (_req, res) => {
 
 const LIVE_HEALTH_CACHE_TTL_MS = Number(process.env.HEALTH_LIVE_CACHE_TTL) || 12000;
 const LIVE_HEALTH_PROBE_TIMEOUT_MS = Number(process.env.HEALTH_LIVE_TIMEOUT) || 5000;
-let liveHealthCache = { data: null, ts: 0 };
 
-async function runProbe(name, configured, fn) {
+interface ProbeResult {
+  name: string;
+  status: 'ok' | 'down' | 'skipped';
+  ok: boolean | null;
+  latencyMs: number | null;
+  error: string | null;
+  checkedAt: string;
+}
+
+interface LiveHealth {
+  ok: boolean;
+  checkedAt: string;
+  summary: { total: number; ok: number; down: number; skipped: number };
+  integrations: Record<string, ProbeResult>;
+}
+
+let liveHealthCache: { data: LiveHealth | null; ts: number } = { data: null, ts: 0 };
+
+async function runProbe(
+  name: string,
+  configured: boolean,
+  fn: () => unknown,
+): Promise<ProbeResult> {
   const checkedAt = new Date().toISOString();
   if (!configured) {
     return {
@@ -88,7 +110,7 @@ async function runProbe(name, configured, fn) {
     };
   }
   const start = Date.now();
-  let timer;
+  let timer: NodeJS.Timeout | undefined;
   const timeoutP = new Promise((_, rej) => {
     timer = setTimeout(
       () => rej(new Error(`probe timed out after ${LIVE_HEALTH_PROBE_TIMEOUT_MS}ms`)),
@@ -106,7 +128,7 @@ async function runProbe(name, configured, fn) {
       checkedAt,
     };
   } catch (err) {
-    const msg = err && err.message ? String(err.message) : String(err);
+    const msg = errorMessage(err);
     return {
       name,
       status: 'down',
@@ -149,7 +171,7 @@ app.get('/api/health/live', async (req, res) => {
     ),
   ]);
 
-  const byKey = {};
+  const byKey: Record<string, ProbeResult> = {};
   for (const p of probes) byKey[p.name] = p;
 
   const summary = {
@@ -159,7 +181,7 @@ app.get('/api/health/live', async (req, res) => {
     skipped: probes.filter((p) => p.status === 'skipped').length,
   };
 
-  const result = {
+  const result: LiveHealth = {
     ok: summary.down === 0,
     checkedAt: new Date().toISOString(),
     summary,

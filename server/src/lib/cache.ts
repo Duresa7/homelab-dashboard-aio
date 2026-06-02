@@ -1,3 +1,17 @@
+import { errorMessage } from './errors.js';
+
+export interface TtlCacheState<T> {
+  data: T | null;
+  ts: number;
+  lastError: string | null;
+}
+
+export interface CachedFn<T> {
+  (): Promise<T>;
+  /** Expose `{ data, ts, lastError }` for the integration's debug route. */
+  peek(): TtlCacheState<T>;
+}
+
 /**
  * Wrap an async fetcher with a single-slot time-to-live cache, replacing the
  * `let cache = { data, ts }` + manual TTL-check boilerplate repeated across
@@ -10,17 +24,11 @@
  *  - on error the previous cached value/timestamp are left intact (so a stale
  *    value can still satisfy a later in-TTL hit) and `lastError` is recorded,
  *    then the error re-throws so the route can answer 502.
- *
- * `peek()` exposes `{ data, ts, lastError }` for the integration's debug route.
- *
- * @template T
- * @param {() => Promise<T>} fetchFn
- * @param {number} ttlMs
  */
-export function withTtlCache(fetchFn, ttlMs) {
-  const state = { data: null, ts: 0, lastError: null };
+export function withTtlCache<T>(fetchFn: () => Promise<T>, ttlMs: number): CachedFn<T> {
+  const state: TtlCacheState<T> = { data: null, ts: 0, lastError: null };
 
-  const cached = async () => {
+  const cached = async (): Promise<T> => {
     const now = Date.now();
     if (state.data && now - state.ts < ttlMs) return state.data;
     try {
@@ -30,7 +38,7 @@ export function withTtlCache(fetchFn, ttlMs) {
       state.lastError = null;
       return data;
     } catch (err) {
-      state.lastError = err.message;
+      state.lastError = errorMessage(err);
       throw err;
     }
   };

@@ -1,8 +1,12 @@
 // UniFi UNAS (drive appliance) integration. Normalizes storage pools + disks
 // (with SMART/incompatibility detail) into the dashboard's `unas` slice.
+import type { Express, Request, Response } from 'express';
+
 import { insecureFetch, makeSafeFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isEnabled, trimBaseUrl } from '../lib/env.js';
+import { errorMessage } from '../lib/errors.js';
+import type { Upstream } from '../types.js';
 
 const UNAS_ENABLED = isEnabled(process.env.UNAS_ENABLED, false);
 const UNAS_BASE_URL = trimBaseUrl(process.env.UNAS_BASE_URL);
@@ -12,7 +16,7 @@ const UNAS_CACHE_TTL = Number(process.env.UNAS_POLL_INTERVAL) || 30000;
 const TB = 1024 ** 4;
 const GB = 1024 ** 3;
 
-async function unasFetch(path) {
+async function unasFetch(path: string): Promise<Upstream> {
   const res = await insecureFetch(`${UNAS_BASE_URL}${path}`, {
     headers: { 'X-API-Key': UNAS_API_KEY, Accept: 'application/json' },
   });
@@ -25,20 +29,20 @@ async function unasFetch(path) {
 
 const safeUnasFetch = makeSafeFetch('UNAS', unasFetch);
 
-function formatRaidLevel(preferLevel) {
+function formatRaidLevel(preferLevel: Upstream) {
   if (!preferLevel) return 'JBOD';
   const m = String(preferLevel).match(/^raid(\d+)$/i);
   return m ? `RAID ${m[1]}` : String(preferLevel).toUpperCase();
 }
 
-function poolStatus(status) {
+function poolStatus(status: Upstream) {
   const s = String(status || '').toLowerCase();
   if (s === 'fullyoperational' || s === 'optimal') return 'online';
   if (s.includes('degrade') || s.includes('rebuild') || s.includes('resync')) return 'degraded';
   return 'offline';
 }
 
-const UNAS_MODEL_NAMES = {
+const UNAS_MODEL_NAMES: Record<string, string> = {
   UNAS2B: 'UNAS 2',
   UNAS2: 'UNAS 2',
   UNAS4B: 'UNAS 4',
@@ -47,7 +51,7 @@ const UNAS_MODEL_NAMES = {
   'UNAS-PRO': 'UNAS Pro',
 };
 
-function unasModelLabel(hardwareShort) {
+function unasModelLabel(hardwareShort: Upstream) {
   const code = String(hardwareShort || '').toUpperCase();
   if (!code) return 'UNAS';
   if (UNAS_MODEL_NAMES[code]) return UNAS_MODEL_NAMES[code];
@@ -60,7 +64,7 @@ function unasModelLabel(hardwareShort) {
   );
 }
 
-function diskSmart(disk) {
+function diskSmart(disk: Upstream) {
   const state = String(disk.state || '').toLowerCase();
   const risks = Array.isArray(disk.riskReasons) ? disk.riskReasons.length : 0;
   const badSectors =
@@ -70,7 +74,7 @@ function diskSmart(disk) {
   return 'ok';
 }
 
-const INCOMPAT_LABELS = {
+const INCOMPAT_LABELS: Record<string, string> = {
   DISK_INCOMPATIBLE_REASON_SMALLER_SIZE: 'smaller capacity',
   DISK_INCOMPATIBLE_REASON_LARGER_SIZE: 'larger than usable',
   DISK_INCOMPATIBLE_REASON_LOWER_RPM: 'slower RPM',
@@ -79,7 +83,7 @@ const INCOMPAT_LABELS = {
   DISK_INCOMPATIBLE_REASON_DIFFERENT_TYPE: 'different type',
 };
 
-function formatIncompatibility(code) {
+function formatIncompatibility(code: Upstream) {
   if (INCOMPAT_LABELS[code]) return INCOMPAT_LABELS[code];
   return String(code)
     .replace(/^DISK_INCOMPATIBLE_REASON_/, '')
@@ -94,11 +98,11 @@ async function fetchUnasDataRaw() {
     safeUnasFetch('/api/system', null),
   ]);
 
-  const rawPools = Array.isArray(storage?.pools) ? storage.pools : [];
-  const rawDisks = Array.isArray(storage?.disks) ? storage.disks : [];
+  const rawPools: Upstream[] = Array.isArray(storage?.pools) ? storage.pools : [];
+  const rawDisks: Upstream[] = Array.isArray(storage?.disks) ? storage.disks : [];
 
-  const pools = rawPools.map((p) => {
-    const incompatSet = new Set();
+  const pools = rawPools.map((p: Upstream) => {
+    const incompatSet = new Set<string>();
     for (const d of rawDisks) {
       if (d.poolId !== p.id) continue;
       for (const code of d.incompatibleReasons || []) incompatSet.add(code);
@@ -122,7 +126,7 @@ async function fetchUnasDataRaw() {
     };
   });
 
-  const disks = rawDisks.map((d) => ({
+  const disks = rawDisks.map((d: Upstream) => ({
     slot: String(d.slotId ?? '?'),
     model: String(d.model || 'unknown').trim(),
     tempC: Number(d.temperature) || 0,
@@ -171,8 +175,8 @@ export function probeUnas() {
   return unasFetch('/proxy/drive/api/v2/storage');
 }
 
-export function registerUnas(app) {
-  app.get('/api/unas', async (_req, res) => {
+export function registerUnas(app: Express) {
+  app.get('/api/unas', async (_req: Request, res: Response) => {
     if (!UNAS_ENABLED) return res.json({ disabled: true });
     if (!UNAS_BASE_URL || !UNAS_API_KEY) {
       return res.status(503).json({
@@ -182,12 +186,12 @@ export function registerUnas(app) {
     try {
       res.json(await fetchUnasData());
     } catch (err) {
-      console.error('UNAS API error:', err.message);
-      res.status(502).json({ error: err.message });
+      console.error('UNAS API error:', errorMessage(err));
+      res.status(502).json({ error: errorMessage(err) });
     }
   });
 
-  app.get('/api/unas/debug', async (_req, res) => {
+  app.get('/api/unas/debug', async (_req: Request, res: Response) => {
     if (!UNAS_ENABLED) return res.json({ disabled: true });
     const c = fetchUnasData.peek();
     res.json({
