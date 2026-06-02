@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type Hls from 'hls.js'; // type only — the runtime lib is lazy-loaded below
 import type { ProtectCamera } from '../../types';
 import { CameraSnapshot } from './CameraSnapshot';
+import { cn } from '@/lib/utils';
 
 interface Props {
   camera: ProtectCamera;
@@ -156,17 +157,12 @@ export function CameraLiveStream({
 
   return (
     <div
-      className={`cam-live ${className ?? ''}`}
+      className={cn(
+        'cam-live relative flex w-full items-center justify-center overflow-hidden rounded-md bg-black',
+        className,
+      )}
       style={{
-        position: 'relative',
-        width: '100%',
         aspectRatio: String(aspect),
-        background: '#000',
-        borderRadius: 6,
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
       }}
     >
       <video
@@ -174,62 +170,32 @@ export function CameraLiveStream({
         muted={muted}
         playsInline
         autoPlay
-        style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          display: status.kind === 'live' ? 'block' : 'none',
-          background: '#000',
-        }}
+        className={cn(
+          'h-full w-full bg-black object-cover',
+          status.kind === 'live' ? 'block' : 'hidden',
+        )}
       />
       {status.kind !== 'live' ? (
         <div
-          className="t-sub"
-          style={{
-            color: status.kind === 'error' ? '#c66' : '#9aa',
-            textAlign: 'center',
-            padding: 12,
-            maxWidth: '90%',
-          }}
+          className={cn(
+            't-sub max-w-[90%] p-3 text-center',
+            status.kind === 'error' ? 'text-bad' : 'text-muted-foreground',
+          )}
         >
           {status.kind === 'starting' && 'starting live stream…'}
           {status.kind === 'offline' && 'offline'}
           {status.kind === 'error' && status.message}
         </div>
       ) : null}
-      <div
-        style={{
-          position: 'absolute',
-          left: 8,
-          bottom: 6,
-          fontSize: 11,
-          padding: '2px 6px',
-          borderRadius: 3,
-          background: 'rgba(0,0,0,0.55)',
-          color: '#fff',
-          fontFamily: 'var(--font-sans)',
-          letterSpacing: 0.2,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
-      >
+      <div className="absolute bottom-1.5 left-2 flex items-center gap-1.5 rounded-[3px] bg-black/55 px-1.5 py-0.5 font-sans text-[11px] text-white">
         <span
-          style={{
-            display: 'inline-block',
-            width: 6,
-            height: 6,
-            borderRadius: 50,
-            background:
-              status.kind === 'live'
-                ? '#ff3b30'
-                : camera.state === 'CONNECTED'
-                  ? 'var(--ok, #00d27a)'
-                  : 'var(--bad, #e34)',
-          }}
+          className={cn(
+            'inline-block size-1.5 rounded-full',
+            status.kind === 'live' ? 'bg-bad' : camera.state === 'CONNECTED' ? 'bg-ok' : 'bg-bad',
+          )}
         />
         {camera.name}
-        {status.kind === 'live' ? <span style={{ opacity: 0.75 }}>LIVE</span> : null}
+        {status.kind === 'live' ? <span className="opacity-75">LIVE</span> : null}
       </div>
     </div>
   );

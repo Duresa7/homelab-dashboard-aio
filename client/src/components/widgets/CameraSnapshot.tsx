@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ProtectCamera } from '../../types';
+import { cn } from '@/lib/utils';
 
 interface Props {
   camera: ProtectCamera;
@@ -79,63 +80,34 @@ export function CameraSnapshot({
 
   return (
     <div
-      className={`cam-snap ${className ?? ''}`}
+      className={cn(
+        'cam-snap relative flex w-full items-center justify-center overflow-hidden rounded-md bg-black',
+        className,
+      )}
       style={{
-        position: 'relative',
-        width: '100%',
         aspectRatio: String(aspect),
-        background: '#000',
-        borderRadius: 6,
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
       }}
     >
       {displayed && isConnected ? (
         <img
           src={displayed}
-          alt={camera.name}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          alt={`${camera.name} snapshot`}
+          className="block h-full w-full object-cover"
         />
       ) : null}
       {!isConnected ? (
-        <div className="t-sub" style={{ color: '#9aa' }}>
-          offline
-        </div>
+        <div className="t-sub text-muted-foreground">offline</div>
       ) : !primed ? (
-        <div className="t-sub" style={{ color: '#9aa' }}>
-          loading…
-        </div>
+        <div className="t-sub text-muted-foreground">loading…</div>
       ) : failed && !displayed ? (
-        <div className="t-sub" style={{ color: '#c66' }}>
-          no snapshot
-        </div>
+        <div className="t-sub text-bad">no snapshot</div>
       ) : null}
-      <div
-        style={{
-          position: 'absolute',
-          left: 8,
-          bottom: 6,
-          fontSize: 11,
-          padding: '2px 6px',
-          borderRadius: 3,
-          background: 'rgba(0,0,0,0.55)',
-          color: '#fff',
-          fontFamily: 'var(--font-sans)',
-          letterSpacing: 0.2,
-        }}
-      >
+      <div className="absolute bottom-1.5 left-2 rounded-[3px] bg-black/55 px-1.5 py-0.5 font-sans text-[11px] text-white">
         <span
-          style={{
-            display: 'inline-block',
-            width: 6,
-            height: 6,
-            borderRadius: 50,
-            background: isConnected ? 'var(--ok, #00d27a)' : 'var(--bad, #e34)',
-            marginRight: 6,
-            verticalAlign: 'middle',
-          }}
+          className={cn(
+            'mr-1.5 inline-block size-1.5 rounded-full align-middle',
+            isConnected ? 'bg-ok' : 'bg-bad',
+          )}
         />
         {camera.name}
       </div>

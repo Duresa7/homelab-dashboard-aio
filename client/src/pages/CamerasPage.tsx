@@ -366,14 +366,6 @@ function eventSeverity(e: ProtectEvent): Severity {
   return 'info';
 }
 
-function formatTimeAgo(ts: number): string {
-  const diff = Math.max(0, Date.now() - ts);
-  if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  return new Date(ts).toLocaleString();
-}
-
 function formatEventType(e: ProtectEvent): string {
   let label = e.type
     .replace(/([A-Z])/g, ' $1')
@@ -534,7 +526,7 @@ function Events({ data }: { data: DashboardState }) {
                 className="tabular-nums text-muted-foreground"
                 title={new Date(e.start).toLocaleString()}
               >
-                {formatTimeAgo(e.start)}
+                {formatSince(e.start, { granularity: 'second', absoluteAfterMs: 86400000 })}
               </TableCell>
               <TableCell className="text-foreground">{deviceLabel(e)}</TableCell>
               <TableCell>

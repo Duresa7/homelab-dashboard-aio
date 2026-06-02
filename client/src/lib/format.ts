@@ -30,18 +30,42 @@ export function ageSince(iso: string | null): AgeInfo | null {
   return { label, days };
 }
 
+export interface FormatSinceOptions {
+  granularity?: 'minute' | 'second';
+  absoluteAfterMs?: number;
+}
+
+function epochMs(value: Date | number | string | null | undefined): number | null {
+  if (!value) return null;
+  const ms =
+    value instanceof Date ? value.getTime() : typeof value === 'string' ? Date.parse(value) : value;
+  return Number.isNaN(ms) ? null : ms;
+}
+
 /**
- * Relative "time since" with minute/hour/day granularity, for recent,
- * live-ish epoch-ms timestamps (e.g. NVR arm/breach events). Distinct from
- * `ageSince` above, which takes an ISO date string and reports coarse
- * day/month-level age. Returns an em dash for missing/zero input.
+ * Relative "time since" formatter for recent, live-ish timestamps.
+ *
+ * Default output preserves the dashboard tile/NVR minute-hour-day strings.
+ * `granularity: 'second'` preserves camera event-row strings, including
+ * second-level freshness and a configurable absolute-date cutoff.
  */
-export function formatSince(ts: number | null): string {
-  if (!ts) return '—';
+export function formatSince(
+  value: Date | number | string | null | undefined,
+  options: FormatSinceOptions = {},
+): string {
+  const ts = epochMs(value);
+  if (ts == null) return '—';
   const diff = Math.max(0, Date.now() - ts);
+  if (options.absoluteAfterMs != null && diff >= options.absoluteAfterMs) {
+    return new Date(ts).toLocaleString();
+  }
+  if (options.granularity === 'second' && diff < 60000) {
+    return `${Math.floor(diff / 1000)}s ago`;
+  }
   const m = Math.floor(diff / 60000);
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
+  if (options.granularity === 'second' && h < 24) return `${h}h ago`;
   if (h < 24) return `${h}h ${m % 60}m ago`;
   const d = Math.floor(h / 24);
   return `${d}d ${h % 24}h ago`;

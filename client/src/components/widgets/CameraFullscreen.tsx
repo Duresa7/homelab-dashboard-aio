@@ -10,6 +10,7 @@ import {
 import type { ProtectCamera } from '../../types';
 import { CameraSnapshot } from './CameraSnapshot';
 import { CameraLiveStream } from './CameraLiveStream';
+import { cn } from '@/lib/utils';
 
 export type CameraViewMode = 'snapshot' | 'live';
 
@@ -59,61 +60,31 @@ export function CameraFullscreen({ camera, initialMode = 'snapshot', onClose }: 
   return (
     <div
       onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.85)',
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/85 p-6"
     >
       <div
         ref={panelRef}
         onClick={(e) => e.stopPropagation()}
+        className="relative flex flex-col overflow-hidden bg-black"
         style={{
-          position: 'relative',
           width: isFs ? '100vw' : 'min(95vw, 1600px)',
           height: isFs ? '100vh' : 'auto',
           maxHeight: '95vh',
-          background: '#000',
           borderRadius: isFs ? 0 : 8,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 2,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '10px 14px',
-            background: 'linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0))',
-            color: '#fff',
-            fontFamily: 'var(--font-sans)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="absolute inset-x-0 top-0 z-[2] flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-3.5 py-2.5 font-sans text-white">
+          <div className="flex items-center gap-2.5">
             <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 50,
-                background: camera.state === 'CONNECTED' ? '#00d27a' : '#e34',
-              }}
+              className={cn(
+                'size-2 rounded-full',
+                camera.state === 'CONNECTED' ? 'bg-ok' : 'bg-bad',
+              )}
             />
-            <strong style={{ fontSize: 15 }}>{camera.name}</strong>
-            <span style={{ fontSize: 12, opacity: 0.7 }}>{camera.modelKey}</span>
+            <strong className="text-[15px]">{camera.name}</strong>
+            <span className="text-xs opacity-70">{camera.modelKey}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="flex items-center gap-2">
             <ModeButton active={mode === 'snapshot'} onClick={() => setMode('snapshot')}>
               Snapshot
             </ModeButton>
@@ -149,17 +120,8 @@ export function CameraFullscreen({ camera, initialMode = 'snapshot', onClose }: 
             </IconButton>
           </div>
         </div>
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#000',
-            minHeight: 0,
-          }}
-        >
-          <div style={{ width: '100%', height: '100%', maxHeight: '100%' }}>
+        <div className="flex min-h-0 flex-1 items-center justify-center bg-black">
+          <div className="h-full max-h-full w-full">
             {mode === 'live' ? (
               <CameraLiveStream
                 key={`live-${quality}`}
@@ -190,15 +152,10 @@ function ModeButton({
   return (
     <button
       onClick={onClick}
-      style={{
-        background: active ? '#fff' : 'rgba(255,255,255,0.1)',
-        color: active ? '#000' : '#fff',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: 4,
-        padding: '4px 10px',
-        fontSize: 12,
-        cursor: 'pointer',
-      }}
+      className={cn(
+        'cursor-pointer rounded border border-white/20 px-2.5 py-1 text-xs',
+        active ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20',
+      )}
     >
       {children}
     </button>
@@ -218,18 +175,7 @@ function IconButton({
     <button
       title={title}
       onClick={onClick}
-      style={{
-        background: 'rgba(255,255,255,0.1)',
-        color: '#fff',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: 4,
-        width: 28,
-        height: 28,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-      }}
+      className="flex size-7 cursor-pointer items-center justify-center rounded border border-white/20 bg-white/10 text-white hover:bg-white/20"
     >
       {children}
     </button>
