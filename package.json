@@ -12,13 +12,18 @@
     "start": "node server/src/index.js",
     "build": "tsc -p client/tsconfig.json --noEmit && vite build --config client/vite.config.ts",
     "typecheck": "tsc -p client/tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "preview": "vite preview --config client/vite.config.ts",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f dashboard"
+    "docker:logs": "docker compose logs -f dashboard",
+    "prepare": "husky"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
@@ -52,13 +57,41 @@
     "undici": "^8.3.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^25.9.1",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
+    "@types/supertest": "^7.2.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^10.4.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "husky": "^9.1.7",
+    "jsdom": "^29.1.1",
+    "lint-staged": "^17.0.7",
+    "prettier": "^3.8.3",
+    "supertest": "^7.2.2",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.6.3",
+    "typescript-eslint": "^8.60.1",
     "vite": "^5.4.10",
     "vitest": "^2.1.9"
+  },
+  "lint-staged": {
+    "*.{css,json,md,yaml,yml}": "prettier --write",
+    "*.{js,mjs,cjs,ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "{client,server}/**/*.{js,ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
   }
 }
