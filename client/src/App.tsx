@@ -9,7 +9,6 @@ import { ExpandOverlay } from './components/tile/ExpandOverlay';
 import { ALL_TILES, type TileId } from './components/widgets';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
-import { Checkbox } from '@/components/ui/checkbox';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { getState, setState, isDegraded } from './lib/store';
 
@@ -21,7 +20,7 @@ import { NasPage } from './pages/NasPage';
 import { CamerasPage } from './pages/CamerasPage';
 import { EventsPage } from './pages/EventsPage';
 import { AlertsPage } from './pages/AlertsPage';
-import { SettingsPage } from './pages/SettingsPage';
+import { SettingsPage, type SettingsTabId } from './pages/SettingsPage';
 import { HealthPage } from './pages/HealthPage';
 import { SiemPage } from './pages/SiemPage';
 import { InventoryPage } from './pages/InventoryPage';
@@ -29,10 +28,6 @@ import { PlaygroundPage } from './pages/PlaygroundPage';
 
 import { INTEGRATION_KEYS, setIntegrationEnabled, useDashData, type IntegrationKey } from './lib/telemetry';
 import {
-  TweakRadio,
-  TweakSection,
-  TweakToggle,
-  TweaksPanel,
   useSystemTheme,
   useTweaks,
 } from './lib/tweaks';
@@ -88,7 +83,7 @@ export function App() {
   const [expanded, setExpanded] = useState<TileId | null>(null);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<number>>(new Set());
   const [cmdOpen, setCmdOpen] = useState(false);
-  const [tweaksOpen, setTweaksOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTabId>('preferences');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => !getState<boolean>('sidebarCollapsed', false));
   const handleSidebarOpenChange = (open: boolean) => {
     setSidebarOpen(open);
@@ -185,7 +180,10 @@ export function App() {
             onNavigateSection={(s) => setRoute(s)}
             onToggleTheme={() => setTweak('theme', theme === 'dark' ? 'light' : 'dark')}
             onOpenSearch={() => setCmdOpen(true)}
-            onOpenTweaks={() => setTweaksOpen(true)}
+            onOpenPreferences={() => {
+              setSettingsTab('preferences');
+              setRoute('settings');
+            }}
           />
 
           <div className="w-full max-w-[var(--content-max)] flex-1 px-[var(--page-pad)] pt-[var(--page-pad)] pb-24">
@@ -235,7 +233,21 @@ export function App() {
             {route.section === 'settings' && (
               <SettingsPage
                 integrations={integrations}
-                onChange={(next) => setTweak('integrations', next)}
+                preferences={{
+                  theme: t.theme,
+                  density: t.density,
+                  showAlerts: t.showAlerts,
+                  overviewLayout: t.overviewLayout,
+                }}
+                tab={settingsTab}
+                onTabChange={setSettingsTab}
+                onIntegrationChange={(next) => setTweak('integrations', next)}
+                onPreferenceChange={(key, value) => {
+                  if (key === 'theme') setTweak('theme', value as ThemeChoice);
+                  if (key === 'density') setTweak('density', value as Density);
+                  if (key === 'showAlerts') setTweak('showAlerts', value as boolean);
+                  if (key === 'overviewLayout') setTweak('overviewLayout', value as TileId[]);
+                }}
               />
             )}
           </div>
@@ -258,61 +270,6 @@ export function App() {
           density={t.density}
           onSetDensity={(d) => setTweak('density', d)}
         />
-
-        <TweaksPanel open={tweaksOpen} onOpenChange={setTweaksOpen} title="Customize">
-          <TweakSection label="Appearance" />
-          <TweakRadio
-            label="Theme"
-            value={t.theme}
-            options={[
-              { value: 'light', label: 'light' },
-              { value: 'dark', label: 'dark' },
-              { value: 'system', label: 'auto' },
-            ]}
-            onChange={(v) => setTweak('theme', v)}
-          />
-          <TweakRadio
-            label="Density"
-            value={t.density}
-            options={[
-              { value: 'compact', label: 'compact' },
-              { value: 'regular', label: 'regular' },
-              { value: 'comfy', label: 'comfy' },
-            ]}
-            onChange={(v) => setTweak('density', v)}
-          />
-
-          <TweakSection label="Overview" />
-          <TweakToggle
-            label="Alert banner"
-            value={t.showAlerts}
-            onChange={(v) => setTweak('showAlerts', v)}
-          />
-
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-foreground">Tiles on overview</span>
-            <div className="flex flex-col gap-1">
-              {ALL_TILES.map((tile) => {
-                const on = t.overviewLayout.includes(tile.id);
-                return (
-                  <label
-                    key={tile.id}
-                    className="flex cursor-pointer items-center gap-2.5 rounded-md px-1 py-1 text-sm text-foreground hover:bg-accent"
-                  >
-                    <Checkbox
-                      checked={on}
-                      onCheckedChange={(checked) => {
-                        const cur = t.overviewLayout.filter((x) => x !== tile.id);
-                        setTweak('overviewLayout', checked ? [...cur, tile.id] : cur);
-                      }}
-                    />
-                    {tile.label}
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        </TweaksPanel>
 
         <Toaster />
       </SidebarProvider>

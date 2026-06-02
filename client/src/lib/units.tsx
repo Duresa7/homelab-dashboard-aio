@@ -24,8 +24,17 @@ const UnitContext = createContext<Ctx>({
   toggle: () => {},
 });
 
+function normalizeUnit(value: unknown): TempUnit {
+  if (typeof value !== 'string') return 'F';
+  const raw = value.trim();
+  const parsed = raw.startsWith('"') ? (() => {
+    try { return JSON.parse(raw); } catch { return raw; }
+  })() : raw;
+  return String(parsed).trim().toUpperCase() === 'C' ? 'C' : 'F';
+}
+
 function readStoredUnit(): TempUnit {
-  return getState<string>(STORAGE_KEY, 'F') === 'C' ? 'C' : 'F';
+  return normalizeUnit(getState<unknown>(STORAGE_KEY, 'F'));
 }
 
 export function TempUnitProvider({ children }: { children: ReactNode }) {
@@ -37,12 +46,9 @@ export function TempUnitProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggle = useCallback(() => {
-    setUnitState((prev) => {
-      const next = prev === 'F' ? 'C' : 'F';
-      setState<TempUnit>(STORAGE_KEY, next);
-      return next;
-    });
-  }, []);
+    const next = readStoredUnit() === 'F' ? 'C' : 'F';
+    setUnit(next);
+  }, [setUnit]);
 
   useEffect(() => {
     return subscribeState(STORAGE_KEY, () => setUnitState(readStoredUnit()));
@@ -61,6 +67,10 @@ export function useTempUnit(): Ctx {
 
 export function cToF(c: number): number {
   return (c * 9) / 5 + 32;
+}
+
+export function fToC(f: number): number {
+  return ((f - 32) * 5) / 9;
 }
 
 export function convertTemp(tempC: number, unit: TempUnit): number {

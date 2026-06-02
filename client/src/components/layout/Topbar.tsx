@@ -22,7 +22,7 @@ interface Props {
   onNavigateSection: (section: Section) => void;
   onToggleTheme: () => void;
   onOpenSearch: () => void;
-  onOpenTweaks: () => void;
+  onOpenPreferences: () => void;
 }
 
 function IconAction({
@@ -46,7 +46,7 @@ function IconAction({
   );
 }
 
-export function Topbar({ section, activeSub, theme, onNavigateSection, onToggleTheme, onOpenSearch, onOpenTweaks }: Props) {
+export function Topbar({ section, activeSub, theme, onNavigateSection, onToggleTheme, onOpenSearch, onOpenPreferences }: Props) {
   const { unit, toggle } = useTempUnit();
   const sectionLbl = SECTION_LABEL[section];
   const here = activeSub ? subLabel(section, activeSub) : null;
@@ -113,7 +113,7 @@ export function Topbar({ section, activeSub, theme, onNavigateSection, onToggleT
           <IconAction label={theme === 'dark' ? 'Light mode' : 'Dark mode'} onClick={onToggleTheme}>
             {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </IconAction>
-          <IconAction label="Customize" onClick={onOpenTweaks}>
+          <IconAction label="Preferences" onClick={onOpenPreferences}>
             <SlidersHorizontal className="size-4" />
           </IconAction>
         </div>
