@@ -80,4 +80,22 @@ describe('state API contract', () => {
       .send('f')
       .expect(200);
   });
+
+  // Regression: top-level JSON primitives (e.g. tempUnit "f", a boolean toggle,
+  // a numeric count) must be accepted AND persisted with their type. Express's
+  // default `express.json({ strict: true })` rejects primitives outright, which
+  // would silently break persistence of these reserved/primitive keys; the
+  // route uses `strict: false` precisely so they round-trip.
+  it('round-trips primitive values that strict JSON parsing would reject', async () => {
+    const putJson = (key, raw) =>
+      api.put(`/api/state/${key}`).set('Content-Type', 'application/json').send(raw).expect(200);
+
+    await putJson('tempUnit', '"f"');
+    await putJson('sidebarCollapsed', 'true');
+    await putJson('custom.count', '42');
+
+    expect((await api.get('/api/state/tempUnit').expect(200)).body.value).toBe('f');
+    expect((await api.get('/api/state/sidebarCollapsed').expect(200)).body.value).toBe(true);
+    expect((await api.get('/api/state/custom.count').expect(200)).body.value).toBe(42);
+  });
 });

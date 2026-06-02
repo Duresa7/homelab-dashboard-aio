@@ -22,7 +22,6 @@ export function UnasTile({ data, span, onExpand, expandable }: Props) {
   const { model, tempC, pools, disks } = data;
   const totalTB = pools.reduce((a, p) => a + p.totalTB, 0);
   const usedTB = pools.reduce((a, p) => a + p.usedTB, 0);
-  const pct = totalTB ? (usedTB / totalTB) * 100 : 0;
   const anyDegraded = pools.some((p) => p.status === 'degraded' || p.status === 'offline');
 
   return (

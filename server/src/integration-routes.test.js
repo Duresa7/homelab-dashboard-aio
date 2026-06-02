@@ -427,4 +427,67 @@ describe('Integration route contracts', () => {
       errorSpy.mockRestore();
     }
   });
+
+  // Pins the failure contract for the other HTTP integrations so the #05
+  // decompose (which extracts the safe-fetch / route-factory layer) cannot
+  // silently change error mapping. Each integration's PRIMARY (non-safe)
+  // upstream call is forced to 500; the route must answer 502 with an error
+  // string. (Sub-resource calls use safe* wrappers and degrade — that
+  // swallowing is addressed in #07, not here.)
+  it('maps a failing primary upstream to 502 for every HTTP integration', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const cases = [
+      {
+        route: '/api/unifi',
+        failPath: '/proxy/network/integration/v1/sites',
+        env: (baseUrl) => ({
+          UNIFI_ENABLED: 'true',
+          UNIFI_BASE_URL: baseUrl,
+          UNIFI_API_KEY: 'key',
+        }),
+      },
+      {
+        route: '/api/proxmox',
+        failPath: '/api2/json/nodes',
+        env: (baseUrl) => ({
+          PROXMOX_ENABLED: 'true',
+          PROXMOX_BASE_URL: baseUrl,
+          PROXMOX_TOKEN_ID: 'root@pam!dash',
+          PROXMOX_TOKEN_SECRET: 'secret',
+        }),
+      },
+      {
+        route: '/api/unas',
+        failPath: '/proxy/drive/api/v2/storage',
+        env: (baseUrl) => ({ UNAS_ENABLED: 'true', UNAS_BASE_URL: baseUrl, UNAS_API_KEY: 'key' }),
+      },
+      {
+        route: '/api/protect',
+        failPath: '/proxy/protect/integration/v1/cameras',
+        env: (baseUrl) => ({
+          PROTECT_ENABLED: 'true',
+          PROTECT_BASE_URL: baseUrl,
+          PROTECT_API_KEY: 'key',
+        }),
+      },
+    ];
+
+    try {
+      for (const { route, failPath, env } of cases) {
+        await withJsonUpstream(
+          { [failPath]: { statusCode: 500, body: { error: 'upstream down' } } },
+          async (baseUrl) => {
+            await usingApp(env(baseUrl), async (api) => {
+              const res = await api.get(route).expect(502);
+              expect(typeof res.body.error).toBe('string');
+              expect(res.body.error.length).toBeGreaterThan(0);
+            });
+          },
+        );
+      }
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
 });
