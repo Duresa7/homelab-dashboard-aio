@@ -2066,15 +2066,17 @@ function shutdownProtect() {
     /* ignore */
   }
 }
-process.on('SIGINT', () => {
-  shutdownProtect();
-  process.exit(0);
-});
-process.on('SIGTERM', () => {
-  shutdownProtect();
-  process.exit(0);
-});
-process.on('exit', shutdownProtect);
+if (process.env.NODE_ENV !== 'test') {
+  process.on('SIGINT', () => {
+    shutdownProtect();
+    process.exit(0);
+  });
+  process.on('SIGTERM', () => {
+    shutdownProtect();
+    process.exit(0);
+  });
+  process.on('exit', shutdownProtect);
+}
 
 app.get('/api/protect/debug', async (_req, res) => {
   if (!PROTECT_ENABLED) return res.json({ disabled: true });
@@ -2114,20 +2116,22 @@ const stateHandle = await initState(app, { dbPath: STATE_DB_PATH }).catch((err) 
   console.error(`State: init failed - ${err.message}`);
   return { shutdown() {}, recordMetric() {} };
 });
-process.on('SIGINT', () => {
-  try {
-    stateHandle.shutdown();
-  } catch {
-    /* ignore */
-  }
-});
-process.on('SIGTERM', () => {
-  try {
-    stateHandle.shutdown();
-  } catch {
-    /* ignore */
-  }
-});
+if (process.env.NODE_ENV !== 'test') {
+  process.on('SIGINT', () => {
+    try {
+      stateHandle.shutdown();
+    } catch {
+      /* ignore */
+    }
+  });
+  process.on('SIGTERM', () => {
+    try {
+      stateHandle.shutdown();
+    } catch {
+      /* ignore */
+    }
+  });
+}
 
 // SIEM mounts UDP listener + SSE + REST routes on `app`. Must complete before app.listen.
 const siemHandle = await initSiem(app, {
@@ -2141,20 +2145,22 @@ const siemHandle = await initSiem(app, {
   console.error(`SIEM: init failed - ${err.message}`);
   return { shutdown() {} };
 });
-process.on('SIGINT', () => {
-  try {
-    siemHandle.shutdown();
-  } catch {
-    /* ignore */
-  }
-});
-process.on('SIGTERM', () => {
-  try {
-    siemHandle.shutdown();
-  } catch {
-    /* ignore */
-  }
-});
+if (process.env.NODE_ENV !== 'test') {
+  process.on('SIGINT', () => {
+    try {
+      siemHandle.shutdown();
+    } catch {
+      /* ignore */
+    }
+  });
+  process.on('SIGTERM', () => {
+    try {
+      siemHandle.shutdown();
+    } catch {
+      /* ignore */
+    }
+  });
+}
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
@@ -2165,85 +2171,89 @@ app.get(/^\/(?!api\/|healthz).*/, (_req, res, next) => {
   res.sendFile(path.join(distDir, 'index.html'), (err) => err && next());
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Dashboard listening on http://0.0.0.0:${PORT}`);
-  if (UNIFI_ENABLED) {
-    console.log(`UniFi: enabled — ${BASE_URL}`);
-    console.log(`UniFi API Key: ${API_KEY ? 'configured' : 'NO — add UNIFI_API_KEY to .env'}`);
-  } else {
-    console.log('UniFi: DISABLED (set UNIFI_ENABLED=true in .env to enable)');
-  }
-  if (PROXMOX_ENABLED) {
-    const pveOk = !!(PVE_BASE_URL && PVE_TOKEN_ID && PVE_TOKEN_SECRET);
-    console.log(
-      `Proxmox: ${pveOk ? `enabled — ${PVE_BASE_URL}` : 'enabled but NOT configured — set PROXMOX_* in .env'}`,
-    );
-  } else {
-    console.log('Proxmox: DISABLED (set PROXMOX_ENABLED=true in .env to enable)');
-  }
-  if (PORTAINER_ENABLED) {
-    const portainerOk = !!(PORTAINER_BASE_URL && PORTAINER_API_KEY);
-    console.log(
-      `Portainer: ${portainerOk ? `enabled — ${PORTAINER_BASE_URL}` : 'enabled but NOT configured — set PORTAINER_* in .env'}`,
-    );
-  } else {
-    console.log('Portainer: DISABLED (set PORTAINER_ENABLED=true in .env to enable)');
-  }
-  if (UNAS_ENABLED) {
-    const unasOk = !!(UNAS_BASE_URL && UNAS_API_KEY);
-    console.log(
-      `UNAS: ${unasOk ? `enabled — ${UNAS_BASE_URL}` : 'enabled but NOT configured — set UNAS_* in .env'}`,
-    );
-  } else {
-    console.log('UNAS: DISABLED (set UNAS_ENABLED=true in .env to enable)');
-  }
-  if (PROTECT_ENABLED) {
-    const protectOk = !!(PROTECT_BASE_URL && PROTECT_API_KEY);
-    console.log(
-      `Protect: ${protectOk ? `enabled — ${PROTECT_BASE_URL}` : 'enabled but NOT configured — set PROTECT_* in .env'}`,
-    );
-    if (protectOk) {
-      // Detect ffmpeg in the background; failure just disables live video.
-      detectFfmpeg().catch(() => {});
-      startProtectEventSubscriber();
-    }
-  } else {
-    console.log('Protect: DISABLED (set PROTECT_ENABLED=true in .env to enable)');
-  }
-  if (GPU_ENABLED) {
-    if (GPU_MODE === 'local') {
-      console.log('GPU: enabled — local nvidia-smi');
-    } else if (GPU_SSH_HOST) {
-      console.log(`GPU: enabled — ssh ${GPU_SSH_USER}@${GPU_SSH_HOST}:${GPU_SSH_PORT}`);
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Dashboard listening on http://0.0.0.0:${PORT}`);
+    if (UNIFI_ENABLED) {
+      console.log(`UniFi: enabled — ${BASE_URL}`);
+      console.log(`UniFi API Key: ${API_KEY ? 'configured' : 'NO — add UNIFI_API_KEY to .env'}`);
     } else {
-      console.log('GPU: enabled but NOT configured — set GPU_SSH_HOST or GPU_MODE=local in .env');
+      console.log('UniFi: DISABLED (set UNIFI_ENABLED=true in .env to enable)');
     }
-  } else {
-    console.log('GPU: DISABLED (set GPU_ENABLED=true in .env to enable)');
-  }
-  if (SENSORS_ENABLED) {
-    if (SENSORS_MODE === 'local') {
-      console.log('Sensors: enabled — local sensors -j');
-    } else if (SENSORS_SSH_HOST) {
+    if (PROXMOX_ENABLED) {
+      const pveOk = !!(PVE_BASE_URL && PVE_TOKEN_ID && PVE_TOKEN_SECRET);
       console.log(
-        `Sensors: enabled — ssh ${SENSORS_SSH_USER}@${SENSORS_SSH_HOST}:${SENSORS_SSH_PORT}`,
+        `Proxmox: ${pveOk ? `enabled — ${PVE_BASE_URL}` : 'enabled but NOT configured — set PROXMOX_* in .env'}`,
+      );
+    } else {
+      console.log('Proxmox: DISABLED (set PROXMOX_ENABLED=true in .env to enable)');
+    }
+    if (PORTAINER_ENABLED) {
+      const portainerOk = !!(PORTAINER_BASE_URL && PORTAINER_API_KEY);
+      console.log(
+        `Portainer: ${portainerOk ? `enabled — ${PORTAINER_BASE_URL}` : 'enabled but NOT configured — set PORTAINER_* in .env'}`,
+      );
+    } else {
+      console.log('Portainer: DISABLED (set PORTAINER_ENABLED=true in .env to enable)');
+    }
+    if (UNAS_ENABLED) {
+      const unasOk = !!(UNAS_BASE_URL && UNAS_API_KEY);
+      console.log(
+        `UNAS: ${unasOk ? `enabled — ${UNAS_BASE_URL}` : 'enabled but NOT configured — set UNAS_* in .env'}`,
+      );
+    } else {
+      console.log('UNAS: DISABLED (set UNAS_ENABLED=true in .env to enable)');
+    }
+    if (PROTECT_ENABLED) {
+      const protectOk = !!(PROTECT_BASE_URL && PROTECT_API_KEY);
+      console.log(
+        `Protect: ${protectOk ? `enabled — ${PROTECT_BASE_URL}` : 'enabled but NOT configured — set PROTECT_* in .env'}`,
+      );
+      if (protectOk) {
+        // Detect ffmpeg in the background; failure just disables live video.
+        detectFfmpeg().catch(() => {});
+        startProtectEventSubscriber();
+      }
+    } else {
+      console.log('Protect: DISABLED (set PROTECT_ENABLED=true in .env to enable)');
+    }
+    if (GPU_ENABLED) {
+      if (GPU_MODE === 'local') {
+        console.log('GPU: enabled — local nvidia-smi');
+      } else if (GPU_SSH_HOST) {
+        console.log(`GPU: enabled — ssh ${GPU_SSH_USER}@${GPU_SSH_HOST}:${GPU_SSH_PORT}`);
+      } else {
+        console.log('GPU: enabled but NOT configured — set GPU_SSH_HOST or GPU_MODE=local in .env');
+      }
+    } else {
+      console.log('GPU: DISABLED (set GPU_ENABLED=true in .env to enable)');
+    }
+    if (SENSORS_ENABLED) {
+      if (SENSORS_MODE === 'local') {
+        console.log('Sensors: enabled — local sensors -j');
+      } else if (SENSORS_SSH_HOST) {
+        console.log(
+          `Sensors: enabled — ssh ${SENSORS_SSH_USER}@${SENSORS_SSH_HOST}:${SENSORS_SSH_PORT}`,
+        );
+      } else {
+        console.log(
+          'Sensors: enabled but NOT configured — set SENSORS_SSH_HOST/GPU_SSH_HOST or SENSORS_MODE=local in .env',
+        );
+      }
+    } else {
+      console.log('Sensors: DISABLED (set SENSORS_ENABLED=true in .env to enable)');
+    }
+    if (SIEM_ENABLED) {
+      console.log(
+        `SIEM: enabled — UDP ${SIEM_HOST}:${SIEM_PORT}, db ${SIEM_DB_PATH}, retention ${SIEM_RETENTION_DAYS}d`,
       );
     } else {
       console.log(
-        'Sensors: enabled but NOT configured — set SENSORS_SSH_HOST/GPU_SSH_HOST or SENSORS_MODE=local in .env',
+        'SIEM: DISABLED (set SIEM_ENABLED=true in .env to enable syslog ingestion on UDP 514)',
       );
     }
-  } else {
-    console.log('Sensors: DISABLED (set SENSORS_ENABLED=true in .env to enable)');
-  }
-  if (SIEM_ENABLED) {
-    console.log(
-      `SIEM: enabled — UDP ${SIEM_HOST}:${SIEM_PORT}, db ${SIEM_DB_PATH}, retention ${SIEM_RETENTION_DAYS}d`,
-    );
-  } else {
-    console.log(
-      'SIEM: DISABLED (set SIEM_ENABLED=true in .env to enable syslog ingestion on UDP 514)',
-    );
-  }
-  console.log(`State: db ${STATE_DB_PATH}`);
-});
+    console.log(`State: db ${STATE_DB_PATH}`);
+  });
+}
+
+export { app, sensorsHandle, shutdownProtect, siemHandle, stateHandle };

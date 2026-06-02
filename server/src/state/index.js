@@ -75,7 +75,13 @@ export async function initState(app, opts = {}) {
   const { dbPath = path.resolve('data/dashboard.sqlite') } = opts;
 
   const db = await openStateDb(dbPath);
-  const jsonBody = express.json({ limit: '4mb' });
+  const jsonBody = express.json({ limit: '4mb', strict: false });
+  const parseJsonBody = (req, res, next) => {
+    jsonBody(req, res, (err) => {
+      if (err) return res.status(400).json({ error: 'invalid JSON body' });
+      return next();
+    });
+  };
   const sameOrigin = makeSameOriginGuard();
 
   app.get('/api/state', (_req, res) => {
@@ -95,7 +101,7 @@ export async function initState(app, opts = {}) {
     res.json(row);
   });
 
-  app.put('/api/state/:key', sameOrigin, jsonBody, (req, res) => {
+  app.put('/api/state/:key', sameOrigin, parseJsonBody, (req, res) => {
     const { key } = req.params;
     if (!isAllowedKey(key)) return res.status(400).json({ error: 'invalid key' });
     if (!isValidStateBody(req.body)) {
@@ -112,7 +118,7 @@ export async function initState(app, opts = {}) {
     res.json({ key, removed });
   });
 
-  app.post('/api/state/_import', sameOrigin, jsonBody, (req, res) => {
+  app.post('/api/state/_import', sameOrigin, parseJsonBody, (req, res) => {
     const body = req.body;
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return res.status(400).json({ error: 'body must be a JSON object of key→value pairs' });
