@@ -41,6 +41,7 @@ import {
 } from './lib/route';
 import type { ChartKind } from './types';
 import { useThresholds } from './lib/thresholds';
+import { DEFAULT_DATETIME_PREFERENCES, type DateTimePreferences } from './lib/datetime';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
 type Density = 'compact' | 'regular' | 'comfy';
@@ -50,6 +51,7 @@ interface TweakState {
   density: Density;
   showAlerts: boolean;
   overviewLayout: TileId[];
+  dateTime: DateTimePreferences;
   integrations: Record<IntegrationKey, boolean>;
 }
 
@@ -57,6 +59,7 @@ const DEFAULTS: TweakState = {
   theme: 'light',
   density: 'regular',
   showAlerts: true,
+  dateTime: { ...DEFAULT_DATETIME_PREFERENCES },
   overviewLayout: [
     'bookmarks',
     'cpu', 'ram', 'gpu', 'unifi', 'proxmox', 'docker', 'storage', 'unas',
@@ -176,14 +179,9 @@ export function App() {
           <Topbar
             section={route.section}
             activeSub={activeSub}
-            theme={theme}
+            dateTime={t.dateTime}
             onNavigateSection={(s) => setRoute(s)}
-            onToggleTheme={() => setTweak('theme', theme === 'dark' ? 'light' : 'dark')}
             onOpenSearch={() => setCmdOpen(true)}
-            onOpenPreferences={() => {
-              setSettingsTab('preferences');
-              setRoute('settings');
-            }}
           />
 
           <div className="w-full max-w-[var(--content-max)] flex-1 px-[var(--page-pad)] pt-[var(--page-pad)] pb-24">
@@ -238,6 +236,7 @@ export function App() {
                   density: t.density,
                   showAlerts: t.showAlerts,
                   overviewLayout: t.overviewLayout,
+                  dateTime: t.dateTime,
                 }}
                 tab={settingsTab}
                 onTabChange={setSettingsTab}
@@ -247,6 +246,7 @@ export function App() {
                   if (key === 'density') setTweak('density', value as Density);
                   if (key === 'showAlerts') setTweak('showAlerts', value as boolean);
                   if (key === 'overviewLayout') setTweak('overviewLayout', value as TileId[]);
+                  if (key === 'dateTime') setTweak('dateTime', value as DateTimePreferences);
                 }}
               />
             )}
@@ -265,10 +265,6 @@ export function App() {
           open={cmdOpen}
           onOpenChange={setCmdOpen}
           setRoute={setRoute}
-          theme={theme}
-          onToggleTheme={() => setTweak('theme', theme === 'dark' ? 'light' : 'dark')}
-          density={t.density}
-          onSetDensity={(d) => setTweak('density', d)}
         />
 
         <Toaster />

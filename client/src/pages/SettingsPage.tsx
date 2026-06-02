@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   Bell,
+  CalendarDays,
+  Clock3,
   Gauge,
+  Globe2,
   LayoutGrid,
   Minus,
   MonitorCog,
@@ -14,6 +17,13 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/common';
@@ -22,6 +32,18 @@ import { ALL_TILES, type TileId } from '../components/widgets';
 import { INTEGRATIONS, type HealthInfo, type HealthResponse } from '../lib/integrations';
 import type { IntegrationKey } from '../lib/telemetry';
 import { convertTemp, fToC, useTempUnit, type TempUnit } from '../lib/units';
+import {
+  DATE_FORMAT_OPTIONS,
+  TIME_FORMAT_OPTIONS,
+  TIME_ZONE_OPTIONS,
+  formatClockDate,
+  formatClockTime,
+  timeZoneLabel,
+  type DateFormat,
+  type DateTimePreferences,
+  type TimeFormat,
+  type TimeZoneChoice,
+} from '../lib/datetime';
 import {
   DEFAULT_THRESHOLDS,
   THRESHOLD_LABELS,
@@ -40,6 +62,7 @@ export interface SettingsPreferences {
   density: Density;
   showAlerts: boolean;
   overviewLayout: TileId[];
+  dateTime: DateTimePreferences;
 }
 
 interface Props {
@@ -232,6 +255,31 @@ function SegmentedChoice<T extends string>({
   );
 }
 
+function PreferenceSelect<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: Array<Choice<T>>;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={(next) => onChange(next as T)}>
+      <SelectTrigger className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function PreferenceCard({
   icon: Icon,
   title,
@@ -267,6 +315,10 @@ function PreferencesTab({
   onPreferenceChange: Props['onPreferenceChange'];
 }) {
   const { unit, setUnit } = useTempUnit();
+  const previewDate = new Date();
+  const setDateTime = <K extends keyof DateTimePreferences>(key: K, value: DateTimePreferences[K]) => {
+    onPreferenceChange('dateTime', { ...preferences.dateTime, [key]: value });
+  };
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       <PreferenceCard icon={MonitorCog} title="Appearance" meta={preferences.theme === 'system' ? 'Auto' : preferences.theme}>
@@ -301,6 +353,30 @@ function PreferencesTab({
             { value: 'C', label: 'Celsius' },
           ]}
           onChange={setUnit}
+        />
+      </PreferenceCard>
+
+      <PreferenceCard icon={Clock3} title="Time format" meta={formatClockTime(previewDate, preferences.dateTime)}>
+        <SegmentedChoice<TimeFormat>
+          value={preferences.dateTime.timeFormat}
+          options={TIME_FORMAT_OPTIONS}
+          onChange={(v) => setDateTime('timeFormat', v)}
+        />
+      </PreferenceCard>
+
+      <PreferenceCard icon={CalendarDays} title="Date format" meta={formatClockDate(previewDate, preferences.dateTime)}>
+        <PreferenceSelect<DateFormat>
+          value={preferences.dateTime.dateFormat}
+          options={DATE_FORMAT_OPTIONS}
+          onChange={(v) => setDateTime('dateFormat', v)}
+        />
+      </PreferenceCard>
+
+      <PreferenceCard icon={Globe2} title="Time zone" meta={timeZoneLabel(preferences.dateTime.timeZone)}>
+        <PreferenceSelect<TimeZoneChoice>
+          value={preferences.dateTime.timeZone}
+          options={TIME_ZONE_OPTIONS}
+          onChange={(v) => setDateTime('timeZone', v)}
         />
       </PreferenceCard>
 

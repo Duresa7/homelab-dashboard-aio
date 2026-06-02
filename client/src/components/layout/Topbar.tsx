@@ -1,4 +1,4 @@
-import { Moon, RefreshCw, Search, SlidersHorizontal, Sun } from 'lucide-react';
+import { RefreshCw, Search } from 'lucide-react';
 import { Clock } from './Clock';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -12,17 +12,15 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useTempUnit } from '../../lib/units';
+import type { DateTimePreferences } from '../../lib/datetime';
 import { SECTION_LABEL, subLabel, type Section } from '../../lib/route';
 
 interface Props {
   section: Section;
   activeSub?: string;
-  theme: 'light' | 'dark';
+  dateTime: DateTimePreferences;
   onNavigateSection: (section: Section) => void;
-  onToggleTheme: () => void;
   onOpenSearch: () => void;
-  onOpenPreferences: () => void;
 }
 
 function IconAction({
@@ -46,8 +44,7 @@ function IconAction({
   );
 }
 
-export function Topbar({ section, activeSub, theme, onNavigateSection, onToggleTheme, onOpenSearch, onOpenPreferences }: Props) {
-  const { unit, toggle } = useTempUnit();
+export function Topbar({ section, activeSub, dateTime, onNavigateSection, onOpenSearch }: Props) {
   const sectionLbl = SECTION_LABEL[section];
   const here = activeSub ? subLabel(section, activeSub) : null;
 
@@ -95,26 +92,11 @@ export function Topbar({ section, activeSub, theme, onNavigateSection, onToggleT
           </button>
 
           <div className="mx-1 hidden lg:block">
-            <Clock />
+            <Clock preferences={dateTime} />
           </div>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-9 px-0 font-mono text-[13px] text-muted-foreground hover:text-foreground" onClick={toggle} aria-label={`Temperature unit ${unit}`}>
-                °{unit}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Switch to °{unit === 'F' ? 'C' : 'F'}</TooltipContent>
-          </Tooltip>
 
           <IconAction label="Refresh" onClick={() => window.location.reload()}>
             <RefreshCw className="size-4" />
-          </IconAction>
-          <IconAction label={theme === 'dark' ? 'Light mode' : 'Dark mode'} onClick={onToggleTheme}>
-            {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
-          </IconAction>
-          <IconAction label="Preferences" onClick={onOpenPreferences}>
-            <SlidersHorizontal className="size-4" />
           </IconAction>
         </div>
       </div>

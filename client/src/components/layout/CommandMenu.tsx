@@ -1,5 +1,5 @@
 import { Fragment, useMemo } from 'react';
-import { Gauge, Moon, RefreshCw, Server, Sun } from 'lucide-react';
+import { RefreshCw, Server } from 'lucide-react';
 import {
   CommandDialog,
   CommandEmpty,
@@ -13,22 +13,14 @@ import { NAV_GROUPS } from './nav';
 import { loadInventory } from '@/lib/inventory';
 import { SECTION_LABEL, SUBS, type Section } from '@/lib/route';
 
-type Density = 'compact' | 'regular' | 'comfy';
-
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   setRoute: (section: Section, sub?: string, itemId?: string) => void;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
-  density: Density;
-  onSetDensity: (d: Density) => void;
 }
 
-const DENSITIES: Density[] = ['compact', 'regular', 'comfy'];
-
 /** ⌘K / Ctrl+K command palette — navigate every page + sub-page, run quick actions, jump to a machine. */
-export function CommandMenu({ open, onOpenChange, setRoute, theme, onToggleTheme, density, onSetDensity }: Props) {
+export function CommandMenu({ open, onOpenChange, setRoute }: Props) {
   // Re-read the inventory each time the palette opens so the machine list is fresh.
   const machines = useMemo(() => (open ? loadInventory().machines : []), [open]);
 
@@ -49,17 +41,6 @@ export function CommandMenu({ open, onOpenChange, setRoute, theme, onToggleTheme
         <CommandEmpty>No results.</CommandEmpty>
 
         <CommandGroup heading="Actions">
-          <CommandItem value="toggle theme dark light appearance" onSelect={() => run(onToggleTheme)}>
-            {theme === 'dark' ? <Sun className="size-4 text-muted-foreground" /> : <Moon className="size-4 text-muted-foreground" />}
-            <span>Switch to {theme === 'dark' ? 'light' : 'dark'} mode</span>
-          </CommandItem>
-          {DENSITIES.map((d) => (
-            <CommandItem key={d} value={`density spacing ${d}`} onSelect={() => run(() => onSetDensity(d))}>
-              <Gauge className="size-4 text-muted-foreground" />
-              <span>Density: {d}</span>
-              {density === d ? <span className="ml-auto text-xs text-muted-foreground">current</span> : null}
-            </CommandItem>
-          ))}
           <CommandItem value="refresh reload data" onSelect={() => run(() => window.location.reload())}>
             <RefreshCw className="size-4 text-muted-foreground" />
             <span>Refresh data</span>
