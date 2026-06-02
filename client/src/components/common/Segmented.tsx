@@ -16,7 +16,12 @@ export interface SegmentedProps {
 /** Pill-style segmented toggle — replaces the legacy `.chart-pick` button group. */
 export function Segmented({ options, value, onChange, className }: SegmentedProps) {
   return (
-    <div className={cn('inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-muted p-0.5', className)}>
+    <div
+      className={cn(
+        'inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-muted p-0.5',
+        className,
+      )}
+    >
       {options.map((o) => (
         <button
           key={o.value}

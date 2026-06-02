@@ -14,14 +14,18 @@ export function AlertsPage({ alerts, onDismiss }: Props) {
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <h2 className="text-sm font-semibold text-foreground">Active alerts</h2>
-          <span className="font-mono text-xs tabular-nums text-muted-foreground">{alerts.length}</span>
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+            {alerts.length}
+          </span>
         </div>
         <StatusBadge kind={kind}>
           {alerts.length === 0 ? 'all clear' : `${alerts.length} active`}
         </StatusBadge>
       </div>
       {alerts.length === 0 ? (
-        <div className="py-16 text-center text-sm text-muted-foreground">Everything is healthy.</div>
+        <div className="py-16 text-center text-sm text-muted-foreground">
+          Everything is healthy.
+        </div>
       ) : (
         <AlertBanner alerts={alerts} onDismiss={onDismiss} />
       )}

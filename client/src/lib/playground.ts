@@ -8,8 +8,17 @@ import { genId, type Component, type Machine } from './inventory';
 import { getState, setState } from './store';
 
 export type SlotId =
-  | 'cpu' | 'cooler' | 'mobo' | 'ram' | 'gpu'
-  | 'storage1' | 'storage2' | 'psu' | 'case' | 'paste' | 'nic';
+  | 'cpu'
+  | 'cooler'
+  | 'mobo'
+  | 'ram'
+  | 'gpu'
+  | 'storage1'
+  | 'storage2'
+  | 'psu'
+  | 'case'
+  | 'paste'
+  | 'nic';
 
 export interface SlotDef {
   id: SlotId;
@@ -25,21 +34,44 @@ export interface SlotDef {
 }
 
 export const SLOT_DEFS: SlotDef[] = [
-  { id: 'cpu',      label: 'CPU',           required: true,  categoryMatch: /^cpus?$/i,                 componentMatch: /^cpu$/i },
-  { id: 'cooler',   label: 'CPU Cooler',    required: true,  categoryMatch: /cpu coolers?/i,            componentMatch: /cpu cooler/i },
-  { id: 'mobo',     label: 'Motherboard',   required: true,                                             componentMatch: /motherboard/i },
-  { id: 'ram',      label: 'RAM',           required: true,  categoryMatch: /^ram$/i,                   componentMatch: /^ram$/i },
-  { id: 'gpu',      label: 'GPU',           required: false,                                            componentMatch: /^gpu$/i },
-  { id: 'storage1', label: 'Storage 1',     required: true,  categoryMatch: /^(ssds?|hdds?)$/i,         componentMatch: /^storage 1$/i },
-  { id: 'storage2', label: 'Storage 2',     required: false, categoryMatch: /^(ssds?|hdds?)$/i,         componentMatch: /^storage 2$/i },
-  { id: 'psu',      label: 'PSU',           required: true,  isPsu: true,                               componentMatch: /^psu$/i },
-  { id: 'case',     label: 'Case',          required: true,                                             componentMatch: /^case$/i },
-  { id: 'paste',    label: 'Thermal Paste', required: false,                                            componentMatch: /thermal paste/i },
-  { id: 'nic',      label: 'NIC',           required: false,                                            componentMatch: /^nic( 1)?$/i },
+  { id: 'cpu', label: 'CPU', required: true, categoryMatch: /^cpus?$/i, componentMatch: /^cpu$/i },
+  {
+    id: 'cooler',
+    label: 'CPU Cooler',
+    required: true,
+    categoryMatch: /cpu coolers?/i,
+    componentMatch: /cpu cooler/i,
+  },
+  { id: 'mobo', label: 'Motherboard', required: true, componentMatch: /motherboard/i },
+  { id: 'ram', label: 'RAM', required: true, categoryMatch: /^ram$/i, componentMatch: /^ram$/i },
+  { id: 'gpu', label: 'GPU', required: false, componentMatch: /^gpu$/i },
+  {
+    id: 'storage1',
+    label: 'Storage 1',
+    required: true,
+    categoryMatch: /^(ssds?|hdds?)$/i,
+    componentMatch: /^storage 1$/i,
+  },
+  {
+    id: 'storage2',
+    label: 'Storage 2',
+    required: false,
+    categoryMatch: /^(ssds?|hdds?)$/i,
+    componentMatch: /^storage 2$/i,
+  },
+  { id: 'psu', label: 'PSU', required: true, isPsu: true, componentMatch: /^psu$/i },
+  { id: 'case', label: 'Case', required: true, componentMatch: /^case$/i },
+  { id: 'paste', label: 'Thermal Paste', required: false, componentMatch: /thermal paste/i },
+  { id: 'nic', label: 'NIC', required: false, componentMatch: /^nic( 1)?$/i },
 ];
 
-export const SLOT_BY_ID: Record<SlotId, SlotDef> =
-  SLOT_DEFS.reduce((acc, s) => { acc[s.id] = s; return acc; }, {} as Record<SlotId, SlotDef>);
+export const SLOT_BY_ID: Record<SlotId, SlotDef> = SLOT_DEFS.reduce(
+  (acc, s) => {
+    acc[s.id] = s;
+    return acc;
+  },
+  {} as Record<SlotId, SlotDef>,
+);
 
 export type SlotSource = 'empty' | 'spare' | 'machine-component' | 'custom';
 

@@ -64,7 +64,9 @@ function Disks({ data }: { data: DashboardState }) {
               </TableCell>
               <TableCell className="text-muted-foreground">{d.model}</TableCell>
               <TableCell className="text-right tabular-nums">{fmtTemp(d.tempC, unit)}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatPowerOnTime(d.ageHours)}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatPowerOnTime(d.ageHours)}
+              </TableCell>
             </TableRow>
           );
         })}

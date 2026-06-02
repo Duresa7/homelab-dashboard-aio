@@ -13,7 +13,8 @@ interface Props {
 }
 
 export function AutoChart({ kind, data, max, color, height, severity }: Props) {
-  if (kind === 'sparkline') return <Sparkline data={data} color={color} height={height ?? 32} kind={severity} />;
+  if (kind === 'sparkline')
+    return <Sparkline data={data} color={color} height={height ?? 32} kind={severity} />;
   if (kind === 'bars') return <Bars data={data} max={max} height={height ?? 48} />;
   return <AreaChart data={data} color={color} height={height ?? 56} kind={severity} />;
 }

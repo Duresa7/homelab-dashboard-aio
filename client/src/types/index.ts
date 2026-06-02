@@ -472,8 +472,8 @@ export type SyslogCategory =
 
 export interface SyslogEvent {
   id: number;
-  receivedAt: number;                 // ms epoch, server's clock
-  logTime: number | null;             // ms epoch, sender's reported timestamp (RFC 3164)
+  receivedAt: number; // ms epoch, server's clock
+  logTime: number | null; // ms epoch, sender's reported timestamp (RFC 3164)
   sourceIp: string;
   hostname: string | null;
   facility: number | null;
@@ -492,7 +492,7 @@ export interface SiemStatus {
   listening: boolean;
   host: string;
   port: number;
-  serverAddress: string;              // best LAN IP for the setup banner
+  serverAddress: string; // best LAN IP for the setup banner
   eventsTotal: number;
   eventsLastHour: number;
   bytesReceived: number;

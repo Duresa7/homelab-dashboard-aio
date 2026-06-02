@@ -26,17 +26,29 @@ export function Gauge({ value, max = 100, label, sub, color = 'var(--accent)' }:
     <svg viewBox={`0 0 ${w} ${h}`} className="gauge" style={{ width: '100%', height: h }}>
       <path
         d={`M ${sx} ${sy} A ${r} ${r} 0 0 1 ${fx} ${fy}`}
-        fill="none" strokeWidth={10} className="arc-bg"
+        fill="none"
+        strokeWidth={10}
+        className="arc-bg"
         style={{ stroke: 'var(--bg-3)' }}
       />
       <path
         d={`M ${sx} ${sy} A ${r} ${r} 0 0 1 ${ex} ${ey}`}
-        fill="none" strokeWidth={10} className="arc-fg" strokeLinecap="round"
+        fill="none"
+        strokeWidth={10}
+        className="arc-fg"
+        strokeLinecap="round"
         style={{ stroke: color }}
       />
       <text
-        x="50%" y={h - 28} textAnchor="middle"
-        style={{ fontSize: 30, fontWeight: 600, fill: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}
+        x="50%"
+        y={h - 28}
+        textAnchor="middle"
+        style={{
+          fontSize: 30,
+          fontWeight: 600,
+          fill: 'var(--ink)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
       >
         {label}
       </text>

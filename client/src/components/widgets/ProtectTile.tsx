@@ -10,11 +10,15 @@ interface Props {
 
 function armKind(status: string): { label: string; kind: Severity } {
   switch (status) {
-    case 'armed':    return { label: 'Armed',    kind: 'ok' };
-    case 'arming':   return { label: 'Arming',   kind: 'warn' };
-    case 'breach':   return { label: 'BREACH',   kind: 'bad' };
+    case 'armed':
+      return { label: 'Armed', kind: 'ok' };
+    case 'arming':
+      return { label: 'Arming', kind: 'warn' };
+    case 'breach':
+      return { label: 'BREACH', kind: 'bad' };
     case 'disabled':
-    default:         return { label: 'Disarmed', kind: 'info' };
+    default:
+      return { label: 'Disarmed', kind: 'info' };
   }
 }
 
@@ -24,7 +28,7 @@ export function ProtectTile({ data, span, onExpand, expandable }: Props) {
   const arm = nvr ? armKind(nvr.armMode.status) : null;
   const tag = arm
     ? { label: arm.label, kind: arm.kind }
-    : { label: `${connected}/${total}`, kind: disconnected ? 'warn' as const : 'ok' as const };
+    : { label: `${connected}/${total}`, kind: disconnected ? ('warn' as const) : ('ok' as const) };
 
   return (
     <Tile
@@ -40,9 +44,11 @@ export function ProtectTile({ data, span, onExpand, expandable }: Props) {
         <small> / {total} online</small>
       </div>
       <div className="t-sub">
-        {latest
-          ? <>last event {new Date(latest.start).toLocaleTimeString()}</>
-          : 'no recent events'}
+        {latest ? (
+          <>last event {new Date(latest.start).toLocaleTimeString()}</>
+        ) : (
+          'no recent events'
+        )}
       </div>
     </Tile>
   );

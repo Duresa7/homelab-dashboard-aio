@@ -24,7 +24,13 @@ export function DockerTile({ data, span, onExpand, expandable }: Props) {
         <small> / {total} running</small>
       </div>
       <div className="t-sub">
-        {updates > 0 ? <><b className="text-info">{updates}</b> update{updates === 1 ? '' : 's'} available</> : 'all images current'}
+        {updates > 0 ? (
+          <>
+            <b className="text-info">{updates}</b> update{updates === 1 ? '' : 's'} available
+          </>
+        ) : (
+          'all images current'
+        )}
       </div>
     </Tile>
   );

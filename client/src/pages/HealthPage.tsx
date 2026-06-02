@@ -114,7 +114,8 @@ export function HealthPage({ integrations }: Props) {
           <div className="text-xs text-muted-foreground">
             {data ? (
               <>
-                Last checked <b className="font-medium text-foreground">{fmtStamp(data.checkedAt)}</b>
+                Last checked{' '}
+                <b className="font-medium text-foreground">{fmtStamp(data.checkedAt)}</b>
                 {data.fromCache ? <> · cached ({fmtAge(data.ageMs)})</> : <> · live</>}
                 {data.cacheTtlMs ? <> · ttl {Math.round(data.cacheTtlMs / 1000)}s</> : null}
               </>
@@ -153,41 +154,66 @@ export function HealthPage({ integrations }: Props) {
             {loading && !data
               ? INTEGRATIONS.map((def) => (
                   <TableRow key={def.key}>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
-                    <TableCell className="text-right"><Skeleton className="ml-auto h-4 w-12" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Skeleton className="ml-auto h-4 w-12" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
                   </TableRow>
                 ))
               : INTEGRATIONS.map((def) => {
-              const clientEnabled = !!integrations[def.key];
-              const p = probes[def.healthField];
-              const s = statusKind(p, clientEnabled);
-              const lat = fmtLatency(p?.latencyMs ?? null);
-              const isDown = p?.status === 'down';
-              return (
-                <TableRow key={def.key}>
-                  <TableCell className="font-medium text-foreground">{def.label}</TableCell>
-                  <TableCell>
-                    <StatusBadge kind={s.kind}>{s.label}</StatusBadge>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    <span className={lat.kind === 'bad' ? 'text-bad' : lat.kind === 'warn' ? 'text-warn' : 'text-muted-foreground'}>
-                      {lat.label}
-                    </span>
-                  </TableCell>
-                  <TableCell className="max-w-[320px]">
-                    {isDown && p?.error ? (
-                      <code className="block truncate font-mono text-xs text-bad" title={p.error}>{p.error}</code>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="tabular-nums text-muted-foreground">{fmtStamp(p?.checkedAt ?? null)}</TableCell>
-                </TableRow>
-              );
-            })}
+                  const clientEnabled = !!integrations[def.key];
+                  const p = probes[def.healthField];
+                  const s = statusKind(p, clientEnabled);
+                  const lat = fmtLatency(p?.latencyMs ?? null);
+                  const isDown = p?.status === 'down';
+                  return (
+                    <TableRow key={def.key}>
+                      <TableCell className="font-medium text-foreground">{def.label}</TableCell>
+                      <TableCell>
+                        <StatusBadge kind={s.kind}>{s.label}</StatusBadge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        <span
+                          className={
+                            lat.kind === 'bad'
+                              ? 'text-bad'
+                              : lat.kind === 'warn'
+                                ? 'text-warn'
+                                : 'text-muted-foreground'
+                          }
+                        >
+                          {lat.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="max-w-[320px]">
+                        {isDown && p?.error ? (
+                          <code
+                            className="block truncate font-mono text-xs text-bad"
+                            title={p.error}
+                          >
+                            {p.error}
+                          </code>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="tabular-nums text-muted-foreground">
+                        {fmtStamp(p?.checkedAt ?? null)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
           </TableBody>
         </Table>
       </div>

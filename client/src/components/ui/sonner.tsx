@@ -18,8 +18,7 @@ function useDocumentTheme(): 'light' | 'dark' {
   );
   useEffect(() => {
     const el = document.documentElement;
-    const sync = () =>
-      setTheme(el.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+    const sync = () => setTheme(el.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
     sync();
     const obs = new MutationObserver(sync);
     obs.observe(el, { attributes: true, attributeFilter: ['data-theme'] });

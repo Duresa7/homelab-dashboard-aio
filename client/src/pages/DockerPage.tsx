@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { Play, Square, Server, Layers } from 'lucide-react';
 import { BrandIcon } from '../components/icons/BrandIcon';
-import { SectionCard, StatCard, StatList, StatRow, StatusBadge, Segmented } from '@/components/common';
+import {
+  SectionCard,
+  StatCard,
+  StatList,
+  StatRow,
+  StatusBadge,
+  Segmented,
+} from '@/components/common';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
@@ -62,13 +69,20 @@ function Hosts({ data }: { data: DashboardState }) {
           const up = list.filter((x) => x.state === 'running').length;
           const hostOk = h.status === 'online';
           return (
-            <div key={h.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4">
+            <div
+              key={h.id}
+              className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4"
+            >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2 text-[15px] font-semibold text-foreground">
-                  <span className={cn('size-2 shrink-0 rounded-full', hostOk ? 'bg-ok' : 'bg-bad')} />
+                  <span
+                    className={cn('size-2 shrink-0 rounded-full', hostOk ? 'bg-ok' : 'bg-bad')}
+                  />
                   <span className="truncate">{h.name}</span>
                 </div>
-                <StatusBadge kind={hostOk ? 'ok' : 'bad'}>{hostOk ? 'online' : 'offline'}</StatusBadge>
+                <StatusBadge kind={hostOk ? 'ok' : 'bad'}>
+                  {hostOk ? 'online' : 'offline'}
+                </StatusBadge>
               </div>
               <div className="truncate text-xs text-muted-foreground">
                 {h.addr} · {h.os} · engine {h.engine}
@@ -109,7 +123,10 @@ function Containers({ data }: { data: DashboardState }) {
             <Segmented
               value={hostFilter}
               onChange={setHostFilter}
-              options={[{ value: 'all', label: 'all' }, ...hosts.map((h) => ({ value: h.id, label: h.name }))]}
+              options={[
+                { value: 'all', label: 'all' },
+                ...hosts.map((h) => ({ value: h.id, label: h.name })),
+              ]}
             />
           </div>
           {allStacks.length > 1 && (
@@ -118,7 +135,10 @@ function Containers({ data }: { data: DashboardState }) {
               <Segmented
                 value={stackFilter}
                 onChange={setStackFilter}
-                options={[{ value: 'all', label: 'all' }, ...allStacks.map((s) => ({ value: s, label: s }))]}
+                options={[
+                  { value: 'all', label: 'all' },
+                  ...allStacks.map((s) => ({ value: s, label: s })),
+                ]}
               />
             </div>
           )}
@@ -145,7 +165,8 @@ function Containers({ data }: { data: DashboardState }) {
               bodyClassName="flex flex-col gap-2"
             >
               {list.map((x) => {
-                const dot = x.state === 'stopped' ? 'bg-idle' : x.state === 'paused' ? 'bg-warn' : 'bg-ok';
+                const dot =
+                  x.state === 'stopped' ? 'bg-idle' : x.state === 'paused' ? 'bg-warn' : 'bg-ok';
                 const kind = x.state === 'stopped' ? 'idle' : x.state === 'paused' ? 'warn' : 'ok';
                 return (
                   <HoverCard key={x.name} openDelay={140} closeDelay={80}>
@@ -155,27 +176,44 @@ function Containers({ data }: { data: DashboardState }) {
                           <span className={cn('size-1.5 shrink-0 rounded-full', dot)} />
                           <span className="truncate">{x.name}</span>
                         </div>
-                        <div className="truncate font-mono text-xs text-muted-foreground">{x.image}</div>
+                        <div className="truncate font-mono text-xs text-muted-foreground">
+                          {x.image}
+                        </div>
                         <div className="text-xs tabular-nums text-muted-foreground">
                           cpu {x.cpu.toFixed(1)}% · {x.memMB} MB
                         </div>
-                        <div className="text-xs tabular-nums text-muted-foreground/70">up {x.uptime}</div>
+                        <div className="text-xs tabular-nums text-muted-foreground/70">
+                          up {x.uptime}
+                        </div>
                       </div>
                     </HoverCardTrigger>
                     <HoverCardContent side="top" align="start" className="w-72">
                       <div className="flex flex-col gap-2.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm font-semibold text-foreground">{x.name}</span>
+                          <span className="truncate text-sm font-semibold text-foreground">
+                            {x.name}
+                          </span>
                           <StatusBadge kind={kind}>{x.state}</StatusBadge>
                         </div>
                         <div>
-                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Image</span>
+                          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            Image
+                          </span>
                           <p className="break-all font-mono text-xs text-foreground">{x.image}</p>
                         </div>
                         <div className="grid grid-cols-3 gap-2 border-t border-border/60 pt-2 text-xs">
-                          <div><div className="text-muted-foreground">CPU</div><div className="tabular-nums text-foreground">{x.cpu.toFixed(1)}%</div></div>
-                          <div><div className="text-muted-foreground">Memory</div><div className="tabular-nums text-foreground">{x.memMB} MB</div></div>
-                          <div><div className="text-muted-foreground">Uptime</div><div className="tabular-nums text-foreground">{x.uptime}</div></div>
+                          <div>
+                            <div className="text-muted-foreground">CPU</div>
+                            <div className="tabular-nums text-foreground">{x.cpu.toFixed(1)}%</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">Memory</div>
+                            <div className="tabular-nums text-foreground">{x.memMB} MB</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">Uptime</div>
+                            <div className="tabular-nums text-foreground">{x.uptime}</div>
+                          </div>
                         </div>
                       </div>
                     </HoverCardContent>

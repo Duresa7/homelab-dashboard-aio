@@ -33,9 +33,9 @@ function bestLanIp() {
     }
   }
   // Skip docker/vEthernet IPs by preferring RFC1918 ranges.
-  const priv = candidates.find((ip) =>
-    ip.startsWith('198.51.100.') || ip.startsWith('10.') ||
-    /^198.51.100.(1[6-9]|2\d|3[01])\./.test(ip),
+  const priv = candidates.find(
+    (ip) =>
+      ip.startsWith('198.51.100.') || ip.startsWith('10.') || /^198.51.100.(1[6-9]|2\d|3[01])\./.test(ip),
   );
   return priv || candidates[0] || '127.0.0.1';
 }
@@ -55,10 +55,13 @@ export async function initSiem(app, opts) {
       res.json({
         enabled: false,
         listening: false,
-        host, port,
+        host,
+        port,
         serverAddress: bestLanIp(),
-        eventsTotal: 0, eventsLastHour: 0,
-        bytesReceived: 0, packetsReceived: 0,
+        eventsTotal: 0,
+        eventsLastHour: 0,
+        bytesReceived: 0,
+        packetsReceived: 0,
         parseErrors: 0,
         lastEventAt: null,
         clientCount: 0,
@@ -87,7 +90,9 @@ export async function initSiem(app, opts) {
 
   // Optional source-IP allowlist (comma-separated env var). Empty = allow all.
   const allowedSources = String(process.env.SIEM_ALLOWED_SOURCES || '')
-    .split(',').map((s) => s.trim()).filter(Boolean);
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   const sourceAllowSet = allowedSources.length ? new Set(allowedSources) : null;
 
   // Per-source token bucket. Map<ip, {tokens, lastRefillMs}>.
@@ -208,9 +213,9 @@ export async function initSiem(app, opts) {
       stats.bindError = err.message;
       console.warn(
         `SIEM: failed to bind UDP ${host}:${port} - ${err.message}. ` +
-        `On Windows, ports below 1024 may require an elevated terminal. ` +
-        `Set SIEM_PORT=5514 in .env to use an unprivileged port, then point ` +
-        `your UniFi controller at <server-ip>:5514.`,
+          `On Windows, ports below 1024 may require an elevated terminal. ` +
+          `Set SIEM_PORT=5514 in .env to use an unprivileged port, then point ` +
+          `your UniFi controller at <server-ip>:5514.`,
       );
       resolve();
     });
@@ -242,7 +247,9 @@ export async function initSiem(app, opts) {
     }
   }
   void sweep();
-  const sweepTimer = setInterval(() => { void sweep(); }, RETENTION_SWEEP_INTERVAL_MS);
+  const sweepTimer = setInterval(() => {
+    void sweep();
+  }, RETENTION_SWEEP_INTERVAL_MS);
   sweepTimer.unref?.();
 
   app.get('/api/siem/status', (_req, res) => {
@@ -290,7 +297,13 @@ export async function initSiem(app, opts) {
 
   app.get('/api/siem/stats', (req, res) => {
     const win = req.query.window || '1h';
-    const map = { '15m': 900_000, '1h': 3600_000, '24h': 86400_000, '7d': 7 * 86400_000, '30d': 30 * 86400_000 };
+    const map = {
+      '15m': 900_000,
+      '1h': 3600_000,
+      '24h': 86400_000,
+      '7d': 7 * 86400_000,
+      '30d': 30 * 86400_000,
+    };
     const ms = map[win] ?? 3600_000;
     res.json({ window: win, ...db.getStats({ since: Date.now() - ms }) });
   });
@@ -299,9 +312,17 @@ export async function initSiem(app, opts) {
 
   function shutdown() {
     clearInterval(sweepTimer);
-    try { sock.close(); } catch { /* ignore */ }
+    try {
+      sock.close();
+    } catch {
+      /* ignore */
+    }
     sse.shutdown();
-    try { db.close(); } catch { /* ignore */ }
+    try {
+      db.close();
+    } catch {
+      /* ignore */
+    }
   }
 
   return { shutdown };

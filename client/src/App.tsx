@@ -26,11 +26,13 @@ import { SiemPage } from './pages/SiemPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
 
-import { INTEGRATION_KEYS, setIntegrationEnabled, useDashData, type IntegrationKey } from './lib/telemetry';
 import {
-  useSystemTheme,
-  useTweaks,
-} from './lib/tweaks';
+  INTEGRATION_KEYS,
+  setIntegrationEnabled,
+  useDashData,
+  type IntegrationKey,
+} from './lib/telemetry';
+import { useSystemTheme, useTweaks } from './lib/tweaks';
 import {
   DEFAULT_SUB,
   resolveSub,
@@ -62,17 +64,32 @@ const DEFAULTS: TweakState = {
   dateTime: { ...DEFAULT_DATETIME_PREFERENCES },
   overviewLayout: [
     'bookmarks',
-    'cpu', 'ram', 'gpu', 'unifi', 'proxmox', 'docker', 'storage', 'unas',
-    'protect', 'network', 'fans', 'smart', 'ups', 'backups', 'internet',
-    'topTalkers', 'tempHeat', 'events',
+    'cpu',
+    'ram',
+    'gpu',
+    'unifi',
+    'proxmox',
+    'docker',
+    'storage',
+    'unas',
+    'protect',
+    'network',
+    'fans',
+    'smart',
+    'ups',
+    'backups',
+    'internet',
+    'topTalkers',
+    'tempHeat',
+    'events',
   ],
   integrations: {
-    unifi:   true,
+    unifi: true,
     proxmox: true,
-    docker:  true,
-    gpu:     true,
+    docker: true,
+    gpu: true,
     sensors: true,
-    unas:    true,
+    unas: true,
     protect: true,
   },
 };
@@ -87,7 +104,9 @@ export function App() {
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<number>>(new Set());
   const [cmdOpen, setCmdOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>('preferences');
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => !getState<boolean>('sidebarCollapsed', false));
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(
+    () => !getState<boolean>('sidebarCollapsed', false),
+  );
   const handleSidebarOpenChange = (open: boolean) => {
     setSidebarOpen(open);
     setState<boolean>('sidebarCollapsed', !open);
@@ -171,7 +190,12 @@ export function App() {
       <SidebarProvider
         open={sidebarOpen}
         onOpenChange={handleSidebarOpenChange}
-        style={{ '--sidebar-width': 'var(--sidebar-w)', '--sidebar-width-icon': 'var(--sidebar-rail)' } as CSSProperties}
+        style={
+          {
+            '--sidebar-width': 'var(--sidebar-w)',
+            '--sidebar-width-icon': 'var(--sidebar-rail)',
+          } as CSSProperties
+        }
       >
         <AppSidebar route={route} setRoute={setRoute} alerts={visibleAlerts} />
 
@@ -192,10 +216,14 @@ export function App() {
               >
                 <CloudOff strokeWidth={1.75} className="mt-0.5 size-4 shrink-0 text-warn" />
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">Backend offline — showing defaults, not your saved data.</span>
+                  <span className="font-medium">
+                    Backend offline — showing defaults, not your saved data.
+                  </span>
                   <span className="text-muted-foreground">
                     Live telemetry and your saved inventory are stored by the server. Start it with{' '}
-                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">npm run server</code>{' '}
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                      npm run server
+                    </code>{' '}
                     and reload, or your edits here won't be saved.
                   </span>
                 </div>
@@ -212,20 +240,25 @@ export function App() {
                 onExpand={setExpanded}
               />
             )}
-            {route.section === 'proxmox' && <ProxmoxPage data={data} sub={activeSub ?? 'compute'} />}
-            {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
-            {route.section === 'docker'  && <DockerPage  data={data} sub={activeSub ?? 'hosts'} />}
-            {route.section === 'nas'     && <NasPage     data={data} sub={activeSub ?? 'pools'} />}
-            {route.section === 'cameras' && <CamerasPage data={data} sub={activeSub ?? 'overview'} />}
-            {route.section === 'events'  && <EventsPage  data={data} />}
-            {route.section === 'alerts'  && <AlertsPage  alerts={visibleAlerts} onDismiss={dismiss} />}
-            {route.section === 'health'    && <HealthPage  integrations={integrations} />}
-            {route.section === 'siem'      && <SiemPage />}
+            {route.section === 'proxmox' && (
+              <ProxmoxPage data={data} sub={activeSub ?? 'compute'} />
+            )}
+            {route.section === 'network' && (
+              <NetworkPage data={data} sub={activeSub ?? 'overview'} />
+            )}
+            {route.section === 'docker' && <DockerPage data={data} sub={activeSub ?? 'hosts'} />}
+            {route.section === 'nas' && <NasPage data={data} sub={activeSub ?? 'pools'} />}
+            {route.section === 'cameras' && (
+              <CamerasPage data={data} sub={activeSub ?? 'overview'} />
+            )}
+            {route.section === 'events' && <EventsPage data={data} />}
+            {route.section === 'alerts' && (
+              <AlertsPage alerts={visibleAlerts} onDismiss={dismiss} />
+            )}
+            {route.section === 'health' && <HealthPage integrations={integrations} />}
+            {route.section === 'siem' && <SiemPage />}
             {route.section === 'inventory' && (
-              <InventoryPage
-                selectedItemId={route.itemId}
-                onSelectItem={setInventoryItemId}
-              />
+              <InventoryPage selectedItemId={route.itemId} onSelectItem={setInventoryItemId} />
             )}
             {route.section === 'playground' && <PlaygroundPage />}
             {route.section === 'settings' && (
@@ -256,16 +289,12 @@ export function App() {
         <ExpandOverlay
           id={expanded}
           data={data}
-          chartKind={expanded ? chartKinds[expanded] ?? 'area' : 'area'}
+          chartKind={expanded ? (chartKinds[expanded] ?? 'area') : 'area'}
           setChartKind={(k) => expanded && setChartKind(expanded, k)}
           onClose={() => setExpanded(null)}
         />
 
-        <CommandMenu
-          open={cmdOpen}
-          onOpenChange={setCmdOpen}
-          setRoute={setRoute}
-        />
+        <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} setRoute={setRoute} />
 
         <Toaster />
       </SidebarProvider>

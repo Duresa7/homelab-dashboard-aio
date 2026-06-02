@@ -31,42 +31,42 @@ import { BrandIcon } from '../components/icons/BrandIcon';
 // more specific patterns must come first ("wd-blue" before bare "wd").
 type BrandSource =
   | { kind: 'dashboard'; name: string }
-  | { kind: 'simple';    slug: string }
-  | { kind: 'wvl';       slug: string };
+  | { kind: 'simple'; slug: string }
+  | { kind: 'wvl'; slug: string };
 
 const BRAND_MAP: Array<[RegExp, BrandSource]> = [
   // dashboard-icons (official full-color logos)
   [/western[\s-]?digital|^wd\b|\bwd\s/i, { kind: 'dashboard', name: 'western-digital' }],
   [/wd[\s-]?(blue|purple|red|black|green|gold)/i, { kind: 'dashboard', name: 'western-digital' }],
-  [/tp[\s-]?link/i,                      { kind: 'dashboard', name: 'tp-link' }],
-  [/ubiquiti|unifi/i,                    { kind: 'dashboard', name: 'ubiquiti' }],
-  [/nvidia|geforce|\bgtx\b|\brtx\b/i,    { kind: 'dashboard', name: 'nvidia' }],
-  [/\bamd\b|ryzen|radeon|wraith/i,       { kind: 'dashboard', name: 'amd' }],
-  [/apple|macbook/i,                     { kind: 'dashboard', name: 'apple' }],
-  [/asus/i,                              { kind: 'dashboard', name: 'asus' }],
-  [/cisco/i,                             { kind: 'dashboard', name: 'cisco' }],
-  [/netgear/i,                           { kind: 'dashboard', name: 'netgear' }],
-  [/toshiba/i,                           { kind: 'dashboard', name: 'toshiba' }],
-  [/\bhp\b|hewlett/i,                    { kind: 'dashboard', name: 'hp' }],
+  [/tp[\s-]?link/i, { kind: 'dashboard', name: 'tp-link' }],
+  [/ubiquiti|unifi/i, { kind: 'dashboard', name: 'ubiquiti' }],
+  [/nvidia|geforce|\bgtx\b|\brtx\b/i, { kind: 'dashboard', name: 'nvidia' }],
+  [/\bamd\b|ryzen|radeon|wraith/i, { kind: 'dashboard', name: 'amd' }],
+  [/apple|macbook/i, { kind: 'dashboard', name: 'apple' }],
+  [/asus/i, { kind: 'dashboard', name: 'asus' }],
+  [/cisco/i, { kind: 'dashboard', name: 'cisco' }],
+  [/netgear/i, { kind: 'dashboard', name: 'netgear' }],
+  [/toshiba/i, { kind: 'dashboard', name: 'toshiba' }],
+  [/\bhp\b|hewlett/i, { kind: 'dashboard', name: 'hp' }],
 
   // simple-icons (single-tone, brand-colored)
-  [/intel/i,                             { kind: 'simple', slug: 'intel' }],
-  [/samsung/i,                           { kind: 'simple', slug: 'samsung' }],
-  [/corsair/i,                           { kind: 'simple', slug: 'corsair' }],
-  [/\bmsi\b/i,                           { kind: 'simple', slug: 'msi' }],
-  [/kingston/i,                          { kind: 'simple', slug: 'kingstontechnology' }],
-  [/cooler[\s-]?master/i,                { kind: 'simple', slug: 'coolermaster' }],
-  [/seagate/i,                           { kind: 'simple', slug: 'seagate' }],
-  [/nzxt/i,                              { kind: 'simple', slug: 'nzxt' }],
+  [/intel/i, { kind: 'simple', slug: 'intel' }],
+  [/samsung/i, { kind: 'simple', slug: 'samsung' }],
+  [/corsair/i, { kind: 'simple', slug: 'corsair' }],
+  [/\bmsi\b/i, { kind: 'simple', slug: 'msi' }],
+  [/kingston/i, { kind: 'simple', slug: 'kingstontechnology' }],
+  [/cooler[\s-]?master/i, { kind: 'simple', slug: 'coolermaster' }],
+  [/seagate/i, { kind: 'simple', slug: 'seagate' }],
+  [/nzxt/i, { kind: 'simple', slug: 'nzxt' }],
 
   // worldvectorlogo (long-tail brands)
-  [/g[\s.\-]?skill/i,                    { kind: 'wvl', slug: 'gskill' }],
-  [/sk[\s-]?hynix|\bhynix\b/i,           { kind: 'wvl', slug: 'sk-hynix' }],
-  [/crucial/i,                           { kind: 'wvl', slug: 'crucial' }],
-  [/gigabyte|aorus/i,                    { kind: 'wvl', slug: 'gigabyte' }],
-  [/sandisk/i,                           { kind: 'wvl', slug: 'sandisk' }],
-  [/\bevga\b/i,                          { kind: 'wvl', slug: 'evga' }],
-  [/sapphire/i,                          { kind: 'wvl', slug: 'sapphire' }],
+  [/g[\s.\-]?skill/i, { kind: 'wvl', slug: 'gskill' }],
+  [/sk[\s-]?hynix|\bhynix\b/i, { kind: 'wvl', slug: 'sk-hynix' }],
+  [/crucial/i, { kind: 'wvl', slug: 'crucial' }],
+  [/gigabyte|aorus/i, { kind: 'wvl', slug: 'gigabyte' }],
+  [/sandisk/i, { kind: 'wvl', slug: 'sandisk' }],
+  [/\bevga\b/i, { kind: 'wvl', slug: 'evga' }],
+  [/sapphire/i, { kind: 'wvl', slug: 'sapphire' }],
 ];
 
 export function resolveBrand(text: string | null | undefined): BrandSource | null {
@@ -78,7 +78,7 @@ export function resolveBrand(text: string | null | undefined): BrandSource | nul
 }
 
 const SIMPLE_BASE = 'https://cdn.simpleicons.org';
-const WVL_BASE    = 'https://cdn.worldvectorlogo.com/logos';
+const WVL_BASE = 'https://cdn.worldvectorlogo.com/logos';
 
 interface BrandGlyphProps {
   text: string | null | undefined;
@@ -90,9 +90,13 @@ interface BrandGlyphProps {
 export function BrandGlyph({ text, size = 18, reserveSpace = false }: BrandGlyphProps) {
   const hit = resolveBrand(text);
   if (!hit) {
-    return reserveSpace
-      ? <span className="inv-brand inv-brand-empty" style={{ width: size, height: size }} aria-hidden />
-      : null;
+    return reserveSpace ? (
+      <span
+        className="inv-brand inv-brand-empty"
+        style={{ width: size, height: size }}
+        aria-hidden
+      />
+    ) : null;
   }
   if (hit.kind === 'dashboard') {
     return (
@@ -131,52 +135,52 @@ export function BrandGlyph({ text, size = 18, reserveSpace = false }: BrandGlyph
 
 export function componentIcon(label: string): LucideIcon | null {
   const k = label.toLowerCase();
-  if (/^cpu\b|processor/.test(k))             return Cpu;
+  if (/^cpu\b|processor/.test(k)) return Cpu;
   if (/cooler|fan|aio|heatsink|radiator/.test(k)) return Fan;
-  if (/^gpu\b|graphics|video card/.test(k))   return Gpu;
-  if (/motherboard|mobo|mainboard/.test(k))   return CircuitBoard;
-  if (/\bram\b|memory|dimm|dram/.test(k))     return MemoryStick;
+  if (/^gpu\b|graphics|video card/.test(k)) return Gpu;
+  if (/motherboard|mobo|mainboard/.test(k)) return CircuitBoard;
+  if (/\bram\b|memory|dimm|dram/.test(k)) return MemoryStick;
   if (/storage|drive bay|\bssd\b|\bhdd\b|\bnvme\b/.test(k)) return HardDrive;
-  if (/\bpsu\b|power\s*supply/.test(k))       return Zap;
-  if (/case|chassis|tower/.test(k))           return Box;
-  if (/\bnic\b|ethernet|lan/.test(k))         return Network;
-  if (/wifi|wireless/.test(k))                return Wifi;
-  if (/router|gateway/.test(k))               return Router;
+  if (/\bpsu\b|power\s*supply/.test(k)) return Zap;
+  if (/case|chassis|tower/.test(k)) return Box;
+  if (/\bnic\b|ethernet|lan/.test(k)) return Network;
+  if (/wifi|wireless/.test(k)) return Wifi;
+  if (/router|gateway/.test(k)) return Router;
   if (/display|screen|monitor|\blcm\b|\blcd\b/.test(k)) return Monitor;
-  if (/usb/.test(k))                          return Usb;
-  if (/thermal\s*paste|tim/.test(k))          return Droplet;
-  if (/power\b|wattage/.test(k))              return Power;
-  if (/temp/.test(k))                         return Thermometer;
+  if (/usb/.test(k)) return Usb;
+  if (/thermal\s*paste|tim/.test(k)) return Droplet;
+  if (/power\b|wattage/.test(k)) return Power;
+  if (/temp/.test(k)) return Thermometer;
   return null;
 }
 
 export function categoryIcon(name: string): LucideIcon {
   const k = name.toLowerCase();
   if (/network|switch|router|gateway|wi[- ]?fi/.test(k)) return Network;
-  if (/laptop|notebook/.test(k))              return Laptop;
-  if (/phone/.test(k))                        return Smartphone;
-  if (/camera|\bcam\b|protect/.test(k))       return Camera;
-  if (/monitor|display|screen/.test(k))       return Monitor;
+  if (/laptop|notebook/.test(k)) return Laptop;
+  if (/phone/.test(k)) return Smartphone;
+  if (/camera|\bcam\b|protect/.test(k)) return Camera;
+  if (/monitor|display|screen/.test(k)) return Monitor;
   if (/peripheral|keyboard|mouse|dock/.test(k)) return Keyboard;
-  if (/\bcpus?\b|processor/.test(k))          return Cpu;
-  if (/cooler|fan/.test(k))                   return Fan;
-  if (/\bssds?\b|nvme/.test(k))               return HardDrive;
-  if (/\bhdds?\b|hard\s*drive|disk/.test(k))  return Disc;
-  if (/\bram\b|memory/.test(k))               return MemoryStick;
-  if (/gpu|graphics/.test(k))                 return Gpu;
-  if (/motherboard|mobo/.test(k))             return CircuitBoard;
-  if (/psu|power/.test(k))                    return Zap;
-  if (/case|chassis/.test(k))                 return Box;
-  if (/print/.test(k))                        return Printer;
+  if (/\bcpus?\b|processor/.test(k)) return Cpu;
+  if (/cooler|fan/.test(k)) return Fan;
+  if (/\bssds?\b|nvme/.test(k)) return HardDrive;
+  if (/\bhdds?\b|hard\s*drive|disk/.test(k)) return Disc;
+  if (/\bram\b|memory/.test(k)) return MemoryStick;
+  if (/gpu|graphics/.test(k)) return Gpu;
+  if (/motherboard|mobo/.test(k)) return CircuitBoard;
+  if (/psu|power/.test(k)) return Zap;
+  if (/case|chassis/.test(k)) return Box;
+  if (/print/.test(k)) return Printer;
   return Box;
 }
 
 export function roleIcon(role: string, name?: string): LucideIcon {
   const k = `${role} ${name ?? ''}`.toLowerCase();
-  if (/proxmox|server|host|hypervisor/.test(k))            return Server;
-  if (/nas|storage|drive\s*bay|unas/.test(k))              return HardDrive;
-  if (/laptop|macbook/.test(k))                            return Laptop;
-  if (/router|gateway|switch|firewall/.test(k))            return Router;
-  if (/workstation|desktop|gaming|pc/.test(k))             return Monitor;
+  if (/proxmox|server|host|hypervisor/.test(k)) return Server;
+  if (/nas|storage|drive\s*bay|unas/.test(k)) return HardDrive;
+  if (/laptop|macbook/.test(k)) return Laptop;
+  if (/router|gateway|switch|firewall/.test(k)) return Router;
+  if (/workstation|desktop|gaming|pc/.test(k)) return Monitor;
   return Cpu;
 }

@@ -45,7 +45,9 @@ export function TempHeatTile({ cpu, gpu, disks, span, onExpand, expandable }: Pr
       <div className="t-heat-list">
         {series.map((s, i) => (
           <div key={`${s.name}-${i}`} className="t-heat-row">
-            <div className="t-heat-name t-sub" title={s.name}>{s.name}</div>
+            <div className="t-heat-name t-sub" title={s.name}>
+              {s.name}
+            </div>
             <Heatmap cols={cols} data={s.data} max={85} />
           </div>
         ))}

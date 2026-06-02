@@ -24,7 +24,9 @@ export function UPSTile({ data, span, onExpand, expandable }: Props) {
         {data.runtimeMin}
         <small> min runtime</small>
       </div>
-      <div className="t-sub">load {data.loadW} W · {data.loadPct}%</div>
+      <div className="t-sub">
+        load {data.loadW} W · {data.loadPct}%
+      </div>
     </Tile>
   );
 }

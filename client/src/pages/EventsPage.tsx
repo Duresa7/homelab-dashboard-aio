@@ -10,7 +10,9 @@ export function EventsPage({ data }: Props) {
     <div className="rounded-xl border border-border bg-card p-5 shadow-card">
       <div className="mb-4 flex items-baseline gap-2">
         <h2 className="text-sm font-semibold text-foreground">Recent activity</h2>
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">{events.length} entries</span>
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          {events.length} entries
+        </span>
       </div>
       {events.length === 0 ? (
         <div className="py-16 text-center text-sm text-muted-foreground">No events recorded</div>

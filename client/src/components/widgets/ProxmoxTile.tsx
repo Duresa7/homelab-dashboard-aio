@@ -25,7 +25,9 @@ export function ProxmoxTile({ data, span, onExpand, expandable }: Props) {
         {running}
         <small> / {vms.length} VMs</small>
       </div>
-      <div className="t-sub">{coresAllocated} / {coresTotal} cores · CPU {node.cpu.toFixed(0)}%</div>
+      <div className="t-sub">
+        {coresAllocated} / {coresTotal} cores · CPU {node.cpu.toFixed(0)}%
+      </div>
     </Tile>
   );
 }

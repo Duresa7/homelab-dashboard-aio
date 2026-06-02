@@ -44,9 +44,16 @@ export function StatCard({
         <span className="truncate text-[11.5px] font-semibold tracking-wide text-muted-foreground uppercase">
           {label}
         </span>
-        {icon ? <span className="shrink-0 text-muted-foreground [&_svg]:size-4">{icon}</span> : null}
+        {icon ? (
+          <span className="shrink-0 text-muted-foreground [&_svg]:size-4">{icon}</span>
+        ) : null}
       </div>
-      <span className={cn('font-display text-[2rem] leading-none font-semibold tabular-nums', TONE[tone])}>
+      <span
+        className={cn(
+          'font-display text-[2rem] leading-none font-semibold tabular-nums',
+          TONE[tone],
+        )}
+      >
         {value}
       </span>
       {hint != null ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
@@ -76,7 +83,9 @@ export function StatRow({
       )}
     >
       <span className="min-w-0 truncate text-sm text-muted-foreground">{label}</span>
-      <span className="shrink-0 text-right text-sm font-medium tabular-nums text-foreground">{value}</span>
+      <span className="shrink-0 text-right text-sm font-medium tabular-nums text-foreground">
+        {value}
+      </span>
     </div>
   );
 }

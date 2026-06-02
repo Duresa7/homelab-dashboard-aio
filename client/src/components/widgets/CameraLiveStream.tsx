@@ -41,7 +41,9 @@ export function CameraLiveStream({
     cancelledRef.current = false;
     if (camera.state !== 'CONNECTED') {
       setStatus({ kind: 'offline' });
-      return () => { cancelledRef.current = true; };
+      return () => {
+        cancelledRef.current = true;
+      };
     }
     setStatus({ kind: 'starting' });
 
@@ -83,7 +85,9 @@ export function CameraLiveStream({
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             if (!cancelledRef.current) {
               setStatus({ kind: 'live' });
-              video.play().catch(() => { /* autoplay blocked is OK */ });
+              video.play().catch(() => {
+                /* autoplay blocked is OK */
+              });
             }
           });
           hls.on(Hls.Events.ERROR, (_evt, data) => {
@@ -93,7 +97,11 @@ export function CameraLiveStream({
                 message: `${data.type}: ${data.details}`,
                 canFallback: true,
               });
-              try { hls?.destroy(); } catch { /* ignore */ }
+              try {
+                hls?.destroy();
+              } catch {
+                /* ignore */
+              }
               hlsRef.current = null;
             }
           });
@@ -103,7 +111,9 @@ export function CameraLiveStream({
           video.addEventListener('loadedmetadata', () => {
             if (!cancelledRef.current) {
               setStatus({ kind: 'live' });
-              video.play().catch(() => { /* ignore */ });
+              video.play().catch(() => {
+                /* ignore */
+              });
             }
           });
         } else {
@@ -127,11 +137,16 @@ export function CameraLiveStream({
 
     return () => {
       cancelledRef.current = true;
-      try { hlsRef.current?.destroy(); } catch { /* ignore */ }
+      try {
+        hlsRef.current?.destroy();
+      } catch {
+        /* ignore */
+      }
       hlsRef.current = null;
       // Best-effort stop — fire-and-forget; idle reaper handles failures.
-      fetch(`/api/protect/cameras/${camera.id}/stream/stop`, { method: 'POST' })
-        .catch(() => { /* ignore */ });
+      fetch(`/api/protect/cameras/${camera.id}/stream/stop`, { method: 'POST' }).catch(() => {
+        /* ignore */
+      });
     };
   }, [camera.id, camera.state, quality]);
 

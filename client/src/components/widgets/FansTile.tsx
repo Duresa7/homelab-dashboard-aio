@@ -29,7 +29,11 @@ export function FansTile({ data, span, onExpand, expandable }: Props) {
   const kind = allUnknown ? 'info' : fanSeverity(worstPct);
   const tagLabel = allUnknown
     ? 'unknown'
-    : kind === 'ok' ? 'nominal' : kind === 'warn' ? 'high' : 'critical';
+    : kind === 'ok'
+      ? 'nominal'
+      : kind === 'warn'
+        ? 'high'
+        : 'critical';
   return (
     <Tile
       title="Fans"

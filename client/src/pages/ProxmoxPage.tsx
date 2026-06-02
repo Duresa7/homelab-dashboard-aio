@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
 import {
-  Cpu, MemoryStick, Thermometer, HardDrive, Fan, Network, Server, Box, Disc,
+  Cpu,
+  MemoryStick,
+  Thermometer,
+  HardDrive,
+  Fan,
+  Network,
+  Server,
+  Box,
+  Disc,
 } from 'lucide-react';
 import { Donut } from '../components/charts';
 import { GPUTile } from '../components/widgets';
@@ -20,8 +28,8 @@ interface Props {
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(2)} TB`;
-  if (bytes >= 1e9)  return `${(bytes / 1e9).toFixed(0)} GB`;
-  if (bytes >= 1e6)  return `${(bytes / 1e6).toFixed(0)} MB`;
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(0)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
   return `${bytes} B`;
 }
 
@@ -59,7 +67,11 @@ function SpinningFan({ rpm }: { rpm: number }) {
     <Fan
       size={12}
       strokeWidth={1.75}
-      style={duration > 0 ? { animation: `icon-spin ${duration}s linear infinite`, transformOrigin: '50% 50%' } : undefined}
+      style={
+        duration > 0
+          ? { animation: `icon-spin ${duration}s linear infinite`, transformOrigin: '50% 50%' }
+          : undefined
+      }
     />
   );
 }
@@ -172,7 +184,12 @@ function MetricCard({
   warn?: boolean;
 }) {
   return (
-    <div className={cn('flex flex-col gap-3 rounded-xl border border-border bg-card p-[var(--pad)] shadow-card', spanClass(3))}>
+    <div
+      className={cn(
+        'flex flex-col gap-3 rounded-xl border border-border bg-card p-[var(--pad)] shadow-card',
+        spanClass(3),
+      )}
+    >
       <div className="flex items-center gap-1.5 text-[12.5px] font-semibold tracking-wide text-muted-foreground">
         {icon}
         {title}
@@ -287,7 +304,13 @@ function Compute({ data }: { data: DashboardState }) {
 
       <TempCard
         title="System Temp"
-        icon={<Thermometer size={14} strokeWidth={1.75} {...throbProps((data.sensors.systemTempC ?? 0) >= 75)} />}
+        icon={
+          <Thermometer
+            size={14}
+            strokeWidth={1.75}
+            {...throbProps((data.sensors.systemTempC ?? 0) >= 75)}
+          />
+        }
         sub={data.sensors.systemTempLabel ?? 'System'}
         tempC={data.sensors.systemTempC}
         warnAt={60}
@@ -296,7 +319,13 @@ function Compute({ data }: { data: DashboardState }) {
       />
       <TempCard
         title="CPU Temp"
-        icon={<Thermometer size={14} strokeWidth={1.75} {...throbProps((data.sensors.cpuTempC ?? 0) >= 85)} />}
+        icon={
+          <Thermometer
+            size={14}
+            strokeWidth={1.75}
+            {...throbProps((data.sensors.cpuTempC ?? 0) >= 85)}
+          />
+        }
         sub={n.cpuModel}
         tempC={data.sensors.cpuTempC}
         warnAt={75}
@@ -305,7 +334,9 @@ function Compute({ data }: { data: DashboardState }) {
       />
       <TempCard
         title="GPU Temp"
-        icon={<Thermometer size={14} strokeWidth={1.75} {...throbProps((data.gpu.tempC ?? 0) >= 85)} />}
+        icon={
+          <Thermometer size={14} strokeWidth={1.75} {...throbProps((data.gpu.tempC ?? 0) >= 85)} />
+        }
         sub={data.gpu.model}
         tempC={data.gpu.tempC || null}
         warnAt={75}
@@ -400,7 +431,9 @@ function Storage({ data }: { data: DashboardState }) {
             max={100}
             label={`${n.storagePct.toFixed(0)}%`}
             sub="used"
-            color={n.storagePct > 90 ? 'var(--bad)' : n.storagePct > 75 ? 'var(--warn)' : 'var(--accent)'}
+            color={
+              n.storagePct > 90 ? 'var(--bad)' : n.storagePct > 75 ? 'var(--warn)' : 'var(--accent)'
+            }
           />
           <div className="min-w-0 flex-1">
             <div className="text-lg font-medium text-foreground">
@@ -447,10 +480,14 @@ function Storage({ data }: { data: DashboardState }) {
                   <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
-              <TableCell className="text-right tabular-nums">{s.totalTB > 0 ? `${pct.toFixed(0)}%` : '—'}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {s.totalTB > 0 ? `${pct.toFixed(0)}%` : '—'}
+              </TableCell>
               <TableCell>
                 <span className="flex items-center gap-1.5">
-                  <StatusBadge kind={s.active ? 'ok' : 'warn'}>{s.active ? 'active' : 'inactive'}</StatusBadge>
+                  <StatusBadge kind={s.active ? 'ok' : 'warn'}>
+                    {s.active ? 'active' : 'inactive'}
+                  </StatusBadge>
                   {s.shared ? (
                     <Badge variant="secondary" className="lowercase">
                       shared
@@ -505,11 +542,17 @@ function Storage({ data }: { data: DashboardState }) {
               <TableCell className="text-muted-foreground">{typeLabel}</TableCell>
               <TableCell className="text-right tabular-nums">{formatBytes(d.sizeBytes)}</TableCell>
               <TableCell className="text-muted-foreground">{d.used || '—'}</TableCell>
-              <TableCell className={healthOk ? 'text-ok' : healthBad ? 'text-bad' : 'text-muted-foreground'}>
+              <TableCell
+                className={healthOk ? 'text-ok' : healthBad ? 'text-bad' : 'text-muted-foreground'}
+              >
                 {d.health || '—'}
               </TableCell>
               <TableCell className="text-right tabular-nums">
-                {d.wearout != null ? `${d.wearout}%` : <span className="text-muted-foreground">—</span>}
+                {d.wearout != null ? (
+                  `${d.wearout}%`
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </TableCell>
             </TableRow>
           );
@@ -529,34 +572,59 @@ function Sensors({ data }: { data: DashboardState }) {
 
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
-      <SectionCard span={12} title="Hardware Sensors" icon={<Thermometer size={14} strokeWidth={1.75} />} bodyClassName="flex flex-col gap-5">
+      <SectionCard
+        span={12}
+        title="Hardware Sensors"
+        icon={<Thermometer size={14} strokeWidth={1.75} />}
+        bodyClassName="flex flex-col gap-5"
+      >
         {!hasAny ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">No hardware sensors detected</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            No hardware sensors detected
+          </div>
         ) : (
           <>
             {data.sensors.disks.length > 0 && (
               <SensorSection title="Drives" icon={<HardDrive size={14} strokeWidth={1.75} />}>
                 {data.sensors.disks.map((d) => (
-                  <SensorChip key={d.name} label={d.name} value={fmtTemp(d.tempC, unit)} color={tempColor(d.tempC, 60, 70)} />
+                  <SensorChip
+                    key={d.name}
+                    label={d.name}
+                    value={fmtTemp(d.tempC, unit)}
+                    color={tempColor(d.tempC, 60, 70)}
+                  />
                 ))}
               </SensorSection>
             )}
             {data.sensors.memory.length > 0 && (
               <SensorSection title="Memory" icon={<MemoryStick size={14} strokeWidth={1.75} />}>
                 {data.sensors.memory.map((m) => (
-                  <SensorChip key={m.name} label={m.name} value={fmtTemp(m.tempC, unit)} color={tempColor(m.tempC, 55, 70)} />
+                  <SensorChip
+                    key={m.name}
+                    label={m.name}
+                    value={fmtTemp(m.tempC, unit)}
+                    color={tempColor(m.tempC, 55, 70)}
+                  />
                 ))}
               </SensorSection>
             )}
             {data.sensors.network.length > 0 && (
               <SensorSection title="Network" icon={<Network size={14} strokeWidth={1.75} />}>
                 {data.sensors.network.map((nic) => (
-                  <SensorChip key={nic.name} label={nic.name} value={fmtTemp(nic.tempC, unit)} color={tempColor(nic.tempC, 70, 85)} />
+                  <SensorChip
+                    key={nic.name}
+                    label={nic.name}
+                    value={fmtTemp(nic.tempC, unit)}
+                    color={tempColor(nic.tempC, 70, 85)}
+                  />
                 ))}
               </SensorSection>
             )}
             {data.sensors.fans.some((f) => f.rpm > 0) && (
-              <SensorSection title="Fans" icon={<Fan size={14} strokeWidth={1.75} className="icon-spin" />}>
+              <SensorSection
+                title="Fans"
+                icon={<Fan size={14} strokeWidth={1.75} className="icon-spin" />}
+              >
                 {data.sensors.fans
                   .filter((f) => f.rpm > 0)
                   .map((f) => (
@@ -577,7 +645,7 @@ function Sensors({ data }: { data: DashboardState }) {
 }
 
 export function ProxmoxPage({ data, sub }: Props) {
-  if (sub === 'guests')  return <Guests  data={data} />;
+  if (sub === 'guests') return <Guests data={data} />;
   if (sub === 'storage') return <Storage data={data} />;
   if (sub === 'sensors') return <Sensors data={data} />;
   return <Compute data={data} />;

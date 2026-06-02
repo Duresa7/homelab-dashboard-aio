@@ -1,19 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-} from 'react';
-import {
-  Cpu,
-  Download,
-  Plus,
-  RefreshCw,
-  Trash2,
-  Upload,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { Cpu, Download, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
 
 import {
   componentTitle,
@@ -46,13 +32,27 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import {
-  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
@@ -110,7 +110,10 @@ function buildPickerOptions(slot: SlotDef, inv: Inventory): PickerOption[] {
   if (slot.componentMatch) {
     for (const c of inv.components) {
       if (!slot.componentMatch.test(c.label)) continue;
-      const where = c.assignment === SPARE ? 'Spare components' : `Machine — ${inv.machines.find((m) => m.id === c.assignment)?.name ?? 'unknown'}`;
+      const where =
+        c.assignment === SPARE
+          ? 'Spare components'
+          : `Machine — ${inv.machines.find((m) => m.id === c.assignment)?.name ?? 'unknown'}`;
       opts.push({ value: `mc:${c.id}`, label: componentTitle(c) || c.label, group: where });
     }
   }
@@ -141,7 +144,10 @@ export function PlaygroundPage() {
   // Skip initial mount; loadPlayground returned the persisted value.
   const didMount = useRef(false);
   useEffect(() => {
-    if (!didMount.current) { didMount.current = true; return; }
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
     savePlayground(state);
   }, [state]);
 
@@ -149,22 +155,26 @@ export function PlaygroundPage() {
     setState((prev) => mut(prev));
   }, []);
 
-  const updateBuild = useCallback((id: string, mut: (b: PlaygroundBuild) => PlaygroundBuild) => {
-    patch((prev) => ({
-      ...prev,
-      lastUpdated: today(),
-      builds: prev.builds.map((b) =>
-        b.id === id ? { ...mut(b), updatedAt: today() } : b,
-      ),
-    }));
-  }, [patch]);
+  const updateBuild = useCallback(
+    (id: string, mut: (b: PlaygroundBuild) => PlaygroundBuild) => {
+      patch((prev) => ({
+        ...prev,
+        lastUpdated: today(),
+        builds: prev.builds.map((b) => (b.id === id ? { ...mut(b), updatedAt: today() } : b)),
+      }));
+    },
+    [patch],
+  );
 
-  const updateSlot = useCallback((buildId: string, slotId: SlotId, mut: (e: SlotEntry) => SlotEntry) => {
-    updateBuild(buildId, (b) => ({
-      ...b,
-      slots: { ...b.slots, [slotId]: mut(b.slots[slotId]) },
-    }));
-  }, [updateBuild]);
+  const updateSlot = useCallback(
+    (buildId: string, slotId: SlotId, mut: (e: SlotEntry) => SlotEntry) => {
+      updateBuild(buildId, (b) => ({
+        ...b,
+        slots: { ...b.slots, [slotId]: mut(b.slots[slotId]) },
+      }));
+    },
+    [updateBuild],
+  );
 
   const addBuild = () => {
     patch((prev) => ({
@@ -178,7 +188,13 @@ export function PlaygroundPage() {
     patch((prev) => ({
       ...prev,
       lastUpdated: today(),
-      builds: [...prev.builds, buildFromMachine(machine, inv.components.filter((c) => c.assignment === machine.id))],
+      builds: [
+        ...prev.builds,
+        buildFromMachine(
+          machine,
+          inv.components.filter((c) => c.assignment === machine.id),
+        ),
+      ],
     }));
     toast.success(`Cloned ${machine.name} into a new build`);
   };
@@ -236,7 +252,8 @@ export function PlaygroundPage() {
         title="Playground"
         sub={
           <span className="font-mono tabular-nums">
-            Updated {state.lastUpdated} · {state.builds.length} build{state.builds.length === 1 ? '' : 's'}
+            Updated {state.lastUpdated} · {state.builds.length} build
+            {state.builds.length === 1 ? '' : 's'}
           </span>
         }
         actions={
@@ -252,8 +269,14 @@ export function PlaygroundPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="max-h-[60vh] w-60 overflow-y-auto">
                 {inv.machines.map((m) => (
-                  <DropdownMenuItem key={m.id} className="gap-2" onSelect={() => cloneFromMachine(m)}>
-                    <span className="font-mono text-xs tabular-nums text-muted-foreground">{m.ordinal ?? '–'}</span>
+                  <DropdownMenuItem
+                    key={m.id}
+                    className="gap-2"
+                    onSelect={() => cloneFromMachine(m)}
+                  >
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {m.ordinal ?? '–'}
+                    </span>
                     <span className="flex-1 truncate">{m.name}</span>
                     <span className="text-xs text-muted-foreground">{m.role}</span>
                   </DropdownMenuItem>
@@ -283,7 +306,8 @@ export function PlaygroundPage() {
 
       {state.builds.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card/50 py-16 text-center text-sm text-muted-foreground shadow-card">
-          No builds yet. Click <strong className="text-foreground">New build</strong> to start experimenting.
+          No builds yet. Click <strong className="text-foreground">New build</strong> to start
+          experimenting.
         </div>
       ) : (
         state.builds.map((build) => (
@@ -311,12 +335,17 @@ interface BuildCardProps {
   onDelete: () => void;
 }
 
-function BuildCard({ build, inv, onChangeName, onChangeNotes, onChangeSlot, onDelete }: BuildCardProps) {
+function BuildCard({
+  build,
+  inv,
+  onChangeName,
+  onChangeNotes,
+  onChangeSlot,
+  onDelete,
+}: BuildCardProps) {
   const status = useMemo(() => computeBuildStatus(build), [build]);
 
-  const powerBarColor =
-    status.powerPct > 85 ? 'bad' :
-    status.powerPct > 70 ? 'warn' : 'ok';
+  const powerBarColor = status.powerPct > 85 ? 'bad' : status.powerPct > 70 ? 'warn' : 'ok';
 
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-card">
@@ -390,7 +419,9 @@ function BuildCard({ build, inv, onChangeName, onChangeNotes, onChangeSlot, onDe
         </div>
         <div className="flex items-center gap-3">
           {status.psuRating === 0 ? (
-            <span className="text-sm text-muted-foreground">Set a PSU rating to estimate the power budget</span>
+            <span className="text-sm text-muted-foreground">
+              Set a PSU rating to estimate the power budget
+            </span>
           ) : (
             <>
               <span className="font-mono text-xs tabular-nums text-muted-foreground">
@@ -436,12 +467,8 @@ function SlotRow({ slot, entry, inv, onChange }: SlotRowProps) {
 
   const pickerValue = entryPickerValue(entry);
 
-  const statusClass =
-    entry.source !== 'empty' ? 'ok' :
-    slot.required ? 'bad' : 'dim';
-  const statusGlyph =
-    entry.source !== 'empty' ? '✓' :
-    slot.required ? '✕' : '·';
+  const statusClass = entry.source !== 'empty' ? 'ok' : slot.required ? 'bad' : 'dim';
+  const statusGlyph = entry.source !== 'empty' ? '✓' : slot.required ? '✕' : '·';
 
   const wattsLabel = slot.isPsu ? 'rating' : 'draw';
 
@@ -451,10 +478,14 @@ function SlotRow({ slot, entry, inv, onChange }: SlotRowProps) {
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-medium text-foreground">{slot.label}</span>
           {slot.isPsu ? (
-            <Badge variant="secondary" className="font-mono text-[10px]">PSU</Badge>
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              PSU
+            </Badge>
           ) : null}
           {!slot.required ? (
-            <Badge variant="outline" className="text-[10px] text-muted-foreground">optional</Badge>
+            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+              optional
+            </Badge>
           ) : null}
         </div>
       </TableCell>
@@ -469,7 +500,9 @@ function SlotRow({ slot, entry, inv, onChange }: SlotRowProps) {
               <SelectGroup key={group}>
                 <SelectLabel>{group}</SelectLabel>
                 {opts.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
                 ))}
               </SelectGroup>
             ))}
@@ -513,9 +546,15 @@ function SlotRow({ slot, entry, inv, onChange }: SlotRowProps) {
         <span
           className={cn(
             'text-sm',
-            statusClass === 'ok' ? 'text-ok' : statusClass === 'bad' ? 'text-bad' : 'text-muted-foreground',
+            statusClass === 'ok'
+              ? 'text-ok'
+              : statusClass === 'bad'
+                ? 'text-bad'
+                : 'text-muted-foreground',
           )}
-          aria-label={statusClass === 'ok' ? 'filled' : statusClass === 'bad' ? 'missing' : 'empty (optional)'}
+          aria-label={
+            statusClass === 'ok' ? 'filled' : statusClass === 'bad' ? 'missing' : 'empty (optional)'
+          }
         >
           {statusGlyph}
         </span>

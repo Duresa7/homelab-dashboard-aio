@@ -28,7 +28,9 @@ function isAllowedKey(key) {
 function makeSameOriginGuard() {
   const allow = new Set();
   const extra = String(process.env.STATE_ALLOWED_ORIGINS || '')
-    .split(',').map((s) => s.trim()).filter(Boolean);
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   for (const o of extra) allow.add(o);
   return function sameOriginGuard(req, res, next) {
     const origin = req.headers.origin;
@@ -40,9 +42,15 @@ function makeSameOriginGuard() {
     if (!host) return res.status(403).json({ error: 'missing Host' });
     const expected = new Set([`http://${host}`, `https://${host}`]);
     for (const o of allow) expected.add(o);
-    const source = origin || (() => {
-      try { return new URL(referer).origin; } catch { return null; }
-    })();
+    const source =
+      origin ||
+      (() => {
+        try {
+          return new URL(referer).origin;
+        } catch {
+          return null;
+        }
+      })();
     if (!source || !expected.has(source)) {
       return res.status(403).json({ error: 'cross-origin write rejected' });
     }
@@ -64,9 +72,7 @@ function isValidStateBody(body) {
 }
 
 export async function initState(app, opts = {}) {
-  const {
-    dbPath = path.resolve('data/dashboard.sqlite'),
-  } = opts;
+  const { dbPath = path.resolve('data/dashboard.sqlite') } = opts;
 
   const db = await openStateDb(dbPath);
   const jsonBody = express.json({ limit: '4mb' });
@@ -120,7 +126,11 @@ export async function initState(app, opts = {}) {
   });
 
   function shutdown() {
-    try { db.close(); } catch { /* ignore */ }
+    try {
+      db.close();
+    } catch {
+      /* ignore */
+    }
   }
 
   // Metrics writer is intentionally a no-op for now. The `metrics` table is

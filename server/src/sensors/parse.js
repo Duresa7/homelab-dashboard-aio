@@ -94,55 +94,74 @@ function wdCapacityFromDigits(digits) {
 // 4-letter WD family code, read from the suffix after the capacity digits.
 const WD_FAMILY = {
   // Red — CMR NAS HDD (consumer)
-  EFRX: 'Red', EFAX: 'Red', EFGX: 'Red',
+  EFRX: 'Red',
+  EFAX: 'Red',
+  EFGX: 'Red',
   // Red Plus — newer Red CMR drives
-  EFBX: 'Red Plus', EFPX: 'Red Plus', EFZX: 'Red Plus', EFZZ: 'Red Plus',
+  EFBX: 'Red Plus',
+  EFPX: 'Red Plus',
+  EFZX: 'Red Plus',
+  EFZZ: 'Red Plus',
   // Red Pro — high-throughput NAS
-  FFBX: 'Red Pro', KFGX: 'Red Pro', PFBX: 'Red Pro',
+  FFBX: 'Red Pro',
+  KFGX: 'Red Pro',
+  PFBX: 'Red Pro',
   // Blue — consumer desktop
-  EZRZ: 'Blue', EZEX: 'Blue', AZLW: 'Blue', AZLX: 'Blue', AZRZ: 'Blue', AZBX: 'Blue',
+  EZRZ: 'Blue',
+  EZEX: 'Blue',
+  AZLW: 'Blue',
+  AZLX: 'Blue',
+  AZRZ: 'Blue',
+  AZBX: 'Blue',
   // Black — performance desktop
-  FZWX: 'Black', LSAX: 'Black SN', LSBX: 'Black SN', PLAX: 'Black SN850',
+  FZWX: 'Black',
+  LSAX: 'Black SN',
+  LSBX: 'Black SN',
+  PLAX: 'Black SN850',
   // Purple — surveillance
-  PURX: 'Purple', PURZ: 'Purple', PURP: 'Purple Pro',
+  PURX: 'Purple',
+  PURZ: 'Purple',
+  PURP: 'Purple Pro',
   // Gold — enterprise / datacenter
-  FRYZ: 'Gold', VRYZ: 'Gold',
+  FRYZ: 'Gold',
+  VRYZ: 'Gold',
   // Green — older low-power
-  EZRS: 'Green', AZRX: 'Green',
+  EZRS: 'Green',
+  AZRX: 'Green',
 };
 
 // Seagate 2-letter family code after the GB digits: ST4000VN008 → VN → IronWolf.
 const SEAGATE_FAMILY = {
-  VN: 'IronWolf',          // NAS
+  VN: 'IronWolf', // NAS
   NE: 'IronWolf Pro',
   NT: 'IronWolf Pro',
-  DM: 'BarraCuda',         // desktop 3.5"
-  LM: 'BarraCuda',         // 2.5" laptop
+  DM: 'BarraCuda', // desktop 3.5"
+  LM: 'BarraCuda', // 2.5" laptop
   GX: 'FireCuda',
   LX: 'FireCuda',
-  NM: 'Exos',              // enterprise
-  VX: 'SkyHawk',           // surveillance
+  NM: 'Exos', // enterprise
+  VX: 'SkyHawk', // surveillance
   AS: 'BarraCuda',
 };
 
 // Crucial: CT<capacityGB><family>SSD<rev>.
 const CRUCIAL_FAMILY = {
-  P3P:   { label: 'P3 Plus',  bus: 'NVMe' },
-  P5P:   { label: 'P5 Plus',  bus: 'NVMe' },
-  P3:    { label: 'P3',       bus: 'NVMe' },
-  P5:    { label: 'P5',       bus: 'NVMe' },
-  P1:    { label: 'P1',       bus: 'NVMe' },
-  P2:    { label: 'P2',       bus: 'NVMe' },
-  T700:  { label: 'T700',     bus: 'NVMe' },
-  T705:  { label: 'T705',     bus: 'NVMe' },
-  T500:  { label: 'T500',     bus: 'NVMe' },
-  MX500: { label: 'MX500',    bus: 'SATA' },
-  MX300: { label: 'MX300',    bus: 'SATA' },
-  MX200: { label: 'MX200',    bus: 'SATA' },
-  BX500: { label: 'BX500',    bus: 'SATA' },
-  BX300: { label: 'BX300',    bus: 'SATA' },
-  BX200: { label: 'BX200',    bus: 'SATA' },
-  M4:    { label: 'M4',       bus: 'SATA' },
+  P3P: { label: 'P3 Plus', bus: 'NVMe' },
+  P5P: { label: 'P5 Plus', bus: 'NVMe' },
+  P3: { label: 'P3', bus: 'NVMe' },
+  P5: { label: 'P5', bus: 'NVMe' },
+  P1: { label: 'P1', bus: 'NVMe' },
+  P2: { label: 'P2', bus: 'NVMe' },
+  T700: { label: 'T700', bus: 'NVMe' },
+  T705: { label: 'T705', bus: 'NVMe' },
+  T500: { label: 'T500', bus: 'NVMe' },
+  MX500: { label: 'MX500', bus: 'SATA' },
+  MX300: { label: 'MX300', bus: 'SATA' },
+  MX200: { label: 'MX200', bus: 'SATA' },
+  BX500: { label: 'BX500', bus: 'SATA' },
+  BX300: { label: 'BX300', bus: 'SATA' },
+  BX200: { label: 'BX200', bus: 'SATA' },
+  M4: { label: 'M4', bus: 'SATA' },
 };
 const CRUCIAL_FAMILY_REGEX = new RegExp(
   // Ordered longest-first so "P3P" beats "P3" and "MX500" beats "MX".
@@ -177,7 +196,10 @@ export function detectWesternDigital(token) {
   // 4-letter family code may be anywhere in the suffix; scan for it.
   for (let i = 0; i + 4 <= suffix.length; i++) {
     const code = suffix.slice(i, i + 4);
-    if (WD_FAMILY[code]) { family = WD_FAMILY[code]; break; }
+    if (WD_FAMILY[code]) {
+      family = WD_FAMILY[code];
+      break;
+    }
   }
 
   if (!family) {
@@ -236,7 +258,9 @@ export function detectToshibaKioxia(token, rawModel) {
 
 export function detectHgstHitachi(token, rawModel) {
   if (!/HITACHI|HGST|^HUS|^HDN/.test(token)) return null;
-  const cleaned = String(rawModel || '').replace(/^(hitachi|hgst)[\s_]*/i, '').trim();
+  const cleaned = String(rawModel || '')
+    .replace(/^(hitachi|hgst)[\s_]*/i, '')
+    .trim();
   return { vendor: 'HGST', model: cleaned || rawModel || '' };
 }
 
@@ -291,7 +315,12 @@ function diskKind(disk) {
 }
 
 function deviceShortName(path) {
-  return String(path || '').split(/[\\/]/).filter(Boolean).pop() || '';
+  return (
+    String(path || '')
+      .split(/[\\/]/)
+      .filter(Boolean)
+      .pop() || ''
+  );
 }
 
 function withUniqueDiskDisplayNames(disks) {
@@ -302,7 +331,8 @@ function withUniqueDiskDisplayNames(disks) {
 
   return disks.map((d, idx) => {
     if ((counts.get(d.name) || 0) <= 1) return d;
-    const suffix = deviceShortName(d.path) || (d.serial ? String(d.serial).slice(-4) : `${idx + 1}`);
+    const suffix =
+      deviceShortName(d.path) || (d.serial ? String(d.serial).slice(-4) : `${idx + 1}`);
     return { ...d, name: `${d.name} (${suffix})` };
   });
 }
@@ -374,8 +404,13 @@ export function parseSensorsJson(raw, diskInventory = []) {
 
   // Motherboard/system temp labels in priority order. First match wins.
   const SYSTEM_LABEL_PATTERNS = [
-    /^systin$/i, /^mb[ _\-]?temp/i, /^motherboard$/i, /^board[ _\-]?temp/i,
-    /^system$/i, /^chipset$/i, /^pch$/i,
+    /^systin$/i,
+    /^mb[ _\-]?temp/i,
+    /^motherboard$/i,
+    /^board[ _\-]?temp/i,
+    /^system$/i,
+    /^chipset$/i,
+    /^pch$/i,
     // MSI / Nuvoton nct668x call the board thermistor "Thermistor 0" / "Diode 0".
     /^thermistor[ _]*0$/i,
     /^diode[ _]*0/i,
@@ -457,9 +492,12 @@ export function parseSensorsJson(raw, diskInventory = []) {
       const t = findFirstNumeric(chip.temp1, (k) => k.endsWith('_input'));
       if (t != null) {
         const family = lcChip.split(/[_\-]/)[0];
-        const friendly = family === 'r8169' ? 'Realtek NIC'
-          : /^(e1000|igb|igc|ixgbe)$/.test(family) ? `Intel NIC (${family})`
-          : `${family.toUpperCase()} NIC`;
+        const friendly =
+          family === 'r8169'
+            ? 'Realtek NIC'
+            : /^(e1000|igb|igc|ixgbe)$/.test(family)
+              ? `Intel NIC (${family})`
+              : `${family.toUpperCase()} NIC`;
         network.push({ name: friendly, tempC: t, type: family });
       }
       continue;
@@ -473,15 +511,16 @@ export function parseSensorsJson(raw, diskInventory = []) {
     }
 
     // Fans + chipset/motherboard temps (nct6798, it8688, NZXT, Corsair, Asus).
-    const fanSource = lcChip.startsWith('nct') || lcChip.startsWith('it86') || lcChip.startsWith('w836')
-      ? 'Mobo'
-      : lcChip.startsWith('nzxt')
-        ? 'NZXT'
-        : lcChip.startsWith('corsair')
-          ? 'Corsair'
-          : lcChip.startsWith('asus')
-            ? 'Asus'
-            : null;
+    const fanSource =
+      lcChip.startsWith('nct') || lcChip.startsWith('it86') || lcChip.startsWith('w836')
+        ? 'Mobo'
+        : lcChip.startsWith('nzxt')
+          ? 'NZXT'
+          : lcChip.startsWith('corsair')
+            ? 'Corsair'
+            : lcChip.startsWith('asus')
+              ? 'Asus'
+              : null;
     for (const [sensorName, sensor] of Object.entries(chip)) {
       if (typeof sensor !== 'object') continue;
       const tempVal = findFirstNumeric(sensor, (k) => /^temp\d+_input$/.test(k));
@@ -497,9 +536,7 @@ export function parseSensorsJson(raw, diskInventory = []) {
       if (fanVal != null) {
         // Normalize "fan1" / "FAN 1" / "Fan_2" → "1" / "2" then prefix with source.
         const fanNum = sensorName.replace(/^fan[\s_]*/i, '').trim();
-        const friendlyName = fanSource
-          ? `${fanSource} fan ${fanNum}`
-          : `${chipKey} ${sensorName}`;
+        const friendlyName = fanSource ? `${fanSource} fan ${fanNum}` : `${chipKey} ${sensorName}`;
         fans.push({ chip: chipKey, name: friendlyName, rpm: fanVal });
       }
     }

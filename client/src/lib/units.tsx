@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { getState, setState, subscribe as subscribeState } from './store';
 
@@ -27,9 +20,15 @@ const UnitContext = createContext<Ctx>({
 function normalizeUnit(value: unknown): TempUnit {
   if (typeof value !== 'string') return 'F';
   const raw = value.trim();
-  const parsed = raw.startsWith('"') ? (() => {
-    try { return JSON.parse(raw); } catch { return raw; }
-  })() : raw;
+  const parsed = raw.startsWith('"')
+    ? (() => {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return raw;
+        }
+      })()
+    : raw;
   return String(parsed).trim().toUpperCase() === 'C' ? 'C' : 'F';
 }
 
@@ -54,11 +53,7 @@ export function TempUnitProvider({ children }: { children: ReactNode }) {
     return subscribeState(STORAGE_KEY, () => setUnitState(readStoredUnit()));
   }, []);
 
-  return (
-    <UnitContext.Provider value={{ unit, setUnit, toggle }}>
-      {children}
-    </UnitContext.Provider>
-  );
+  return <UnitContext.Provider value={{ unit, setUnit, toggle }}>{children}</UnitContext.Provider>;
 }
 
 export function useTempUnit(): Ctx {

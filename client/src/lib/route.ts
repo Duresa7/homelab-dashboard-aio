@@ -33,19 +33,19 @@ export interface SubDef {
 
 export const SUBS: Partial<Record<Section, SubDef[]>> = {
   proxmox: [
-    { id: 'compute',  label: 'Compute' },
-    { id: 'guests',   label: 'Guests' },
-    { id: 'storage',  label: 'Storage' },
-    { id: 'sensors',  label: 'Sensors' },
+    { id: 'compute', label: 'Compute' },
+    { id: 'guests', label: 'Guests' },
+    { id: 'storage', label: 'Storage' },
+    { id: 'sensors', label: 'Sensors' },
   ],
   network: [
     { id: 'overview', label: 'Overview' },
-    { id: 'devices',  label: 'Devices' },
-    { id: 'clients',  label: 'Clients' },
-    { id: 'config',   label: 'Config' },
+    { id: 'devices', label: 'Devices' },
+    { id: 'clients', label: 'Clients' },
+    { id: 'config', label: 'Config' },
   ],
   docker: [
-    { id: 'hosts',      label: 'Hosts' },
+    { id: 'hosts', label: 'Hosts' },
     { id: 'containers', label: 'Containers' },
   ],
   nas: [
@@ -54,42 +54,42 @@ export const SUBS: Partial<Record<Section, SubDef[]>> = {
   ],
   cameras: [
     { id: 'overview', label: 'Overview' },
-    { id: 'grid',     label: 'Live Grid' },
-    { id: 'events',   label: 'Events' },
-    { id: 'devices',  label: 'Devices' },
+    { id: 'grid', label: 'Live Grid' },
+    { id: 'events', label: 'Events' },
+    { id: 'devices', label: 'Devices' },
   ],
 };
 
 export const DEFAULT_SUB: Record<Section, string | undefined> = {
-  overview:  undefined,
-  proxmox:   'compute',
-  network:   'overview',
-  docker:    'hosts',
-  nas:       'pools',
-  cameras:   'overview',
-  events:    undefined,
-  alerts:    undefined,
-  health:    undefined,
-  siem:      undefined,
+  overview: undefined,
+  proxmox: 'compute',
+  network: 'overview',
+  docker: 'hosts',
+  nas: 'pools',
+  cameras: 'overview',
+  events: undefined,
+  alerts: undefined,
+  health: undefined,
+  siem: undefined,
   inventory: undefined,
   playground: undefined,
-  settings:  undefined,
+  settings: undefined,
 };
 
 export const SECTION_LABEL: Record<Section, string> = {
-  overview:  'Overview',
-  proxmox:   'Proxmox',
-  network:   'Network',
-  docker:    'Docker',
-  nas:       'NAS',
-  cameras:   'Cameras',
-  events:    'Events',
-  alerts:    'Alerts',
-  health:    'API Health',
-  siem:      'SIEM',
+  overview: 'Overview',
+  proxmox: 'Proxmox',
+  network: 'Network',
+  docker: 'Docker',
+  nas: 'NAS',
+  cameras: 'Cameras',
+  events: 'Events',
+  alerts: 'Alerts',
+  health: 'API Health',
+  siem: 'SIEM',
   inventory: 'Inventory',
   playground: 'Playground',
-  settings:  'Settings',
+  settings: 'Settings',
 };
 
 export function resolveSub(section: Section, sub?: string): string | undefined {
@@ -109,7 +109,7 @@ import { getState, setState } from './store';
 const STORAGE_KEY = 'route';
 
 function normalizeRoute(route: PersistedRoute): Route {
-  const section: Section = route.section === 'storage' ? 'nas' : route.section ?? 'overview';
+  const section: Section = route.section === 'storage' ? 'nas' : (route.section ?? 'overview');
   const sub = section === 'proxmox' && route.sub === 'drives' ? 'storage' : route.sub;
   const itemId = section === 'inventory' ? route.itemId : undefined;
   return { section, sub: resolveSub(section, sub), itemId };

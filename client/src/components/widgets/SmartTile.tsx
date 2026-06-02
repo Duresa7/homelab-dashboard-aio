@@ -15,9 +15,7 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
   const bad = data.disks.filter((d) => d.smart === 'bad').length;
   const healthy = total - warn - bad;
   const { unit } = useTempUnit();
-  const avgC = total
-    ? data.disks.reduce((a, b) => a + b.tempC, 0) / total
-    : 0;
+  const avgC = total ? data.disks.reduce((a, b) => a + b.tempC, 0) / total : 0;
   const avgTemp = Math.round(convertTemp(avgC, unit));
   const tagLabel = bad ? `${bad} failing` : warn ? `${warn} warning` : 'all healthy';
   const tagKind = bad ? 'bad' : warn ? 'warn' : 'ok';
@@ -34,7 +32,10 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
         {healthy}
         <small> / {total}</small>
       </div>
-      <div className="t-sub">healthy · avg {avgTemp}{tempSuffix(unit)}</div>
+      <div className="t-sub">
+        healthy · avg {avgTemp}
+        {tempSuffix(unit)}
+      </div>
     </Tile>
   );
 }

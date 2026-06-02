@@ -63,10 +63,7 @@ export function initSensors(app, config) {
     const now = Date.now();
     if (sensorsCache.data && now - sensorsCache.ts < cacheTtl) return sensorsCache.data;
 
-    const [output, diskInventory] = await Promise.all([
-      runSensors(),
-      fetchSensorDiskInventory(),
-    ]);
+    const [output, diskInventory] = await Promise.all([runSensors(), fetchSensorDiskInventory()]);
     const parsed = parseSensorsJson(output, diskInventory);
 
     sensorsCache = { data: parsed, ts: now };
@@ -77,7 +74,9 @@ export function initSensors(app, config) {
   app.get('/api/sensors', async (_req, res) => {
     if (!enabled) return res.json({ disabled: true });
     if (mode === 'ssh' && !sshHost) {
-      return res.status(503).json({ error: 'SENSORS_MODE=ssh but no host configured (set SENSORS_SSH_HOST or GPU_SSH_HOST)' });
+      return res.status(503).json({
+        error: 'SENSORS_MODE=ssh but no host configured (set SENSORS_SSH_HOST or GPU_SSH_HOST)',
+      });
     }
     try {
       const data = await fetchSensorsData();
@@ -99,10 +98,7 @@ export function initSensors(app, config) {
       cfg.keyPath = sshKeyPath || '(default)';
     }
     try {
-      const [raw, diskInventory] = await Promise.all([
-        runSensors(),
-        fetchSensorDiskInventory(),
-      ]);
+      const [raw, diskInventory] = await Promise.all([runSensors(), fetchSensorDiskInventory()]);
       res.json({
         config: cfg,
         diskInventory,

@@ -71,7 +71,10 @@ interface Props {
   tab: SettingsTabId;
   onTabChange: (tab: SettingsTabId) => void;
   onIntegrationChange: (integrations: Record<IntegrationKey, boolean>) => void;
-  onPreferenceChange: <K extends keyof SettingsPreferences>(key: K, value: SettingsPreferences[K]) => void;
+  onPreferenceChange: <K extends keyof SettingsPreferences>(
+    key: K,
+    value: SettingsPreferences[K],
+  ) => void;
 }
 
 interface ServerHealthState {
@@ -93,7 +96,11 @@ function useServerHealth(): ServerHealthState {
         setState({ data, error: null, loading: false });
       } catch (err) {
         if (cancelled) return;
-        setState({ data: null, error: err instanceof Error ? err.message : String(err), loading: false });
+        setState({
+          data: null,
+          error: err instanceof Error ? err.message : String(err),
+          loading: false,
+        });
       }
     };
     load();
@@ -120,10 +127,22 @@ interface StatusPill {
 function serverStatus(info: HealthInfo | null): StatusPill {
   if (!info) return { kind: 'info', label: 'unknown', hint: 'No status reported by the server.' };
   if (!info.enabled)
-    return { kind: 'info', label: 'server disabled', hint: 'Set *_ENABLED=true in .env to allow this integration server-side.' };
+    return {
+      kind: 'info',
+      label: 'server disabled',
+      hint: 'Set *_ENABLED=true in .env to allow this integration server-side.',
+    };
   if (!info.configured)
-    return { kind: 'warn', label: 'not configured', hint: 'The server allows this integration but credentials/host are missing in .env.' };
-  return { kind: 'ok', label: 'configured', hint: 'Server configuration is present for this integration.' };
+    return {
+      kind: 'warn',
+      label: 'not configured',
+      hint: 'The server allows this integration but credentials/host are missing in .env.',
+    };
+  return {
+    kind: 'ok',
+    label: 'configured',
+    hint: 'Server configuration is present for this integration.',
+  };
 }
 
 function NumberStepper({
@@ -185,7 +204,15 @@ function storedThreshold(k: keyof Thresholds, value: number, unit: TempUnit): nu
   return unit === 'F' ? fToC(value) : value;
 }
 
-function ThresholdRow({ k, thresholds, unit }: { k: keyof Thresholds; thresholds: Thresholds; unit: TempUnit }) {
+function ThresholdRow({
+  k,
+  thresholds,
+  unit,
+}: {
+  k: keyof Thresholds;
+  thresholds: Thresholds;
+  unit: TempUnit;
+}) {
   const { label, unit: baseUnit } = THRESHOLD_LABELS[k];
   const pair = thresholds[k];
   const def = DEFAULT_THRESHOLDS[k];
@@ -200,17 +227,30 @@ function ThresholdRow({ k, thresholds, unit }: { k: keyof Thresholds; thresholds
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/60">
       <div className="flex min-w-[9rem] items-center gap-1.5 text-sm font-medium text-foreground">
         {label}
-        {isCustom ? <span className="size-1.5 rounded-full bg-primary" title={`default ${defWarn}/${defBad} ${displayUnit}`} /> : null}
+        {isCustom ? (
+          <span
+            className="size-1.5 rounded-full bg-primary"
+            title={`default ${defWarn}/${defBad} ${displayUnit}`}
+          />
+        ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-semibold text-warn">warn</span>
-          <NumberStepper value={displayThreshold(k, pair.warn, unit)} ariaLabel={`${label} warn threshold`} onChange={(v) => update('warn', v)} />
+          <NumberStepper
+            value={displayThreshold(k, pair.warn, unit)}
+            ariaLabel={`${label} warn threshold`}
+            onChange={(v) => update('warn', v)}
+          />
           <span className="w-6 text-xs text-muted-foreground">{displayUnit}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-semibold text-bad">bad</span>
-          <NumberStepper value={displayThreshold(k, pair.bad, unit)} ariaLabel={`${label} bad threshold`} onChange={(v) => update('bad', v)} />
+          <NumberStepper
+            value={displayThreshold(k, pair.bad, unit)}
+            ariaLabel={`${label} bad threshold`}
+            onChange={(v) => update('bad', v)}
+          />
           <span className="w-6 text-xs text-muted-foreground">{displayUnit}</span>
         </div>
       </div>
@@ -299,7 +339,9 @@ function PreferenceCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-foreground">{title}</div>
-          {meta ? <div className="mt-0.5 truncate text-xs text-muted-foreground">{meta}</div> : null}
+          {meta ? (
+            <div className="mt-0.5 truncate text-xs text-muted-foreground">{meta}</div>
+          ) : null}
         </div>
       </div>
       {children}
@@ -316,12 +358,19 @@ function PreferencesTab({
 }) {
   const { unit, setUnit } = useTempUnit();
   const previewDate = new Date();
-  const setDateTime = <K extends keyof DateTimePreferences>(key: K, value: DateTimePreferences[K]) => {
+  const setDateTime = <K extends keyof DateTimePreferences>(
+    key: K,
+    value: DateTimePreferences[K],
+  ) => {
     onPreferenceChange('dateTime', { ...preferences.dateTime, [key]: value });
   };
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-      <PreferenceCard icon={MonitorCog} title="Appearance" meta={preferences.theme === 'system' ? 'Auto' : preferences.theme}>
+      <PreferenceCard
+        icon={MonitorCog}
+        title="Appearance"
+        meta={preferences.theme === 'system' ? 'Auto' : preferences.theme}
+      >
         <SegmentedChoice<ThemeChoice>
           value={preferences.theme}
           options={[
@@ -356,7 +405,11 @@ function PreferencesTab({
         />
       </PreferenceCard>
 
-      <PreferenceCard icon={Clock3} title="Time format" meta={formatClockTime(previewDate, preferences.dateTime)}>
+      <PreferenceCard
+        icon={Clock3}
+        title="Time format"
+        meta={formatClockTime(previewDate, preferences.dateTime)}
+      >
         <SegmentedChoice<TimeFormat>
           value={preferences.dateTime.timeFormat}
           options={TIME_FORMAT_OPTIONS}
@@ -364,7 +417,11 @@ function PreferencesTab({
         />
       </PreferenceCard>
 
-      <PreferenceCard icon={CalendarDays} title="Date format" meta={formatClockDate(previewDate, preferences.dateTime)}>
+      <PreferenceCard
+        icon={CalendarDays}
+        title="Date format"
+        meta={formatClockDate(previewDate, preferences.dateTime)}
+      >
         <PreferenceSelect<DateFormat>
           value={preferences.dateTime.dateFormat}
           options={DATE_FORMAT_OPTIONS}
@@ -372,7 +429,11 @@ function PreferencesTab({
         />
       </PreferenceCard>
 
-      <PreferenceCard icon={Globe2} title="Time zone" meta={timeZoneLabel(preferences.dateTime.timeZone)}>
+      <PreferenceCard
+        icon={Globe2}
+        title="Time zone"
+        meta={timeZoneLabel(preferences.dateTime.timeZone)}
+      >
         <PreferenceSelect<TimeZoneChoice>
           value={preferences.dateTime.timeZone}
           options={TIME_ZONE_OPTIONS}
@@ -380,10 +441,17 @@ function PreferencesTab({
         />
       </PreferenceCard>
 
-      <PreferenceCard icon={Bell} title="Alerts" meta={preferences.showAlerts ? 'Banner on' : 'Banner off'}>
+      <PreferenceCard
+        icon={Bell}
+        title="Alerts"
+        meta={preferences.showAlerts ? 'Banner on' : 'Banner off'}
+      >
         <div className="flex min-h-9 items-center justify-between gap-3">
           <span className="text-sm text-foreground">Alert banner</span>
-          <Switch checked={preferences.showAlerts} onCheckedChange={(v) => onPreferenceChange('showAlerts', v)} />
+          <Switch
+            checked={preferences.showAlerts}
+            onCheckedChange={(v) => onPreferenceChange('showAlerts', v)}
+          />
         </div>
       </PreferenceCard>
 
@@ -394,7 +462,9 @@ function PreferencesTab({
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold text-foreground">Overview tiles</div>
-            <div className="text-xs tabular-nums text-muted-foreground">{preferences.overviewLayout.length} / {ALL_TILES.length} visible</div>
+            <div className="text-xs tabular-nums text-muted-foreground">
+              {preferences.overviewLayout.length} / {ALL_TILES.length} visible
+            </div>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -434,7 +504,8 @@ function IntegrationsTab({
   const enabledCount = INTEGRATIONS.reduce((n, def) => n + (integrations[def.key] ? 1 : 0), 0);
   const allOn = enabledCount === total;
   const allOff = enabledCount === 0;
-  const setOne = (key: IntegrationKey, value: boolean) => onChange({ ...integrations, [key]: value });
+  const setOne = (key: IntegrationKey, value: boolean) =>
+    onChange({ ...integrations, [key]: value });
   const setAll = (value: boolean) => {
     const next = { ...integrations };
     for (const def of INTEGRATIONS) next[def.key] = value;
@@ -446,11 +517,17 @@ function IntegrationsTab({
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-2.5">
           <h2 className="font-display text-lg tracking-tight text-foreground">Integrations</h2>
-          <span className="text-sm tabular-nums text-muted-foreground">{enabledCount} / {total} active</span>
+          <span className="text-sm tabular-nums text-muted-foreground">
+            {enabledCount} / {total} active
+          </span>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled={allOn} onClick={() => setAll(true)}>Enable all</Button>
-          <Button variant="outline" size="sm" disabled={allOff} onClick={() => setAll(false)}>Disable all</Button>
+          <Button variant="outline" size="sm" disabled={allOn} onClick={() => setAll(true)}>
+            Enable all
+          </Button>
+          <Button variant="outline" size="sm" disabled={allOff} onClick={() => setAll(false)}>
+            Disable all
+          </Button>
         </div>
       </header>
 
@@ -486,13 +563,19 @@ function IntegrationsTab({
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-foreground">{def.label}</span>
-                <Switch checked={enabled} aria-label={`Toggle ${def.label}`} onCheckedChange={(v) => setOne(def.key, v)} />
+                <Switch
+                  checked={enabled}
+                  aria-label={`Toggle ${def.label}`}
+                  onCheckedChange={(v) => setOne(def.key, v)}
+                />
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge kind={status.kind} title={status.hint}>
                   server: {status.label}
                 </StatusBadge>
-                <span className="truncate text-xs text-muted-foreground" title={pollLabel}>{pollLabel}</span>
+                <span className="truncate text-xs text-muted-foreground" title={pollLabel}>
+                  {pollLabel}
+                </span>
               </div>
             </div>
           );
@@ -509,7 +592,9 @@ function SeverityTab() {
     <section className="flex flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-2.5">
-          <h2 className="font-display text-lg tracking-tight text-foreground">Severity thresholds</h2>
+          <h2 className="font-display text-lg tracking-tight text-foreground">
+            Severity thresholds
+          </h2>
           <span className="text-sm text-muted-foreground">Temps in °{unit}</span>
         </div>
         <Button variant="outline" size="sm" onClick={() => resetThresholds()}>
@@ -526,7 +611,14 @@ function SeverityTab() {
   );
 }
 
-export function SettingsPage({ integrations, preferences, tab, onTabChange, onIntegrationChange, onPreferenceChange }: Props) {
+export function SettingsPage({
+  integrations,
+  preferences,
+  tab,
+  onTabChange,
+  onIntegrationChange,
+  onPreferenceChange,
+}: Props) {
   const enabledCount = INTEGRATIONS.reduce((n, def) => n + (integrations[def.key] ? 1 : 0), 0);
   const visibleTiles = preferences.overviewLayout.length;
 
@@ -543,11 +635,24 @@ export function SettingsPage({ integrations, preferences, tab, onTabChange, onIn
         </div>
       </header>
 
-      <Tabs value={tab} onValueChange={(value) => onTabChange(value as SettingsTabId)} className="gap-4">
-        <TabsList variant="line" className="w-full justify-start overflow-x-auto border-b border-border pb-2">
-          <TabsTrigger value="preferences"><SlidersHorizontal className="size-4" /> Preferences</TabsTrigger>
-          <TabsTrigger value="integrations"><PlugZap className="size-4" /> Integrations</TabsTrigger>
-          <TabsTrigger value="severity"><Gauge className="size-4" /> Severity</TabsTrigger>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => onTabChange(value as SettingsTabId)}
+        className="gap-4"
+      >
+        <TabsList
+          variant="line"
+          className="w-full justify-start overflow-x-auto border-b border-border pb-2"
+        >
+          <TabsTrigger value="preferences">
+            <SlidersHorizontal className="size-4" /> Preferences
+          </TabsTrigger>
+          <TabsTrigger value="integrations">
+            <PlugZap className="size-4" /> Integrations
+          </TabsTrigger>
+          <TabsTrigger value="severity">
+            <Gauge className="size-4" /> Severity
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="preferences">

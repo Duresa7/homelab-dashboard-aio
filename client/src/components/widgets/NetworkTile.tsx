@@ -17,7 +17,11 @@ export function NetworkTile({ data, span, onExpand, chartKind, onChartKind, expa
   const up = upHistory[upHistory.length - 1];
   return (
     <Tile
-      title={<><BrandIcon name="unifi" alt="UniFi" /> Network</>}
+      title={
+        <>
+          <BrandIcon name="unifi" alt="UniFi" /> Network
+        </>
+      }
       sub={`${latencyMs.toFixed(1)} ms`}
       span={span}
       onExpand={onExpand}
@@ -28,11 +32,17 @@ export function NetworkTile({ data, span, onExpand, chartKind, onChartKind, expa
       <div className="netrate">
         <div className="col">
           <div className="label">↓ download</div>
-          <div className="v">{dn.toFixed(0)}<small>Mbps</small></div>
+          <div className="v">
+            {dn.toFixed(0)}
+            <small>Mbps</small>
+          </div>
         </div>
         <div className="col">
           <div className="label">↑ upload</div>
-          <div className="v">{up.toFixed(0)}<small>Mbps</small></div>
+          <div className="v">
+            {up.toFixed(0)}
+            <small>Mbps</small>
+          </div>
         </div>
       </div>
     </Tile>

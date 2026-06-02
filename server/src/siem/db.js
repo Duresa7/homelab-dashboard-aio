@@ -27,12 +27,18 @@ const SCHEMA_STATEMENTS = [
 ];
 
 const VALID_CATEGORIES = new Set([
-  'firewall', 'client', 'ids', 'vpn', 'admin', 'update',
-  'system', 'monitoring', 'security', 'threat',
+  'firewall',
+  'client',
+  'ids',
+  'vpn',
+  'admin',
+  'update',
+  'system',
+  'monitoring',
+  'security',
+  'threat',
 ]);
-const VALID_DEVICE_KINDS = new Set([
-  'gateway', 'ap', 'switch', 'controller', 'unknown',
-]);
+const VALID_DEVICE_KINDS = new Set(['gateway', 'ap', 'switch', 'controller', 'unknown']);
 
 export async function openSiemDb(dbPath) {
   await mkdir(path.dirname(dbPath), { recursive: true });
@@ -54,9 +60,7 @@ export async function openSiemDb(dbPath) {
   const countSinceStmt = db.prepare(
     `SELECT COUNT(*) AS n FROM syslog_events WHERE received_at >= ?`,
   );
-  const lastEventStmt = db.prepare(
-    `SELECT MAX(received_at) AS ts FROM syslog_events`,
-  );
+  const lastEventStmt = db.prepare(`SELECT MAX(received_at) AS ts FROM syslog_events`);
   // Chunked purge: better-sqlite3 is synchronous, so a multi-million-row
   // DELETE would block the Node event loop for seconds. We delete in batches
   // and let the caller yield to the event loop between chunks.
@@ -65,9 +69,7 @@ export async function openSiemDb(dbPath) {
        SELECT id FROM syslog_events WHERE received_at < ? LIMIT ?
      )`,
   );
-  const replayStmt = db.prepare(
-    `SELECT * FROM syslog_events WHERE id > ? ORDER BY id ASC LIMIT ?`,
-  );
+  const replayStmt = db.prepare(`SELECT * FROM syslog_events WHERE id > ? ORDER BY id ASC LIMIT ?`);
   const byIdStmt = db.prepare(`SELECT * FROM syslog_events WHERE id = ?`);
 
   function insertEvent(evt) {
@@ -91,7 +93,8 @@ export async function openSiemDb(dbPath) {
   }
 
   function queryEvents({
-    since = null, until = null,
+    since = null,
+    until = null,
     severity = null,
     deviceKind = null,
     category = null,
@@ -104,9 +107,18 @@ export async function openSiemDb(dbPath) {
     const where = [];
     const params = [];
 
-    if (since != null) { where.push('received_at >= ?'); params.push(Number(since)); }
-    if (until != null) { where.push('received_at <= ?'); params.push(Number(until)); }
-    if (afterId != null) { where.push('id > ?'); params.push(Number(afterId)); }
+    if (since != null) {
+      where.push('received_at >= ?');
+      params.push(Number(since));
+    }
+    if (until != null) {
+      where.push('received_at <= ?');
+      params.push(Number(until));
+    }
+    if (afterId != null) {
+      where.push('id > ?');
+      params.push(Number(afterId));
+    }
 
     const severities = parseCsv(severity).map(Number).filter(Number.isFinite);
     if (severities.length) {
@@ -149,22 +161,30 @@ export async function openSiemDb(dbPath) {
   }
 
   function getStats({ since = Date.now() - 3600_000 } = {}) {
-    const bySeverity = db.prepare(
-      `SELECT severity, COUNT(*) AS n FROM syslog_events
+    const bySeverity = db
+      .prepare(
+        `SELECT severity, COUNT(*) AS n FROM syslog_events
        WHERE received_at >= ? GROUP BY severity`,
-    ).all(since);
-    const byCategory = db.prepare(
-      `SELECT category, COUNT(*) AS n FROM syslog_events
+      )
+      .all(since);
+    const byCategory = db
+      .prepare(
+        `SELECT category, COUNT(*) AS n FROM syslog_events
        WHERE received_at >= ? GROUP BY category`,
-    ).all(since);
-    const byKind = db.prepare(
-      `SELECT device_kind, COUNT(*) AS n FROM syslog_events
+      )
+      .all(since);
+    const byKind = db
+      .prepare(
+        `SELECT device_kind, COUNT(*) AS n FROM syslog_events
        WHERE received_at >= ? GROUP BY device_kind`,
-    ).all(since);
-    const bySource = db.prepare(
-      `SELECT source_ip, COUNT(*) AS n FROM syslog_events
+      )
+      .all(since);
+    const bySource = db
+      .prepare(
+        `SELECT source_ip, COUNT(*) AS n FROM syslog_events
        WHERE received_at >= ? GROUP BY source_ip ORDER BY n DESC LIMIT 20`,
-    ).all(since);
+      )
+      .all(since);
     return {
       sinceMs: since,
       bySeverity: Object.fromEntries(bySeverity.map((r) => [r.severity, r.n])),
@@ -216,7 +236,10 @@ export async function openSiemDb(dbPath) {
 function parseCsv(v) {
   if (v == null) return [];
   if (Array.isArray(v)) return v.flatMap(parseCsv);
-  return String(v).split(',').map((s) => s.trim()).filter(Boolean);
+  return String(v)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function rowToEvent(row) {
@@ -239,5 +262,9 @@ function rowToEvent(row) {
 }
 
 function safeJsonParse(text) {
-  try { return JSON.parse(text); } catch { return null; }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }

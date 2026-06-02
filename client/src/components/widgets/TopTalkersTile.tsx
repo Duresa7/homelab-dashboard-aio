@@ -25,7 +25,11 @@ export function TopTalkersTile({ data, span, onExpand, expandable }: Props) {
   const top = data.slice(0, 3);
   return (
     <Tile
-      title={<><BrandIcon name="unifi" alt="UniFi" /> Connected Clients</>}
+      title={
+        <>
+          <BrandIcon name="unifi" alt="UniFi" /> Connected Clients
+        </>
+      }
       sub="recent"
       span={span}
       onExpand={onExpand}

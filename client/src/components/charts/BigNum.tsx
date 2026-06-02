@@ -27,7 +27,11 @@ export function BigNum({ value, unit, sub, accent, kind, history, goodDirection 
           <TrendArrow data={history} goodDirection={goodDirection} />
         ) : null}
       </div>
-      {sub ? <div className="t-sub" style={{ marginTop: 6 }}>{sub}</div> : null}
+      {sub ? (
+        <div className="t-sub" style={{ marginTop: 6 }}>
+          {sub}
+        </div>
+      ) : null}
     </div>
   );
 }

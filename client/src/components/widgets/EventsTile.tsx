@@ -11,7 +11,13 @@ interface Props {
 export function EventsTile({ data, span, onExpand, expandable }: Props) {
   const recent = data.slice(0, 5);
   return (
-    <Tile title="Events" sub={`${data.length} total`} span={span} onExpand={onExpand} expandable={expandable}>
+    <Tile
+      title="Events"
+      sub={`${data.length} total`}
+      span={span}
+      onExpand={onExpand}
+      expandable={expandable}
+    >
       <div className="events">
         {recent.map((e, i) => (
           <div key={i} className="ev">

@@ -56,7 +56,9 @@ export function OverviewPage({ data, layout, chartKinds, setChartKind, onExpand 
             {section.label && (
               <h2 className="flex items-baseline gap-2 text-[12px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                 {section.label}
-                <span className="font-mono text-[11px] tabular-nums text-[var(--ink-4)]">{ordered.length}</span>
+                <span className="font-mono text-[11px] tabular-nums text-[var(--ink-4)]">
+                  {ordered.length}
+                </span>
               </h2>
             )}
             <div className="grid grid-cols-12 gap-[var(--gap)]">{ordered.map(renderOne)}</div>

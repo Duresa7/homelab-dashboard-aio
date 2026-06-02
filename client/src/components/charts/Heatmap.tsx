@@ -35,7 +35,9 @@ export function Heatmap({ cols, data, max = 100, warnAt = 0.6, badAt = 0.85 }: P
           <div
             key={i}
             className="cell"
-            style={{ background: `color-mix(in oklab, ${baseColor} ${blend.toFixed(0)}%, var(--bg-3))` }}
+            style={{
+              background: `color-mix(in oklab, ${baseColor} ${blend.toFixed(0)}%, var(--bg-3))`,
+            }}
             title={`${v.toFixed(0)}`}
           />
         );

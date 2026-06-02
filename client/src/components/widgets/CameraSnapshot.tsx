@@ -100,11 +100,17 @@ export function CameraSnapshot({
         />
       ) : null}
       {!isConnected ? (
-        <div className="t-sub" style={{ color: '#9aa' }}>offline</div>
+        <div className="t-sub" style={{ color: '#9aa' }}>
+          offline
+        </div>
       ) : !primed ? (
-        <div className="t-sub" style={{ color: '#9aa' }}>loading…</div>
+        <div className="t-sub" style={{ color: '#9aa' }}>
+          loading…
+        </div>
       ) : failed && !displayed ? (
-        <div className="t-sub" style={{ color: '#c66' }}>no snapshot</div>
+        <div className="t-sub" style={{ color: '#c66' }}>
+          no snapshot
+        </div>
       ) : null}
       <div
         style={{

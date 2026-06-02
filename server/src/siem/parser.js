@@ -2,8 +2,18 @@
 // IDS, VPN, and client events. parseSyslog() tries 3164 first, then layers
 // CEF if the body starts with "CEF:".
 const MONTHS = {
-  Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-  Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+  Jan: 0,
+  Feb: 1,
+  Mar: 2,
+  Apr: 3,
+  May: 4,
+  Jun: 5,
+  Jul: 6,
+  Aug: 7,
+  Sep: 8,
+  Oct: 9,
+  Nov: 10,
+  Dec: 11,
 };
 
 // Optional <PRI>, BSD timestamp, hostname, tag[pid]: message — PRI may be missing.
@@ -87,7 +97,8 @@ export function parseRfc3164(raw) {
 // CEF:Ver|Vendor|Product|ProductVer|SigID|Name|Severity|Extension. Pipes
 // escaped as \|; extension is space-separated key=value where values may
 // contain spaces — split on `key=` lookahead, not whitespace.
-const CEF_HEADER_RE = /^CEF:(\d+)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|(.*)$/s;
+const CEF_HEADER_RE =
+  /^CEF:(\d+)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|(.*)$/s;
 
 function unescapeCefHeader(s) {
   return s.replace(/\\([|\\])/g, '$1');
@@ -163,7 +174,9 @@ function cefToSyslogSeverity(cefSev) {
 }
 
 export function parseSyslog(raw) {
-  const trimmed = String(raw || '').replace(/\0+$/, '').trim();
+  const trimmed = String(raw || '')
+    .replace(/\0+$/, '')
+    .trim();
   if (!trimmed) return null;
 
   const base = parseRfc3164(trimmed);
@@ -208,10 +221,38 @@ export function parseSyslog(raw) {
 }
 
 export const SEVERITY_NAMES = [
-  'emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug',
+  'emerg',
+  'alert',
+  'crit',
+  'err',
+  'warning',
+  'notice',
+  'info',
+  'debug',
 ];
 export const FACILITY_NAMES = [
-  'kern', 'user', 'mail', 'daemon', 'auth', 'syslog', 'lpr', 'news',
-  'uucp', 'cron', 'authpriv', 'ftp', 'ntp', 'audit', 'alert', 'clock',
-  'local0', 'local1', 'local2', 'local3', 'local4', 'local5', 'local6', 'local7',
+  'kern',
+  'user',
+  'mail',
+  'daemon',
+  'auth',
+  'syslog',
+  'lpr',
+  'news',
+  'uucp',
+  'cron',
+  'authpriv',
+  'ftp',
+  'ntp',
+  'audit',
+  'alert',
+  'clock',
+  'local0',
+  'local1',
+  'local2',
+  'local3',
+  'local4',
+  'local5',
+  'local6',
+  'local7',
 ];

@@ -7,14 +7,25 @@ import { initSensors } from './index.js';
 // no I/O happens here.
 function makeApp() {
   const routes = {};
-  return { routes, get(path, handler) { routes[path] = handler; } };
+  return {
+    routes,
+    get(path, handler) {
+      routes[path] = handler;
+    },
+  };
 }
 function makeRes() {
   return {
     statusCode: 200,
     body: undefined,
-    status(code) { this.statusCode = code; return this; },
-    json(obj) { this.body = obj; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(obj) {
+      this.body = obj;
+      return this;
+    },
   };
 }
 

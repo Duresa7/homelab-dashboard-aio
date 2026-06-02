@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { formatClockDate, formatClockTime, timeZoneLabel, type DateTimePreferences } from '../../lib/datetime';
+import {
+  formatClockDate,
+  formatClockTime,
+  timeZoneLabel,
+  type DateTimePreferences,
+} from '../../lib/datetime';
 
 interface Props {
   preferences: DateTimePreferences;

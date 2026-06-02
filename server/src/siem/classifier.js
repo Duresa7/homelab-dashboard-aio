@@ -1,8 +1,8 @@
 const HOSTNAME_RULES = [
-  [/^(UDM|UCG|UDMP|UDR|UXG)/i,           'gateway'],
-  [/^(USW|US-|USL|USP|USXG)/i,           'switch'],
-  [/^(UAP|U7|U6|UFLHD|UAC)/i,            'ap'],
-  [/^(UNVR|UNAS|UCKP|UCK|CKG2|CK)/i,     'controller'],
+  [/^(UDM|UCG|UDMP|UDR|UXG)/i, 'gateway'],
+  [/^(USW|US-|USL|USP|USXG)/i, 'switch'],
+  [/^(UAP|U7|U6|UFLHD|UAC)/i, 'ap'],
+  [/^(UNVR|UNAS|UCKP|UCK|CKG2|CK)/i, 'controller'],
 ];
 
 function inferDeviceKind(parsed) {
@@ -19,8 +19,16 @@ function inferDeviceKind(parsed) {
 
 // Lowercased CEF categories UniFi emits — passed through as-is when present.
 const CEF_CATEGORIES = new Set([
-  'monitoring', 'security', 'threat', 'admin', 'vpn', 'firewall',
-  'client', 'update', 'system', 'ids',
+  'monitoring',
+  'security',
+  'threat',
+  'admin',
+  'vpn',
+  'firewall',
+  'client',
+  'update',
+  'system',
+  'ids',
 ]);
 
 function inferCategory(parsed) {
@@ -43,7 +51,10 @@ function inferCategory(parsed) {
 
   if (tag === 'hostapd' || tag === 'wpa_supplicant') return 'client';
   if (/\bSTA\s+[0-9a-f:]{17}\s+IEEE 802\.11/i.test(msg)) return 'client';
-  if (/(?:authenticated|associated|disassociated|deauthenticated)/i.test(msg) && /STA|client/i.test(msg)) {
+  if (
+    /(?:authenticated|associated|disassociated|deauthenticated)/i.test(msg) &&
+    /STA|client/i.test(msg)
+  ) {
     return 'client';
   }
 
@@ -57,7 +68,10 @@ function inferCategory(parsed) {
   if (/\bAccepted (?:password|publickey) for\b/i.test(msg)) return 'admin';
   if (/\bFailed password for\b/i.test(msg)) return 'admin';
 
-  if (/(?:firmware|upgrade|update)\b/i.test(msg) && /\b(ready|available|installed|started)\b/i.test(msg)) {
+  if (
+    /(?:firmware|upgrade|update)\b/i.test(msg) &&
+    /\b(ready|available|installed|started)\b/i.test(msg)
+  ) {
     return 'update';
   }
 

@@ -35,7 +35,13 @@ function IconAction({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" onClick={onClick} aria-label={label}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 text-muted-foreground hover:text-foreground"
+          onClick={onClick}
+          aria-label={label}
+        >
           {children}
         </Button>
       </TooltipTrigger>
@@ -60,19 +66,27 @@ export function Topbar({ section, activeSub, dateTime, onNavigateSection, onOpen
                 <>
                   <BreadcrumbItem>
                     <BreadcrumbLink asChild>
-                      <button type="button" onClick={() => onNavigateSection(section)} className="truncate">
+                      <button
+                        type="button"
+                        onClick={() => onNavigateSection(section)}
+                        className="truncate"
+                      >
                         {sectionLbl}
                       </button>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
-                    <BreadcrumbPage className="truncate text-[15px] font-semibold tracking-tight">{here}</BreadcrumbPage>
+                    <BreadcrumbPage className="truncate text-[15px] font-semibold tracking-tight">
+                      {here}
+                    </BreadcrumbPage>
                   </BreadcrumbItem>
                 </>
               ) : (
                 <BreadcrumbItem>
-                  <BreadcrumbPage className="truncate text-[15px] font-semibold tracking-tight">{sectionLbl}</BreadcrumbPage>
+                  <BreadcrumbPage className="truncate text-[15px] font-semibold tracking-tight">
+                    {sectionLbl}
+                  </BreadcrumbPage>
                 </BreadcrumbItem>
               )}
             </BreadcrumbList>

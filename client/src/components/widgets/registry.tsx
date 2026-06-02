@@ -20,9 +20,25 @@ import { EventsTile } from './EventsTile';
 import { BookmarksTile } from './BookmarksTile';
 
 export type TileId =
-  | 'cpu' | 'ram' | 'gpu' | 'storage' | 'network' | 'unifi' | 'docker'
-  | 'proxmox' | 'unas' | 'protect' | 'fans' | 'smart' | 'backups' | 'ups'
-  | 'internet' | 'topTalkers' | 'tempHeat' | 'events' | 'bookmarks';
+  | 'cpu'
+  | 'ram'
+  | 'gpu'
+  | 'storage'
+  | 'network'
+  | 'unifi'
+  | 'docker'
+  | 'proxmox'
+  | 'unas'
+  | 'protect'
+  | 'fans'
+  | 'smart'
+  | 'backups'
+  | 'ups'
+  | 'internet'
+  | 'topTalkers'
+  | 'tempHeat'
+  | 'events'
+  | 'bookmarks';
 
 export interface TileDef {
   id: TileId;
@@ -54,29 +70,48 @@ export const ALL_TILES: TileDef[] = [
 
 export function tileData(id: TileId, d: DashboardState): unknown {
   switch (id) {
-    case 'bookmarks': return null;
-    case 'cpu': return d.cpu;
-    case 'ram': return d.ram;
-    case 'gpu': return d.gpu;
-    case 'storage': return d.storage;
-    case 'network': return d.network;
-    case 'unifi': return d.unifi;
-    case 'docker': return d.docker;
-    case 'proxmox': return d.proxmox;
-    case 'unas': return d.unas;
-    case 'protect': return d.protect;
-    case 'fans': return d.fans;
-    case 'smart': return d.storage;
-    case 'backups': return d.backups;
-    case 'ups': return d.ups;
-    case 'internet': return d.network;
-    case 'topTalkers': return d.unifi.topTalkers;
-    case 'tempHeat': return {
-      cpu: d.cpu,
-      gpu: d.gpu,
-      disks: d.sensors.disks.length ? d.sensors.disks : d.storage.disks,
-    };
-    case 'events': return d.events;
+    case 'bookmarks':
+      return null;
+    case 'cpu':
+      return d.cpu;
+    case 'ram':
+      return d.ram;
+    case 'gpu':
+      return d.gpu;
+    case 'storage':
+      return d.storage;
+    case 'network':
+      return d.network;
+    case 'unifi':
+      return d.unifi;
+    case 'docker':
+      return d.docker;
+    case 'proxmox':
+      return d.proxmox;
+    case 'unas':
+      return d.unas;
+    case 'protect':
+      return d.protect;
+    case 'fans':
+      return d.fans;
+    case 'smart':
+      return d.storage;
+    case 'backups':
+      return d.backups;
+    case 'ups':
+      return d.ups;
+    case 'internet':
+      return d.network;
+    case 'topTalkers':
+      return d.unifi.topTalkers;
+    case 'tempHeat':
+      return {
+        cpu: d.cpu,
+        gpu: d.gpu,
+        disks: d.sensors.disks.length ? d.sensors.disks : d.storage.disks,
+      };
+    case 'events':
+      return d.events;
   }
 }
 
@@ -91,7 +126,16 @@ interface RenderProps {
   compact?: boolean;
 }
 
-export function renderTile({ id, span, data, chartKind, onChartKind, onExpand, expandable, compact }: RenderProps) {
+export function renderTile({
+  id,
+  span,
+  data,
+  chartKind,
+  onChartKind,
+  onExpand,
+  expandable,
+  compact,
+}: RenderProps) {
   const common = { span, onExpand, expandable };
   switch (id) {
     case 'bookmarks':
@@ -105,7 +149,9 @@ export function renderTile({ id, span, data, chartKind, onChartKind, onExpand, e
     case 'storage':
       return <StorageTile {...common} data={data} />;
     case 'network':
-      return <NetworkTile {...common} data={data} chartKind={chartKind} onChartKind={onChartKind} />;
+      return (
+        <NetworkTile {...common} data={data} chartKind={chartKind} onChartKind={onChartKind} />
+      );
     case 'unifi':
       return <UnifiTile {...common} data={data} />;
     case 'docker':

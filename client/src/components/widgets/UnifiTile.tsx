@@ -26,11 +26,17 @@ export function UnifiTile({ data, span, onExpand, expandable }: Props) {
       <div className="netrate">
         <div className="col">
           <div className="label">↓ wan</div>
-          <div className="v">{wan.down}<small>Mbps</small></div>
+          <div className="v">
+            {wan.down}
+            <small>Mbps</small>
+          </div>
         </div>
         <div className="col">
           <div className="label">↑ wan</div>
-          <div className="v">{wan.up}<small>Mbps</small></div>
+          <div className="v">
+            {wan.up}
+            <small>Mbps</small>
+          </div>
         </div>
       </div>
     </Tile>

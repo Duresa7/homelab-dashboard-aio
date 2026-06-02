@@ -308,7 +308,13 @@ function applySensors(payload: any): boolean {
 }
 
 export type IntegrationKey =
-  | 'unifi' | 'proxmox' | 'docker' | 'gpu' | 'sensors' | 'unas' | 'protect';
+  | 'unifi'
+  | 'proxmox'
+  | 'docker'
+  | 'gpu'
+  | 'sensors'
+  | 'unas'
+  | 'protect';
 
 interface PollerConfig {
   url: string;
@@ -318,11 +324,14 @@ interface PollerConfig {
 }
 
 const POLLERS: Record<IntegrationKey, PollerConfig> = {
-  unifi:   {
+  unifi: {
     url: '/api/unifi',
     intervalMs: UNIFI_POLL_MS,
     apply: applyUnifi,
-    reset: () => { state.unifi = emptyUnifi(); state.network = emptyNetwork(); },
+    reset: () => {
+      state.unifi = emptyUnifi();
+      state.network = emptyNetwork();
+    },
   },
   proxmox: {
     url: '/api/proxmox',
@@ -335,17 +344,21 @@ const POLLERS: Record<IntegrationKey, PollerConfig> = {
       state.ram = init.ram;
     },
   },
-  docker:  {
+  docker: {
     url: '/api/docker',
     intervalMs: DOCKER_POLL_MS,
     apply: applyDocker,
-    reset: () => { state.docker = buildInit().docker; },
+    reset: () => {
+      state.docker = buildInit().docker;
+    },
   },
-  gpu:     {
+  gpu: {
     url: '/api/gpu',
     intervalMs: GPU_POLL_MS,
     apply: applyGpu,
-    reset: () => { state.gpu = buildInit().gpu; },
+    reset: () => {
+      state.gpu = buildInit().gpu;
+    },
   },
   sensors: {
     url: '/api/sensors',
@@ -361,7 +374,7 @@ const POLLERS: Record<IntegrationKey, PollerConfig> = {
       };
     },
   },
-  unas:    {
+  unas: {
     url: '/api/unas',
     intervalMs: UNAS_POLL_MS,
     apply: applyUnas,
@@ -374,7 +387,9 @@ const POLLERS: Record<IntegrationKey, PollerConfig> = {
     url: '/api/protect',
     intervalMs: PROTECT_POLL_MS,
     apply: applyProtect,
-    reset: () => { state.protect = emptyProtect(); },
+    reset: () => {
+      state.protect = emptyProtect();
+    },
   },
 };
 

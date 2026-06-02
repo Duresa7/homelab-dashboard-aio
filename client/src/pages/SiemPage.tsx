@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Search } from 'lucide-react';
 
-import type {
-  SiemStatus,
-  SyslogCategory,
-  SyslogDeviceKind,
-  SyslogEvent,
-} from '../types';
+import type { SiemStatus, SyslogCategory, SyslogDeviceKind, SyslogEvent } from '../types';
 import { fetchLogs, subscribeSiem } from '../lib/siem';
 import {
   categoryLabel,
@@ -54,7 +49,8 @@ function fmtAgo(ts: number): string {
 type ChipKind = 'brand' | 'neutral' | 'ok' | 'warn' | 'bad' | 'info';
 
 const CHIP_ACTIVE: Record<ChipKind, string> = {
-  brand: 'border-[color-mix(in_oklab,var(--accent)_40%,transparent)] bg-[color-mix(in_oklab,var(--accent)_12%,transparent)] text-brand',
+  brand:
+    'border-[color-mix(in_oklab,var(--accent)_40%,transparent)] bg-[color-mix(in_oklab,var(--accent)_12%,transparent)] text-brand',
   neutral: 'border-border bg-muted text-foreground',
   ok: 'border-[color-mix(in_oklab,var(--ok)_35%,transparent)] bg-[color-mix(in_oklab,var(--ok)_12%,transparent)] text-ok',
   warn: 'border-[color-mix(in_oklab,var(--warn)_35%,transparent)] bg-[color-mix(in_oklab,var(--warn)_12%,transparent)] text-warn',
@@ -166,7 +162,9 @@ export function SiemPage() {
             }
           },
           onStatus: (s) => alive && setStatus(s),
-          onError: () => { /* EventSource auto-reconnects */ },
+          onError: () => {
+            /* EventSource auto-reconnects */
+          },
         });
       } catch (err) {
         if (!alive) return;
@@ -193,7 +191,12 @@ export function SiemPage() {
 
   const deviceCounts = useMemo(() => {
     const c: Record<DeviceFilter, number> = {
-      all: rangeFiltered.length, gateway: 0, ap: 0, switch: 0, controller: 0, unknown: 0,
+      all: rangeFiltered.length,
+      gateway: 0,
+      ap: 0,
+      switch: 0,
+      controller: 0,
+      unknown: 0,
     };
     for (const e of rangeFiltered) c[e.deviceKind] = (c[e.deviceKind] ?? 0) + 1;
     return c;
@@ -216,7 +219,9 @@ export function SiemPage() {
   );
 
   const sevCounts = useMemo(() => {
-    let info = 0, warn = 0, bad = 0;
+    let info = 0,
+      warn = 0,
+      bad = 0;
     for (const e of scopedByCategory) {
       const ui = severityToUi(e.severity);
       if (ui === 'info') info++;
@@ -244,8 +249,16 @@ export function SiemPage() {
 
   const visibleCategories = useMemo(() => {
     const order: SyslogCategory[] = [
-      'firewall', 'client', 'ids', 'vpn', 'admin',
-      'update', 'system', 'monitoring', 'security', 'threat',
+      'firewall',
+      'client',
+      'ids',
+      'vpn',
+      'admin',
+      'update',
+      'system',
+      'monitoring',
+      'security',
+      'threat',
     ];
     return order.filter((c) => (categoryCounts[c] ?? 0) > 0);
   }, [categoryCounts]);
@@ -281,15 +294,26 @@ export function SiemPage() {
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
-            <FilterChip active={device === 'all'} kind="brand" count={deviceCounts.all} onClick={() => setDevice('all')}>
+            <FilterChip
+              active={device === 'all'}
+              kind="brand"
+              count={deviceCounts.all}
+              onClick={() => setDevice('all')}
+            >
               All
             </FilterChip>
-            {(['gateway', 'ap', 'switch', 'controller', 'unknown'] as SyslogDeviceKind[]).map((k) =>
-              (deviceCounts[k] ?? 0) === 0 ? null : (
-                <FilterChip key={k} active={device === k} count={deviceCounts[k]} onClick={() => setDevice(k)}>
-                  {deviceKindLabel(k)}
-                </FilterChip>
-              ),
+            {(['gateway', 'ap', 'switch', 'controller', 'unknown'] as SyslogDeviceKind[]).map(
+              (k) =>
+                (deviceCounts[k] ?? 0) === 0 ? null : (
+                  <FilterChip
+                    key={k}
+                    active={device === k}
+                    count={deviceCounts[k]}
+                    onClick={() => setDevice(k)}
+                  >
+                    {deviceKindLabel(k)}
+                  </FilterChip>
+                ),
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -299,10 +323,14 @@ export function SiemPage() {
               title={liveTail ? 'Pause live updates' : 'Resume live updates'}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                liveTail ? CHIP_ACTIVE.ok : 'border-border bg-card text-muted-foreground hover:bg-muted',
+                liveTail
+                  ? CHIP_ACTIVE.ok
+                  : 'border-border bg-card text-muted-foreground hover:bg-muted',
               )}
             >
-              <span className={cn('size-1.5 rounded-full', liveTail ? 'bg-ok icon-pulse' : 'bg-warn')} />
+              <span
+                className={cn('size-1.5 rounded-full', liveTail ? 'bg-ok icon-pulse' : 'bg-warn')}
+              />
               {liveTail ? 'Live' : 'Paused'}
             </button>
             <Segmented
@@ -325,11 +353,20 @@ export function SiemPage() {
 
         {visibleCategories.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3">
-            <FilterChip active={category === 'all'} count={categoryCounts.all ?? 0} onClick={() => setCategory('all')}>
+            <FilterChip
+              active={category === 'all'}
+              count={categoryCounts.all ?? 0}
+              onClick={() => setCategory('all')}
+            >
               All
             </FilterChip>
             {visibleCategories.map((c) => (
-              <FilterChip key={c} active={category === c} count={categoryCounts[c]} onClick={() => setCategory(c)}>
+              <FilterChip
+                key={c}
+                active={category === c}
+                count={categoryCounts[c]}
+                onClick={() => setCategory(c)}
+              >
                 {categoryLabel(c)}
               </FilterChip>
             ))}
@@ -337,16 +374,35 @@ export function SiemPage() {
         ) : null}
 
         <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3">
-          <FilterChip active={severity === 'all'} count={sevCounts.all} onClick={() => setSeverity('all')}>
+          <FilterChip
+            active={severity === 'all'}
+            count={sevCounts.all}
+            onClick={() => setSeverity('all')}
+          >
             All
           </FilterChip>
-          <FilterChip active={severity === 'bad'} kind="bad" count={sevCounts.bad} onClick={() => setSeverity('bad')}>
+          <FilterChip
+            active={severity === 'bad'}
+            kind="bad"
+            count={sevCounts.bad}
+            onClick={() => setSeverity('bad')}
+          >
             Errors
           </FilterChip>
-          <FilterChip active={severity === 'warn'} kind="warn" count={sevCounts.warn} onClick={() => setSeverity('warn')}>
+          <FilterChip
+            active={severity === 'warn'}
+            kind="warn"
+            count={sevCounts.warn}
+            onClick={() => setSeverity('warn')}
+          >
             Warnings
           </FilterChip>
-          <FilterChip active={severity === 'info'} kind="info" count={sevCounts.info} onClick={() => setSeverity('info')}>
+          <FilterChip
+            active={severity === 'info'}
+            kind="info"
+            count={sevCounts.info}
+            onClick={() => setSeverity('info')}
+          >
             Info
           </FilterChip>
         </div>
@@ -397,8 +453,12 @@ export function SiemPage() {
                     <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
                       {componentLabel(e)}
                     </span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{summary(e)}</span>
-                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtAgo(e.receivedAt)}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+                      {summary(e)}
+                    </span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {fmtAgo(e.receivedAt)}
+                    </span>
                   </div>
                   {isOpen ? <SiemDetail evt={e} /> : null}
                 </li>
@@ -435,7 +495,9 @@ function SiemDetail({ evt }: { evt: SyslogEvent }) {
     </dl>
   );
   const heading = (t: string) => (
-    <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{t}</div>
+    <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+      {t}
+    </div>
   );
 
   return (
@@ -444,7 +506,9 @@ function SiemDetail({ evt }: { evt: SyslogEvent }) {
       {evt.extra && Object.keys(evt.extra).length > 0 ? (
         <>
           {heading('CEF fields')}
-          <Facts entries={Object.entries(evt.extra).map(([k, v]) => [k, String(v)] as [string, string])} />
+          <Facts
+            entries={Object.entries(evt.extra).map(([k, v]) => [k, String(v)] as [string, string])}
+          />
         </>
       ) : null}
       {heading('Raw')}
@@ -464,7 +528,8 @@ function SiemStatusBanner({
   setupOpen: boolean;
   onToggleSetup: () => void;
 }) {
-  const shell = 'flex flex-wrap items-center gap-3 rounded-xl border border-border border-l-4 bg-card p-4 shadow-card';
+  const shell =
+    'flex flex-wrap items-center gap-3 rounded-xl border border-border border-l-4 bg-card p-4 shadow-card';
   const code = 'rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground';
 
   if (!status) {
@@ -520,7 +585,9 @@ function SiemStatusBanner({
       </Button>
       {setupOpen ? (
         <div className="basis-full border-t border-border pt-3 text-sm text-muted-foreground">
-          <div className="mb-2 font-semibold text-foreground">Configure UniFi to send syslog here</div>
+          <div className="mb-2 font-semibold text-foreground">
+            Configure UniFi to send syslog here
+          </div>
           <ol className="ml-4 list-decimal space-y-1">
             <li>Open your UniFi Network Application.</li>
             <li>
@@ -536,8 +603,9 @@ function SiemStatusBanner({
           </ol>
           {bindMsg ? (
             <div className="mt-2 text-warn">
-              Server reports: {bindMsg}. If port 514 won't bind, set <code className={code}>SIEM_PORT=5514</code> in{' '}
-              <code className={code}>.env</code> and use that in UniFi instead.
+              Server reports: {bindMsg}. If port 514 won't bind, set{' '}
+              <code className={code}>SIEM_PORT=5514</code> in <code className={code}>.env</code> and
+              use that in UniFi instead.
             </div>
           ) : null}
         </div>

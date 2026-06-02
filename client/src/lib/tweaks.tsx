@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import {
   Sheet,
@@ -27,7 +21,9 @@ import { getState, setState } from './store';
 
 const STORAGE_KEY = 'tweaks';
 
-export function useTweaks<T extends object>(defaults: T): [T, <K extends keyof T>(k: K, v: T[K]) => void] {
+export function useTweaks<T extends object>(
+  defaults: T,
+): [T, <K extends keyof T>(k: K, v: T[K]) => void] {
   const [values, setValues] = useState<T>(() => {
     const stored = getState<Partial<T> | null>(STORAGE_KEY, null);
     return stored ? { ...defaults, ...stored } : defaults;
@@ -57,7 +53,9 @@ export function TweaksPanel({ open, onOpenChange, title = 'Customize', children 
       <SheetContent side="right" className="flex w-[330px] flex-col gap-0 p-0 sm:w-[360px]">
         <SheetHeader className="border-b border-border px-5 py-4">
           <SheetTitle className="font-display text-base">{title}</SheetTitle>
-          <SheetDescription className="sr-only">Appearance and dashboard preferences</SheetDescription>
+          <SheetDescription className="sr-only">
+            Appearance and dashboard preferences
+          </SheetDescription>
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">{children}</div>
       </SheetContent>
@@ -99,7 +97,9 @@ export function TweakRow({
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between">
         <span className="text-sm font-medium text-foreground">{label}</span>
-        {value != null && <span className="text-xs tabular-nums text-muted-foreground">{value}</span>}
+        {value != null && (
+          <span className="text-xs tabular-nums text-muted-foreground">{value}</span>
+        )}
       </div>
       {children}
     </div>

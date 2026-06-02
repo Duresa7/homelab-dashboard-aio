@@ -24,33 +24,88 @@ function v6Fixture() {
     lastUpdated: '2026-05-30',
     machines: [
       {
-        id: 'mach_example', ordinal: '01', name: 'Example PC', role: 'Windows workstation',
+        id: 'mach_example',
+        ordinal: '01',
+        name: 'Example PC',
+        role: 'Windows workstation',
         meta: [{ id: 'm1', label: 'IP', value: '198.51.100.10' }],
         components: [
           { id: 'c_cpu', component: 'CPU', specification: 'AMD Ryzen 9 9950X3D — 16C / 32T, AM5' },
-          { id: 'c_gpu', component: 'GPU', specification: 'MSI Inspire 3X OC GeForce RTX 5070 Ti — 16 GB', status: 'working' as const },
-          { id: 'c_ram', component: 'RAM', specification: 'G.SKILL Trident Z5 Neo RGB — DDR5-6000 32 GB (2×16 GB), CL30, 1.35 V, AMD EXPO' },
+          {
+            id: 'c_gpu',
+            component: 'GPU',
+            specification: 'MSI Inspire 3X OC GeForce RTX 5070 Ti — 16 GB',
+            status: 'working' as const,
+          },
+          {
+            id: 'c_ram',
+            component: 'RAM',
+            specification:
+              'G.SKILL Trident Z5 Neo RGB — DDR5-6000 32 GB (2×16 GB), CL30, 1.35 V, AMD EXPO',
+          },
         ],
       },
     ],
     spares: [
       {
-        id: 'cat_cpus', name: 'CPUs',
-        columns: [{ id: 'brand', label: 'Brand' }, { id: 'model', label: 'Model' }, { id: 'notes', label: 'Notes' }],
-        items: [{ id: 's_cpu', values: { brand: 'Intel', model: 'Core i7-5820K', notes: '6-core, LGA 2011-v3' } }],
-      },
-      {
-        id: 'cat_net', name: 'UniFi Network Infrastructure', kind: 'network',
-        columns: [{ id: 'role', label: 'Role' }, { id: 'brand', label: 'Brand' }, { id: 'model', label: 'Model' }],
+        id: 'cat_cpus',
+        name: 'CPUs',
+        columns: [
+          { id: 'brand', label: 'Brand' },
+          { id: 'model', label: 'Model' },
+          { id: 'notes', label: 'Notes' },
+        ],
         items: [
-          { id: 's_ucg', values: { role: 'Gateway', brand: 'Ubiquiti', model: 'UCG-Fiber (UniFi Cloud Gateway Fiber)' } },
-          { id: 's_flex', values: { role: 'Switch', brand: 'Ubiquiti', model: 'USW-Flex-2.5G-5 (Flex 2.5G 5-port)', qty: '2' } },
-          { id: 's_cam', values: { role: 'Camera', brand: 'Ubiquiti', model: 'UVC-G6-Bullet (Protect G6 Bullet)' } },
+          {
+            id: 's_cpu',
+            values: { brand: 'Intel', model: 'Core i7-5820K', notes: '6-core, LGA 2011-v3' },
+          },
         ],
       },
       {
-        id: 'cat_legacy', name: 'Networking (legacy)',
-        columns: [{ id: 'brand', label: 'Brand' }, { id: 'model', label: 'Model' }],
+        id: 'cat_net',
+        name: 'UniFi Network Infrastructure',
+        kind: 'network',
+        columns: [
+          { id: 'role', label: 'Role' },
+          { id: 'brand', label: 'Brand' },
+          { id: 'model', label: 'Model' },
+        ],
+        items: [
+          {
+            id: 's_ucg',
+            values: {
+              role: 'Gateway',
+              brand: 'Ubiquiti',
+              model: 'UCG-Fiber (UniFi Cloud Gateway Fiber)',
+            },
+          },
+          {
+            id: 's_flex',
+            values: {
+              role: 'Switch',
+              brand: 'Ubiquiti',
+              model: 'USW-Flex-2.5G-5 (Flex 2.5G 5-port)',
+              qty: '2',
+            },
+          },
+          {
+            id: 's_cam',
+            values: {
+              role: 'Camera',
+              brand: 'Ubiquiti',
+              model: 'UVC-G6-Bullet (Protect G6 Bullet)',
+            },
+          },
+        ],
+      },
+      {
+        id: 'cat_legacy',
+        name: 'Networking (legacy)',
+        columns: [
+          { id: 'brand', label: 'Brand' },
+          { id: 'model', label: 'Model' },
+        ],
         items: [{ id: 's_legacy', values: { brand: 'Netgear', model: 'GS308' } }],
       },
     ],
@@ -111,7 +166,10 @@ describe('parseSpecToFields', () => {
   });
 
   it('parses a RAM spec into labeled fields', () => {
-    const f = parseSpecToFields('ram', 'G.SKILL Trident Z5 Neo RGB — DDR5-6000 32 GB (2×16 GB), CL30, 1.35 V, AMD EXPO');
+    const f = parseSpecToFields(
+      'ram',
+      'G.SKILL Trident Z5 Neo RGB — DDR5-6000 32 GB (2×16 GB), CL30, 1.35 V, AMD EXPO',
+    );
     expect(fieldValue(f, 'Brand')).toBe('G.SKILL');
     expect(fieldValue(f, 'Type')).toBe('DDR5');
     expect(fieldValue(f, 'Speed')).toBe('6000 MT/s');
@@ -199,12 +257,35 @@ describe('migrateInventory (v6 → v7)', () => {
       components: [],
       spares: [
         {
-          id: 'cat_net', name: 'Network', deviceType: 'network' as const, prefix: '04',
-          columns: [{ id: 'model', label: 'Model' }, { id: 'qty', label: 'Qty' }],
+          id: 'cat_net',
+          name: 'Network',
+          deviceType: 'network' as const,
+          prefix: '04',
+          columns: [
+            { id: 'model', label: 'Model' },
+            { id: 'qty', label: 'Qty' },
+          ],
           items: [
-            { id: 's_ucg', deployment: 'in-service' as const, values: { model: 'UCG-Fiber (UniFi Cloud Gateway Fiber)', qty: '1' }, name: 'Gateway Gateway', ids: { uid: '0401' } },
-            { id: 's_flex', deployment: 'in-service' as const, values: { model: 'USW-Flex-2.5G-5 (Flex 2.5G 5-port)', qty: '2' }, ids: { uid: '0402' } },
-            { id: 's_switch', deployment: 'in-service' as const, values: { model: 'USW-Pro-Max-16-PoE (Pro Max 16 PoE)', qty: '1' }, name: 'Switch Switch PoE', ids: { uid: '0403' } },
+            {
+              id: 's_ucg',
+              deployment: 'in-service' as const,
+              values: { model: 'UCG-Fiber (UniFi Cloud Gateway Fiber)', qty: '1' },
+              name: 'Gateway Gateway',
+              ids: { uid: '0401' },
+            },
+            {
+              id: 's_flex',
+              deployment: 'in-service' as const,
+              values: { model: 'USW-Flex-2.5G-5 (Flex 2.5G 5-port)', qty: '2' },
+              ids: { uid: '0402' },
+            },
+            {
+              id: 's_switch',
+              deployment: 'in-service' as const,
+              values: { model: 'USW-Pro-Max-16-PoE (Pro Max 16 PoE)', qty: '1' },
+              name: 'Switch Switch PoE',
+              ids: { uid: '0403' },
+            },
           ],
         },
       ],

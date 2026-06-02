@@ -27,7 +27,11 @@ export function UnasTile({ data, span, onExpand, expandable }: Props) {
 
   return (
     <Tile
-      title={<><BrandIcon name="unifi" alt="UniFi" /> {model}</>}
+      title={
+        <>
+          <BrandIcon name="unifi" alt="UniFi" /> {model}
+        </>
+      }
       sub={`${disks.length} drives`}
       span={span}
       onExpand={onExpand}

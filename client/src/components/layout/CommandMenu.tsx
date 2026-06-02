@@ -35,13 +35,21 @@ export function CommandMenu({ open, onOpenChange, setRoute }: Props) {
   };
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} title="Command palette" description="Navigate, run actions, or jump to a machine">
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Command palette"
+      description="Navigate, run actions, or jump to a machine"
+    >
       <CommandInput placeholder="Search pages, actions, machines…" />
       <CommandList>
         <CommandEmpty>No results.</CommandEmpty>
 
         <CommandGroup heading="Actions">
-          <CommandItem value="refresh reload data" onSelect={() => run(() => window.location.reload())}>
+          <CommandItem
+            value="refresh reload data"
+            onSelect={() => run(() => window.location.reload())}
+          >
             <RefreshCw className="size-4 text-muted-foreground" />
             <span>Refresh data</span>
           </CommandItem>
@@ -59,7 +67,9 @@ export function CommandMenu({ open, onOpenChange, setRoute }: Props) {
                 >
                   <Server className="size-4 text-muted-foreground" />
                   <span>{m.name}</span>
-                  {m.role ? <span className="ml-auto truncate text-xs text-muted-foreground">{m.role}</span> : null}
+                  {m.role ? (
+                    <span className="ml-auto truncate text-xs text-muted-foreground">{m.role}</span>
+                  ) : null}
                 </CommandItem>
               ))}
             </CommandGroup>

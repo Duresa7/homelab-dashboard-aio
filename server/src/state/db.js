@@ -25,16 +25,16 @@ export async function openStateDb(dbPath) {
   db.pragma('synchronous = NORMAL');
   for (const stmt of SCHEMA_STATEMENTS) db.prepare(stmt).run();
 
-  const getAllStmt   = db.prepare(`SELECT key, value, updated_at FROM app_state`);
-  const getOneStmt   = db.prepare(`SELECT value, updated_at FROM app_state WHERE key = ?`);
-  const upsertStmt   = db.prepare(`
+  const getAllStmt = db.prepare(`SELECT key, value, updated_at FROM app_state`);
+  const getOneStmt = db.prepare(`SELECT value, updated_at FROM app_state WHERE key = ?`);
+  const upsertStmt = db.prepare(`
     INSERT INTO app_state (key, value, updated_at) VALUES (@key, @value, @updated_at)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
   `);
-  const deleteStmt   = db.prepare(`DELETE FROM app_state WHERE key = ?`);
-  const countStmt    = db.prepare(`SELECT COUNT(*) AS n FROM app_state`);
+  const deleteStmt = db.prepare(`DELETE FROM app_state WHERE key = ?`);
+  const countStmt = db.prepare(`SELECT COUNT(*) AS n FROM app_state`);
   const metricsCount = db.prepare(`SELECT COUNT(*) AS n FROM metrics`);
-  const upsertMany   = db.transaction((entries) => {
+  const upsertMany = db.transaction((entries) => {
     const now = Date.now();
     for (const [key, value] of entries) {
       upsertStmt.run({ key, value: JSON.stringify(value), updated_at: now });
@@ -86,7 +86,9 @@ export async function openStateDb(dbPath) {
     try {
       const s = await stat(dbPath);
       fileSize = s.size;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return {
       path: dbPath,
       fileSize,

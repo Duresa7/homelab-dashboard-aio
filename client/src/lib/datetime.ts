@@ -60,7 +60,11 @@ function dateOptions(format: DateFormat): Intl.DateTimeFormatOptions {
   return { month: 'short', day: 'numeric', year: 'numeric' };
 }
 
-export function formatClockTime(date: Date, prefs: DateTimePreferences, includeSeconds = true): string {
+export function formatClockTime(
+  date: Date,
+  prefs: DateTimePreferences,
+  includeSeconds = true,
+): string {
   return new Intl.DateTimeFormat(undefined, {
     ...timeZoneOption(prefs.timeZone),
     hour: '2-digit',

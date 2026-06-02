@@ -86,7 +86,11 @@ function Overview({ data }: { data: DashboardState }) {
       <NetworkTile data={data.network} span={8} chartKind="area" expandable={false} />
       <InternetTile data={data.network} span={6} expandable={false} />
 
-      <SectionCard span={6} title="Latency · last 60 ticks" icon={<Activity size={14} strokeWidth={1.75} />}>
+      <SectionCard
+        span={6}
+        title="Latency · last 60 ticks"
+        icon={<Activity size={14} strokeWidth={1.75} />}
+      >
         <AreaChart data={lh} height={120} />
         <StatList className="mt-2">
           <StatRow label="Current" value={`${data.network.latencyMs.toFixed(1)} ms`} />
@@ -149,10 +153,18 @@ function Devices({ data }: { data: DashboardState }) {
           : u.switches.map((s) => {
               const pct = s.poeMaxW ? (s.poeUsedW / s.poeMaxW) * 100 : 0;
               return (
-                <div key={s.name} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                <div
+                  key={s.name}
+                  className="flex flex-col gap-2 rounded-lg border border-border p-3"
+                >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                      <span className={cn('size-2 shrink-0 rounded-full', s.state === 'ONLINE' ? 'bg-ok' : 'bg-bad')} />
+                      <span
+                        className={cn(
+                          'size-2 shrink-0 rounded-full',
+                          s.state === 'ONLINE' ? 'bg-ok' : 'bg-bad',
+                        )}
+                      />
                       <span className="truncate">{s.name}</span>
                     </div>
                     <span className="shrink-0 text-xs text-muted-foreground">{s.model}</span>
@@ -190,7 +202,12 @@ function Config({ data }: { data: DashboardState }) {
   const u = data.unifi;
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
-      <SectionCard span={6} sub={u.networks.length} title="Networks & VLANs" icon={<BrandIcon name="unifi" alt="UniFi" />}>
+      <SectionCard
+        span={6}
+        sub={u.networks.length}
+        title="Networks & VLANs"
+        icon={<BrandIcon name="unifi" alt="UniFi" />}
+      >
         {u.networks.length === 0
           ? emptyRow('No networks data')
           : u.networks.map((n) => (
@@ -209,7 +226,12 @@ function Config({ data }: { data: DashboardState }) {
             ))}
       </SectionCard>
 
-      <SectionCard span={6} sub={u.ssids.length} title="Wi-Fi SSIDs" icon={<BrandIcon name="unifi" alt="UniFi" />}>
+      <SectionCard
+        span={6}
+        sub={u.ssids.length}
+        title="Wi-Fi SSIDs"
+        icon={<BrandIcon name="unifi" alt="UniFi" />}
+      >
         {u.ssids.length === 0
           ? emptyRow('No SSID data')
           : u.ssids.map((s) => (
@@ -241,11 +263,19 @@ function Config({ data }: { data: DashboardState }) {
       >
         <StatList>
           <StatRow label="Zones" value={u.firewall.zones} />
-          <StatRow label="Policies" value={`${u.firewall.policiesEnabled}/${u.firewall.policies} enabled`} />
+          <StatRow
+            label="Policies"
+            value={`${u.firewall.policiesEnabled}/${u.firewall.policies} enabled`}
+          />
         </StatList>
       </SectionCard>
 
-      <SectionCard span={4} sub={u.vpnServers.length} title="VPN Servers" icon={<Lock size={14} strokeWidth={1.75} />}>
+      <SectionCard
+        span={4}
+        sub={u.vpnServers.length}
+        title="VPN Servers"
+        icon={<Lock size={14} strokeWidth={1.75} />}
+      >
         {u.vpnServers.length === 0
           ? emptyRow('No VPN servers')
           : u.vpnServers.map((v) => {

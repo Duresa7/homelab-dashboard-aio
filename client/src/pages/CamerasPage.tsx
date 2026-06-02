@@ -1,16 +1,34 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Camera as CameraIcon, Mic, Volume2, Sparkles, Package, ScanFace, Activity, Video,
+  Camera as CameraIcon,
+  Mic,
+  Volume2,
+  Sparkles,
+  Package,
+  ScanFace,
+  Activity,
+  Video,
 } from 'lucide-react';
 import { CameraSnapshot } from '../components/widgets/CameraSnapshot';
 import { CameraLiveStream } from '../components/widgets/CameraLiveStream';
 import { CameraFullscreen, type CameraViewMode } from '../components/widgets/CameraFullscreen';
 import { BrandIcon } from '../components/icons/BrandIcon';
-import { SectionCard, DataTableCard, StatList, StatRow, StatusBadge, Segmented } from '@/components/common';
+import {
+  SectionCard,
+  DataTableCard,
+  StatList,
+  StatRow,
+  StatusBadge,
+  Segmented,
+} from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import type {
@@ -29,13 +47,7 @@ interface Props {
 // A click hint that overlays any camera tile and triggers the fullscreen
 // modal. Keeps the leaf snapshot/live components unaware of the page-level
 // expansion state.
-function ClickableTile({
-  onClick,
-  children,
-}: {
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function ClickableTile({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <div
       onClick={onClick}
@@ -63,11 +75,16 @@ function armSeverity(status: ProtectArmStatus): Severity {
 
 function armLabel(status: ProtectArmStatus): string {
   switch (status) {
-    case 'armed':    return 'armed';
-    case 'arming':   return 'arming';
-    case 'breach':   return 'breach';
-    case 'disabled': return 'disarmed';
-    default:         return String(status);
+    case 'armed':
+      return 'armed';
+    case 'arming':
+      return 'arming';
+    case 'breach':
+      return 'breach';
+    case 'disabled':
+      return 'disarmed';
+    default:
+      return String(status);
   }
 }
 
@@ -103,11 +120,17 @@ function NvrCard({ data }: { data: DashboardState }) {
       <StatList>
         <StatRow label="Name" value={nvr.name} />
         <StatRow label="Model" value={nvr.modelKey || '—'} />
-        {nvr.armMode.status === 'armed' && <StatRow label="Armed" value={formatSince(nvr.armMode.armedAt)} />}
+        {nvr.armMode.status === 'armed' && (
+          <StatRow label="Armed" value={formatSince(nvr.armMode.armedAt)} />
+        )}
         {nvr.armMode.status === 'arming' && (
           <StatRow
             label="Activates"
-            value={nvr.armMode.willBeArmedAt ? new Date(nvr.armMode.willBeArmedAt).toLocaleTimeString() : '—'}
+            value={
+              nvr.armMode.willBeArmedAt
+                ? new Date(nvr.armMode.willBeArmedAt).toLocaleTimeString()
+                : '—'
+            }
           />
         )}
         {nvr.armMode.status === 'breach' && (
@@ -126,7 +149,9 @@ function StatusCard({ data }: { data: DashboardState }) {
   const { protect } = data;
   const Stat = ({ value, label, tone }: { value: ReactNode; label: string; tone?: string }) => (
     <div className="flex flex-col gap-0.5">
-      <span className={`font-display text-3xl leading-none font-semibold tabular-nums ${tone ?? 'text-foreground'}`}>
+      <span
+        className={`font-display text-3xl leading-none font-semibold tabular-nums ${tone ?? 'text-foreground'}`}
+      >
         {value}
       </span>
       <span className="text-xs text-muted-foreground">{label}</span>
@@ -136,7 +161,11 @@ function StatusCard({ data }: { data: DashboardState }) {
     <SectionCard span={4} title="Fleet" icon={<BrandIcon name="unifi" alt="UniFi Protect" />}>
       <div className="flex gap-8 pt-1">
         <Stat value={protect.connected} label="online" />
-        <Stat value={protect.disconnected} label="offline" tone={protect.disconnected ? 'text-warn' : undefined} />
+        <Stat
+          value={protect.disconnected}
+          label="offline"
+          tone={protect.disconnected ? 'text-warn' : undefined}
+        />
         <Stat value={protect.total} label="total" />
       </div>
     </SectionCard>
@@ -161,7 +190,10 @@ function FeaturesCard({ data }: { data: DashboardState }) {
     <SectionCard span={4} title="Capabilities" icon={<Sparkles size={14} strokeWidth={1.75} />}>
       <StatList>
         <StatRow label={iconLabel(<Mic strokeWidth={1.75} />, 'With microphone')} value={hasMic} />
-        <StatRow label={iconLabel(<Volume2 strokeWidth={1.75} />, 'With speaker')} value={hasSpeaker} />
+        <StatRow
+          label={iconLabel(<Volume2 strokeWidth={1.75} />, 'With speaker')}
+          value={hasSpeaker}
+        />
         <StatRow label={iconLabel(<Video strokeWidth={1.75} />, 'HDR-capable')} value={hasHdr} />
         <StatRow label={iconLabel(<Package strokeWidth={1.75} />, 'Package cam')} value={hasPkg} />
         <StatRow
@@ -232,7 +264,9 @@ function Grid({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
     return (
       <div className="grid grid-cols-12 gap-[var(--gap)]">
         <SectionCard span={12}>
-          <div className="py-10 text-center text-sm text-muted-foreground">No cameras to display.</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            No cameras to display.
+          </div>
         </SectionCard>
       </div>
     );
@@ -318,13 +352,23 @@ interface EventRow extends ProtectEvent {
 
 function deviceLabel(e: EventRow): ReactNode {
   if (e.cameraName) return e.cameraName;
-  if (e.device) return <span className="font-mono text-xs text-muted-foreground">device · {e.device.slice(0, 8)}</span>;
+  if (e.device)
+    return (
+      <span className="font-mono text-xs text-muted-foreground">
+        device · {e.device.slice(0, 8)}
+      </span>
+    );
   return '—';
 }
 
 function eventSeverity(e: ProtectEvent): Severity {
   const t = e.type.toLowerCase();
-  if (t.includes('alarm') || t.includes('breach') || t === 'smartdetectzone' && e.smartDetectTypes.includes('person')) return 'warn';
+  if (
+    t.includes('alarm') ||
+    t.includes('breach') ||
+    (t === 'smartdetectzone' && e.smartDetectTypes.includes('person'))
+  )
+    return 'warn';
   if (t.includes('ring') || t.includes('smartdetect')) return 'info';
   if (t.includes('motion')) return 'info';
   if (t.includes('connect')) return 'ok';
@@ -388,11 +432,16 @@ function Events({ data }: { data: DashboardState }) {
         setEvents(Array.isArray(payload.events) ? payload.events : []);
         setConnected(!!payload.connected);
         setLastError(payload.lastError || null);
-      } catch { /* keep last good */ }
+      } catch {
+        /* keep last good */
+      }
     };
     tick();
     const id = window.setInterval(tick, 4000);
-    return () => { cancelled = true; window.clearInterval(id); };
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
   }, [filterDevice, filterType]);
 
   const visible: EventRow[] = useMemo(() => {
@@ -429,7 +478,9 @@ function Events({ data }: { data: DashboardState }) {
           <SelectContent>
             <SelectItem value="all">all</SelectItem>
             {data.protect.cameras.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -443,7 +494,9 @@ function Events({ data }: { data: DashboardState }) {
           <SelectContent>
             <SelectItem value="all">all</SelectItem>
             {types.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -487,7 +540,10 @@ function Events({ data }: { data: DashboardState }) {
           const dur = e.end ? `${Math.max(1, Math.round((e.end - e.start) / 1000))}s` : 'ongoing';
           return (
             <TableRow key={`${e.id}-${e.seq}`}>
-              <TableCell className="tabular-nums text-muted-foreground" title={new Date(e.start).toLocaleString()}>
+              <TableCell
+                className="tabular-nums text-muted-foreground"
+                title={new Date(e.start).toLocaleString()}
+              >
                 {formatTimeAgo(e.start)}
               </TableCell>
               <TableCell className="text-foreground">{deviceLabel(e)}</TableCell>
@@ -549,23 +605,39 @@ function Devices({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
           return (
             <TableRow key={c.id}>
               <TableCell>
-                <StatusBadge kind={kind} pulse={ok}>{c.state.toLowerCase()}</StatusBadge>
+                <StatusBadge kind={kind} pulse={ok}>
+                  {c.state.toLowerCase()}
+                </StatusBadge>
               </TableCell>
               <TableCell className="font-medium text-foreground">{c.name}</TableCell>
               <TableCell className="font-mono text-muted-foreground">{modelLabel(c)}</TableCell>
               <TableCell className="font-mono text-muted-foreground">{c.mac || '—'}</TableCell>
               <TableCell>{c.videoMode}</TableCell>
               <TableCell>{c.hasHdr ? c.hdrType : '—'}</TableCell>
-              <TableCell>{c.hasMic ? (c.isMicEnabled ? `${c.micVolume}%` : 'muted') : '—'}</TableCell>
+              <TableCell>
+                {c.hasMic ? (c.isMicEnabled ? `${c.micVolume}%` : 'muted') : '—'}
+              </TableCell>
               <TableCell>{c.hasSpeaker ? 'yes' : '—'}</TableCell>
-              <TableCell>{c.enabledObjectTypes.length ? c.enabledObjectTypes.join(', ') : '—'}</TableCell>
+              <TableCell>
+                {c.enabledObjectTypes.length ? c.enabledObjectTypes.join(', ') : '—'}
+              </TableCell>
               <TableCell>
                 {ok ? (
                   <div className="flex gap-1.5">
-                    <Button variant="outline" size="sm" onClick={() => onOpen(c, 'snapshot')} title="View snapshot">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onOpen(c, 'snapshot')}
+                      title="View snapshot"
+                    >
                       Snapshot
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => onOpen(c, 'live')} title="View live">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onOpen(c, 'live')}
+                      title="View live"
+                    >
                       Live
                     </Button>
                   </div>
@@ -589,14 +661,13 @@ interface Expansion {
 export function CamerasPage({ data, sub }: Props) {
   const [expanded, setExpanded] = useState<Expansion | null>(null);
 
-  const open = (camera: ProtectCamera, mode: CameraViewMode) =>
-    setExpanded({ camera, mode });
+  const open = (camera: ProtectCamera, mode: CameraViewMode) => setExpanded({ camera, mode });
 
   let body;
-  if (sub === 'grid')         body = <Grid    data={data} onOpen={open} />;
+  if (sub === 'grid') body = <Grid data={data} onOpen={open} />;
   else if (sub === 'devices') body = <Devices data={data} onOpen={open} />;
-  else if (sub === 'events')  body = <Events  data={data} />;
-  else                        body = <Overview data={data} onOpen={open} />;
+  else if (sub === 'events') body = <Events data={data} />;
+  else body = <Overview data={data} onOpen={open} />;
 
   return (
     <>

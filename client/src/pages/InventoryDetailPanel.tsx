@@ -42,7 +42,13 @@ import {
 } from '../lib/inventory';
 import { BrandGlyph, categoryIcon, componentIcon, roleIcon } from '../lib/inventoryIcons';
 import { Editable } from './InventoryPage';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -69,10 +75,10 @@ interface Props {
 }
 
 const STATUS_OPTIONS: { value: ItemStatus; label: string }[] = [
-  { value: 'working',   label: 'working' },
-  { value: 'broken',    label: 'broken' },
+  { value: 'working', label: 'working' },
+  { value: 'broken', label: 'broken' },
   { value: 'in-repair', label: 'in-repair' },
-  { value: 'retired',   label: 'retired' },
+  { value: 'retired', label: 'retired' },
 ];
 
 const STRIPE_COLOR: Record<string, string> = {
@@ -83,17 +89,17 @@ const STRIPE_COLOR: Record<string, string> = {
 };
 
 const STATUS_ICON: Record<ItemStatus, LucideIcon> = {
-  working:     CheckCircle2,
-  broken:      CircleSlash,
+  working: CheckCircle2,
+  broken: CircleSlash,
   'in-repair': Wrench,
-  retired:     Tag,
+  retired: Tag,
 };
 
 const STATUS_KIND: Record<ItemStatus, 'ok' | 'bad' | 'warn' | 'idle'> = {
-  working:     'ok',
-  broken:      'bad',
+  working: 'ok',
+  broken: 'bad',
   'in-repair': 'warn',
-  retired:     'idle',
+  retired: 'idle',
 };
 
 const TONE_TEXT: Record<'ok' | 'bad' | 'warn' | 'idle', string> = {
@@ -103,15 +109,26 @@ const TONE_TEXT: Record<'ok' | 'bad' | 'warn' | 'idle', string> = {
   idle: 'text-idle',
 };
 
-export function InventoryDetailPanel({ found, isEditing, machines, components, onChange, onClose }: Props) {
+export function InventoryDetailPanel({
+  found,
+  isEditing,
+  machines,
+  components,
+  onChange,
+  onClose,
+}: Props) {
   const itemId =
-    found.kind === 'machine'   ? found.machine.id
-    : found.kind === 'spare'   ? found.item.id
-    :                            found.component.id;
+    found.kind === 'machine'
+      ? found.machine.id
+      : found.kind === 'spare'
+        ? found.item.id
+        : found.component.id;
   const detail: ItemDetail =
-    found.kind === 'machine'   ? found.machine
-    : found.kind === 'spare'   ? found.item
-    :                            found.component;
+    found.kind === 'machine'
+      ? found.machine
+      : found.kind === 'spare'
+        ? found.item
+        : found.component;
   const status: ItemStatus = detail.status ?? 'working';
 
   const mutDetail: Mutator<ItemDetail> = (mut) => {
@@ -150,15 +167,37 @@ export function InventoryDetailPanel({ found, isEditing, machines, components, o
   const kindClass = STATUS_KIND[status];
 
   const header =
-    found.kind === 'machine'
-      ? <MachineHeader machine={found.machine} isEditing={isEditing} onChange={(mut) => onChange(itemId, mut as (m: AnyItem) => AnyItem)} />
-    : found.kind === 'spare'
-      ? <SpareHeader item={found.item} category={found.category} isEditing={isEditing} onChange={(mut) => onChange(itemId, mut as (m: AnyItem) => AnyItem)} />
-      : <ComponentHeader component={found.component} machine={found.machine} isEditing={isEditing} onChange={(mut) => onChange(itemId, mut as (m: AnyItem) => AnyItem)} />;
+    found.kind === 'machine' ? (
+      <MachineHeader
+        machine={found.machine}
+        isEditing={isEditing}
+        onChange={(mut) => onChange(itemId, mut as (m: AnyItem) => AnyItem)}
+      />
+    ) : found.kind === 'spare' ? (
+      <SpareHeader
+        item={found.item}
+        category={found.category}
+        isEditing={isEditing}
+        onChange={(mut) => onChange(itemId, mut as (m: AnyItem) => AnyItem)}
+      />
+    ) : (
+      <ComponentHeader
+        component={found.component}
+        machine={found.machine}
+        isEditing={isEditing}
+        onChange={(mut) => onChange(itemId, mut as (m: AnyItem) => AnyItem)}
+      />
+    );
 
   // Sections collapse to only their filled fields when browsing; the full form
   // reveals in edit mode (so empty MAC/serial/etc. don't clutter at-a-glance).
-  const hasPurchase = !!(purchase.date || purchase.vendor || purchase.price || purchase.receiptRef || purchase.warrantyEnd);
+  const hasPurchase = !!(
+    purchase.date ||
+    purchase.vendor ||
+    purchase.price ||
+    purchase.receiptRef ||
+    purchase.warrantyEnd
+  );
   const hasIds = !!(ids.serial || ids.part || ids.uid || ids.mac || ids.assetTag || ids.location);
 
   const setComponent = (mut: (c: Component) => Component) =>
@@ -167,22 +206,38 @@ export function InventoryDetailPanel({ found, isEditing, machines, components, o
     onChange(itemId, (cur) => mut(cur as SpareItem) as AnyItem);
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
       <DialogContent
         showCloseButton={false}
         aria-label="Item details"
         className="flex max-h-[90vh] w-[92vw] max-w-[1100px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1100px]"
       >
         <DialogTitle className="sr-only">Item details</DialogTitle>
-        <DialogDescription className="sr-only">Specifications, identifiers, components and problem log for this inventory item.</DialogDescription>
-        <div className="h-1 w-full shrink-0" aria-hidden style={{ background: STRIPE_COLOR[kindClass] ?? 'var(--ok)' }} />
+        <DialogDescription className="sr-only">
+          Specifications, identifiers, components and problem log for this inventory item.
+        </DialogDescription>
+        <div
+          className="h-1 w-full shrink-0"
+          aria-hidden
+          style={{ background: STRIPE_COLOR[kindClass] ?? 'var(--ok)' }}
+        />
 
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-6 py-4">
           {header}
           <div className="flex shrink-0 items-center gap-2">
             <StatusSelect status={status} onChange={setStatus} />
             <DialogClose asChild>
-              <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" title="Close (Esc)">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 text-muted-foreground hover:text-foreground"
+                title="Close (Esc)"
+              >
                 <X size={16} strokeWidth={1.75} />
               </Button>
             </DialogClose>
@@ -191,14 +246,27 @@ export function InventoryDetailPanel({ found, isEditing, machines, components, o
 
         <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-6 md:grid-cols-2">
           {found.kind === 'component' ? (
-            <ComponentSpecsSection component={found.component} isEditing={isEditing} onChange={setComponent} />
+            <ComponentSpecsSection
+              component={found.component}
+              isEditing={isEditing}
+              onChange={setComponent}
+            />
           ) : null}
           {found.kind === 'spare' ? (
-            <SpareSpecsSection item={found.item} category={found.category} isEditing={isEditing} onChange={setSpare} />
+            <SpareSpecsSection
+              item={found.item}
+              category={found.category}
+              isEditing={isEditing}
+              onChange={setSpare}
+            />
           ) : null}
 
           {found.kind === 'component' ? (
-            <AssignmentSection component={found.component} machines={machines} onChange={setComponent} />
+            <AssignmentSection
+              component={found.component}
+              machines={machines}
+              onChange={setComponent}
+            />
           ) : null}
 
           {found.kind === 'spare' ? (
@@ -207,33 +275,166 @@ export function InventoryDetailPanel({ found, isEditing, machines, components, o
 
           {(isEditing || hasPurchase) && (
             <Section icon={Receipt} title="Provenance">
-              <DetailField label="Purchased" icon={Calendar} value={purchase.date} editing={isEditing} mono
-                input={<DateInput value={purchase.date} onChange={(v) => setPurchase({ date: v })} />} />
-              <DetailField label="Vendor" icon={Briefcase} value={purchase.vendor} editing={isEditing}
-                input={<TextInput value={purchase.vendor} onChange={(v) => setPurchase({ vendor: v })} placeholder="Where you bought it" />} />
-              <DetailField label="Price" icon={Tag} value={purchase.price} editing={isEditing} mono
-                input={<TextInput value={purchase.price} onChange={(v) => setPurchase({ price: v })} placeholder="$0.00" mono />} />
-              <DetailField label="Receipt #" icon={Hash} value={purchase.receiptRef} editing={isEditing} mono
-                input={<TextInput value={purchase.receiptRef} onChange={(v) => setPurchase({ receiptRef: v })} placeholder="Order or receipt reference" mono />} />
-              <DetailField label="Warranty" icon={ShieldCheck} value={purchase.warrantyEnd} editing={isEditing} mono
-                input={<DateInput value={purchase.warrantyEnd} onChange={(v) => setPurchase({ warrantyEnd: v })} hint={warrantyHint(purchase.warrantyEnd)} />} />
+              <DetailField
+                label="Purchased"
+                icon={Calendar}
+                value={purchase.date}
+                editing={isEditing}
+                mono
+                input={
+                  <DateInput value={purchase.date} onChange={(v) => setPurchase({ date: v })} />
+                }
+              />
+              <DetailField
+                label="Vendor"
+                icon={Briefcase}
+                value={purchase.vendor}
+                editing={isEditing}
+                input={
+                  <TextInput
+                    value={purchase.vendor}
+                    onChange={(v) => setPurchase({ vendor: v })}
+                    placeholder="Where you bought it"
+                  />
+                }
+              />
+              <DetailField
+                label="Price"
+                icon={Tag}
+                value={purchase.price}
+                editing={isEditing}
+                mono
+                input={
+                  <TextInput
+                    value={purchase.price}
+                    onChange={(v) => setPurchase({ price: v })}
+                    placeholder="$0.00"
+                    mono
+                  />
+                }
+              />
+              <DetailField
+                label="Receipt #"
+                icon={Hash}
+                value={purchase.receiptRef}
+                editing={isEditing}
+                mono
+                input={
+                  <TextInput
+                    value={purchase.receiptRef}
+                    onChange={(v) => setPurchase({ receiptRef: v })}
+                    placeholder="Order or receipt reference"
+                    mono
+                  />
+                }
+              />
+              <DetailField
+                label="Warranty"
+                icon={ShieldCheck}
+                value={purchase.warrantyEnd}
+                editing={isEditing}
+                mono
+                input={
+                  <DateInput
+                    value={purchase.warrantyEnd}
+                    onChange={(v) => setPurchase({ warrantyEnd: v })}
+                    hint={warrantyHint(purchase.warrantyEnd)}
+                  />
+                }
+              />
             </Section>
           )}
 
           {(isEditing || hasIds) && (
             <Section icon={Fingerprint} title="Identifiers">
-              <DetailField label="UID" icon={Sparkles} value={ids.uid} editing={isEditing} mono
-                input={<TextInput value={ids.uid} onChange={(v) => setIds({ uid: v })} placeholder="Auto-assigned" mono />} />
-              <DetailField label="Serial #" icon={Hash} value={ids.serial} editing={isEditing} mono
-                input={<TextInput value={ids.serial} onChange={(v) => setIds({ serial: v })} placeholder="Manufacturer serial" mono />} />
-              <DetailField label="Part #" icon={Hash} value={ids.part} editing={isEditing} mono
-                input={<TextInput value={ids.part} onChange={(v) => setIds({ part: v })} placeholder="Manufacturer part / model config" mono />} />
-              <DetailField label="MAC" icon={Wifi} value={ids.mac} editing={isEditing} mono
-                input={<TextInput value={ids.mac} onChange={(v) => setIds({ mac: v })} placeholder="AA:BB:CC:DD:EE:FF" mono />} />
-              <DetailField label="Asset tag" icon={Tag} value={ids.assetTag} editing={isEditing} mono
-                input={<TextInput value={ids.assetTag} onChange={(v) => setIds({ assetTag: v })} placeholder="Internal asset tag" mono />} />
-              <DetailField label="Location" icon={MapPin} value={ids.location} editing={isEditing}
-                input={<TextInput value={ids.location} onChange={(v) => setIds({ location: v })} placeholder="Office · rack · shelf" />} />
+              <DetailField
+                label="UID"
+                icon={Sparkles}
+                value={ids.uid}
+                editing={isEditing}
+                mono
+                input={
+                  <TextInput
+                    value={ids.uid}
+                    onChange={(v) => setIds({ uid: v })}
+                    placeholder="Auto-assigned"
+                    mono
+                  />
+                }
+              />
+              <DetailField
+                label="Serial #"
+                icon={Hash}
+                value={ids.serial}
+                editing={isEditing}
+                mono
+                input={
+                  <TextInput
+                    value={ids.serial}
+                    onChange={(v) => setIds({ serial: v })}
+                    placeholder="Manufacturer serial"
+                    mono
+                  />
+                }
+              />
+              <DetailField
+                label="Part #"
+                icon={Hash}
+                value={ids.part}
+                editing={isEditing}
+                mono
+                input={
+                  <TextInput
+                    value={ids.part}
+                    onChange={(v) => setIds({ part: v })}
+                    placeholder="Manufacturer part / model config"
+                    mono
+                  />
+                }
+              />
+              <DetailField
+                label="MAC"
+                icon={Wifi}
+                value={ids.mac}
+                editing={isEditing}
+                mono
+                input={
+                  <TextInput
+                    value={ids.mac}
+                    onChange={(v) => setIds({ mac: v })}
+                    placeholder="AA:BB:CC:DD:EE:FF"
+                    mono
+                  />
+                }
+              />
+              <DetailField
+                label="Asset tag"
+                icon={Tag}
+                value={ids.assetTag}
+                editing={isEditing}
+                mono
+                input={
+                  <TextInput
+                    value={ids.assetTag}
+                    onChange={(v) => setIds({ assetTag: v })}
+                    placeholder="Internal asset tag"
+                    mono
+                  />
+                }
+              />
+              <DetailField
+                label="Location"
+                icon={MapPin}
+                value={ids.location}
+                editing={isEditing}
+                input={
+                  <TextInput
+                    value={ids.location}
+                    onChange={(v) => setIds({ location: v })}
+                    placeholder="Office · rack · shelf"
+                  />
+                }
+              />
             </Section>
           )}
 
@@ -259,22 +460,42 @@ export function InventoryDetailPanel({ found, isEditing, machines, components, o
 /* ------------------------------------------------------------------ */
 
 function MachineHeader({
-  machine, isEditing, onChange,
-}: { machine: Machine; isEditing: boolean; onChange: (mut: (m: Machine) => Machine) => void }) {
+  machine,
+  isEditing,
+  onChange,
+}: {
+  machine: Machine;
+  isEditing: boolean;
+  onChange: (mut: (m: Machine) => Machine) => void;
+}) {
   const RoleIcon = roleIcon(machine.role, machine.name);
   return (
     <div className="flex min-w-0 items-center gap-4">
       <div className="flex w-14 shrink-0 flex-col items-center">
-        <span className="font-display text-2xl font-semibold tabular-nums leading-none text-brand">{machine.ordinal ?? '—'}</span>
-        <span className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">machine</span>
+        <span className="font-display text-2xl font-semibold tabular-nums leading-none text-brand">
+          {machine.ordinal ?? '—'}
+        </span>
+        <span className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+          machine
+        </span>
       </div>
       <div className="min-w-0">
         <h2 className="truncate font-display text-xl font-semibold tracking-tight text-foreground">
-          <Editable value={machine.name} editing={isEditing} onChange={(name) => onChange((cur) => ({ ...cur, name }))} placeholder="Machine name" />
+          <Editable
+            value={machine.name}
+            editing={isEditing}
+            onChange={(name) => onChange((cur) => ({ ...cur, name }))}
+            placeholder="Machine name"
+          />
         </h2>
         <div className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
           <RoleIcon size={13} strokeWidth={1.75} />
-          <Editable value={machine.role} editing={isEditing} onChange={(role) => onChange((cur) => ({ ...cur, role }))} placeholder="Role / purpose" />
+          <Editable
+            value={machine.role}
+            editing={isEditing}
+            onChange={(role) => onChange((cur) => ({ ...cur, role }))}
+            placeholder="Role / purpose"
+          />
           <span className="text-muted-foreground/50">·</span>
           <span className="font-mono text-xs">{machine.ids?.uid ?? '—'}</span>
         </div>
@@ -284,8 +505,16 @@ function MachineHeader({
 }
 
 function SpareHeader({
-  item, category, isEditing, onChange,
-}: { item: SpareItem; category: SpareCategory; isEditing: boolean; onChange: (mut: (it: SpareItem) => SpareItem) => void }) {
+  item,
+  category,
+  isEditing,
+  onChange,
+}: {
+  item: SpareItem;
+  category: SpareCategory;
+  isEditing: boolean;
+  onChange: (mut: (it: SpareItem) => SpareItem) => void;
+}) {
   const CatIcon = categoryIcon(category.name);
   const title = describeSpare(item, category);
   const brand = item.values.brand ?? '';
@@ -296,12 +525,22 @@ function SpareHeader({
         <span className="text-muted-foreground/50">·</span>
         <CatIcon size={13} strokeWidth={1.75} />
         <span>{category.name}</span>
-        {item.ids?.uid ? <><span className="text-muted-foreground/50">·</span><span className="font-mono">{item.ids.uid}</span></> : null}
+        {item.ids?.uid ? (
+          <>
+            <span className="text-muted-foreground/50">·</span>
+            <span className="font-mono">{item.ids.uid}</span>
+          </>
+        ) : null}
       </div>
       <h2 className="flex min-w-0 items-center gap-2 font-display text-xl font-semibold tracking-tight text-foreground">
         {brand ? <BrandGlyph text={brand} size={18} /> : null}
         {isEditing ? (
-          <Editable value={item.name ?? ''} editing onChange={(name) => onChange((cur) => ({ ...cur, name: name || undefined }))} placeholder={title} />
+          <Editable
+            value={item.name ?? ''}
+            editing
+            onChange={(name) => onChange((cur) => ({ ...cur, name: name || undefined }))}
+            placeholder={title}
+          />
         ) : (
           <span className="truncate">{title}</span>
         )}
@@ -311,8 +550,16 @@ function SpareHeader({
 }
 
 function ComponentHeader({
-  component, machine, isEditing, onChange,
-}: { component: Component; machine: Machine | null; isEditing: boolean; onChange: (mut: (c: Component) => Component) => void }) {
+  component,
+  machine,
+  isEditing,
+  onChange,
+}: {
+  component: Component;
+  machine: Machine | null;
+  isEditing: boolean;
+  onChange: (mut: (c: Component) => Component) => void;
+}) {
   const CompIcon = componentIcon(component.label) ?? Cpu;
   return (
     <div className="flex min-w-0 flex-col gap-1">
@@ -321,18 +568,31 @@ function ComponentHeader({
         <span className="text-muted-foreground/50">·</span>
         <CompIcon size={13} strokeWidth={1.75} />
         {isEditing ? (
-          <Editable value={component.label} editing onChange={(label) => onChange((cur) => ({ ...cur, label }))} placeholder="Label" className="text-xs" />
+          <Editable
+            value={component.label}
+            editing
+            onChange={(label) => onChange((cur) => ({ ...cur, label }))}
+            placeholder="Label"
+            className="text-xs"
+          />
         ) : (
           <span>{component.label}</span>
         )}
-        {component.ids?.uid ? <><span className="text-muted-foreground/50">·</span><span className="font-mono">{component.ids.uid}</span></> : null}
+        {component.ids?.uid ? (
+          <>
+            <span className="text-muted-foreground/50">·</span>
+            <span className="font-mono">{component.ids.uid}</span>
+          </>
+        ) : null}
       </div>
       <h2 className="flex min-w-0 items-center gap-2 font-display text-xl font-semibold tracking-tight text-foreground">
         <BrandGlyph text={componentTitle(component)} size={18} />
         <span className="truncate">{componentTitle(component)}</span>
       </h2>
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <span className="text-xs uppercase tracking-wide text-muted-foreground/70">{machine ? 'installed in' : 'status'}</span>
+        <span className="text-xs uppercase tracking-wide text-muted-foreground/70">
+          {machine ? 'installed in' : 'status'}
+        </span>
         <span>{machine ? machine.name : 'Spare — not installed'}</span>
       </div>
     </div>
@@ -356,12 +616,24 @@ function describeSpare(item: SpareItem, category: SpareCategory): string {
 const TYPE_OPTIONS = Object.entries(COMPONENT_TYPE_LABELS) as [ComponentType, string][];
 
 function ComponentSpecsSection({
-  component, isEditing, onChange,
-}: { component: Component; isEditing: boolean; onChange: (mut: (c: Component) => Component) => void }) {
+  component,
+  isEditing,
+  onChange,
+}: {
+  component: Component;
+  isEditing: boolean;
+  onChange: (mut: (c: Component) => Component) => void;
+}) {
   const setField = (fid: string, key: 'label' | 'value', v: string) =>
-    onChange((cur) => ({ ...cur, fields: cur.fields.map((f) => (f.id === fid ? { ...f, [key]: v } : f)) }));
+    onChange((cur) => ({
+      ...cur,
+      fields: cur.fields.map((f) => (f.id === fid ? { ...f, [key]: v } : f)),
+    }));
   const addField = () =>
-    onChange((cur) => ({ ...cur, fields: [...cur.fields, { id: genId('f'), label: 'Label', value: '' }] }));
+    onChange((cur) => ({
+      ...cur,
+      fields: [...cur.fields, { id: genId('f'), label: 'Label', value: '' }],
+    }));
   const removeField = (fid: string) =>
     onChange((cur) => ({ ...cur, fields: cur.fields.filter((f) => f.id !== fid) }));
   const setType = (t: ComponentType) => onChange((cur) => ({ ...cur, type: t }));
@@ -375,10 +647,14 @@ function ComponentSpecsSection({
       {isEditing ? (
         <Field label="Type">
           <Select value={component.type} onValueChange={(v) => setType(v as ComponentType)}>
-            <SelectTrigger size="sm" className="h-8 w-40"><SelectValue /></SelectTrigger>
+            <SelectTrigger size="sm" className="h-8 w-40">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {TYPE_OPTIONS.map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -388,9 +664,26 @@ function ComponentSpecsSection({
       {visible.map((f) =>
         isEditing ? (
           <div key={f.id} className="grid grid-cols-[104px_1fr_auto] items-center gap-2">
-            <Input className="h-8 text-xs" value={f.label} onChange={(e) => setField(f.id, 'label', e.target.value)} placeholder="Label" />
-            <Input className="h-8" value={f.value} onChange={(e) => setField(f.id, 'value', e.target.value)} placeholder="Value" />
-            <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0 text-muted-foreground hover:text-bad" onClick={() => removeField(f.id)} title="Remove field">
+            <Input
+              className="h-8 text-xs"
+              value={f.label}
+              onChange={(e) => setField(f.id, 'label', e.target.value)}
+              placeholder="Label"
+            />
+            <Input
+              className="h-8"
+              value={f.value}
+              onChange={(e) => setField(f.id, 'value', e.target.value)}
+              placeholder="Value"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0 text-muted-foreground hover:text-bad"
+              onClick={() => removeField(f.id)}
+              title="Remove field"
+            >
               <X size={13} strokeWidth={2} />
             </Button>
           </div>
@@ -402,21 +695,37 @@ function ComponentSpecsSection({
       )}
 
       {isEditing ? (
-        <button type="button" className="mt-1 inline-flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-brand" onClick={addField}>
+        <button
+          type="button"
+          className="mt-1 inline-flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-brand"
+          onClick={addField}
+        >
           <Plus size={12} strokeWidth={2} /> field
         </button>
       ) : null}
-      {!isEditing && visible.length === 0 ? <span className="text-sm text-muted-foreground">No specs recorded.</span> : null}
+      {!isEditing && visible.length === 0 ? (
+        <span className="text-sm text-muted-foreground">No specs recorded.</span>
+      ) : null}
     </Section>
   );
 }
 
 function SpareSpecsSection({
-  item, category, isEditing, onChange,
-}: { item: SpareItem; category: SpareCategory; isEditing: boolean; onChange: (mut: (it: SpareItem) => SpareItem) => void }) {
+  item,
+  category,
+  isEditing,
+  onChange,
+}: {
+  item: SpareItem;
+  category: SpareCategory;
+  isEditing: boolean;
+  onChange: (mut: (it: SpareItem) => SpareItem) => void;
+}) {
   const onValue = (colId: string, v: string) =>
     onChange((cur) => ({ ...cur, values: { ...cur.values, [colId]: v } }));
-  const cols = category.columns.filter((c) => isEditing || (item.values[c.id] && item.values[c.id].trim()));
+  const cols = category.columns.filter(
+    (c) => isEditing || (item.values[c.id] && item.values[c.id].trim()),
+  );
   if (cols.length === 0) return null;
   return (
     <Section icon={Settings2} title="Specifications">
@@ -426,7 +735,11 @@ function SpareSpecsSection({
         return (
           <Field key={col.id} label={label}>
             {isEditing ? (
-              <TextInput value={item.values[col.id]} onChange={(v) => onValue(col.id, v)} placeholder={label} />
+              <TextInput
+                value={item.values[col.id]}
+                onChange={(v) => onValue(col.id, v)}
+                placeholder={label}
+              />
             ) : (
               <span className="text-sm text-foreground">{item.values[col.id]}</span>
             )}
@@ -442,18 +755,30 @@ function SpareSpecsSection({
 /* ------------------------------------------------------------------ */
 
 function AssignmentSection({
-  component, machines, onChange,
-}: { component: Component; machines: Machine[]; onChange: (mut: (c: Component) => Component) => void }) {
+  component,
+  machines,
+  onChange,
+}: {
+  component: Component;
+  machines: Machine[];
+  onChange: (mut: (c: Component) => Component) => void;
+}) {
   return (
     <Section icon={MapPin} title="Assignment">
       <Field label="Installed in">
-        <Select value={component.assignment} onValueChange={(v) => onChange((cur) => ({ ...cur, assignment: v }))}>
-          <SelectTrigger size="sm" className="h-8 w-full"><SelectValue /></SelectTrigger>
+        <Select
+          value={component.assignment}
+          onValueChange={(v) => onChange((cur) => ({ ...cur, assignment: v }))}
+        >
+          <SelectTrigger size="sm" className="h-8 w-full">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value={SPARE}>Spare — not installed</SelectItem>
             {machines.map((m) => (
               <SelectItem key={m.id} value={m.id}>
-                {m.name}{m.ids?.uid ? ` (${m.ids.uid})` : ''}
+                {m.name}
+                {m.ids?.uid ? ` (${m.ids.uid})` : ''}
               </SelectItem>
             ))}
           </SelectContent>
@@ -465,16 +790,26 @@ function AssignmentSection({
 
 const DEPLOYMENT_OPTIONS: { value: Deployment; label: string }[] = [
   { value: 'in-service', label: 'In service' },
-  { value: 'spare',      label: 'Spare' },
+  { value: 'spare', label: 'Spare' },
 ];
 
-function DeploymentSelect({ value, onChange }: { value: Deployment; onChange: (v: Deployment) => void }) {
+function DeploymentSelect({
+  value,
+  onChange,
+}: {
+  value: Deployment;
+  onChange: (v: Deployment) => void;
+}) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as Deployment)}>
-      <SelectTrigger size="sm" className="h-8 w-full"><SelectValue /></SelectTrigger>
+      <SelectTrigger size="sm" className="h-8 w-full">
+        <SelectValue />
+      </SelectTrigger>
       <SelectContent>
         {DEPLOYMENT_OPTIONS.map((o) => (
-          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
         ))}
       </SelectContent>
     </Select>
@@ -482,32 +817,66 @@ function DeploymentSelect({ value, onChange }: { value: Deployment; onChange: (v
 }
 
 function DeviceSection({
-  item, isEditing, onChange,
-}: { item: SpareItem; isEditing: boolean; onChange: (mut: (it: SpareItem) => SpareItem) => void }) {
+  item,
+  isEditing,
+  onChange,
+}: {
+  item: SpareItem;
+  isEditing: boolean;
+  onChange: (mut: (it: SpareItem) => SpareItem) => void;
+}) {
   return (
     <Section icon={Tag} title="Placement">
       {isEditing ? (
         <Field label="Name">
-          <TextInput value={item.name} onChange={(v) => onChange((cur) => ({ ...cur, name: v || undefined }))} placeholder="Friendly name (optional)" />
+          <TextInput
+            value={item.name}
+            onChange={(v) => onChange((cur) => ({ ...cur, name: v || undefined }))}
+            placeholder="Friendly name (optional)"
+          />
         </Field>
       ) : item.name ? (
-        <Field label="Name"><span className="text-sm text-foreground">{item.name}</span></Field>
+        <Field label="Name">
+          <span className="text-sm text-foreground">{item.name}</span>
+        </Field>
       ) : null}
       <Field label="Deployment">
-        <DeploymentSelect value={item.deployment ?? 'spare'} onChange={(v) => onChange((cur) => ({ ...cur, deployment: v }))} />
+        <DeploymentSelect
+          value={item.deployment ?? 'spare'}
+          onChange={(v) => onChange((cur) => ({ ...cur, deployment: v }))}
+        />
       </Field>
     </Section>
   );
 }
 
 function DetailField({
-  label, icon, value, editing, input, mono,
-}: { label: string; icon?: LucideIcon; value?: string; editing: boolean; input: React.ReactNode; mono?: boolean }) {
-  if (editing) return <Field label={label} icon={icon}>{input}</Field>;
+  label,
+  icon,
+  value,
+  editing,
+  input,
+  mono,
+}: {
+  label: string;
+  icon?: LucideIcon;
+  value?: string;
+  editing: boolean;
+  input: React.ReactNode;
+  mono?: boolean;
+}) {
+  if (editing)
+    return (
+      <Field label={label} icon={icon}>
+        {input}
+      </Field>
+    );
   if (!value || !value.trim()) return null;
   return (
     <Field label={label} icon={icon}>
-      <span className={cn('text-sm text-foreground', mono && 'font-mono text-[13px]')}>{value}</span>
+      <span className={cn('text-sm text-foreground', mono && 'font-mono text-[13px]')}>
+        {value}
+      </span>
     </Field>
   );
 }
@@ -516,7 +885,13 @@ function DetailField({
 /* Status select (shadcn)                                             */
 /* ------------------------------------------------------------------ */
 
-function StatusSelect({ status, onChange }: { status: ItemStatus; onChange: (s: ItemStatus) => void }) {
+function StatusSelect({
+  status,
+  onChange,
+}: {
+  status: ItemStatus;
+  onChange: (s: ItemStatus) => void;
+}) {
   const kind = STATUS_KIND[status];
   const Glyph = STATUS_ICON[status];
   return (
@@ -524,7 +899,10 @@ function StatusSelect({ status, onChange }: { status: ItemStatus; onChange: (s: 
       <SelectTrigger
         size="sm"
         aria-label="Change status"
-        className={cn('h-8 w-auto gap-1.5 rounded-full border-border bg-muted/50 px-3 text-xs font-medium lowercase', TONE_TEXT[kind])}
+        className={cn(
+          'h-8 w-auto gap-1.5 rounded-full border-border bg-muted/50 px-3 text-xs font-medium lowercase',
+          TONE_TEXT[kind],
+        )}
       >
         <Glyph size={13} strokeWidth={2} />
         <SelectValue />
@@ -577,14 +955,26 @@ function Section({
       <h3 className="mb-3 flex items-center gap-1.5 text-[12.5px] font-semibold tracking-wide text-muted-foreground">
         <Icon size={14} strokeWidth={1.75} />
         <span>{title}</span>
-        {count != null ? <span className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">{count}</span> : null}
+        {count != null ? (
+          <span className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">
+            {count}
+          </span>
+        ) : null}
       </h3>
       <div className="flex flex-col gap-2.5">{children}</div>
     </section>
   );
 }
 
-function Field({ label, icon: Icon, children }: { label: string; icon?: LucideIcon; children: React.ReactNode }) {
+function Field({
+  label,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  icon?: LucideIcon;
+  children: React.ReactNode;
+}) {
   return (
     <div className="grid grid-cols-[104px_1fr] items-center gap-3">
       <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -601,8 +991,16 @@ function Field({ label, icon: Icon, children }: { label: string; icon?: LucideIc
 /* ------------------------------------------------------------------ */
 
 function TextInput({
-  value, onChange, placeholder, mono,
-}: { value?: string; onChange: (v: string) => void; placeholder?: string; mono?: boolean }) {
+  value,
+  onChange,
+  placeholder,
+  mono,
+}: {
+  value?: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  mono?: boolean;
+}) {
   const [draft, setDraft] = useState(value ?? '');
   const [focused, setFocused] = useState(false);
   useEffect(() => {
@@ -616,15 +1014,26 @@ function TextInput({
       placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
       onFocus={() => setFocused(true)}
-      onBlur={() => { setFocused(false); if (draft !== (value ?? '')) onChange(draft); }}
-      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+      onBlur={() => {
+        setFocused(false);
+        if (draft !== (value ?? '')) onChange(draft);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      }}
     />
   );
 }
 
 function DateInput({
-  value, onChange, hint,
-}: { value?: string; onChange: (v: string) => void; hint?: { text: string; kind: 'ok' | 'warn' | 'bad' | 'idle' } | null }) {
+  value,
+  onChange,
+  hint,
+}: {
+  value?: string;
+  onChange: (v: string) => void;
+  hint?: { text: string; kind: 'ok' | 'warn' | 'bad' | 'idle' } | null;
+}) {
   return (
     <div className="flex items-center gap-2">
       <Input
@@ -650,7 +1059,10 @@ function ComponentsSection({ machine, components }: { machine: Machine; componen
         {installed.map((c) => {
           const CompIcon = componentIcon(c.label) ?? Cpu;
           return (
-            <div key={c.id} className="flex items-start gap-2 rounded-md border border-border/60 bg-card px-2.5 py-2">
+            <div
+              key={c.id}
+              className="flex items-start gap-2 rounded-md border border-border/60 bg-card px-2.5 py-2"
+            >
               <span className="flex w-24 shrink-0 items-center gap-1.5 pt-0.5 text-xs font-medium text-muted-foreground">
                 <CompIcon size={12} strokeWidth={1.75} />
                 <span className="truncate">{c.label}</span>
@@ -658,13 +1070,17 @@ function ComponentsSection({ machine, components }: { machine: Machine; componen
               <BrandGlyph text={componentTitle(c)} size={14} reserveSpace />
               <div className="min-w-0 flex-1">
                 <div className="text-sm text-foreground">{componentTitle(c)}</div>
-                <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{c.ids?.uid ?? ''}</div>
+                <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                  {c.ids?.uid ?? ''}
+                </div>
               </div>
             </div>
           );
         })}
         {installed.length === 0 ? (
-          <span className="text-sm text-muted-foreground">No components assigned to this machine.</span>
+          <span className="text-sm text-muted-foreground">
+            No components assigned to this machine.
+          </span>
         ) : null}
       </div>
     </Section>
@@ -690,7 +1106,13 @@ function ProblemLogSection({ log, status, onAdd, onUpdate, onRemove }: ProblemLo
   const accent = status === 'broken' ? 'bad' : status === 'in-repair' ? 'warn' : undefined;
 
   return (
-    <Section icon={Wrench} title="Problem log" count={log.length} accent={accent} className="md:col-span-2">
+    <Section
+      icon={Wrench}
+      title="Problem log"
+      count={log.length}
+      accent={accent}
+      className="md:col-span-2"
+    >
       <ul className="flex flex-col gap-2">
         {log.length === 0 ? (
           <li className="rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
@@ -698,7 +1120,10 @@ function ProblemLogSection({ log, status, onAdd, onUpdate, onRemove }: ProblemLo
           </li>
         ) : null}
         {log.map((entry) => (
-          <li key={entry.id} className="flex items-start gap-2 rounded-md border border-border/60 bg-card p-2">
+          <li
+            key={entry.id}
+            className="flex items-start gap-2 rounded-md border border-border/60 bg-card p-2"
+          >
             <Input
               type="date"
               className="h-8 w-auto shrink-0 font-mono text-[13px]"
@@ -759,7 +1184,14 @@ function AddLogEntry({ onAdd }: { onAdd: (note: string, date: string) => void })
           }
         }}
       />
-      <Button type="button" size="sm" className="shrink-0 gap-1" onClick={submit} disabled={!note.trim()} title="Add entry (Ctrl/Cmd+Enter)">
+      <Button
+        type="button"
+        size="sm"
+        className="shrink-0 gap-1"
+        onClick={submit}
+        disabled={!note.trim()}
+        title="Add entry (Ctrl/Cmd+Enter)"
+      >
         <Plus size={13} strokeWidth={2} /> log
       </Button>
     </div>
@@ -778,13 +1210,15 @@ function today(): string {
   return `${y}-${mo}-${da}`;
 }
 
-function warrantyHint(warrantyEnd?: string): { text: string; kind: 'ok' | 'warn' | 'bad' | 'idle' } | null {
+function warrantyHint(
+  warrantyEnd?: string,
+): { text: string; kind: 'ok' | 'warn' | 'bad' | 'idle' } | null {
   if (!warrantyEnd) return null;
   const end = Date.parse(warrantyEnd);
   if (Number.isNaN(end)) return null;
   const now = Date.now();
   const days = Math.round((end - now) / 86_400_000);
-  if (days < 0)  return { text: `expired ${Math.abs(days)}d ago`, kind: 'bad' };
+  if (days < 0) return { text: `expired ${Math.abs(days)}d ago`, kind: 'bad' };
   if (days <= 30) return { text: `${days}d left`, kind: 'warn' };
   if (days <= 90) return { text: `${days}d left`, kind: 'ok' };
   return { text: `${days}d left`, kind: 'idle' };

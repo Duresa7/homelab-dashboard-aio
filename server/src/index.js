@@ -31,7 +31,9 @@ function isEnabled(value, defaultEnabled = true) {
   // DISABLE_ALL is a master kill-switch: when truthy, every integration is
   // forced off regardless of its individual *_ENABLED flag. Useful for
   // smoke-testing the UI without any backend integrations configured.
-  const disableAll = String(process.env.DISABLE_ALL || '').trim().toLowerCase();
+  const disableAll = String(process.env.DISABLE_ALL || '')
+    .trim()
+    .toLowerCase();
   if (disableAll && !FALSY_ENV.includes(disableAll)) return false;
   if (value === undefined || value === null || value === '') return defaultEnabled;
   return !FALSY_ENV.includes(String(value).trim().toLowerCase());
@@ -105,7 +107,7 @@ async function uniFetch(path) {
   const res = await insecureFetch(url, {
     headers: {
       'X-API-Key': API_KEY,
-      'Accept': 'application/json',
+      Accept: 'application/json',
     },
   });
   if (!res.ok) {
@@ -161,7 +163,7 @@ async function getSiteId() {
   if (!Array.isArray(sites) || sites.length === 0) {
     throw new Error('No sites found from UniFi API');
   }
-  const site = sites.find(s => s.name === SITE || s.id === SITE) || sites[0];
+  const site = sites.find((s) => s.name === SITE || s.id === SITE) || sites[0];
   resolvedSiteId = site.id || site._id || site.name;
   return resolvedSiteId;
 }
@@ -177,16 +179,16 @@ function classifyDevice(d) {
   const model = (d.model || '').toLowerCase();
 
   const gwKeywords = ['ucg', 'udm', 'uxg', 'gateway', 'dream machine', 'cloud key'];
-  if (gwKeywords.some(kw => model.includes(kw))) return 'gateway';
+  if (gwKeywords.some((kw) => model.includes(kw))) return 'gateway';
 
   const switchKeywords = ['usw', 'switch', 'us-', 'usp-'];
   const apKeywords = ['uap', 'u6', 'u7', 'nanohd', 'ac-pro', 'ac-lite', 'ap'];
 
-  if (hasFeature(d, 'switching') || switchKeywords.some(kw => model.includes(kw))) {
+  if (hasFeature(d, 'switching') || switchKeywords.some((kw) => model.includes(kw))) {
     return 'switch';
   }
 
-  if (hasFeature(d, 'accessPoint') || apKeywords.some(kw => model.includes(kw))) {
+  if (hasFeature(d, 'accessPoint') || apKeywords.some((kw) => model.includes(kw))) {
     return 'ap';
   }
 
@@ -200,17 +202,18 @@ async function fetchUnifiData() {
   const siteId = await getSiteId();
   const prefix = `/proxy/network/integration/v1/sites/${siteId}`;
 
-  const [devices, clients, networks, ssids, wans, fwZones, fwPolicies, vpnServers, dnsRecords] = await Promise.all([
-    fetchAllPages(`${prefix}/devices`),
-    fetchAllPages(`${prefix}/clients`),
-    safeFetchAllPages(`${prefix}/networks`),
-    safeFetchAllPages(`${prefix}/wifi/broadcasts`),
-    safeFetchAllPages(`${prefix}/wans`),
-    safeFetchAllPages(`${prefix}/firewall/zones`),
-    safeFetchAllPages(`${prefix}/firewall/policies`),
-    safeFetchAllPages(`${prefix}/vpn/servers`),
-    safeFetchAllPages(`${prefix}/dns/policies`),
-  ]);
+  const [devices, clients, networks, ssids, wans, fwZones, fwPolicies, vpnServers, dnsRecords] =
+    await Promise.all([
+      fetchAllPages(`${prefix}/devices`),
+      fetchAllPages(`${prefix}/clients`),
+      safeFetchAllPages(`${prefix}/networks`),
+      safeFetchAllPages(`${prefix}/wifi/broadcasts`),
+      safeFetchAllPages(`${prefix}/wans`),
+      safeFetchAllPages(`${prefix}/firewall/zones`),
+      safeFetchAllPages(`${prefix}/firewall/policies`),
+      safeFetchAllPages(`${prefix}/vpn/servers`),
+      safeFetchAllPages(`${prefix}/dns/policies`),
+    ]);
 
   let appVersion = null;
   const appInfo = await safeFetch('/proxy/network/integration/v1/info');
@@ -218,21 +221,23 @@ async function fetchUnifiData() {
 
   const statsMap = {};
   const detailMap = {};
-  await Promise.all(devices.map(async (d) => {
-    const [stats, detail] = await Promise.all([
-      safeFetch(`${prefix}/devices/${d.id}/statistics/latest`),
-      safeFetch(`${prefix}/devices/${d.id}`),
-    ]);
-    if (stats) statsMap[d.id] = stats;
-    if (detail) detailMap[d.id] = detail;
-  }));
+  await Promise.all(
+    devices.map(async (d) => {
+      const [stats, detail] = await Promise.all([
+        safeFetch(`${prefix}/devices/${d.id}/statistics/latest`),
+        safeFetch(`${prefix}/devices/${d.id}`),
+      ]);
+      if (stats) statsMap[d.id] = stats;
+      if (detail) detailMap[d.id] = detail;
+    }),
+  );
 
-  const classified = devices.map(d => ({ ...d, _role: classifyDevice(d) }));
+  const classified = devices.map((d) => ({ ...d, _role: classifyDevice(d) }));
 
-  const gateway = classified.find(d => d._role === 'gateway') || {};
+  const gateway = classified.find((d) => d._role === 'gateway') || {};
   const gwStats = statsMap[gateway.id] || {};
-  const switches = classified.filter(d => d._role === 'switch');
-  const aps = classified.filter(d => d._role === 'ap');
+  const switches = classified.filter((d) => d._role === 'switch');
+  const aps = classified.filter((d) => d._role === 'ap');
 
   const clientsByDeviceId = {};
   let wirelessCount = 0;
@@ -269,11 +274,11 @@ async function fetchUnifiData() {
         uptime: formatUptime(gwStats.uptimeSec ?? gwStats.uptime_sec ?? 0),
         fwVersion: gateway.firmwareVersion || 'n/a',
       },
-      switches: switches.map(s => {
+      switches: switches.map((s) => {
         const sStats = statsMap[s.id] || {};
         const detail = detailMap[s.id] || {};
         const ports = detail.interfaces?.ports || [];
-        const portsUp = ports.filter(p => (p.state || '').toUpperCase() === 'UP').length;
+        const portsUp = ports.filter((p) => (p.state || '').toUpperCase() === 'UP').length;
         return {
           name: s.name || s.model || 'Switch',
           model: s.model || '',
@@ -285,7 +290,7 @@ async function fetchUnifiData() {
           portsActive: clientsByDeviceId[s.id] || 0,
         };
       }),
-      aps: aps.map(ap => {
+      aps: aps.map((ap) => {
         const apDetail = detailMap[ap.id] || {};
         const radios = apDetail.interfaces?.radios || [];
         const primaryRadio = radios[0] || {};
@@ -302,7 +307,7 @@ async function fetchUnifiData() {
       }),
       clients: clients.length,
       clientBreakdown: { wireless: wirelessCount, wired: wiredCount, vpn: vpnCount },
-      topTalkers: sortedClients.map(c => ({
+      topTalkers: sortedClients.map((c) => ({
         name: c.name || c.macAddress || 'unknown',
         ip: c.ipAddress || 'n/a',
         type: c.type || 'UNKNOWN',
@@ -318,7 +323,7 @@ async function fetchUnifiData() {
         upMax: 1000,
         public: gwStats.wanIp || gateway.ipAddress || 'n/a',
       },
-      networks: networks.map(n => ({
+      networks: networks.map((n) => ({
         id: n.id,
         name: n.name || 'Unnamed',
         vlanId: n.vlanId ?? null,
@@ -326,7 +331,7 @@ async function fetchUnifiData() {
         management: n.management || 'UNMANAGED',
         isDefault: n.default ?? false,
       })),
-      ssids: ssids.map(s => ({
+      ssids: ssids.map((s) => ({
         id: s.id,
         name: s.name || 'Unnamed',
         enabled: s.enabled ?? true,
@@ -336,15 +341,15 @@ async function fetchUnifiData() {
       firewall: {
         zones: fwZones.length,
         policies: fwPolicies.length,
-        policiesEnabled: fwPolicies.filter(p => p.enabled).length,
+        policiesEnabled: fwPolicies.filter((p) => p.enabled).length,
       },
-      vpnServers: vpnServers.map(v => ({
+      vpnServers: vpnServers.map((v) => ({
         id: v.id,
         name: v.name || 'VPN Server',
         type: v.type || 'unknown',
         enabled: v.enabled ?? true,
       })),
-      dnsRecords: dnsRecords.map(r => ({
+      dnsRecords: dnsRecords.map((r) => ({
         id: r.id,
         type: r.type || 'unknown',
         domain: r.domain || '',
@@ -477,40 +482,26 @@ app.get('/api/health/live', async (req, res) => {
   }
 
   const probes = await Promise.all([
-    runProbe(
-      'unifi',
-      UNIFI_ENABLED && !!BASE_URL && !!API_KEY,
-      () => uniFetch('/proxy/network/integration/v1/sites'),
+    runProbe('unifi', UNIFI_ENABLED && !!BASE_URL && !!API_KEY, () =>
+      uniFetch('/proxy/network/integration/v1/sites'),
     ),
-    runProbe(
-      'portainer',
-      PORTAINER_ENABLED && !!PORTAINER_BASE_URL && !!PORTAINER_API_KEY,
-      () => portainerFetch('/api/endpoints', { timeoutMs: LIVE_HEALTH_PROBE_TIMEOUT_MS }),
+    runProbe('portainer', PORTAINER_ENABLED && !!PORTAINER_BASE_URL && !!PORTAINER_API_KEY, () =>
+      portainerFetch('/api/endpoints', { timeoutMs: LIVE_HEALTH_PROBE_TIMEOUT_MS }),
     ),
     runProbe(
       'proxmox',
       PROXMOX_ENABLED && !!PVE_BASE_URL && !!PVE_TOKEN_ID && !!PVE_TOKEN_SECRET,
       () => pveFetch('/api2/json/version'),
     ),
-    runProbe(
-      'unas',
-      UNAS_ENABLED && !!UNAS_BASE_URL && !!UNAS_API_KEY,
-      () => unasFetch('/proxy/drive/api/v2/storage'),
+    runProbe('unas', UNAS_ENABLED && !!UNAS_BASE_URL && !!UNAS_API_KEY, () =>
+      unasFetch('/proxy/drive/api/v2/storage'),
     ),
-    runProbe(
-      'protect',
-      PROTECT_ENABLED && !!PROTECT_BASE_URL && !!PROTECT_API_KEY,
-      () => protectFetchJson('/v1/meta/info'),
+    runProbe('protect', PROTECT_ENABLED && !!PROTECT_BASE_URL && !!PROTECT_API_KEY, () =>
+      protectFetchJson('/v1/meta/info'),
     ),
-    runProbe(
-      'gpu',
-      GPU_ENABLED && (GPU_MODE === 'local' || !!GPU_SSH_HOST),
-      () => runNvidiaSmi(),
-    ),
-    runProbe(
-      'sensors',
-      SENSORS_ENABLED && (SENSORS_MODE === 'local' || !!SENSORS_SSH_HOST),
-      () => sensorsHandle.runSensors(),
+    runProbe('gpu', GPU_ENABLED && (GPU_MODE === 'local' || !!GPU_SSH_HOST), () => runNvidiaSmi()),
+    runProbe('sensors', SENSORS_ENABLED && (SENSORS_MODE === 'local' || !!SENSORS_SSH_HOST), () =>
+      sensorsHandle.runSensors(),
     ),
   ]);
 
@@ -535,7 +526,6 @@ app.get('/api/health/live', async (req, res) => {
   res.json({ ...result, fromCache: false, ageMs: 0, cacheTtlMs: LIVE_HEALTH_CACHE_TTL_MS });
 });
 
-
 let portainerCache = { data: null, ts: 0 };
 let portainerLastError = null;
 
@@ -552,7 +542,9 @@ async function portainerFetch(path, { timeoutMs = 10000 } = {}) {
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      throw new Error(`Portainer API ${res.status} ${res.statusText} — ${path} — ${body.slice(0, 200)}`);
+      throw new Error(
+        `Portainer API ${res.status} ${res.statusText} — ${path} — ${body.slice(0, 200)}`,
+      );
     }
     if (res.status === 204) return null;
     return res.json();
@@ -580,20 +572,20 @@ function endpointName(endpoint) {
 
 function endpointAddress(endpoint) {
   const raw =
-    endpoint.PublicURL ||
-    endpoint.URL ||
-    endpoint.Url ||
-    endpoint.EdgeID ||
-    endpoint.EdgeId ||
-    '';
-  return String(raw).replace(/^tcp:\/\//, '').replace(/^https?:\/\//, '') || '—';
+    endpoint.PublicURL || endpoint.URL || endpoint.Url || endpoint.EdgeID || endpoint.EdgeId || '';
+  return (
+    String(raw)
+      .replace(/^tcp:\/\//, '')
+      .replace(/^https?:\/\//, '') || '—'
+  );
 }
 
 function endpointOnline(endpoint, dockerReachable) {
   const status = endpoint.Status ?? endpoint.status;
   if (dockerReachable) return true;
   if (typeof status === 'number') return status === 1;
-  if (typeof status === 'string') return ['up', 'online', 'active', 'healthy'].includes(status.toLowerCase());
+  if (typeof status === 'string')
+    return ['up', 'online', 'active', 'healthy'].includes(status.toLowerCase());
   return false;
 }
 
@@ -629,12 +621,9 @@ function cpuPctFromStats(stats) {
     (stats?.cpu_stats?.cpu_usage?.total_usage || 0) -
     (stats?.precpu_stats?.cpu_usage?.total_usage || 0);
   const systemDelta =
-    (stats?.cpu_stats?.system_cpu_usage || 0) -
-    (stats?.precpu_stats?.system_cpu_usage || 0);
+    (stats?.cpu_stats?.system_cpu_usage || 0) - (stats?.precpu_stats?.system_cpu_usage || 0);
   const onlineCpus =
-    stats?.cpu_stats?.online_cpus ||
-    stats?.cpu_stats?.cpu_usage?.percpu_usage?.length ||
-    1;
+    stats?.cpu_stats?.online_cpus || stats?.cpu_stats?.cpu_usage?.percpu_usage?.length || 1;
   if (cpuDelta <= 0 || systemDelta <= 0) return 0;
   return Math.max(0, (cpuDelta / systemDelta) * onlineCpus * 100);
 }
@@ -642,7 +631,7 @@ function cpuPctFromStats(stats) {
 function memMbFromStats(stats) {
   const usage = stats?.memory_stats?.usage || 0;
   const cache = stats?.memory_stats?.stats?.cache || 0;
-  return Math.max(0, Math.round((usage - cache) / (1024 ** 2)));
+  return Math.max(0, Math.round((usage - cache) / 1024 ** 2));
 }
 
 async function containerStats(endpointIdValue, containerId) {
@@ -667,26 +656,26 @@ async function fetchEndpointDocker(endpoint) {
   ]);
 
   const reachable = Array.isArray(containers);
-  const mappedContainers = await Promise.all((containers || []).map(async (c) => {
-    const state = containerState(c);
-    const stats = state === 'running'
-      ? await containerStats(id, c.Id)
-      : { cpu: 0, memMB: 0 };
-    return {
-      name: containerName(c),
-      host: String(id),
-      image: c.Image || 'unknown',
-      state,
-      cpu: stats.cpu,
-      memMB: stats.memMB,
-      uptime: containerUptime(c),
-      stack: containerStack(c),
-    };
-  }));
+  const mappedContainers = await Promise.all(
+    (containers || []).map(async (c) => {
+      const state = containerState(c);
+      const stats = state === 'running' ? await containerStats(id, c.Id) : { cpu: 0, memMB: 0 };
+      return {
+        name: containerName(c),
+        host: String(id),
+        image: c.Image || 'unknown',
+        state,
+        cpu: stats.cpu,
+        memMB: stats.memMB,
+        uptime: containerUptime(c),
+        stack: containerStack(c),
+      };
+    }),
+  );
 
   const memTotal = info?.MemTotal || 0;
   const hostMemMb = mappedContainers.reduce((sum, c) => sum + c.memMB, 0);
-  const hostRamPct = memTotal ? Math.round((hostMemMb * 1024 ** 2 / memTotal) * 100) : 0;
+  const hostRamPct = memTotal ? Math.round(((hostMemMb * 1024 ** 2) / memTotal) * 100) : 0;
   const hostCpuPct = Math.round(mappedContainers.reduce((sum, c) => sum + c.cpu, 0) * 10) / 10;
 
   return {
@@ -761,15 +750,14 @@ app.get('/api/docker/debug', async (_req, res) => {
     },
     cache: portainerCache.data
       ? {
-        ageMs: Date.now() - portainerCache.ts,
-        hosts: portainerCache.data.docker.hosts.length,
-        containers: portainerCache.data.docker.containers.length,
-      }
+          ageMs: Date.now() - portainerCache.ts,
+          hosts: portainerCache.data.docker.hosts.length,
+          containers: portainerCache.data.docker.containers.length,
+        }
       : null,
     lastError: portainerLastError,
   });
 });
-
 
 let pveCache = { data: null, ts: 0 };
 
@@ -783,15 +771,18 @@ async function pveFetch(path) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Proxmox API ${res.status} ${res.statusText} — ${path} — ${body.slice(0, 200)}`);
+    throw new Error(
+      `Proxmox API ${res.status} ${res.statusText} — ${path} — ${body.slice(0, 200)}`,
+    );
   }
   const json = await res.json();
   return json.data;
 }
 
 async function safePveFetch(path) {
-  try { return await pveFetch(path); }
-  catch (err) {
+  try {
+    return await pveFetch(path);
+  } catch (err) {
     console.warn(`Proxmox: ${path} failed → ${err.message}`);
     return null;
   }
@@ -812,9 +803,7 @@ function trimPveVersion(raw) {
 
 function pickNodeIp(networks) {
   if (!Array.isArray(networks)) return null;
-  const bridgeWithIp = networks.find(
-    (n) => n.active && n.address && n.type === 'bridge'
-  );
+  const bridgeWithIp = networks.find((n) => n.active && n.address && n.type === 'bridge');
   if (bridgeWithIp) return bridgeWithIp.address;
   const anyWithIp = networks.find((n) => n.active && n.address);
   return anyWithIp ? anyWithIp.address : null;
@@ -873,14 +862,15 @@ async function fetchProxmoxData() {
     nodes.find((n) => n.status === 'online') ||
     nodes[0];
 
-  const [nodeStatus, vmResources, storageList, networks, physicalDisks, zfsPools] = await Promise.all([
-    safePveFetch(`/api2/json/nodes/${primary.node}/status`),
-    safePveFetch('/api2/json/cluster/resources?type=vm'),
-    safePveFetch(`/api2/json/nodes/${primary.node}/storage`),
-    safePveFetch(`/api2/json/nodes/${primary.node}/network`),
-    safePveFetch(`/api2/json/nodes/${primary.node}/disks/list`),
-    safePveFetch(`/api2/json/nodes/${primary.node}/disks/zfs`),
-  ]);
+  const [nodeStatus, vmResources, storageList, networks, physicalDisks, zfsPools] =
+    await Promise.all([
+      safePveFetch(`/api2/json/nodes/${primary.node}/status`),
+      safePveFetch('/api2/json/cluster/resources?type=vm'),
+      safePveFetch(`/api2/json/nodes/${primary.node}/storage`),
+      safePveFetch(`/api2/json/nodes/${primary.node}/network`),
+      safePveFetch(`/api2/json/nodes/${primary.node}/disks/list`),
+      safePveFetch(`/api2/json/nodes/${primary.node}/disks/zfs`),
+    ]);
 
   const totalCores = nodes.reduce((sum, n) => sum + (n.maxcpu || 0), 0);
   const vms = Array.isArray(vmResources) ? vmResources : [];
@@ -895,11 +885,11 @@ async function fetchProxmoxData() {
     runningVms.map(async (v) => {
       try {
         const ip =
-          v.type === 'lxc'
-            ? await getLxcIp(v.node, v.vmid)
-            : await getQemuIp(v.node, v.vmid);
+          v.type === 'lxc' ? await getLxcIp(v.node, v.vmid) : await getQemuIp(v.node, v.vmid);
         if (ip) vmIps[v.vmid] = ip;
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }),
   );
 
@@ -981,8 +971,8 @@ async function fetchProxmoxData() {
           serial: d.serial || null,
           sizeBytes: Number(d.size) || 0,
           type: (d.type || 'unknown').toLowerCase(), // nvme | ssd | hdd | usb
-          used: d.used || null,                       // "LVM", "ZFS", "partitions", null
-          health: d.health || null,                   // "PASSED", "FAILED", "UNKNOWN"
+          used: d.used || null, // "LVM", "ZFS", "partitions", null
+          health: d.health || null, // "PASSED", "FAILED", "UNKNOWN"
           wearout: typeof d.wearout === 'number' ? d.wearout : null,
           rpm: Number(d.rpm) || 0,
         };
@@ -997,7 +987,8 @@ async function fetchProxmoxData() {
           totalTB: (s.total || 0) / TB,
           active: !!s.active,
           shared: !!s.shared,
-          zfsHealth: zfsHealthByName.get(zfsKey) || zfsHealthByName.get(String(s.storage || '')) || null,
+          zfsHealth:
+            zfsHealthByName.get(zfsKey) || zfsHealthByName.get(String(s.storage || '')) || null,
         };
       }),
       coresAllocated,
@@ -1015,15 +1006,24 @@ app.get('/api/proxmox/debug', async (_req, res) => {
     return res.status(503).json({ error: 'Proxmox not configured' });
   }
   const out = {};
-  try { out.nodes = await pveFetch('/api2/json/nodes'); }
-  catch (e) { out.nodesError = e.message; }
+  try {
+    out.nodes = await pveFetch('/api2/json/nodes');
+  } catch (e) {
+    out.nodesError = e.message;
+  }
   const nodeName = PVE_NODE_HINT || out.nodes?.[0]?.node;
   if (nodeName) {
-    try { out.nodeStatus = await pveFetch(`/api2/json/nodes/${nodeName}/status`); }
-    catch (e) { out.nodeStatusError = e.message; }
+    try {
+      out.nodeStatus = await pveFetch(`/api2/json/nodes/${nodeName}/status`);
+    } catch (e) {
+      out.nodeStatusError = e.message;
+    }
   }
-  try { out.clusterResources = await pveFetch('/api2/json/cluster/resources?type=vm'); }
-  catch (e) { out.clusterResourcesError = e.message; }
+  try {
+    out.clusterResources = await pveFetch('/api2/json/cluster/resources?type=vm');
+  } catch (e) {
+    out.clusterResourcesError = e.message;
+  }
   res.json(out);
 });
 
@@ -1033,7 +1033,8 @@ app.get('/api/proxmox', async (_req, res) => {
   }
   if (!PVE_BASE_URL || !PVE_TOKEN_ID || !PVE_TOKEN_SECRET) {
     return res.status(503).json({
-      error: 'Proxmox not configured. Set PROXMOX_BASE_URL, PROXMOX_TOKEN_ID, PROXMOX_TOKEN_SECRET in .env',
+      error:
+        'Proxmox not configured. Set PROXMOX_BASE_URL, PROXMOX_TOKEN_ID, PROXMOX_TOKEN_SECRET in .env',
     });
   }
   try {
@@ -1061,16 +1062,36 @@ app.get('/api/debug', async (_req, res) => {
     let deviceDetail = null;
     let deviceStats = null;
     if (allDevices.length > 0) {
-      try { deviceDetail = await uniFetch(`${prefix}/devices/${allDevices[0].id}`); } catch { /* */ }
-      try { deviceStats = await uniFetch(`${prefix}/devices/${allDevices[0].id}/statistics/latest`); } catch { /* */ }
+      try {
+        deviceDetail = await uniFetch(`${prefix}/devices/${allDevices[0].id}`);
+      } catch {
+        /* */
+      }
+      try {
+        deviceStats = await uniFetch(`${prefix}/devices/${allDevices[0].id}/statistics/latest`);
+      } catch {
+        /* */
+      }
     }
 
     let networks = null;
-    try { networks = await uniFetch(`${prefix}/networks?limit=50`); } catch { /* */ }
+    try {
+      networks = await uniFetch(`${prefix}/networks?limit=50`);
+    } catch {
+      /* */
+    }
     let ssids = null;
-    try { ssids = await uniFetch(`${prefix}/wifi/broadcasts?limit=50`); } catch { /* */ }
+    try {
+      ssids = await uniFetch(`${prefix}/wifi/broadcasts?limit=50`);
+    } catch {
+      /* */
+    }
     let wans = null;
-    try { wans = await uniFetch(`${prefix}/wans?limit=50`); } catch { /* */ }
+    try {
+      wans = await uniFetch(`${prefix}/wans?limit=50`);
+    } catch {
+      /* */
+    }
 
     res.json({
       siteId,
@@ -1231,7 +1252,6 @@ const sensorsHandle = initSensors(app, {
   cacheTtl: SENSORS_CACHE_TTL,
 });
 
-
 let unasCache = { data: null, ts: 0 };
 let unasLastError = null;
 
@@ -1282,13 +1302,19 @@ function unasModelLabel(hardwareShort) {
   if (!code) return 'UNAS';
   if (UNAS_MODEL_NAMES[code]) return UNAS_MODEL_NAMES[code];
   // Generic fallback for future models — e.g. "UNAS3B" → "UNAS 3B".
-  return code.replace(/^UNAS[-_ ]?/, 'UNAS ').replace(/\s+/g, ' ').trim() || 'UNAS';
+  return (
+    code
+      .replace(/^UNAS[-_ ]?/, 'UNAS ')
+      .replace(/\s+/g, ' ')
+      .trim() || 'UNAS'
+  );
 }
 
 function diskSmart(disk) {
   const state = String(disk.state || '').toLowerCase();
   const risks = Array.isArray(disk.riskReasons) ? disk.riskReasons.length : 0;
-  const badSectors = (Number(disk.badSectorCount) || 0) + (Number(disk.uncorrectableSectorCount) || 0);
+  const badSectors =
+    (Number(disk.badSectorCount) || 0) + (Number(disk.uncorrectableSectorCount) || 0);
   if (state !== 'optimal' || badSectors > 50) return 'bad';
   if (risks > 0 || badSectors > 0) return 'warn';
   return 'ok';
@@ -1305,7 +1331,10 @@ const INCOMPAT_LABELS = {
 
 function formatIncompatibility(code) {
   if (INCOMPAT_LABELS[code]) return INCOMPAT_LABELS[code];
-  return String(code).replace(/^DISK_INCOMPATIBLE_REASON_/, '').toLowerCase().replace(/_/g, ' ');
+  return String(code)
+    .replace(/^DISK_INCOMPATIBLE_REASON_/, '')
+    .toLowerCase()
+    .replace(/_/g, ' ');
 }
 
 const TB = 1024 ** 4;
@@ -1332,11 +1361,11 @@ async function fetchUnasData() {
     }
     const scrub = p.dataScrubbing
       ? {
-        status: p.dataScrubbing.status || 'unknown',
-        scheduleEnabled: !!p.dataScrubbing.schedule?.enabled,
-        lastRun: p.dataScrubbing.lastTaskRun || null,
-        nextRun: p.dataScrubbing.nextRun || null,
-      }
+          status: p.dataScrubbing.status || 'unknown',
+          scheduleEnabled: !!p.dataScrubbing.schedule?.enabled,
+          lastRun: p.dataScrubbing.lastTaskRun || null,
+          nextRun: p.dataScrubbing.nextRun || null,
+        }
       : null;
     return {
       name: `Pool ${p.number ?? ''}`.trim() || 'Pool',
@@ -1361,11 +1390,11 @@ async function fetchUnasData() {
     uncorrectableSectors: Number(d.uncorrectableSectorCount) || 0,
     lastSmartTest: d.smartTest
       ? {
-        type: d.smartTest.type || 'unknown',
-        status: d.smartTest.status || 'unknown',
-        result: d.smartTest.result || 'unknown',
-        finishedAt: d.smartTest.finishedAt || null,
-      }
+          type: d.smartTest.type || 'unknown',
+          status: d.smartTest.status || 'unknown',
+          result: d.smartTest.result || 'unknown',
+          finishedAt: d.smartTest.finishedAt || null,
+        }
       : null,
   }));
 
@@ -1411,15 +1440,14 @@ app.get('/api/unas/debug', async (_req, res) => {
     config: { baseUrl: UNAS_BASE_URL || null, hasKey: !!UNAS_API_KEY },
     cache: unasCache.data
       ? {
-        ageMs: Date.now() - unasCache.ts,
-        pools: unasCache.data.unas.pools.length,
-        disks: unasCache.data.unas.disks.length,
-      }
+          ageMs: Date.now() - unasCache.ts,
+          pools: unasCache.data.unas.pools.length,
+          disks: unasCache.data.unas.disks.length,
+        }
       : null,
     lastError: unasLastError,
   });
 });
-
 
 let protectCache = { data: null, ts: 0 };
 let protectLastError = null;
@@ -1440,7 +1468,10 @@ async function protectFetch(path, { accept = 'application/json', timeoutMs = 800
   }
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    const preview = body.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').slice(0, 200);
+    const preview = body
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .slice(0, 200);
     throw new Error(`Protect API ${res.status} ${res.statusText} — ${path} — ${preview}`);
   }
   return res;
@@ -1490,7 +1521,9 @@ function mapProtectCamera(raw) {
     supportFullHdSnapshot: !!flags.supportFullHdSnapshot,
     hasPackageCamera: !!raw.hasPackageCamera,
     smartDetectTypes: Array.isArray(flags.smartDetectTypes) ? flags.smartDetectTypes : [],
-    smartDetectAudioTypes: Array.isArray(flags.smartDetectAudioTypes) ? flags.smartDetectAudioTypes : [],
+    smartDetectAudioTypes: Array.isArray(flags.smartDetectAudioTypes)
+      ? flags.smartDetectAudioTypes
+      : [],
     enabledObjectTypes: Array.isArray(smart.objectTypes) ? smart.objectTypes : [],
     enabledAudioTypes: Array.isArray(smart.audioTypes) ? smart.audioTypes : [],
     osdName: !!raw.osdSettings?.isNameEnabled,
@@ -1531,7 +1564,7 @@ async function fetchProtectData() {
   const nvrRaw = Array.isArray(nvrs) ? nvrs[0] : nvrs;
 
   const cams = (Array.isArray(cameras) ? cameras : []).map(mapProtectCamera);
-  const connected = cams.filter(c => c.state === 'CONNECTED').length;
+  const connected = cams.filter((c) => c.state === 'CONNECTED').length;
 
   const result = {
     protect: {
@@ -1701,7 +1734,11 @@ function startProtectEventSubscriber() {
     const text = decodeWsPayload(msgEvt.data);
     if (!text) return;
     let payload;
-    try { payload = JSON.parse(text); } catch { return; }
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      return;
+    }
     if (Array.isArray(payload)) payload.forEach(pushProtectEvent);
     else pushProtectEvent(payload);
   });
@@ -1777,7 +1814,7 @@ async function detectFfmpeg() {
     ffmpegVersionInfo = `not found: ${err.message}`;
     console.warn(
       `Protect streams: ffmpeg not available at "${PROTECT_FFMPEG}". ` +
-      `Install ffmpeg or set PROTECT_FFMPEG to its absolute path. Live video will be disabled.`,
+        `Install ffmpeg or set PROTECT_FFMPEG to its absolute path. Live video will be disabled.`,
     );
   }
   return ffmpegAvailable;
@@ -1812,7 +1849,11 @@ function killStreamSession(cameraId, reason) {
   const session = protectStreams.get(cameraId);
   if (!session) return;
   protectStreams.delete(cameraId);
-  try { session.proc?.kill('SIGKILL'); } catch { /* ignore */ }
+  try {
+    session.proc?.kill('SIGKILL');
+  } catch {
+    /* ignore */
+  }
   clearInterval(session.reaperId);
   rm(session.dir, { recursive: true, force: true }).catch(() => {});
   if (reason) console.log(`Protect stream ${cameraId} stopped: ${reason}`);
@@ -1834,20 +1875,34 @@ async function startStreamSession(cameraId, quality) {
   // 2s segments, 6-segment window. Copy H.264 (Protect cams emit it natively); re-encode audio to AAC.
   const args = [
     '-hide_banner',
-    '-loglevel', 'warning',
-    '-fflags', 'nobuffer',
-    '-rtsp_transport', PROTECT_RTSP_TRANSPORT,
-    '-i', rtsps,
-    '-c:v', 'copy',
-    '-c:a', 'aac',
-    '-b:a', '96k',
-    '-f', 'hls',
-    '-hls_time', '2',
-    '-hls_list_size', '6',
-    '-hls_flags', 'delete_segments+independent_segments+omit_endlist',
-    '-hls_segment_type', 'mpegts',
-    '-hls_segment_filename', segPattern,
-    '-hls_allow_cache', '0',
+    '-loglevel',
+    'warning',
+    '-fflags',
+    'nobuffer',
+    '-rtsp_transport',
+    PROTECT_RTSP_TRANSPORT,
+    '-i',
+    rtsps,
+    '-c:v',
+    'copy',
+    '-c:a',
+    'aac',
+    '-b:a',
+    '96k',
+    '-f',
+    'hls',
+    '-hls_time',
+    '2',
+    '-hls_list_size',
+    '6',
+    '-hls_flags',
+    'delete_segments+independent_segments+omit_endlist',
+    '-hls_segment_type',
+    'mpegts',
+    '-hls_segment_filename',
+    segPattern,
+    '-hls_allow_cache',
+    '0',
     playlist,
   ];
 
@@ -1883,7 +1938,9 @@ async function startStreamSession(cameraId, quality) {
       await readFile(playlist);
       session.playlistReady = true;
       clearInterval(readyTimer);
-    } catch { /* not yet */ }
+    } catch {
+      /* not yet */
+    }
   }, 250);
   setTimeout(() => clearInterval(readyTimer), 12000);
 
@@ -2003,10 +2060,20 @@ let shuttingDown = false;
 function shutdownProtect() {
   shuttingDown = true;
   for (const id of [...protectStreams.keys()]) killStreamSession(id, 'shutdown');
-  try { protectWs?.close(); } catch { /* ignore */ }
+  try {
+    protectWs?.close();
+  } catch {
+    /* ignore */
+  }
 }
-process.on('SIGINT', () => { shutdownProtect(); process.exit(0); });
-process.on('SIGTERM', () => { shutdownProtect(); process.exit(0); });
+process.on('SIGINT', () => {
+  shutdownProtect();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  shutdownProtect();
+  process.exit(0);
+});
 process.on('exit', shutdownProtect);
 
 app.get('/api/protect/debug', async (_req, res) => {
@@ -2023,11 +2090,11 @@ app.get('/api/protect/debug', async (_req, res) => {
     },
     cache: protectCache.data
       ? {
-        ageMs: Date.now() - protectCache.ts,
-        cameras: protectCache.data.protect.cameras.length,
-        connected: protectCache.data.protect.connected,
-        nvr: protectCache.data.protect.nvr?.name || null,
-      }
+          ageMs: Date.now() - protectCache.ts,
+          cameras: protectCache.data.protect.cameras.length,
+          connected: protectCache.data.protect.connected,
+          nvr: protectCache.data.protect.nvr?.name || null,
+        }
       : null,
     events: {
       connected: !!protectWs && !!protectWsConnectedAt,
@@ -2047,8 +2114,20 @@ const stateHandle = await initState(app, { dbPath: STATE_DB_PATH }).catch((err) 
   console.error(`State: init failed - ${err.message}`);
   return { shutdown() {}, recordMetric() {} };
 });
-process.on('SIGINT', () => { try { stateHandle.shutdown(); } catch { /* ignore */ } });
-process.on('SIGTERM', () => { try { stateHandle.shutdown(); } catch { /* ignore */ } });
+process.on('SIGINT', () => {
+  try {
+    stateHandle.shutdown();
+  } catch {
+    /* ignore */
+  }
+});
+process.on('SIGTERM', () => {
+  try {
+    stateHandle.shutdown();
+  } catch {
+    /* ignore */
+  }
+});
 
 // SIEM mounts UDP listener + SSE + REST routes on `app`. Must complete before app.listen.
 const siemHandle = await initSiem(app, {
@@ -2062,8 +2141,20 @@ const siemHandle = await initSiem(app, {
   console.error(`SIEM: init failed - ${err.message}`);
   return { shutdown() {} };
 });
-process.on('SIGINT', () => { try { siemHandle.shutdown(); } catch { /* ignore */ } });
-process.on('SIGTERM', () => { try { siemHandle.shutdown(); } catch { /* ignore */ } });
+process.on('SIGINT', () => {
+  try {
+    siemHandle.shutdown();
+  } catch {
+    /* ignore */
+  }
+});
+process.on('SIGTERM', () => {
+  try {
+    siemHandle.shutdown();
+  } catch {
+    /* ignore */
+  }
+});
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
@@ -2084,25 +2175,33 @@ app.listen(PORT, '0.0.0.0', () => {
   }
   if (PROXMOX_ENABLED) {
     const pveOk = !!(PVE_BASE_URL && PVE_TOKEN_ID && PVE_TOKEN_SECRET);
-    console.log(`Proxmox: ${pveOk ? `enabled — ${PVE_BASE_URL}` : 'enabled but NOT configured — set PROXMOX_* in .env'}`);
+    console.log(
+      `Proxmox: ${pveOk ? `enabled — ${PVE_BASE_URL}` : 'enabled but NOT configured — set PROXMOX_* in .env'}`,
+    );
   } else {
     console.log('Proxmox: DISABLED (set PROXMOX_ENABLED=true in .env to enable)');
   }
   if (PORTAINER_ENABLED) {
     const portainerOk = !!(PORTAINER_BASE_URL && PORTAINER_API_KEY);
-    console.log(`Portainer: ${portainerOk ? `enabled — ${PORTAINER_BASE_URL}` : 'enabled but NOT configured — set PORTAINER_* in .env'}`);
+    console.log(
+      `Portainer: ${portainerOk ? `enabled — ${PORTAINER_BASE_URL}` : 'enabled but NOT configured — set PORTAINER_* in .env'}`,
+    );
   } else {
     console.log('Portainer: DISABLED (set PORTAINER_ENABLED=true in .env to enable)');
   }
   if (UNAS_ENABLED) {
     const unasOk = !!(UNAS_BASE_URL && UNAS_API_KEY);
-    console.log(`UNAS: ${unasOk ? `enabled — ${UNAS_BASE_URL}` : 'enabled but NOT configured — set UNAS_* in .env'}`);
+    console.log(
+      `UNAS: ${unasOk ? `enabled — ${UNAS_BASE_URL}` : 'enabled but NOT configured — set UNAS_* in .env'}`,
+    );
   } else {
     console.log('UNAS: DISABLED (set UNAS_ENABLED=true in .env to enable)');
   }
   if (PROTECT_ENABLED) {
     const protectOk = !!(PROTECT_BASE_URL && PROTECT_API_KEY);
-    console.log(`Protect: ${protectOk ? `enabled — ${PROTECT_BASE_URL}` : 'enabled but NOT configured — set PROTECT_* in .env'}`);
+    console.log(
+      `Protect: ${protectOk ? `enabled — ${PROTECT_BASE_URL}` : 'enabled but NOT configured — set PROTECT_* in .env'}`,
+    );
     if (protectOk) {
       // Detect ffmpeg in the background; failure just disables live video.
       detectFfmpeg().catch(() => {});
@@ -2126,17 +2225,25 @@ app.listen(PORT, '0.0.0.0', () => {
     if (SENSORS_MODE === 'local') {
       console.log('Sensors: enabled — local sensors -j');
     } else if (SENSORS_SSH_HOST) {
-      console.log(`Sensors: enabled — ssh ${SENSORS_SSH_USER}@${SENSORS_SSH_HOST}:${SENSORS_SSH_PORT}`);
+      console.log(
+        `Sensors: enabled — ssh ${SENSORS_SSH_USER}@${SENSORS_SSH_HOST}:${SENSORS_SSH_PORT}`,
+      );
     } else {
-      console.log('Sensors: enabled but NOT configured — set SENSORS_SSH_HOST/GPU_SSH_HOST or SENSORS_MODE=local in .env');
+      console.log(
+        'Sensors: enabled but NOT configured — set SENSORS_SSH_HOST/GPU_SSH_HOST or SENSORS_MODE=local in .env',
+      );
     }
   } else {
     console.log('Sensors: DISABLED (set SENSORS_ENABLED=true in .env to enable)');
   }
   if (SIEM_ENABLED) {
-    console.log(`SIEM: enabled — UDP ${SIEM_HOST}:${SIEM_PORT}, db ${SIEM_DB_PATH}, retention ${SIEM_RETENTION_DAYS}d`);
+    console.log(
+      `SIEM: enabled — UDP ${SIEM_HOST}:${SIEM_PORT}, db ${SIEM_DB_PATH}, retention ${SIEM_RETENTION_DAYS}d`,
+    );
   } else {
-    console.log('SIEM: DISABLED (set SIEM_ENABLED=true in .env to enable syslog ingestion on UDP 514)');
+    console.log(
+      'SIEM: DISABLED (set SIEM_ENABLED=true in .env to enable syslog ingestion on UDP 514)',
+    );
   }
   console.log(`State: db ${STATE_DB_PATH}`);
 });

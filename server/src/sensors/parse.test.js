@@ -25,7 +25,10 @@ const fixture = (name) => readFileSync(path.join(here, '__fixtures__', name), 'u
 
 describe('detect* — vendor family tables (token in → {vendor, model})', () => {
   it('Seagate: capacity GB + 2-letter family code', () => {
-    expect(detectSeagate('ST4000VN0082DR166')).toEqual({ vendor: 'Seagate', model: 'IronWolf 4TB' });
+    expect(detectSeagate('ST4000VN0082DR166')).toEqual({
+      vendor: 'Seagate',
+      model: 'IronWolf 4TB',
+    });
     expect(detectSeagate('ST8000NM0055')).toEqual({ vendor: 'Seagate', model: 'Exos 8TB' });
     expect(detectSeagate('ST2000DM008')).toEqual({ vendor: 'Seagate', model: 'BarraCuda 2TB' });
   });
@@ -40,20 +43,41 @@ describe('detect* — vendor family tables (token in → {vendor, model})', () =
   });
 
   it('Western Digital: 2-3 digit = TB, 4 digit = GB; family from suffix', () => {
-    expect(detectWesternDigital('WD80EFZZ')).toEqual({ vendor: 'Western Digital', model: 'Red Plus 8TB' });
-    expect(detectWesternDigital('WDCWD80EFAX68LHPN0')).toEqual({ vendor: 'Western Digital', model: 'Red 8TB' });
-    expect(detectWesternDigital('WD5000AZLX')).toEqual({ vendor: 'Western Digital', model: 'Blue 500GB' });
-    expect(detectWesternDigital('WD40PURZ')).toEqual({ vendor: 'Western Digital', model: 'Purple 4TB' });
+    expect(detectWesternDigital('WD80EFZZ')).toEqual({
+      vendor: 'Western Digital',
+      model: 'Red Plus 8TB',
+    });
+    expect(detectWesternDigital('WDCWD80EFAX68LHPN0')).toEqual({
+      vendor: 'Western Digital',
+      model: 'Red 8TB',
+    });
+    expect(detectWesternDigital('WD5000AZLX')).toEqual({
+      vendor: 'Western Digital',
+      model: 'Blue 500GB',
+    });
+    expect(detectWesternDigital('WD40PURZ')).toEqual({
+      vendor: 'Western Digital',
+      model: 'Purple 4TB',
+    });
   });
 
   it('Western Digital: unknown suffix falls back to EF/EZ/FZ/PUR prefix heuristic', () => {
     // "EFQQ" not a known 4-letter code, but ^EF → Red
-    expect(detectWesternDigital('WD20EFQQ')).toEqual({ vendor: 'Western Digital', model: 'Red 2TB' });
+    expect(detectWesternDigital('WD20EFQQ')).toEqual({
+      vendor: 'Western Digital',
+      model: 'Red 2TB',
+    });
   });
 
   it('Crucial: NVMe vs SATA bus drives the kind suffix', () => {
-    expect(detectCrucial('CT1000MX500SSD1')).toEqual({ vendor: 'Crucial', model: 'MX500 1TB SATA SSD' });
-    expect(detectCrucial('CT2000P3PSSD8')).toEqual({ vendor: 'Crucial', model: 'P3 Plus 2TB NVMe SSD' });
+    expect(detectCrucial('CT1000MX500SSD1')).toEqual({
+      vendor: 'Crucial',
+      model: 'MX500 1TB SATA SSD',
+    });
+    expect(detectCrucial('CT2000P3PSSD8')).toEqual({
+      vendor: 'Crucial',
+      model: 'P3 Plus 2TB NVMe SSD',
+    });
     expect(detectCrucial('CT1000P3SSD8')).toEqual({ vendor: 'Crucial', model: 'P3 1TB NVMe SSD' });
   });
 
@@ -63,11 +87,23 @@ describe('detect* — vendor family tables (token in → {vendor, model})', () =
   });
 
   it('Samsung / Kingston / Toshiba / Kioxia / HGST: strip leading vendor noise', () => {
-    expect(detectSamsung('SAMSUNGSSD990PRO1TB', 'Samsung SSD 990 PRO 1TB')).toEqual({ vendor: 'Samsung', model: '990 PRO 1TB' });
-    expect(detectKingston('KINGSTONSA400S37240G', 'KINGSTON SA400S37240G')).toEqual({ vendor: 'Kingston', model: 'SA400S37240G' });
-    expect(detectToshibaKioxia('TOSHIBAMG08ACA16TE', 'TOSHIBA MG08ACA16TE')).toEqual({ vendor: 'Toshiba', model: 'MG08ACA16TE' });
+    expect(detectSamsung('SAMSUNGSSD990PRO1TB', 'Samsung SSD 990 PRO 1TB')).toEqual({
+      vendor: 'Samsung',
+      model: '990 PRO 1TB',
+    });
+    expect(detectKingston('KINGSTONSA400S37240G', 'KINGSTON SA400S37240G')).toEqual({
+      vendor: 'Kingston',
+      model: 'SA400S37240G',
+    });
+    expect(detectToshibaKioxia('TOSHIBAMG08ACA16TE', 'TOSHIBA MG08ACA16TE')).toEqual({
+      vendor: 'Toshiba',
+      model: 'MG08ACA16TE',
+    });
     expect(detectToshibaKioxia('KIOXIAKXG60ZNV256G', 'KIOXIA KXG60ZNV256G').vendor).toBe('Kioxia');
-    expect(detectHgstHitachi('HGSTHUS726T4TALA6L4', 'HGST HUS726T4TALA6L4')).toEqual({ vendor: 'HGST', model: 'HUS726T4TALA6L4' });
+    expect(detectHgstHitachi('HGSTHUS726T4TALA6L4', 'HGST HUS726T4TALA6L4')).toEqual({
+      vendor: 'HGST',
+      model: 'HUS726T4TALA6L4',
+    });
   });
 
   it('non-matching token returns null', () => {
@@ -79,18 +115,28 @@ describe('detect* — vendor family tables (token in → {vendor, model})', () =
 
 describe('normalizeDiskParts + diskDisplayName', () => {
   it('drops bus-type-as-vendor (ata/nvme/scsi/usb)', () => {
-    expect(normalizeDiskParts({ model: 'Generic Model', vendor: 'ata' })).toEqual({ vendor: '', model: 'Generic Model' });
+    expect(normalizeDiskParts({ model: 'Generic Model', vendor: 'ata' })).toEqual({
+      vendor: '',
+      model: 'Generic Model',
+    });
   });
 
   it('passes through an unrecognized brand untouched', () => {
-    expect(normalizeDiskParts({ model: 'WEIRD BRAND X1', vendor: 'ACME' })).toEqual({ vendor: 'ACME', model: 'WEIRD BRAND X1' });
+    expect(normalizeDiskParts({ model: 'WEIRD BRAND X1', vendor: 'ACME' })).toEqual({
+      vendor: 'ACME',
+      model: 'WEIRD BRAND X1',
+    });
   });
 
   it('diskDisplayName prefixes vendor only when not already in the model', () => {
     // Seagate detection → model has no "Seagate" → prefixed
-    expect(diskDisplayName({ model: 'ST4000VN008-2DR166', vendor: 'ATA' })).toBe('Seagate IronWolf 4TB');
+    expect(diskDisplayName({ model: 'ST4000VN008-2DR166', vendor: 'ATA' })).toBe(
+      'Seagate IronWolf 4TB',
+    );
     // Unknown brand with vendor not in model → prefixed
-    expect(diskDisplayName({ model: 'WEIRD BRAND X1', vendor: 'ACME' })).toBe('ACME WEIRD BRAND X1');
+    expect(diskDisplayName({ model: 'WEIRD BRAND X1', vendor: 'ACME' })).toBe(
+      'ACME WEIRD BRAND X1',
+    );
   });
 });
 

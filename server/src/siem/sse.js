@@ -93,7 +93,11 @@ export function createSseBus({ replayAfter }) {
     }
 
     client.ka = setInterval(() => {
-      try { client.res.write(':ka\n\n'); } catch { removeClient(client); }
+      try {
+        client.res.write(':ka\n\n');
+      } catch {
+        removeClient(client);
+      }
     }, HEARTBEAT_MS);
 
     const cleanup = () => removeClient(client);
@@ -109,7 +113,11 @@ export function createSseBus({ replayAfter }) {
   function shutdown() {
     for (const client of clients) {
       if (client.ka) clearInterval(client.ka);
-      try { client.res.end(); } catch { /* ignore */ }
+      try {
+        client.res.end();
+      } catch {
+        /* ignore */
+      }
     }
     clients.clear();
   }

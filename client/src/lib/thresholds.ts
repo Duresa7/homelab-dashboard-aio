@@ -20,27 +20,27 @@ export interface Thresholds {
 }
 
 export const DEFAULT_THRESHOLDS: Thresholds = {
-  cpuUsage:    { warn: 70, bad: 90 },
-  cpuTemp:     { warn: 65, bad: 75 },
-  ramUsage:    { warn: 75, bad: 90 },
-  gpuUsage:    { warn: 75, bad: 95 },
-  gpuTemp:     { warn: 68, bad: 78 },
-  diskTemp:    { warn: 45, bad: 55 },
+  cpuUsage: { warn: 70, bad: 90 },
+  cpuTemp: { warn: 65, bad: 75 },
+  ramUsage: { warn: 75, bad: 90 },
+  gpuUsage: { warn: 75, bad: 95 },
+  gpuTemp: { warn: 68, bad: 78 },
+  diskTemp: { warn: 45, bad: 55 },
   storageFill: { warn: 80, bad: 92 },
-  fan:         { warn: 70, bad: 90 },
-  ping:        { warn: 40, bad: 80 },
+  fan: { warn: 70, bad: 90 },
+  ping: { warn: 40, bad: 80 },
 };
 
 export const THRESHOLD_LABELS: Record<keyof Thresholds, { label: string; unit: string }> = {
-  cpuUsage:    { label: 'CPU usage',    unit: '%' },
-  cpuTemp:     { label: 'CPU temp',     unit: '°C' },
-  ramUsage:    { label: 'RAM usage',    unit: '%' },
-  gpuUsage:    { label: 'GPU usage',    unit: '%' },
-  gpuTemp:     { label: 'GPU temp',     unit: '°C' },
-  diskTemp:    { label: 'Disk temp',    unit: '°C' },
+  cpuUsage: { label: 'CPU usage', unit: '%' },
+  cpuTemp: { label: 'CPU temp', unit: '°C' },
+  ramUsage: { label: 'RAM usage', unit: '%' },
+  gpuUsage: { label: 'GPU usage', unit: '%' },
+  gpuTemp: { label: 'GPU temp', unit: '°C' },
+  diskTemp: { label: 'Disk temp', unit: '°C' },
   storageFill: { label: 'Storage fill', unit: '%' },
-  fan:         { label: 'Fan',          unit: '%' },
-  ping:        { label: 'Ping',         unit: 'ms' },
+  fan: { label: 'Fan', unit: '%' },
+  ping: { label: 'Ping', unit: 'ms' },
 };
 
 const STORAGE_KEY = 'thresholds';

@@ -6,8 +6,8 @@ This repo is split into two domain contexts. Read the `CONTEXT.md` for whichever
 
 ## Contexts
 
-| Context    | Glossary                              | Scope                                                                                 |
-| ---------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
+| Context    | Glossary                                 | Scope                                                                                 |
+| ---------- | ---------------------------------------- | ------------------------------------------------------------------------------------- |
 | **server** | [`server/CONTEXT.md`](server/CONTEXT.md) | The Express proxy and upstream adapters — sensor/disk parsing, per-integration fetch. |
 | **client** | [`client/CONTEXT.md`](client/CONTEXT.md) | The React client — pollers, the DashboardState aggregate, pages.                      |
 

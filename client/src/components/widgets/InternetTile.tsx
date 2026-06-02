@@ -15,7 +15,11 @@ export function InternetTile({ data, span, onExpand, expandable }: Props) {
   const pingKind = pingSeverity(data.speedtest.ping);
   return (
     <Tile
-      title={<><BrandIcon name="unifi" alt="UniFi" /> Internet</>}
+      title={
+        <>
+          <BrandIcon name="unifi" alt="UniFi" /> Internet
+        </>
+      }
       sub={`pub ${data.publicIp}`}
       span={span}
       onExpand={onExpand}
@@ -26,7 +30,9 @@ export function InternetTile({ data, span, onExpand, expandable }: Props) {
         {data.uptime30d.toFixed(2)}
         <small>% uptime</small>
       </div>
-      <div className="t-sub">30-day · {data.speedtest.down}/{data.speedtest.up} Mbps</div>
+      <div className="t-sub">
+        30-day · {data.speedtest.down}/{data.speedtest.up} Mbps
+      </div>
     </Tile>
   );
 }

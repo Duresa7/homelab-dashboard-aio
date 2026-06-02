@@ -21,7 +21,11 @@ export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
   const usageKind = gpuUsageSeverity(usage);
   return (
     <Tile
-      title={<><BrandIcon name="nvidia" alt="NVIDIA" /> GPU</>}
+      title={
+        <>
+          <BrandIcon name="nvidia" alt="NVIDIA" /> GPU
+        </>
+      }
       sub={model}
       span={span}
       onExpand={onExpand}

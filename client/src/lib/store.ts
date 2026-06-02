@@ -26,14 +26,14 @@ const DEBOUNCE_MS = 250;
 const HYDRATE_TIMEOUT_MS = 4000;
 
 const LEGACY_KEY_MAP: Record<string, string> = {
-  inventory:         'homelab-dashboard.inventory',
-  route:             'homelab-dashboard.route',
-  thresholds:        'homelab-dashboard.thresholds',
-  tempUnit:          'homelab-dashboard.tempUnit',
-  tweaks:            'homelab-dashboard.tweaks',
-  sidebarCollapsed:  'homelab-dashboard.sidebar-collapsed',
-  sidebarExpanded:   'homelab-dashboard.sidebar-expanded',
-  bookmarksOrder:    'homelab-dashboard.bookmarks.order',
+  inventory: 'homelab-dashboard.inventory',
+  route: 'homelab-dashboard.route',
+  thresholds: 'homelab-dashboard.thresholds',
+  tempUnit: 'homelab-dashboard.tempUnit',
+  tweaks: 'homelab-dashboard.tweaks',
+  sidebarCollapsed: 'homelab-dashboard.sidebar-collapsed',
+  sidebarExpanded: 'homelab-dashboard.sidebar-expanded',
+  bookmarksOrder: 'homelab-dashboard.bookmarks.order',
 };
 
 const state = new Map<string, unknown>();
@@ -56,13 +56,21 @@ function readLegacy(legacyKey: string): unknown {
     // tempUnit and sidebarCollapsed are stored as raw strings, not JSON.
     if (legacyKey === 'homelab-dashboard.tempUnit') return raw;
     if (legacyKey === 'homelab-dashboard.sidebar-collapsed') return raw === '1';
-    try { return JSON.parse(raw); } catch { return raw; }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
   } catch {
     return undefined;
   }
 }
 
-function fetchWithTimeout(url: string, init?: RequestInit, ms = HYDRATE_TIMEOUT_MS): Promise<Response> {
+function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  ms = HYDRATE_TIMEOUT_MS,
+): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
@@ -87,7 +95,9 @@ async function importLegacyToServer(): Promise<Record<string, unknown>> {
       for (const legacyKey of Object.values(LEGACY_KEY_MAP)) {
         window.localStorage.removeItem(legacyKey);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return bundle;
   } catch {
     return {};
@@ -99,7 +109,7 @@ export async function hydrateStore(): Promise<void> {
   try {
     const res = await fetchWithTimeout('/api/state');
     if (!res.ok) throw new Error(`state hydrate ${res.status}`);
-    const body = await res.json() as { values?: Record<string, unknown> };
+    const body = (await res.json()) as { values?: Record<string, unknown> };
     const values = body.values ?? {};
 
     // First-time migration: if the server has no rows, bulk-import legacy
@@ -161,7 +171,11 @@ export function setState<T>(key: string, value: T): void {
   state.set(key, value);
   notify(key);
   if (channel) {
-    try { channel.postMessage({ key, value }); } catch { /* ignore */ }
+    try {
+      channel.postMessage({ key, value });
+    } catch {
+      /* ignore */
+    }
   }
   scheduleFlush(key);
 }
@@ -170,16 +184,26 @@ export function deleteState(key: string): void {
   state.delete(key);
   notify(key);
   if (channel) {
-    try { channel.postMessage({ key, deleted: true }); } catch { /* ignore */ }
+    try {
+      channel.postMessage({ key, deleted: true });
+    } catch {
+      /* ignore */
+    }
   }
   const existing = pendingTimers.get(key);
   if (existing) clearTimeout(existing);
   pendingTimers.delete(key);
   if (degraded) {
-    try { window.localStorage.removeItem(LEGACY_KEY_MAP[key] ?? key); } catch { /* ignore */ }
+    try {
+      window.localStorage.removeItem(LEGACY_KEY_MAP[key] ?? key);
+    } catch {
+      /* ignore */
+    }
     return;
   }
-  fetch(`/api/state/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => { /* ignore */ });
+  fetch(`/api/state/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => {
+    /* ignore */
+  });
 }
 
 export function subscribe(key: string, fn: Listener): () => void {
@@ -219,7 +243,9 @@ async function flush(key: string): Promise<void> {
       } else {
         window.localStorage.setItem(legacyKey, JSON.stringify(value));
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return;
   }
   try {

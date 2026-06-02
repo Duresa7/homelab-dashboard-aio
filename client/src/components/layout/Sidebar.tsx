@@ -30,7 +30,15 @@ interface Props {
 
 const BrandMark = () => (
   <div className="grid size-7 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground shadow-sm">
-    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      className="size-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="4" y="4" width="16" height="16" rx="2" />
       <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
     </svg>
@@ -68,20 +76,29 @@ export function AppSidebar({ route, setRoute, alerts }: Props) {
                   const Icon = it.icon;
                   const label = SECTION_LABEL[it.section];
                   const isActive = route.section === it.section;
-                  const subs = it.hasSubs ? SUBS[it.section] ?? [] : [];
+                  const subs = it.hasSubs ? (SUBS[it.section] ?? []) : [];
                   const showBadge = it.section === 'alerts' && alerts.length > 0;
 
                   // --- Leaf item (no sub-pages) ---
                   if (subs.length === 0) {
                     return (
                       <SidebarMenuItem key={it.section}>
-                        <SidebarMenuButton tooltip={label} isActive={isActive} onClick={() => go(it.section)}>
+                        <SidebarMenuButton
+                          tooltip={label}
+                          isActive={isActive}
+                          onClick={() => go(it.section)}
+                        >
                           <Icon strokeWidth={isActive ? 2.25 : 2} />
                           <span>{label}</span>
                         </SidebarMenuButton>
                         {showBadge && (
                           <>
-                            <SidebarMenuBadge className={cn('text-white', alertKind === 'bad' ? 'bg-bad' : 'bg-warn')}>
+                            <SidebarMenuBadge
+                              className={cn(
+                                'text-white',
+                                alertKind === 'bad' ? 'bg-bad' : 'bg-warn',
+                              )}
+                            >
                               {alerts.length}
                             </SidebarMenuBadge>
                             <span
@@ -108,8 +125,15 @@ export function AppSidebar({ route, setRoute, alerts }: Props) {
                               <span>{label}</span>
                             </SidebarMenuButton>
                           </HoverCardTrigger>
-                          <HoverCardContent side="right" align="start" sideOffset={12} className="w-52 p-1.5">
-                            <div className="px-2 pb-1 text-xs font-semibold tracking-wide text-muted-foreground">{label}</div>
+                          <HoverCardContent
+                            side="right"
+                            align="start"
+                            sideOffset={12}
+                            className="w-52 p-1.5"
+                          >
+                            <div className="px-2 pb-1 text-xs font-semibold tracking-wide text-muted-foreground">
+                              {label}
+                            </div>
                             <div className="flex flex-col">
                               {subs.map((s) => {
                                 const subActive = isActive && route.sub === s.id;

@@ -50,7 +50,9 @@ export async function fetchStatus(): Promise<SiemStatus> {
   return (await res.json()) as SiemStatus;
 }
 
-export async function fetchStats(window: '15m' | '1h' | '24h' | '7d' | '30d' = '1h'): Promise<SiemStats> {
+export async function fetchStats(
+  window: '15m' | '1h' | '24h' | '7d' | '30d' = '1h',
+): Promise<SiemStats> {
   const res = await fetch(`/api/siem/stats?window=${window}`);
   if (!res.ok) throw new Error(`SIEM stats ${res.status}`);
   return (await res.json()) as SiemStats;
@@ -80,7 +82,14 @@ export interface SubscribeOptions {
 }
 
 export function subscribeSiem(opts: SubscribeOptions): SiemSubscription {
-  const { onEvent, onStatus, onError, onReplayTruncated, lastEventId, statusIntervalMs = 30_000 } = opts;
+  const {
+    onEvent,
+    onStatus,
+    onError,
+    onReplayTruncated,
+    lastEventId,
+    statusIntervalMs = 30_000,
+  } = opts;
 
   let disposed = false;
   let statusTimer: ReturnType<typeof setInterval> | null = null;
@@ -130,7 +139,11 @@ export function subscribeSiem(opts: SubscribeOptions): SiemSubscription {
   return {
     dispose() {
       disposed = true;
-      try { es.close(); } catch { /* ignore */ }
+      try {
+        es.close();
+      } catch {
+        /* ignore */
+      }
       if (statusTimer) clearInterval(statusTimer);
     },
   };

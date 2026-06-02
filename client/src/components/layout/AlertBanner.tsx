@@ -2,9 +2,21 @@ import { X } from 'lucide-react';
 import type { AlertEntry } from '../../types';
 
 const TONE: Record<string, { bar: string; dot: string; tint: string }> = {
-  bad: { bar: 'border-l-[var(--bad)]', dot: 'bg-[var(--bad)]', tint: 'bg-[color-mix(in_oklab,var(--bad)_6%,var(--card))]' },
-  warn: { bar: 'border-l-[var(--warn)]', dot: 'bg-[var(--warn)]', tint: 'bg-[color-mix(in_oklab,var(--warn)_6%,var(--card))]' },
-  info: { bar: 'border-l-[var(--info)]', dot: 'bg-[var(--info)]', tint: 'bg-[color-mix(in_oklab,var(--info)_6%,var(--card))]' },
+  bad: {
+    bar: 'border-l-[var(--bad)]',
+    dot: 'bg-[var(--bad)]',
+    tint: 'bg-[color-mix(in_oklab,var(--bad)_6%,var(--card))]',
+  },
+  warn: {
+    bar: 'border-l-[var(--warn)]',
+    dot: 'bg-[var(--warn)]',
+    tint: 'bg-[color-mix(in_oklab,var(--warn)_6%,var(--card))]',
+  },
+  info: {
+    bar: 'border-l-[var(--info)]',
+    dot: 'bg-[var(--info)]',
+    tint: 'bg-[color-mix(in_oklab,var(--info)_6%,var(--card))]',
+  },
 };
 
 interface Props {
@@ -28,7 +40,9 @@ export function AlertBanner({ alerts, onDismiss }: Props) {
               <b className="text-sm font-semibold text-foreground">{a.title}</b>
               <span className="truncate text-sm text-muted-foreground">{a.body}</span>
             </div>
-            <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--ink-4)]">{a.ago} ago</span>
+            <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--ink-4)]">
+              {a.ago} ago
+            </span>
             <button
               className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               onClick={() => onDismiss(i)}

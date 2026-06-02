@@ -94,7 +94,10 @@ export function Tile({
                   title={k}
                   aria-label={`Chart: ${k}`}
                 >
-                  <Icon name={k === 'area' ? 'chart_area' : k === 'bars' ? 'chart_bar' : 'chart_line'} size={11} />
+                  <Icon
+                    name={k === 'area' ? 'chart_area' : k === 'bars' ? 'chart_bar' : 'chart_line'}
+                    size={11}
+                  />
                 </button>
               ))}
             </div>

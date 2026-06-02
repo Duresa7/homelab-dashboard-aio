@@ -35,9 +35,19 @@ export function DataTableCard({
 }: DataTableCardProps) {
   const hasHeader = title != null || actions != null;
   return (
-    <SectionCard title={title} sub={sub} icon={icon} actions={actions} span={span} flush className={className}>
+    <SectionCard
+      title={title}
+      sub={sub}
+      icon={icon}
+      actions={actions}
+      span={span}
+      flush
+      className={className}
+    >
       {isEmpty ? (
-        <div className="px-[var(--pad)] py-10 text-center text-sm text-muted-foreground">{empty}</div>
+        <div className="px-[var(--pad)] py-10 text-center text-sm text-muted-foreground">
+          {empty}
+        </div>
       ) : (
         <div className={cn(hasHeader && 'border-t border-border')}>
           <Table className={tableClassName}>

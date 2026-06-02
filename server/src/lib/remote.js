@@ -18,16 +18,30 @@ const execFileP = promisify(execFile);
  * }} opts
  * @returns {Promise<string>} stdout
  */
-export async function runRemote({ mode, host, user, port, keyPath, localCmd, localArgs, remoteCmd, timeoutMs = 8000 }) {
+export async function runRemote({
+  mode,
+  host,
+  user,
+  port,
+  keyPath,
+  localCmd,
+  localArgs,
+  remoteCmd,
+  timeoutMs = 8000,
+}) {
   if (mode === 'local') {
     const { stdout } = await execFileP(localCmd, localArgs, { timeout: timeoutMs });
     return stdout;
   }
   const sshArgs = [
-    '-o', 'BatchMode=yes',
-    '-o', 'StrictHostKeyChecking=accept-new',
-    '-o', 'ConnectTimeout=5',
-    '-p', String(port),
+    '-o',
+    'BatchMode=yes',
+    '-o',
+    'StrictHostKeyChecking=accept-new',
+    '-o',
+    'ConnectTimeout=5',
+    '-p',
+    String(port),
   ];
   if (keyPath) sshArgs.push('-i', keyPath);
   sshArgs.push(`${user}@${host}`, remoteCmd);

@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../icons/Icon';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import type { ProtectCamera } from '../../types';
 import { CameraSnapshot } from './CameraSnapshot';
@@ -42,9 +46,13 @@ export function CameraFullscreen({ camera, initialMode = 'snapshot', onClose }: 
 
   const toggleFullscreen = () => {
     if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => { /* ignore */ });
+      document.exitFullscreen().catch(() => {
+        /* ignore */
+      });
     } else if (panelRef.current) {
-      panelRef.current.requestFullscreen().catch(() => { /* ignore */ });
+      panelRef.current.requestFullscreen().catch(() => {
+        /* ignore */
+      });
     }
   };
 
@@ -113,7 +121,10 @@ export function CameraFullscreen({ camera, initialMode = 'snapshot', onClose }: 
               Live
             </ModeButton>
             {mode === 'live' ? (
-              <Select value={quality} onValueChange={(v) => setQuality(v as 'low' | 'medium' | 'high')}>
+              <Select
+                value={quality}
+                onValueChange={(v) => setQuality(v as 'low' | 'medium' | 'high')}
+              >
                 <SelectTrigger
                   size="sm"
                   className="h-7 gap-1 border-white/20 bg-white/10 px-2 text-xs text-white shadow-none hover:bg-white/20 focus-visible:border-white/40 focus-visible:ring-white/40 dark:bg-white/10 dark:hover:bg-white/20 [&_svg]:!text-white/70"
@@ -158,12 +169,7 @@ export function CameraFullscreen({ camera, initialMode = 'snapshot', onClose }: 
                 aspect={16 / 9}
               />
             ) : (
-              <CameraSnapshot
-                camera={camera}
-                highQuality
-                intervalMs={2000}
-                aspect={16 / 9}
-              />
+              <CameraSnapshot camera={camera} highQuality intervalMs={2000} aspect={16 / 9} />
             )}
           </div>
         </div>

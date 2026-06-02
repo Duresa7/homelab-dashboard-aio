@@ -18,15 +18,25 @@ export function TrendArrow({ data, goodDirection = 'down', window = 8, flatBelow
   const slice = data.slice(-window);
   const n = slice.length;
   // Simple linear regression slope.
-  let sx = 0, sy = 0, sxy = 0, sxx = 0;
+  let sx = 0,
+    sy = 0,
+    sxy = 0,
+    sxx = 0;
   for (let i = 0; i < n; i++) {
-    sx += i; sy += slice[i]; sxy += i * slice[i]; sxx += i * i;
+    sx += i;
+    sy += slice[i];
+    sxy += i * slice[i];
+    sxx += i * i;
   }
   const slope = (n * sxy - sx * sy) / Math.max(n * sxx - sx * sx, 1e-6);
   const mean = sy / n;
   const normSlope = mean === 0 ? slope : slope / Math.abs(mean);
   if (Math.abs(normSlope) < flatBelow) {
-    return <span className="trend-arrow flat" aria-label="trend stable">→</span>;
+    return (
+      <span className="trend-arrow flat" aria-label="trend stable">
+        →
+      </span>
+    );
   }
   const rising = slope > 0;
   const isGood = (rising && goodDirection === 'up') || (!rising && goodDirection === 'down');

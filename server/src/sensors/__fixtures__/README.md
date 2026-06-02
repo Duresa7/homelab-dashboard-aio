@@ -1,7 +1,7 @@
 # Sensor parser fixtures — PROVISIONAL
 
 These `sensors -j` / `lsblk -J` payloads are **synthesized** from the vendor
-family tables and known chip envelopes in `../parse.js` — they are *not* real
+family tables and known chip envelopes in `../parse.js` — they are _not_ real
 captures yet. They are correct in shape and exercise every chip branch, but a
 future pass should **replace them with real captured stdout** from the actual
 hosts:
