@@ -1,0 +1,178 @@
+// Bootstrap database config: which backend to use and how to connect. This
+// must live OUTSIDE the app DB (the vendor/app config store lives inside the
+// chosen DB — chicken-and-egg), so the selection persists to a small JSON file
+// on the data volume, overridable by env. Resolution precedence is
+// env > file > SQLite default, so existing installs are untouched.
+import { readFileSync } from 'node:fs';
+import { mkdir, rename, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
+export type DbDriver = 'sqlite' | 'postgres' | 'mysql';
+
+export interface SqliteSettings {
+  statePath: string;
+  siemPath: string;
+}
+
+export interface SqlServerSettings {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  ssl: boolean;
+}
+
+/** On-disk shape of data/database.json (partial — defaults fill the rest). */
+export interface DbConfigFile {
+  driver: DbDriver;
+  sqlite?: Partial<SqliteSettings>;
+  postgres?: Partial<SqlServerSettings>;
+  mysql?: Partial<SqlServerSettings>;
+}
+
+/** Fully-resolved config the store factory consumes. */
+export interface ResolvedDbConfig {
+  driver: DbDriver;
+  sqlite: SqliteSettings;
+  postgres?: SqlServerSettings;
+  mysql?: SqlServerSettings;
+}
+
+export interface ResolveDbConfigOpts {
+  env?: NodeJS.ProcessEnv;
+  configPath?: string;
+}
+
+const DATA_DIR = 'data';
+export const DEFAULT_CONFIG_PATH = path.resolve(DATA_DIR, 'database.json');
+export const DEFAULT_SQLITE_STATE_PATH = path.resolve(DATA_DIR, 'dashboard.sqlite');
+export const DEFAULT_SQLITE_SIEM_PATH = path.resolve(DATA_DIR, 'siem.sqlite');
+const DEFAULT_PG_PORT = 5432;
+const DEFAULT_MYSQL_PORT = 3306;
+
+function normalizeDriver(value: unknown): DbDriver | undefined {
+  if (typeof value !== 'string') return undefined;
+  switch (value.trim().toLowerCase()) {
+    case 'sqlite':
+    case 'sqlite3':
+      return 'sqlite';
+    case 'postgres':
+    case 'postgresql':
+    case 'pg':
+      return 'postgres';
+    case 'mysql':
+    case 'mariadb':
+      return 'mysql';
+    default:
+      return undefined;
+  }
+}
+
+function parseBool(value: unknown): boolean | undefined {
+  if (typeof value !== 'string') return undefined;
+  const v = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on', 'require'].includes(v)) return true;
+  if (['0', 'false', 'no', 'off', 'disable'].includes(v)) return false;
+  return undefined;
+}
+
+/** Read + shape-validate the JSON config file. Any problem → null (safe fallback). */
+function readConfigFile(configPath: string): DbConfigFile | null {
+  let text: string;
+  try {
+    text = readFileSync(configPath, 'utf8');
+  } catch {
+    return null; // missing file is the normal case for a fresh install
+  }
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const driver = normalizeDriver((parsed as { driver?: unknown }).driver);
+    if (!driver) return null;
+    return { ...(parsed as DbConfigFile), driver };
+  } catch {
+    return null; // malformed JSON falls back to the default backend
+  }
+}
+
+function resolveSqlite(
+  env: NodeJS.ProcessEnv,
+  fileSqlite: Partial<SqliteSettings> | undefined,
+): SqliteSettings {
+  const statePath = env.STATE_DB_PATH || fileSqlite?.statePath || DEFAULT_SQLITE_STATE_PATH;
+  const siemPath = env.SIEM_DB_PATH || fileSqlite?.siemPath || DEFAULT_SQLITE_SIEM_PATH;
+  return { statePath: path.resolve(statePath), siemPath: path.resolve(siemPath) };
+}
+
+function fromDatabaseUrl(url: string, defaultPort: number): SqlServerSettings | null {
+  try {
+    const u = new URL(url);
+    return {
+      host: u.hostname || '127.0.0.1',
+      port: u.port ? Number(u.port) : defaultPort,
+      database: decodeURIComponent(u.pathname.replace(/^\//, '')) || 'homelab',
+      user: decodeURIComponent(u.username) || 'homelab',
+      password: decodeURIComponent(u.password),
+      ssl: parseBool(u.searchParams.get('sslmode') ?? u.searchParams.get('ssl')) ?? false,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function resolveServer(
+  env: NodeJS.ProcessEnv,
+  fileServer: Partial<SqlServerSettings> | undefined,
+  defaultPort: number,
+): SqlServerSettings {
+  const fromUrl = env.DATABASE_URL ? fromDatabaseUrl(env.DATABASE_URL, defaultPort) : null;
+  if (fromUrl) return fromUrl;
+
+  const port = env.DB_PORT ? Number(env.DB_PORT) : (fileServer?.port ?? defaultPort);
+  return {
+    host: env.DB_HOST || fileServer?.host || '127.0.0.1',
+    port: Number.isFinite(port) && port > 0 ? port : defaultPort,
+    database: env.DB_NAME || fileServer?.database || 'homelab',
+    user: env.DB_USER || fileServer?.user || 'homelab',
+    password: env.DB_PASSWORD ?? fileServer?.password ?? '',
+    ssl: parseBool(env.DB_SSL) ?? fileServer?.ssl ?? false,
+  };
+}
+
+/**
+ * Resolve the active backend at boot. Precedence: env (`DB_DRIVER`,
+ * `DATABASE_URL` or discrete `DB_*`) > the JSON config file > SQLite default.
+ * SQLite settings are always resolved so the default path is available.
+ */
+export function resolveDbConfig(opts: ResolveDbConfigOpts = {}): ResolvedDbConfig {
+  const env = opts.env ?? process.env;
+  const configPath = opts.configPath ?? DEFAULT_CONFIG_PATH;
+  const file = readConfigFile(configPath);
+
+  const driver = normalizeDriver(env.DB_DRIVER) ?? file?.driver ?? 'sqlite';
+  const sqlite = resolveSqlite(env, file?.sqlite);
+
+  if (driver === 'postgres') {
+    return { driver, sqlite, postgres: resolveServer(env, file?.postgres, DEFAULT_PG_PORT) };
+  }
+  if (driver === 'mysql') {
+    return { driver, sqlite, mysql: resolveServer(env, file?.mysql, DEFAULT_MYSQL_PORT) };
+  }
+  return { driver: 'sqlite', sqlite };
+}
+
+/**
+ * Persist the backend selection (written by the onboarding DB step, issue 05).
+ * Atomic: write to a temp file then rename, so a crash mid-write can't corrupt
+ * the live config.
+ */
+export async function writeDbConfig(
+  config: DbConfigFile,
+  configPath = DEFAULT_CONFIG_PATH,
+): Promise<void> {
+  await mkdir(path.dirname(configPath), { recursive: true });
+  const tmp = `${configPath}.tmp-${process.pid}`;
+  await writeFile(tmp, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  await rename(tmp, configPath);
+}
