@@ -5,6 +5,9 @@
 // re-running, so existing installs neither re-run DDL nor lose data.
 import type { Kysely } from 'kysely';
 
+import { columnTypes } from './columns.js';
+import type { DbDriver } from './config.js';
+
 export interface SchemaMigrationsTable {
   name: string;
   applied_at: number;
@@ -15,17 +18,23 @@ export interface WithMigrations {
   schema_migrations: SchemaMigrationsTable;
 }
 
+export interface MigrationContext {
+  driver: DbDriver;
+}
+
 export interface Migration<DB extends WithMigrations> {
   /** Sortable, stable name, e.g. `001_app_state`. Lexicographic = run order. */
   name: string;
-  up: (db: Kysely<DB>) => Promise<void>;
+  up: (db: Kysely<DB>, ctx: MigrationContext) => Promise<void>;
 }
 
 export async function runMigrations<DB extends WithMigrations>(
   db: Kysely<DB>,
   migrations: Migration<DB>[],
-  opts: { legacyVersion?: number } = {},
+  opts: { driver: DbDriver; legacyVersion?: number },
 ): Promise<void> {
+  const { driver } = opts;
+  const types = columnTypes(driver);
   // Kysely can't resolve table types against a generic DB param, so address the
   // tracking table through a concrete view. The per-migration `up` still gets
   // the caller's fully-typed Kysely<DB>.
@@ -34,8 +43,8 @@ export async function runMigrations<DB extends WithMigrations>(
   await tracker.schema
     .createTable('schema_migrations')
     .ifNotExists()
-    .addColumn('name', 'text', (c) => c.primaryKey())
-    .addColumn('applied_at', 'integer', (c) => c.notNull())
+    .addColumn('name', types.shortText, (c) => c.primaryKey())
+    .addColumn('applied_at', types.bigint, (c) => c.notNull())
     .execute();
 
   const rows = await tracker.selectFrom('schema_migrations').select('name').execute();
@@ -55,7 +64,7 @@ export async function runMigrations<DB extends WithMigrations>(
 
   for (const m of migrations) {
     if (applied.has(m.name)) continue;
-    await m.up(db);
+    await m.up(db, { driver });
     await record(m.name);
   }
 }

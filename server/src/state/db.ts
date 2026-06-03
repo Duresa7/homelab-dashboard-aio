@@ -1,7 +1,11 @@
-// App-state key→value store, backed by Kysely + SQLite (better-sqlite3). Exposes
-// the async StateStore contract so a Postgres/MySQL adapter can drop in later.
+// App-state key→value store on Kysely. One query codebase serves SQLite,
+// Postgres, and MySQL; dialect differences (column types, upsert syntax) are
+// the only branches. Exposes the async StateStore contract.
 import { stat } from 'node:fs/promises';
+import type { Kysely } from 'kysely';
 
+import { columnTypes } from '../storage/columns.js';
+import type { DbDriver } from '../storage/config.js';
 import {
   countApplied,
   runMigrations,
@@ -17,7 +21,7 @@ interface AppStateTable {
   updated_at: number;
 }
 
-interface StateDatabase extends WithMigrations {
+export interface StateDatabase extends WithMigrations {
   app_state: AppStateTable;
 }
 
@@ -55,17 +59,18 @@ function cleanPersistedInventory(value: unknown): { value: unknown; changed: boo
 }
 
 // Ordered migrations. Names map 1:1 to the old `user_version` steps so an
-// existing DB reconciles cleanly (v1 -> 001, v2 -> 002).
-const MIGRATIONS: Migration<StateDatabase>[] = [
+// existing SQLite DB reconciles cleanly (v1 -> 001, v2 -> 002).
+export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
   {
     name: '001_app_state',
-    up: async (db) => {
+    up: async (db, { driver }) => {
+      const t = columnTypes(driver);
       await db.schema
         .createTable('app_state')
         .ifNotExists()
-        .addColumn('key', 'text', (c) => c.primaryKey())
-        .addColumn('value', 'text', (c) => c.notNull())
-        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .addColumn('key', t.shortText, (c) => c.primaryKey())
+        .addColumn('value', t.text, (c) => c.notNull())
+        .addColumn('updated_at', t.bigint, (c) => c.notNull())
         .execute();
     },
   },
@@ -96,9 +101,30 @@ const MIGRATIONS: Migration<StateDatabase>[] = [
   },
 ];
 
-export async function openStateDb(dbPath: string): Promise<StateStore> {
-  const { db, legacyVersion } = await openSqliteKysely<StateDatabase>(dbPath);
-  await runMigrations(db, MIGRATIONS, { legacyVersion });
+/** Build the StateStore over an already-migrated Kysely instance. */
+export function createStateStore(
+  db: Kysely<StateDatabase>,
+  driver: DbDriver,
+  dbPath: string | null,
+): StateStore {
+  // Upsert: Postgres/SQLite use ON CONFLICT, MySQL uses ON DUPLICATE KEY UPDATE.
+  const upsert = (qc: Kysely<StateDatabase>, key: string, value: unknown, now: number) => {
+    const row = { key, value: JSON.stringify(value), updated_at: now };
+    if (driver === 'mysql') {
+      return qc
+        .insertInto('app_state')
+        .values(row)
+        .onDuplicateKeyUpdate({ value: row.value, updated_at: row.updated_at })
+        .execute();
+    }
+    return qc
+      .insertInto('app_state')
+      .values(row)
+      .onConflict((oc) =>
+        oc.column('key').doUpdateSet({ value: row.value, updated_at: row.updated_at }),
+      )
+      .execute();
+  };
 
   return {
     async getAll(): Promise<StateSnapshot> {
@@ -114,7 +140,7 @@ export async function openStateDb(dbPath: string): Promise<StateStore> {
         } catch {
           values[row.key] = null;
         }
-        updatedAt[row.key] = row.updated_at;
+        updatedAt[row.key] = Number(row.updated_at);
       }
       return { values, updatedAt };
     },
@@ -127,24 +153,15 @@ export async function openStateDb(dbPath: string): Promise<StateStore> {
         .executeTakeFirst();
       if (!row) return null;
       try {
-        return { value: JSON.parse(row.value), updatedAt: row.updated_at };
+        return { value: JSON.parse(row.value), updatedAt: Number(row.updated_at) };
       } catch {
-        return { value: null, updatedAt: row.updated_at };
+        return { value: null, updatedAt: Number(row.updated_at) };
       }
     },
 
     async put(key: string, value: unknown): Promise<number> {
       const now = Date.now();
-      await db
-        .insertInto('app_state')
-        .values({ key, value: JSON.stringify(value), updated_at: now })
-        .onConflict((oc) =>
-          oc.column('key').doUpdateSet((eb) => ({
-            value: eb.ref('excluded.value'),
-            updated_at: eb.ref('excluded.updated_at'),
-          })),
-        )
-        .execute();
+      await upsert(db, key, value, now);
       return now;
     },
 
@@ -159,16 +176,7 @@ export async function openStateDb(dbPath: string): Promise<StateStore> {
       const now = Date.now();
       await db.transaction().execute(async (trx) => {
         for (const [key, value] of Object.entries(entries)) {
-          await trx
-            .insertInto('app_state')
-            .values({ key, value: JSON.stringify(value), updated_at: now })
-            .onConflict((oc) =>
-              oc.column('key').doUpdateSet((eb) => ({
-                value: eb.ref('excluded.value'),
-                updated_at: eb.ref('excluded.updated_at'),
-              })),
-            )
-            .execute();
+          await upsert(trx, key, value, now);
         }
       });
       return keys.length;
@@ -176,10 +184,12 @@ export async function openStateDb(dbPath: string): Promise<StateStore> {
 
     async stats(): Promise<StateStoreStats> {
       let fileSize: number | null = null;
-      try {
-        fileSize = (await stat(dbPath)).size;
-      } catch {
-        /* ignore */
+      if (dbPath) {
+        try {
+          fileSize = (await stat(dbPath)).size;
+        } catch {
+          /* ignore */
+        }
       }
       const count = await db
         .selectFrom('app_state')
@@ -197,4 +207,11 @@ export async function openStateDb(dbPath: string): Promise<StateStore> {
       await db.destroy();
     },
   };
+}
+
+/** Open a SQLite-backed state store (the default backend). */
+export async function openStateDb(dbPath: string): Promise<StateStore> {
+  const { db, legacyVersion } = await openSqliteKysely<StateDatabase>(dbPath);
+  await runMigrations(db, STATE_MIGRATIONS, { driver: 'sqlite', legacyVersion });
+  return createStateStore(db, 'sqlite', dbPath);
 }

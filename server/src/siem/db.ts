@@ -1,8 +1,10 @@
-// Syslog/SIEM store, backed by Kysely + SQLite (better-sqlite3). Exposes the
-// async SiemStore contract. SQLite LIKE is case-insensitive by default, matching
-// the prior behavior; the Postgres adapter (issue 03) normalizes its own search.
-import { sql, type SqlBool } from 'kysely';
+// Syslog/SIEM store on Kysely. One query codebase serves SQLite, Postgres, and
+// MySQL; the only dialect branches are the insert id path (RETURNING vs insertId)
+// and the case-insensitive search operator. Exposes the async SiemStore contract.
+import { sql, type Generated, type Kysely, type SqlBool } from 'kysely';
 
+import { autoIdColumn, columnTypes } from '../storage/columns.js';
+import type { DbDriver } from '../storage/config.js';
 import { runMigrations, type Migration, type WithMigrations } from '../storage/migrations.js';
 import { openSqliteKysely } from '../storage/sqlite.js';
 import type { SiemStats, SiemStore, SiemTotals } from '../storage/types.js';
@@ -18,7 +20,7 @@ import type {
 export type { InsertEventInput, QueryEventsOpts, StoredEvent, SyslogEvent, SyslogRow };
 
 interface SyslogEventsTable {
-  id: import('kysely').Generated<number>;
+  id: Generated<number>;
   received_at: number;
   log_time: number | null;
   source_ip: string;
@@ -34,7 +36,7 @@ interface SyslogEventsTable {
   extra: string | null;
 }
 
-interface SiemDatabase extends WithMigrations {
+export interface SiemDatabase extends WithMigrations {
   syslog_events: SyslogEventsTable;
 }
 
@@ -52,27 +54,28 @@ const VALID_CATEGORIES = new Set([
 ]);
 const VALID_DEVICE_KINDS = new Set(['gateway', 'ap', 'switch', 'controller', 'unknown']);
 
-const MIGRATIONS: Migration<SiemDatabase>[] = [
+export const SIEM_MIGRATIONS: Migration<SiemDatabase>[] = [
   {
     name: '001_syslog_events',
-    up: async (db) => {
+    up: async (db, { driver }) => {
+      const t = columnTypes(driver);
       await db.schema
         .createTable('syslog_events')
         .ifNotExists()
-        .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
-        .addColumn('received_at', 'integer', (c) => c.notNull())
-        .addColumn('log_time', 'integer')
-        .addColumn('source_ip', 'text', (c) => c.notNull())
-        .addColumn('hostname', 'text')
-        .addColumn('facility', 'integer')
-        .addColumn('severity', 'integer', (c) => c.notNull())
-        .addColumn('tag', 'text')
-        .addColumn('message', 'text', (c) => c.notNull())
-        .addColumn('raw', 'text', (c) => c.notNull())
-        .addColumn('format', 'text', (c) => c.notNull())
-        .addColumn('device_kind', 'text', (c) => c.notNull())
-        .addColumn('category', 'text', (c) => c.notNull())
-        .addColumn('extra', 'text')
+        .addColumn('id', t.id, autoIdColumn(driver))
+        .addColumn('received_at', t.bigint, (c) => c.notNull())
+        .addColumn('log_time', t.bigint)
+        .addColumn('source_ip', t.shortText, (c) => c.notNull())
+        .addColumn('hostname', t.shortText)
+        .addColumn('facility', t.int)
+        .addColumn('severity', t.int, (c) => c.notNull())
+        .addColumn('tag', t.shortText)
+        .addColumn('message', t.text, (c) => c.notNull())
+        .addColumn('raw', t.text, (c) => c.notNull())
+        .addColumn('format', t.shortText, (c) => c.notNull())
+        .addColumn('device_kind', t.shortText, (c) => c.notNull())
+        .addColumn('category', t.shortText, (c) => c.notNull())
+        .addColumn('extra', t.text)
         .execute();
       const indexes: [string, keyof SyslogEventsTable][] = [
         ['idx_received_at', 'received_at'],
@@ -102,15 +105,23 @@ function parseCsv(v: unknown): string[] {
     .filter(Boolean);
 }
 
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 function rowToEvent(row: SyslogRow): SyslogEvent {
   return {
-    id: row.id,
-    receivedAt: row.received_at,
-    logTime: row.log_time,
+    id: Number(row.id),
+    receivedAt: Number(row.received_at),
+    logTime: row.log_time == null ? null : Number(row.log_time),
     sourceIp: row.source_ip,
     hostname: row.hostname,
-    facility: row.facility,
-    severity: row.severity,
+    facility: row.facility == null ? null : Number(row.facility),
+    severity: Number(row.severity),
     tag: row.tag,
     message: row.message,
     raw: row.raw,
@@ -121,37 +132,39 @@ function rowToEvent(row: SyslogRow): SyslogEvent {
   };
 }
 
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-export async function openSiemDb(dbPath: string): Promise<SiemStore> {
-  const { db, legacyVersion } = await openSqliteKysely<SiemDatabase>(dbPath);
-  await runMigrations(db, MIGRATIONS, { legacyVersion });
-
+/** Build the SiemStore over an already-migrated Kysely instance. */
+export function createSiemStore(db: Kysely<SiemDatabase>, driver: DbDriver): SiemStore {
   return {
     async insertEvent(evt: InsertEventInput): Promise<StoredEvent> {
+      const row = {
+        received_at: evt.receivedAt,
+        log_time: evt.logTime ?? null,
+        source_ip: evt.sourceIp,
+        hostname: evt.hostname ?? null,
+        facility: evt.facility ?? null,
+        severity: evt.severity,
+        tag: evt.tag ?? null,
+        message: evt.message,
+        raw: evt.raw,
+        format: evt.format,
+        device_kind: evt.deviceKind,
+        category: evt.category,
+        extra: evt.extra ? JSON.stringify(evt.extra) : null,
+      };
+      if (driver === 'mysql') {
+        // MySQL has no RETURNING — use the auto-increment insertId, then read back.
+        const res = await db.insertInto('syslog_events').values(row).executeTakeFirstOrThrow();
+        const id = Number(res.insertId);
+        const stored = await db
+          .selectFrom('syslog_events')
+          .selectAll()
+          .where('id', '=', id)
+          .executeTakeFirstOrThrow();
+        return stored as StoredEvent;
+      }
       const inserted = await db
         .insertInto('syslog_events')
-        .values({
-          received_at: evt.receivedAt,
-          log_time: evt.logTime ?? null,
-          source_ip: evt.sourceIp,
-          hostname: evt.hostname ?? null,
-          facility: evt.facility ?? null,
-          severity: evt.severity,
-          tag: evt.tag ?? null,
-          message: evt.message,
-          raw: evt.raw,
-          format: evt.format,
-          device_kind: evt.deviceKind,
-          category: evt.category,
-          extra: evt.extra ? JSON.stringify(evt.extra) : null,
-        })
+        .values(row)
         .returningAll()
         .executeTakeFirstOrThrow();
       return inserted as StoredEvent;
@@ -189,12 +202,22 @@ export async function openSiemDb(dbPath: string): Promise<SiemStore> {
       if (sourceIp) qb = qb.where('source_ip', '=', String(sourceIp));
 
       if (q) {
-        // Search message + raw so users can grep IPs out of firewall rules.
-        // Escape LIKE wildcards in the term and declare the escape char.
+        // Search message + raw. Escape LIKE wildcards in the term so a literal
+        // % / _ doesn't act as a wildcard. Case-insensitive on every backend:
+        // Postgres needs ILIKE; SQLite/MySQL LIKE is already case-insensitive.
         const needle = '%' + String(q).replace(/([\\%_])/g, '\\$1') + '%';
-        qb = qb.where(
-          sql<SqlBool>`(message like ${needle} escape '\\' or raw like ${needle} escape '\\')`,
-        );
+        if (driver === 'postgres') {
+          qb = qb.where(
+            sql<SqlBool>`(message ilike ${needle} escape '\\' or raw ilike ${needle} escape '\\')`,
+          );
+        } else if (driver === 'mysql') {
+          // Backslash is MySQL's default LIKE escape, so no ESCAPE clause needed.
+          qb = qb.where(sql<SqlBool>`(message like ${needle} or raw like ${needle})`);
+        } else {
+          qb = qb.where(
+            sql<SqlBool>`(message like ${needle} escape '\\' or raw like ${needle} escape '\\')`,
+          );
+        }
       }
 
       const lim = Math.max(1, Math.min(Number(limit) || 200, 5000));
@@ -206,7 +229,7 @@ export async function openSiemDb(dbPath: string): Promise<SiemStore> {
     },
 
     async getStats({ since = Date.now() - 3600_000 }: { since?: number } = {}): Promise<SiemStats> {
-      const groupCount = async <K extends keyof SyslogEventsTable>(column: K) =>
+      const groupCount = <K extends keyof SyslogEventsTable>(column: K) =>
         db
           .selectFrom('syslog_events')
           .select((eb) => [column, eb.fn.countAll().as('n')])
@@ -298,4 +321,11 @@ export async function openSiemDb(dbPath: string): Promise<SiemStore> {
       await db.destroy();
     },
   };
+}
+
+/** Open a SQLite-backed SIEM store (the default backend). */
+export async function openSiemDb(dbPath: string): Promise<SiemStore> {
+  const { db, legacyVersion } = await openSqliteKysely<SiemDatabase>(dbPath);
+  await runMigrations(db, SIEM_MIGRATIONS, { driver: 'sqlite', legacyVersion });
+  return createSiemStore(db, 'sqlite');
 }
