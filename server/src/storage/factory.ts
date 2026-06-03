@@ -10,6 +10,7 @@ import {
 } from '../state/db.js';
 import type { ResolvedDbConfig } from './config.js';
 import { runMigrations } from './migrations.js';
+import { openMysqlKysely } from './mysql.js';
 import { openPostgresKysely } from './postgres.js';
 import type { Stores } from './types.js';
 
@@ -34,7 +35,19 @@ export async function openStores(config: ResolvedDbConfig): Promise<Stores> {
     return { state, siem };
   }
 
-  throw new Error(
-    `database driver "${config.driver}" is not implemented yet (see pluggable-database issue 04)`,
-  );
+  if (config.driver === 'mysql') {
+    if (!config.mysql) throw new Error('mysql connection settings missing');
+    // Two pools against the same database; state migrates first so it owns the
+    // shared schema_migrations table, then siem adds its own rows.
+    const stateDb = openMysqlKysely<StateDatabase>(config.mysql);
+    await runMigrations(stateDb, STATE_MIGRATIONS, { driver: 'mysql' });
+    const state = createStateStore(stateDb, 'mysql', null);
+
+    const siemDb = openMysqlKysely<SiemDatabase>(config.mysql);
+    await runMigrations(siemDb, SIEM_MIGRATIONS, { driver: 'mysql' });
+    const siem = createSiemStore(siemDb, 'mysql');
+    return { state, siem };
+  }
+
+  throw new Error(`database driver "${config.driver}" is not implemented`);
 }

@@ -85,12 +85,10 @@ export const SIEM_MIGRATIONS: Migration<SiemDatabase>[] = [
         ['idx_source_ip', 'source_ip'],
       ];
       for (const [name, column] of indexes) {
-        await db.schema
-          .createIndex(name)
-          .ifNotExists()
-          .on('syslog_events')
-          .column(column)
-          .execute();
+        // MySQL has no CREATE INDEX IF NOT EXISTS; the guard is harmless to skip
+        // since migrations run exactly once (tracked in schema_migrations).
+        const base = db.schema.createIndex(name).on('syslog_events').column(column);
+        await (driver === 'mysql' ? base : base.ifNotExists()).execute();
       }
     },
   },
@@ -283,7 +281,17 @@ export function createSiemStore(db: Kysely<SiemDatabase>, driver: DbDriver): Sie
 
     async purgeOlderThanChunk(cutoffMs: number, chunkSize = 1000): Promise<number> {
       // Chunked delete so a huge purge can't block the event loop; the caller
-      // yields between chunks. Delete by id from a bounded sub-select.
+      // yields between chunks. MySQL supports DELETE ... LIMIT directly but
+      // rejects a self-referencing subquery (error 1093); SQLite/Postgres are
+      // the reverse, so delete by id from a bounded sub-select there.
+      if (driver === 'mysql') {
+        const res = await db
+          .deleteFrom('syslog_events')
+          .where('received_at', '<', cutoffMs)
+          .limit(chunkSize)
+          .executeTakeFirst();
+        return Number(res.numDeletedRows ?? 0);
+      }
       const res = await db
         .deleteFrom('syslog_events')
         .where('id', 'in', (eb) =>

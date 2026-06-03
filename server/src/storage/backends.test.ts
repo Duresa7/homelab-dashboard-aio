@@ -4,6 +4,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createConnection } from 'mysql2/promise';
 import pg from 'pg';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -59,7 +60,29 @@ const postgresBackend: Backend = {
   },
 };
 
-const BACKENDS = [sqliteBackend, postgresBackend];
+const mysqlBackend: Backend = {
+  name: 'mysql',
+  skip: !process.env.MYSQL_TEST_URL,
+  async prepare() {
+    const config = resolveDbConfig({
+      env: { DB_DRIVER: 'mysql', DATABASE_URL: process.env.MYSQL_TEST_URL },
+      configPath: NO_CONFIG_FILE,
+    });
+    const c = config.mysql!;
+    const conn = await createConnection({
+      host: c.host,
+      port: c.port,
+      database: c.database,
+      user: c.user,
+      password: c.password,
+    });
+    await conn.query('DROP TABLE IF EXISTS schema_migrations, app_state, syslog_events');
+    await conn.end();
+    return { config, cleanup: async () => {} };
+  },
+};
+
+const BACKENDS = [sqliteBackend, postgresBackend, mysqlBackend];
 
 function evt(over: Partial<InsertEventInput> = {}): InsertEventInput {
   return {
