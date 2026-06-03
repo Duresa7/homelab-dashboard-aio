@@ -91,10 +91,12 @@ describe('state API contract', () => {
       api.put(`/api/state/${key}`).set('Content-Type', 'application/json').send(raw).expect(200);
 
     await putJson('tempUnit', '"f"');
+    await putJson('siteName', '"rack.local"');
     await putJson('sidebarCollapsed', 'true');
     await putJson('custom.count', '42');
 
     expect((await api.get('/api/state/tempUnit').expect(200)).body.value).toBe('f');
+    expect((await api.get('/api/state/siteName').expect(200)).body.value).toBe('rack.local');
     expect((await api.get('/api/state/sidebarCollapsed').expect(200)).body.value).toBe(true);
     expect((await api.get('/api/state/custom.count').expect(200)).body.value).toBe(42);
   });

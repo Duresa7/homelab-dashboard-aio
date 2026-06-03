@@ -19,6 +19,7 @@ import {
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { NAV_GROUPS } from './nav';
 import { cn } from '@/lib/utils';
+import { splitSiteName, useSiteName, useSiteTitleSync } from '@/lib/site-name';
 import { SUBS, SECTION_LABEL, type Route, type Section } from '../../lib/route';
 import type { AlertEntry } from '../../types';
 
@@ -45,8 +46,24 @@ const BrandMark = () => (
   </div>
 );
 
+function BrandName({ value }: { value: string }) {
+  const parts = splitSiteName(value);
+
+  return (
+    <span
+      className="min-w-0 truncate font-display text-[15px] font-semibold tracking-tight text-foreground group-data-[collapsible=icon]:hidden"
+      title={parts.name}
+    >
+      {parts.prefix}
+      {parts.suffix ? <span className="text-muted-foreground">{parts.suffix}</span> : null}
+    </span>
+  );
+}
+
 export function AppSidebar({ route, setRoute, alerts }: Props) {
   const { isMobile, setOpenMobile, state } = useSidebar();
+  const siteName = useSiteName();
+  useSiteTitleSync();
   const collapsed = state === 'collapsed' && !isMobile;
   const alertKind = alerts.some((a) => a.kind === 'bad') ? 'bad' : alerts.length ? 'warn' : null;
 
@@ -60,9 +77,7 @@ export function AppSidebar({ route, setRoute, alerts }: Props) {
       <SidebarHeader>
         <div className="flex h-10 items-center gap-2.5 px-1 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center">
           <BrandMark />
-          <span className="font-display text-[15px] font-semibold tracking-tight text-foreground group-data-[collapsible=icon]:hidden">
-            homelab<span className="text-muted-foreground">.local</span>
-          </span>
+          <BrandName value={siteName} />
         </div>
       </SidebarHeader>
 

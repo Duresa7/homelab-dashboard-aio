@@ -10,6 +10,7 @@ const RESERVED_KEYS = new Set([
   'thresholds',
   'tempUnit',
   'tweaks',
+  'siteName',
   'sidebarCollapsed',
   'sidebarExpanded',
   'bookmarksOrder',
@@ -26,7 +27,7 @@ function isAllowedKey(key: unknown): boolean {
 // only pages served from this server (or the Vite dev origin during local
 // development) may issue mutating calls. CSRF-style requests from a
 // malicious LAN-local page get rejected.
-function makeSameOriginGuard() {
+export function makeSameOriginGuard() {
   const allow = new Set<string>();
   const extra = String(process.env.STATE_ALLOWED_ORIGINS || '')
     .split(',')

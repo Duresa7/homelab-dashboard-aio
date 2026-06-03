@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -28,6 +30,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/common';
 import { cn } from '@/lib/utils';
+import { DEFAULT_SITE_NAME, setSiteName, useSiteNameRaw } from '@/lib/site-name';
 import { ALL_TILES, type TileId } from '../components/widgets';
 import { INTEGRATIONS, type HealthInfo, type HealthResponse } from '../lib/integrations';
 import type { IntegrationKey } from '../lib/telemetry';
@@ -357,6 +360,7 @@ function PreferencesTab({
   onPreferenceChange: Props['onPreferenceChange'];
 }) {
   const { unit, setUnit } = useTempUnit();
+  const siteName = useSiteNameRaw();
   const previewDate = new Date();
   const setDateTime = <K extends keyof DateTimePreferences>(
     key: K,
@@ -366,6 +370,19 @@ function PreferencesTab({
   };
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <PreferenceCard icon={Globe2} title="Site name" meta={siteName.trim() || DEFAULT_SITE_NAME}>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="site-name">Name</Label>
+          <Input
+            id="site-name"
+            value={siteName}
+            placeholder={DEFAULT_SITE_NAME}
+            onChange={(e) => setSiteName(e.target.value)}
+            maxLength={120}
+          />
+        </div>
+      </PreferenceCard>
+
       <PreferenceCard
         icon={MonitorCog}
         title="Appearance"
