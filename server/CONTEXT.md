@@ -16,6 +16,16 @@ _Avoid_: drives, block devices.
 The human-readable label for a disk, derived from its raw model/vendor strings by per-vendor detection (Crucial, Western Digital, Seagate, Samsung, Kingston, Toshiba/Kioxia, HGST) — e.g. `ST4000VN008` → "IronWolf 4TB".
 _Avoid_: disk label, model string.
 
+## Compute
+
+**Compute**:
+The dashboard section for host-level control actions such as Wake-on-LAN. A **Host** in this section is persisted through the generic state store under the `computeHosts` key.
+_Avoid_: machines, servers.
+
+**Host**:
+A stored Wake-on-LAN target with shape `{ id, name, mac, broadcast?, port? }`. `id` is the stable client-generated identifier, `name` is the display name, `mac` is the normalized hardware address, and optional `broadcast`/`port` override the Wake-on-LAN defaults (`255.255.255.255` and `9`).
+_Avoid_: device, node.
+
 ## Example dialogue
 
 > **Dev:** When the NAS reports a hot disk, where does the friendly name come from?

@@ -13,6 +13,7 @@ import { registerProxmox, proxmoxStatus, probeProxmox } from './integrations/pro
 import { registerUnas, unasStatus, probeUnas } from './integrations/unas.js';
 import { registerUnifi, unifiStatus, probeUnifi } from './integrations/unifi.js';
 import { registerGpu, gpuStatus, probeGpu } from './integrations/gpu.js';
+import { registerWol, wolStatus } from './integrations/wol.js';
 import {
   registerProtect,
   protectStatus,
@@ -74,6 +75,10 @@ app.get('/api/health', (_req, res) => {
     gpu: {
       enabled: gpuStatus.enabled,
       configured: gpuStatus.configured,
+    },
+    wol: {
+      enabled: wolStatus.enabled,
+      configured: wolStatus.configured,
     },
     sensors: {
       enabled: SENSORS_ENABLED,
@@ -207,6 +212,7 @@ registerDocker(app);
 
 registerProxmox(app);
 registerGpu(app);
+registerWol(app);
 
 // Sensors share the GPU SSH config by default — both usually target the same host.
 
@@ -371,6 +377,11 @@ if (process.env.NODE_ENV !== 'test') {
       }
     } else {
       console.log('Sensors: DISABLED (set SENSORS_ENABLED=true in .env to enable)');
+    }
+    if (wolStatus.enabled) {
+      console.log('Wake-on-LAN: enabled');
+    } else {
+      console.log('Wake-on-LAN: DISABLED (set WOL_ENABLED=true in .env to enable)');
     }
     if (SIEM_ENABLED) {
       console.log(

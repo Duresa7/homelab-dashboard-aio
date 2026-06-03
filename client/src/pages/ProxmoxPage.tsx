@@ -13,6 +13,7 @@ import {
 import { Donut } from '../components/charts';
 import { GPUTile } from '../components/widgets';
 import { BrandIcon } from '../components/icons/BrandIcon';
+import { ComputeWakeCard } from '@/components/proxmox/ComputeWakeCard';
 import { SectionCard, DataTableCard, StatusBadge } from '@/components/common';
 import { spanClass } from '@/components/common';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
@@ -302,6 +303,8 @@ function Compute({ data }: { data: DashboardState }) {
 
       <GPUTile data={data.gpu} span={12} chartKind="area" expandable={false} />
 
+      <ComputeWakeCard />
+
       <TempCard
         title="System Temp"
         icon={
@@ -453,7 +456,7 @@ function Storage({ data }: { data: DashboardState }) {
         sub={storages.length}
         icon={<Disc size={14} strokeWidth={1.75} />}
         isEmpty={storages.length === 0}
-        empty="No Proxmox storage backends reported"
+        empty="No data center storage backends reported"
         head={
           <>
             <TableHead>Name</TableHead>
