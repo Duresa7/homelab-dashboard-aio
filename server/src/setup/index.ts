@@ -6,7 +6,7 @@
 import express from 'express';
 import type { Express, NextFunction, Request, Response } from 'express';
 
-import { CAPABILITIES } from '../capabilities/registry.js';
+import { CAPABILITIES, getCapability } from '../capabilities/registry.js';
 import { errorMessage } from '../lib/errors.js';
 import {
   configFilePath,
@@ -25,8 +25,10 @@ import {
   ConfigError,
   getRedactedConfig,
   getStatus,
+  readSelectionConfig,
   upsertSelection,
 } from './integration-config.js';
+import { testIntegration } from './test-integration.js';
 
 class BadRequest extends Error {}
 
@@ -187,5 +189,23 @@ export function initSetup(app: Express, opts: { store?: StateStore } = {}) {
       }
       res.status(500).json({ ok: false, error: errorMessage(err) });
     }
+  });
+
+  // Transient connection test for a candidate config (no persist). Secret fields
+  // the client omits are filled from the stored config so re-tests work without
+  // re-typing a secret that was never shown.
+  app.post('/api/setup/test', sameOrigin, parseJsonBody, async (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as { capability?: unknown; config?: unknown };
+    const capability = typeof body.capability === 'string' ? body.capability : '';
+    if (!getCapability(capability)) {
+      return res.status(400).json({ ok: false, error: 'unknown capability' });
+    }
+    const incoming =
+      body.config && typeof body.config === 'object'
+        ? (body.config as Record<string, unknown>)
+        : {};
+    const stored = store ? await readSelectionConfig(store, capability) : {};
+    const result = await testIntegration(capability, { ...stored, ...incoming });
+    res.json(result);
   });
 }

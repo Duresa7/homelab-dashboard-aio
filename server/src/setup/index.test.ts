@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
-import { loadServerApp } from '../test/serverApp.js';
+import { loadServerApp, withJsonUpstream } from '../test/serverApp.js';
 import { redactDbConfig } from './index.js';
 
 describe('redactDbConfig', () => {
@@ -223,6 +223,72 @@ describe('integration config API', () => {
       const state = await request(ctx.app).get('/api/state').expect(200);
       expect(Object.keys(state.body.values)).not.toContain('setup.integrationConfig');
       await request(ctx.app).get('/api/state/setup.integrationConfig').expect(400);
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+});
+
+describe('connection test API', () => {
+  it('returns ok for a reachable HTTP backend', async () => {
+    await withJsonUpstream(
+      { '/api2/json/version': { data: { version: '8.0' } } },
+      async (baseUrl) => {
+        const ctx = await loadServerApp();
+        try {
+          await request(ctx.app)
+            .post('/api/setup/test')
+            .send({
+              capability: 'datacenter',
+              config: { baseUrl, tokenId: 'id', tokenSecret: 's' },
+            })
+            .expect(200, { ok: true });
+        } finally {
+          await ctx.cleanup();
+        }
+      },
+    );
+  });
+
+  it('reports a failed connection as ok:false', async () => {
+    const ctx = await loadServerApp();
+    try {
+      const res = await request(ctx.app)
+        .post('/api/setup/test')
+        .send({
+          capability: 'datacenter',
+          config: { baseUrl: 'http://127.0.0.1:9', tokenId: 'i', tokenSecret: 's' },
+        })
+        .expect(200);
+      expect(res.body.ok).toBe(false);
+      expect(typeof res.body.error).toBe('string');
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
+  it('marks SSH/listener capabilities as untestable', async () => {
+    const ctx = await loadServerApp();
+    try {
+      await request(ctx.app)
+        .post('/api/setup/test')
+        .send({ capability: 'gpu', config: { mode: 'local' } })
+        .expect(200, { ok: true, untestable: true });
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
+  it('rejects an unknown capability and cross-origin writes', async () => {
+    const ctx = await loadServerApp();
+    try {
+      await request(ctx.app).post('/api/setup/test').send({ capability: 'nope' }).expect(400);
+      await request(ctx.app)
+        .post('/api/setup/test')
+        .set('Host', 'dashboard.test')
+        .set('Origin', 'http://evil.test')
+        .send({ capability: 'datacenter', config: {} })
+        .expect(403);
     } finally {
       await ctx.cleanup();
     }

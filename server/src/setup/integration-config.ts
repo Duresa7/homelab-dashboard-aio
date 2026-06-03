@@ -104,6 +104,15 @@ export async function importEnvConfigIfEmpty(
   await store.put(ONBOARDING_KEY, imported.onboarding);
 }
 
+/** Raw stored config for a capability (includes secrets — server-side only). */
+export async function readSelectionConfig(
+  store: StateStore,
+  capabilityId: string,
+): Promise<Record<string, unknown>> {
+  const config = await readConfig(store);
+  return config[capabilityId]?.config ?? {};
+}
+
 export async function getStatus(
   store: StateStore,
 ): Promise<{ onboardingComplete: boolean; configuredCapabilities: string[] }> {
