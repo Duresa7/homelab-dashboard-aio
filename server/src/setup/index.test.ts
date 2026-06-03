@@ -18,6 +18,18 @@ describe('redactDbConfig', () => {
 });
 
 describe('database setup API', () => {
+  it('serves the capability registry', async () => {
+    const ctx = await loadServerApp();
+    try {
+      const res = await request(ctx.app).get('/api/setup/capabilities').expect(200);
+      const ids = res.body.capabilities.map((c: { id: string }) => c.id);
+      expect(ids).toContain('datacenter');
+      expect(ids).toContain('logs');
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
   it('reports the current backend (sqlite by default)', async () => {
     const ctx = await loadServerApp();
     try {

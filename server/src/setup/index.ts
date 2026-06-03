@@ -6,6 +6,7 @@
 import express from 'express';
 import type { Express, NextFunction, Request, Response } from 'express';
 
+import { CAPABILITIES } from '../capabilities/registry.js';
 import { errorMessage } from '../lib/errors.js';
 import {
   configFilePath,
@@ -104,6 +105,12 @@ export function initSetup(app: Express) {
       return next();
     });
   };
+
+  // Capability/vendor registry — read-only metadata the onboarding UI renders
+  // from (no secrets; describes which fields exist, not their values).
+  app.get('/api/setup/capabilities', (_req: Request, res: Response) => {
+    res.json({ capabilities: CAPABILITIES });
+  });
 
   // Current backend (password never returned).
   app.get('/api/setup/db', (_req: Request, res: Response) => {
