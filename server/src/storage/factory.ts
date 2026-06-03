@@ -1,6 +1,8 @@
 // Store factory: opens both stores for the resolved backend, behind the same
 // StateStore / SiemStore contracts. Each dialect builds a Kysely instance, runs
 // the shared migrations, then wraps it with the shared store builders.
+import { sql, type Kysely } from 'kysely';
+
 import { createSiemStore, openSiemDb, SIEM_MIGRATIONS, type SiemDatabase } from '../siem/db.js';
 import {
   createStateStore,
@@ -50,4 +52,30 @@ export async function openStores(config: ResolvedDbConfig): Promise<Stores> {
   }
 
   throw new Error(`database driver "${config.driver}" is not implemented`);
+}
+
+/**
+ * Open a transient connection for the resolved backend, run a trivial query, and
+ * close it — used by the onboarding connection test, never persisting anything.
+ * Throws with a clear message on failure. SQLite is a local file (always available).
+ */
+export async function testDbConnection(config: ResolvedDbConfig): Promise<void> {
+  if (config.driver === 'sqlite') return;
+
+  let db: Kysely<Record<string, never>>;
+  if (config.driver === 'postgres') {
+    if (!config.postgres) throw new Error('postgres connection settings missing');
+    db = openPostgresKysely<Record<string, never>>(config.postgres);
+  } else if (config.driver === 'mysql') {
+    if (!config.mysql) throw new Error('mysql connection settings missing');
+    db = openMysqlKysely<Record<string, never>>(config.mysql);
+  } else {
+    throw new Error(`database driver "${config.driver}" is not implemented`);
+  }
+
+  try {
+    await sql`select 1`.execute(db);
+  } finally {
+    await db.destroy();
+  }
 }

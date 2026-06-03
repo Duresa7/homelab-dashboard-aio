@@ -42,10 +42,17 @@ export interface ResolvedDbConfig {
 export interface ResolveDbConfigOpts {
   env?: NodeJS.ProcessEnv;
   configPath?: string;
+  /** Use this config object instead of reading the file (used by the setup API). */
+  file?: DbConfigFile | null;
 }
 
 const DATA_DIR = 'data';
 export const DEFAULT_CONFIG_PATH = path.resolve(DATA_DIR, 'database.json');
+
+/** Bootstrap config file location, overridable via DB_CONFIG_PATH. */
+export function configFilePath(env: NodeJS.ProcessEnv = process.env): string {
+  return env.DB_CONFIG_PATH ? path.resolve(env.DB_CONFIG_PATH) : DEFAULT_CONFIG_PATH;
+}
 export const DEFAULT_SQLITE_STATE_PATH = path.resolve(DATA_DIR, 'dashboard.sqlite');
 export const DEFAULT_SQLITE_SIEM_PATH = path.resolve(DATA_DIR, 'siem.sqlite');
 const DEFAULT_PG_PORT = 5432;
@@ -147,8 +154,8 @@ function resolveServer(
  */
 export function resolveDbConfig(opts: ResolveDbConfigOpts = {}): ResolvedDbConfig {
   const env = opts.env ?? process.env;
-  const configPath = opts.configPath ?? DEFAULT_CONFIG_PATH;
-  const file = readConfigFile(configPath);
+  const configPath = opts.configPath ?? configFilePath(env);
+  const file = opts.file !== undefined ? opts.file : readConfigFile(configPath);
 
   const driver = normalizeDriver(env.DB_DRIVER) ?? file?.driver ?? 'sqlite';
   const sqlite = resolveSqlite(env, file?.sqlite);

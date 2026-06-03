@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { initSiem } from './siem/index.js';
 import { initState } from './state/index.js';
 import { initSensors } from './sensors/index.js';
+import { initSetup } from './setup/index.js';
 import { resolveDbConfig } from './storage/config.js';
 import { openStores } from './storage/factory.js';
 import { isEnabled } from './lib/env.js';
@@ -314,6 +315,9 @@ if (process.env.NODE_ENV !== 'test') {
     }
   });
 }
+
+// Database setup/onboarding API (test a backend + persist the bootstrap config).
+initSetup(app);
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
