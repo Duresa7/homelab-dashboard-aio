@@ -15,8 +15,14 @@ const RESERVED_KEYS = new Set([
   'bookmarksOrder',
 ]);
 
+// Server-internal keys (e.g. setup.integrationConfig holding integration
+// secrets) live in the same DB but must never be read/written through the public
+// /api/state API or shipped to the client in the hydrate snapshot.
+const INTERNAL_KEY_PREFIX = 'setup.';
+
 function isAllowedKey(key: unknown): boolean {
   if (typeof key !== 'string') return false;
+  if (key.startsWith(INTERNAL_KEY_PREFIX)) return false;
   if (RESERVED_KEYS.has(key)) return true;
   return /^[a-zA-Z][a-zA-Z0-9._-]{0,63}$/.test(key);
 }
@@ -91,6 +97,13 @@ export async function initState(app: Express, opts: { store: StateStore }) {
   app.get('/api/state', async (_req: Request, res: Response) => {
     try {
       const { values, updatedAt } = await db.getAll();
+      // Strip server-internal keys so integration secrets never reach the client.
+      for (const key of Object.keys(values)) {
+        if (key.startsWith(INTERNAL_KEY_PREFIX)) {
+          delete values[key];
+          delete updatedAt[key];
+        }
+      }
       res.json({ values, updatedAt });
     } catch (err) {
       dbError(res, err);

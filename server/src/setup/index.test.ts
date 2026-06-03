@@ -150,3 +150,81 @@ describe('database setup API', () => {
     }
   });
 });
+
+describe('integration config API', () => {
+  const SECRET_VALUE = 'tok-XYZ-9876';
+  const proxmox = {
+    capability: 'datacenter',
+    vendor: 'proxmox',
+    config: { baseUrl: 'https://pve.lan', tokenId: 'id', tokenSecret: SECRET_VALUE, node: 'pve1' },
+  };
+
+  it('reports onboarding incomplete on a clean instance', async () => {
+    const ctx = await loadServerApp();
+    try {
+      const res = await request(ctx.app).get('/api/setup/status').expect(200);
+      expect(res.body).toEqual({ onboardingComplete: false, configuredCapabilities: [] });
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
+  it('upserts a selection and never echoes the secret back', async () => {
+    const ctx = await loadServerApp();
+    try {
+      await request(ctx.app).put('/api/setup/config').send(proxmox).expect(200, { ok: true });
+
+      const cfg = await request(ctx.app).get('/api/setup/config').expect(200);
+      const dc = cfg.body.capabilities.datacenter;
+      expect(dc.config).toMatchObject({ baseUrl: 'https://pve.lan', node: 'pve1' });
+      expect(dc.config).not.toHaveProperty('tokenSecret');
+      expect(dc.secrets).toEqual({ tokenSecret: true });
+      expect(JSON.stringify(cfg.body)).not.toContain(SECRET_VALUE);
+
+      const status = await request(ctx.app).get('/api/setup/status').expect(200);
+      expect(status.body.configuredCapabilities).toContain('datacenter');
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
+  it('rejects an invalid selection with 400', async () => {
+    const ctx = await loadServerApp();
+    try {
+      await request(ctx.app)
+        .put('/api/setup/config')
+        .send({ capability: 'datacenter', vendor: 'proxmox', config: { baseUrl: 'x' } })
+        .expect(400);
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
+  it('rejects cross-origin writes', async () => {
+    const ctx = await loadServerApp();
+    try {
+      await request(ctx.app)
+        .put('/api/setup/config')
+        .set('Host', 'dashboard.test')
+        .set('Origin', 'http://evil.test')
+        .send(proxmox)
+        .expect(403);
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
+  it('never exposes setup.* keys through the public state API', async () => {
+    const ctx = await loadServerApp();
+    try {
+      await request(ctx.app).put('/api/setup/config').send(proxmox).expect(200);
+      // The stored selection lives under setup.integrationConfig — it must not
+      // appear in the public hydrate snapshot, nor be fetchable by key.
+      const state = await request(ctx.app).get('/api/state').expect(200);
+      expect(Object.keys(state.body.values)).not.toContain('setup.integrationConfig');
+      await request(ctx.app).get('/api/state/setup.integrationConfig').expect(400);
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+});

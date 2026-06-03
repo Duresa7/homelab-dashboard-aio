@@ -7,6 +7,7 @@ import { initSiem } from './siem/index.js';
 import { initState } from './state/index.js';
 import { initSensors } from './sensors/index.js';
 import { initSetup } from './setup/index.js';
+import { importEnvConfigIfEmpty } from './setup/integration-config.js';
 import { resolveDbConfig } from './storage/config.js';
 import { openStores } from './storage/factory.js';
 import { isEnabled } from './lib/env.js';
@@ -268,6 +269,15 @@ const stateHandle = stores
       return { shutdown() {} };
     })
   : { shutdown() {} };
+
+// One-time, idempotent: seed the runtime config store from env-configured
+// integrations so existing installs skip onboarding (a fresh install stays empty
+// and triggers the wizard).
+if (stores) {
+  await importEnvConfigIfEmpty(stores.state).catch((err) => {
+    console.warn(`Setup: env config import failed - ${errorMessage(err)}`);
+  });
+}
 if (process.env.NODE_ENV !== 'test') {
   process.on('SIGINT', () => {
     try {
@@ -316,8 +326,8 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-// Database setup/onboarding API (test a backend + persist the bootstrap config).
-initSetup(app);
+// Database setup/onboarding API (test a backend + persist config + selections).
+initSetup(app, { store: stores?.state });
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 

@@ -20,6 +20,13 @@ import {
 } from '../storage/config.js';
 import { testDbConnection } from '../storage/factory.js';
 import { makeSameOriginGuard } from '../state/index.js';
+import type { StateStore } from '../storage/types.js';
+import {
+  ConfigError,
+  getRedactedConfig,
+  getStatus,
+  upsertSelection,
+} from './integration-config.js';
 
 class BadRequest extends Error {}
 
@@ -96,7 +103,8 @@ export function redactDbConfig(config: ResolvedDbConfig): Record<string, unknown
   return { driver: config.driver, sqlite: config.sqlite };
 }
 
-export function initSetup(app: Express) {
+export function initSetup(app: Express, opts: { store?: StateStore } = {}) {
+  const { store } = opts;
   const sameOrigin = makeSameOriginGuard();
   const jsonBody = express.json({ limit: '64kb' });
   const parseJsonBody = (req: Request, res: Response, next: NextFunction) => {
@@ -152,6 +160,31 @@ export function initSetup(app: Express) {
       await writeDbConfig(file, configFilePath());
       res.json({ ok: true, restartRequired: true });
     } catch (err) {
+      res.status(500).json({ ok: false, error: errorMessage(err) });
+    }
+  });
+
+  // --- Runtime integration config (capability selections + onboarding flag) ---
+
+  app.get('/api/setup/status', async (_req: Request, res: Response) => {
+    if (!store) return res.status(503).json({ error: 'database unavailable' });
+    res.json(await getStatus(store));
+  });
+
+  app.get('/api/setup/config', async (_req: Request, res: Response) => {
+    if (!store) return res.status(503).json({ error: 'database unavailable' });
+    res.json(await getRedactedConfig(store));
+  });
+
+  app.put('/api/setup/config', sameOrigin, parseJsonBody, async (req: Request, res: Response) => {
+    if (!store) return res.status(503).json({ ok: false, error: 'database unavailable' });
+    try {
+      await upsertSelection(store, req.body);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ConfigError) {
+        return res.status(400).json({ ok: false, error: errorMessage(err) });
+      }
       res.status(500).json({ ok: false, error: errorMessage(err) });
     }
   });
