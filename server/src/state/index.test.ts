@@ -6,6 +6,7 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { initState } from './index.js';
+import { openStateDb } from './db.js';
 
 let tempDir: string;
 let stateHandle: Awaited<ReturnType<typeof initState>>;
@@ -14,7 +15,8 @@ let api: ReturnType<typeof request>;
 beforeEach(async () => {
   tempDir = await mkdtemp(path.join(os.tmpdir(), 'homelab-state-test-'));
   const app = express();
-  stateHandle = await initState(app, { dbPath: path.join(tempDir, 'state.sqlite') });
+  const store = await openStateDb(path.join(tempDir, 'state.sqlite'));
+  stateHandle = await initState(app, { store });
   api = request(app);
 });
 

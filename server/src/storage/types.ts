@@ -2,7 +2,7 @@
 // .scratch/pluggable-database). Both stores expose Promise-returning methods so
 // a SQLite, Postgres, or MySQL adapter can satisfy the same interface. Issues
 // 02–04 implement these per dialect; consumers depend only on the contracts.
-import type { InsertEventInput, QueryEventsOpts, StoredEvent, SyslogEvent } from '../siem/db.js';
+import type { InsertEventInput, QueryEventsOpts, StoredEvent, SyslogEvent } from '../siem/types.js';
 import type { ResolvedDbConfig } from './config.js';
 
 /** Whole key→value app-state map plus per-key update timestamps. */

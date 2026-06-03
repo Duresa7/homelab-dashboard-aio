@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { initSiem } from './siem/index.js';
 import { initState } from './state/index.js';
 import { initSensors } from './sensors/index.js';
+import { resolveDbConfig } from './storage/config.js';
+import { openStores } from './storage/factory.js';
 import { isEnabled } from './lib/env.js';
 import { errorMessage } from './lib/errors.js';
 import { registerDocker, dockerStatus, probeDocker } from './integrations/docker.js';
@@ -38,15 +40,13 @@ if (process.env.NODE_ENV !== 'test') {
 const SIEM_ENABLED = isEnabled(process.env.SIEM_ENABLED, false);
 const SIEM_PORT = Number(process.env.SIEM_PORT) || 514;
 const SIEM_HOST = process.env.SIEM_HOST || '0.0.0.0';
-const SIEM_DB_PATH = process.env.SIEM_DB_PATH
-  ? path.resolve(process.env.SIEM_DB_PATH)
-  : path.resolve(process.cwd(), 'data', 'siem.sqlite');
 const SIEM_RETENTION_DAYS = Number(process.env.SIEM_RETENTION_DAYS) || 30;
 const SIEM_MAX_PER_QUERY = Number(process.env.SIEM_MAX_PER_QUERY) || 1000;
 
-const STATE_DB_PATH = process.env.STATE_DB_PATH
-  ? path.resolve(process.env.STATE_DB_PATH)
-  : path.resolve(process.cwd(), 'data', 'dashboard.sqlite');
+// Resolve the database backend once at boot (SQLite at today's paths unless env
+// or data/database.json selects otherwise). Used for both the store factory and
+// the startup log.
+const DB_CONFIG = resolveDbConfig();
 
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -252,11 +252,21 @@ if (process.env.NODE_ENV !== 'test') {
   process.on('exit', shutdownProtect);
 }
 
-// Persistent app-state DB (inventory, thresholds, tweaks, etc.). Core, always on.
-const stateHandle = await initState(app, { dbPath: STATE_DB_PATH }).catch((err) => {
-  console.error(`State: init failed - ${err.message}`);
-  return { shutdown() {} };
+// Open both stores for the resolved backend (SQLite at today's paths by
+// default). DB selection is read from env/file at boot since the app config
+// store lives inside the chosen DB.
+const stores = await openStores(DB_CONFIG).catch((err) => {
+  console.error(`Database: failed to open stores - ${errorMessage(err)}`);
+  return null;
 });
+
+// Persistent app-state DB (inventory, thresholds, tweaks, etc.). Core, always on.
+const stateHandle = stores
+  ? await initState(app, { store: stores.state }).catch((err) => {
+      console.error(`State: init failed - ${err.message}`);
+      return { shutdown() {} };
+    })
+  : { shutdown() {} };
 if (process.env.NODE_ENV !== 'test') {
   process.on('SIGINT', () => {
     try {
@@ -275,17 +285,19 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // SIEM mounts UDP listener + SSE + REST routes on `app`. Must complete before app.listen.
-const siemHandle = await initSiem(app, {
-  enabled: SIEM_ENABLED,
-  port: SIEM_PORT,
-  host: SIEM_HOST,
-  dbPath: SIEM_DB_PATH,
-  retentionDays: SIEM_RETENTION_DAYS,
-  maxPerQuery: SIEM_MAX_PER_QUERY,
-}).catch((err) => {
-  console.error(`SIEM: init failed - ${err.message}`);
-  return { shutdown() {} };
-});
+const siemHandle = stores
+  ? await initSiem(app, {
+      store: stores.siem,
+      enabled: SIEM_ENABLED,
+      port: SIEM_PORT,
+      host: SIEM_HOST,
+      retentionDays: SIEM_RETENTION_DAYS,
+      maxPerQuery: SIEM_MAX_PER_QUERY,
+    }).catch((err) => {
+      console.error(`SIEM: init failed - ${err.message}`);
+      return { shutdown() {} };
+    })
+  : { shutdown() {} };
 if (process.env.NODE_ENV !== 'test') {
   process.on('SIGINT', () => {
     try {
@@ -385,14 +397,14 @@ if (process.env.NODE_ENV !== 'test') {
     }
     if (SIEM_ENABLED) {
       console.log(
-        `SIEM: enabled — UDP ${SIEM_HOST}:${SIEM_PORT}, db ${SIEM_DB_PATH}, retention ${SIEM_RETENTION_DAYS}d`,
+        `SIEM: enabled — UDP ${SIEM_HOST}:${SIEM_PORT}, db ${DB_CONFIG.sqlite.siemPath}, retention ${SIEM_RETENTION_DAYS}d`,
       );
     } else {
       console.log(
         'SIEM: DISABLED (set SIEM_ENABLED=true in .env to enable syslog ingestion on UDP 514)',
       );
     }
-    console.log(`State: db ${STATE_DB_PATH}`);
+    console.log(`State: db ${DB_CONFIG.sqlite.statePath}`);
   });
 }
 

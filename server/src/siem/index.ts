@@ -1,12 +1,12 @@
 import dgram from 'node:dgram';
 import os from 'node:os';
-import path from 'node:path';
 import type { Express, Request, Response } from 'express';
 
 import { errorMessage } from '../lib/errors.js';
+import type { SiemStore } from '../storage/types.js';
 import { parseSyslog } from './parser.js';
 import { classifySyslog } from './classifier.js';
-import { openSiemDb, type StoredEvent } from './db.js';
+import type { StoredEvent } from './types.js';
 import { createSseBus } from './sse.js';
 
 const RETENTION_SWEEP_INTERVAL_MS = 6 * 60 * 60_000;
@@ -24,10 +24,10 @@ const RATE_BUCKETS_MAX = 4096; // cap distinct sources tracked
 const RETENTION_CHUNK_ROWS = 1000;
 
 export interface SiemOptions {
+  store: SiemStore;
   enabled: boolean;
   port?: number;
   host?: string;
-  dbPath?: string;
   retentionDays?: number;
   maxPerQuery?: number;
 }
@@ -53,10 +53,10 @@ function bestLanIp(): string {
 
 export async function initSiem(app: Express, opts: SiemOptions) {
   const {
+    store,
     enabled,
     port = 514,
     host = '0.0.0.0',
-    dbPath = path.resolve('data/siem.sqlite'),
     retentionDays = 30,
     maxPerQuery = 1000,
   } = opts;
@@ -86,10 +86,14 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     app.get('/api/siem/stream', (_req: Request, res: Response) =>
       res.status(503).end('SIEM disabled'),
     );
-    return { shutdown() {} };
+    return {
+      shutdown() {
+        void store.close().catch(() => {});
+      },
+    };
   }
 
-  const db = await openSiemDb(dbPath);
+  const db = store;
   const sse = createSseBus({ replayAfter: db.replayAfter });
 
   const stats: {
@@ -146,7 +150,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
 
   const sock = dgram.createSocket('udp4');
 
-  sock.on('message', (buf, rinfo) => {
+  sock.on('message', async (buf, rinfo) => {
     stats.packetsReceived += 1;
     stats.bytesReceived += buf.length;
 
@@ -180,7 +184,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
 
     let stored: StoredEvent;
     try {
-      stored = db.insertEvent({
+      stored = await db.insertEvent({
         receivedAt: Date.now(),
         logTime: parsed.logTime ?? null,
         sourceIp: tagged.source_ip,
@@ -256,7 +260,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
       // Loop until a chunk returns 0; yield to the event loop between
       // chunks so UDP, HTTP, and SSE handlers stay responsive.
       while (true) {
-        const removed = db.purgeOlderThanChunk(cutoff, RETENTION_CHUNK_ROWS);
+        const removed = await db.purgeOlderThanChunk(cutoff, RETENTION_CHUNK_ROWS);
         total += removed;
         if (removed < RETENTION_CHUNK_ROWS) break;
         await new Promise<void>((r) => setImmediate(() => r()));
@@ -276,50 +280,63 @@ export async function initSiem(app: Express, opts: SiemOptions) {
   }, RETENTION_SWEEP_INTERVAL_MS);
   sweepTimer.unref?.();
 
-  app.get('/api/siem/status', (_req: Request, res: Response) => {
-    const t = db.totals();
-    res.json({
-      enabled: true,
-      listening: !!stats.boundAt && !stats.bindError,
-      host,
-      port,
-      serverAddress: bestLanIp(),
-      eventsTotal: t.total,
-      eventsLastHour: t.lastHour,
-      bytesReceived: stats.bytesReceived,
-      packetsReceived: stats.packetsReceived,
-      packetsTruncated: stats.packetsTruncated,
-      packetsRateLimited: stats.packetsRateLimited,
-      parseErrors: stats.parseErrors,
-      lastEventAt: t.lastEventAt,
-      clientCount: sse.clientCount(),
-      bindError: stats.bindError,
-      retentionDays,
-      maxPacketBytes: MAX_PACKET_BYTES,
-      ratePps: RATE_PPS,
-      rateBurst: RATE_BURST,
-      sourceAllowlist: allowedSources,
-    });
+  // The store is async; Express 4 doesn't catch rejected handler promises, so
+  // each handler maps a store failure to a 500 itself.
+  const dbError = (res: Response, err: unknown) =>
+    res.status(500).json({ error: err instanceof Error ? err.message : 'siem store error' });
+
+  app.get('/api/siem/status', async (_req: Request, res: Response) => {
+    try {
+      const t = await db.totals();
+      res.json({
+        enabled: true,
+        listening: !!stats.boundAt && !stats.bindError,
+        host,
+        port,
+        serverAddress: bestLanIp(),
+        eventsTotal: t.total,
+        eventsLastHour: t.lastHour,
+        bytesReceived: stats.bytesReceived,
+        packetsReceived: stats.packetsReceived,
+        packetsTruncated: stats.packetsTruncated,
+        packetsRateLimited: stats.packetsRateLimited,
+        parseErrors: stats.parseErrors,
+        lastEventAt: t.lastEventAt,
+        clientCount: sse.clientCount(),
+        bindError: stats.bindError,
+        retentionDays,
+        maxPacketBytes: MAX_PACKET_BYTES,
+        ratePps: RATE_PPS,
+        rateBurst: RATE_BURST,
+        sourceAllowlist: allowedSources,
+      });
+    } catch (err) {
+      dbError(res, err);
+    }
   });
 
-  app.get('/api/siem/logs', (req: Request, res: Response) => {
+  app.get('/api/siem/logs', async (req: Request, res: Response) => {
     const limit = Math.min(Number(req.query.limit) || 200, maxPerQuery);
-    const events = db.queryEvents({
-      since: req.query.since ? Number(req.query.since) : null,
-      until: req.query.until ? Number(req.query.until) : null,
-      severity: req.query.severity ?? null,
-      deviceKind: req.query.device_kind ?? req.query.deviceKind ?? null,
-      category: req.query.category ?? null,
-      sourceIp: req.query.source_ip ?? req.query.sourceIp ?? null,
-      q: req.query.q ?? null,
-      afterId: req.query.after_id ? Number(req.query.after_id) : null,
-      limit,
-      order: req.query.order === 'asc' ? 'asc' : 'desc',
-    });
-    res.json({ events, limit });
+    try {
+      const events = await db.queryEvents({
+        since: req.query.since ? Number(req.query.since) : null,
+        until: req.query.until ? Number(req.query.until) : null,
+        severity: req.query.severity ?? null,
+        deviceKind: req.query.device_kind ?? req.query.deviceKind ?? null,
+        category: req.query.category ?? null,
+        sourceIp: req.query.source_ip ?? req.query.sourceIp ?? null,
+        q: req.query.q ?? null,
+        afterId: req.query.after_id ? Number(req.query.after_id) : null,
+        limit,
+        order: req.query.order === 'asc' ? 'asc' : 'desc',
+      });
+      res.json({ events, limit });
+    } catch (err) {
+      dbError(res, err);
+    }
   });
 
-  app.get('/api/siem/stats', (req: Request, res: Response) => {
+  app.get('/api/siem/stats', async (req: Request, res: Response) => {
     const win = req.query.window || '1h';
     const map: Record<string, number> = {
       '15m': 900_000,
@@ -329,10 +346,16 @@ export async function initSiem(app: Express, opts: SiemOptions) {
       '30d': 30 * 86400_000,
     };
     const ms = map[String(win)] ?? 3600_000;
-    res.json({ window: win, ...db.getStats({ since: Date.now() - ms }) });
+    try {
+      res.json({ window: win, ...(await db.getStats({ since: Date.now() - ms })) });
+    } catch (err) {
+      dbError(res, err);
+    }
   });
 
-  app.get('/api/siem/stream', (req: Request, res: Response) => sse.handle(req, res));
+  app.get('/api/siem/stream', (req: Request, res: Response) => {
+    void sse.handle(req, res);
+  });
 
   function shutdown() {
     clearInterval(sweepTimer);
@@ -342,11 +365,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
       /* ignore */
     }
     sse.shutdown();
-    try {
-      db.close();
-    } catch {
-      /* ignore */
-    }
+    void db.close().catch(() => {});
   }
 
   return { shutdown };

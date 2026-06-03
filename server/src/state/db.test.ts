@@ -21,15 +21,15 @@ describe('state DB schema migrations', () => {
 
     const db = await openStateDb(dbPath);
     expect((await db.stats()).schemaVersion).toBe(2);
-    db.put('tempUnit', 'f');
-    db.close();
+    await db.put('tempUnit', 'f');
+    await db.close();
 
-    // Re-open: version is already at HEAD so the migration loop is a no-op,
+    // Re-open: migrations are already recorded so the runner is a no-op,
     // and the previously-written row survives.
     const reopened = await openStateDb(dbPath);
     expect((await reopened.stats()).schemaVersion).toBe(2);
-    expect(reopened.get('tempUnit')?.value).toBe('f');
-    reopened.close();
+    expect((await reopened.get('tempUnit'))?.value).toBe('f');
+    await reopened.close();
   });
 
   it('cleans persisted inventory category copy while preserving item data', async () => {
@@ -88,18 +88,20 @@ describe('state DB schema migrations', () => {
 
     const db = await openStateDb(dbPath);
     expect((await db.stats()).schemaVersion).toBe(2);
-    const cleaned = db.get('inventory')?.value as typeof legacyInventory;
+    const cleanedRow = await db.get('inventory');
+    const cleaned = cleanedRow?.value as typeof legacyInventory;
 
     expect(cleaned.spares.map((category) => category.name)).toEqual(['Network', 'Networking']);
     expect(cleaned.spares.every((category) => !('note' in category))).toBe(true);
     expect(cleaned.spares[0].items).toEqual(legacyInventory.spares[0].items);
     expect(cleaned.spares[1].items).toEqual(legacyInventory.spares[1].items);
-    expect(db.get('inventory')?.updatedAt).toBe(123);
-    db.close();
+    expect(cleanedRow?.updatedAt).toBe(123);
+    await db.close();
 
     const reopened = await openStateDb(dbPath);
-    expect(reopened.get('inventory')?.value).toEqual(cleaned);
-    expect(reopened.get('inventory')?.updatedAt).toBe(123);
-    reopened.close();
+    const reopenedRow = await reopened.get('inventory');
+    expect(reopenedRow?.value).toEqual(cleaned);
+    expect(reopenedRow?.updatedAt).toBe(123);
+    await reopened.close();
   });
 });

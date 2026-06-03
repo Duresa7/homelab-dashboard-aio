@@ -1,20 +1,33 @@
-import Database from 'better-sqlite3';
-import { mkdir, stat } from 'node:fs/promises';
-import path from 'node:path';
+// App-state key→value store, backed by Kysely + SQLite (better-sqlite3). Exposes
+// the async StateStore contract so a Postgres/MySQL adapter can drop in later.
+import { stat } from 'node:fs/promises';
 
-interface AppStateRow {
+import {
+  countApplied,
+  runMigrations,
+  type Migration,
+  type WithMigrations,
+} from '../storage/migrations.js';
+import { openSqliteKysely } from '../storage/sqlite.js';
+import type { StateEntry, StateSnapshot, StateStore, StateStoreStats } from '../storage/types.js';
+
+interface AppStateTable {
   key: string;
   value: string;
   updated_at: number;
 }
-interface CountRow {
-  n: number;
+
+interface StateDatabase extends WithMigrations {
+  app_state: AppStateTable;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+// Strip the per-category descriptive `note` and rename the old
+// "Networking (legacy)" category — the vendor-neutral cleanup applied to an
+// already-persisted inventory blob.
 function cleanPersistedInventory(value: unknown): { value: unknown; changed: boolean } {
   if (!isRecord(value) || !Array.isArray(value.spares)) {
     return { value, changed: false };
@@ -41,143 +54,147 @@ function cleanPersistedInventory(value: unknown): { value: unknown; changed: boo
   return { value: { ...value, spares }, changed: true };
 }
 
-function cleanPersistedInventoryRow(db: Database.Database): void {
-  const row = db.prepare(`SELECT value FROM app_state WHERE key = ?`).get('inventory') as
-    | { value: string }
-    | undefined;
-  if (!row) return;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(row.value);
-  } catch {
-    return;
-  }
-
-  const cleaned = cleanPersistedInventory(parsed);
-  if (!cleaned.changed) return;
-
-  db.prepare(`UPDATE app_state SET value = ? WHERE key = ?`).run(
-    JSON.stringify(cleaned.value),
-    'inventory',
-  );
-}
-
-// Ordered schema migrations. The DB's `user_version` pragma records how many
-// have run, so the only step for a future schema change is to append a function
-// here — no manual SQL on deploy. Existing DBs created before versioning (and
-// fresh ones) start at user_version 0; the idempotent v1 CREATE brings both to 1.
-// (The client carries its own inventory schema version independently — see
-// client/src/lib; the server `user_version` is unrelated to it.)
-const MIGRATIONS: Array<(db: Database.Database) => void> = [
-  // v1 — initial app_state table.
-  (db) => {
-    db.prepare(
-      `CREATE TABLE IF NOT EXISTS app_state (
-        key        TEXT PRIMARY KEY,
-        value      TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
-      )`,
-    ).run();
+// Ordered migrations. Names map 1:1 to the old `user_version` steps so an
+// existing DB reconciles cleanly (v1 -> 001, v2 -> 002).
+const MIGRATIONS: Migration<StateDatabase>[] = [
+  {
+    name: '001_app_state',
+    up: async (db) => {
+      await db.schema
+        .createTable('app_state')
+        .ifNotExists()
+        .addColumn('key', 'text', (c) => c.primaryKey())
+        .addColumn('value', 'text', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
+        .execute();
+    },
   },
-  // v2 — remove category-level inventory prose and the old "(legacy)" label.
-  (db) => {
-    cleanPersistedInventoryRow(db);
+  {
+    name: '002_clean_inventory',
+    up: async (db) => {
+      const row = await db
+        .selectFrom('app_state')
+        .select('value')
+        .where('key', '=', 'inventory')
+        .executeTakeFirst();
+      if (!row) return;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(row.value);
+      } catch {
+        return;
+      }
+      const cleaned = cleanPersistedInventory(parsed);
+      if (!cleaned.changed) return;
+      // Update value only — leave updated_at so the row's age is preserved.
+      await db
+        .updateTable('app_state')
+        .set({ value: JSON.stringify(cleaned.value) })
+        .where('key', '=', 'inventory')
+        .execute();
+    },
   },
 ];
 
-function migrate(db: Database.Database): void {
-  const current = db.pragma('user_version', { simple: true }) as number;
-  for (let v = current; v < MIGRATIONS.length; v++) {
-    const apply = db.transaction(() => {
-      MIGRATIONS[v](db);
-      db.pragma(`user_version = ${v + 1}`);
-    });
-    apply();
-  }
-}
+export async function openStateDb(dbPath: string): Promise<StateStore> {
+  const { db, legacyVersion } = await openSqliteKysely<StateDatabase>(dbPath);
+  await runMigrations(db, MIGRATIONS, { legacyVersion });
 
-export async function openStateDb(dbPath: string) {
-  await mkdir(path.dirname(dbPath), { recursive: true });
-  const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('synchronous = NORMAL');
-  migrate(db);
-
-  const getAllStmt = db.prepare(`SELECT key, value, updated_at FROM app_state`);
-  const getOneStmt = db.prepare(`SELECT value, updated_at FROM app_state WHERE key = ?`);
-  const upsertStmt = db.prepare(`
-    INSERT INTO app_state (key, value, updated_at) VALUES (@key, @value, @updated_at)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-  `);
-  const deleteStmt = db.prepare(`DELETE FROM app_state WHERE key = ?`);
-  const countStmt = db.prepare(`SELECT COUNT(*) AS n FROM app_state`);
-  const upsertMany = db.transaction((entries: [string, unknown][]) => {
-    const now = Date.now();
-    for (const [key, value] of entries) {
-      upsertStmt.run({ key, value: JSON.stringify(value), updated_at: now });
-    }
-  });
-
-  function getAll() {
-    const rows = getAllStmt.all() as AppStateRow[];
-    const out: Record<string, unknown> = {};
-    const meta: Record<string, number> = {};
-    for (const row of rows) {
-      try {
-        out[row.key] = JSON.parse(row.value);
-      } catch {
-        out[row.key] = null;
+  return {
+    async getAll(): Promise<StateSnapshot> {
+      const rows = await db
+        .selectFrom('app_state')
+        .select(['key', 'value', 'updated_at'])
+        .execute();
+      const values: Record<string, unknown> = {};
+      const updatedAt: Record<string, number> = {};
+      for (const row of rows) {
+        try {
+          values[row.key] = JSON.parse(row.value);
+        } catch {
+          values[row.key] = null;
+        }
+        updatedAt[row.key] = row.updated_at;
       }
-      meta[row.key] = row.updated_at;
-    }
-    return { values: out, updatedAt: meta };
-  }
+      return { values, updatedAt };
+    },
 
-  function get(key: string) {
-    const row = getOneStmt.get(key) as { value: string; updated_at: number } | undefined;
-    if (!row) return null;
-    try {
-      return { value: JSON.parse(row.value), updatedAt: row.updated_at };
-    } catch {
-      return { value: null, updatedAt: row.updated_at };
-    }
-  }
+    async get(key: string): Promise<StateEntry | null> {
+      const row = await db
+        .selectFrom('app_state')
+        .select(['value', 'updated_at'])
+        .where('key', '=', key)
+        .executeTakeFirst();
+      if (!row) return null;
+      try {
+        return { value: JSON.parse(row.value), updatedAt: row.updated_at };
+      } catch {
+        return { value: null, updatedAt: row.updated_at };
+      }
+    },
 
-  function put(key: string, value: unknown) {
-    const now = Date.now();
-    upsertStmt.run({ key, value: JSON.stringify(value), updated_at: now });
-    return now;
-  }
+    async put(key: string, value: unknown): Promise<number> {
+      const now = Date.now();
+      await db
+        .insertInto('app_state')
+        .values({ key, value: JSON.stringify(value), updated_at: now })
+        .onConflict((oc) =>
+          oc.column('key').doUpdateSet((eb) => ({
+            value: eb.ref('excluded.value'),
+            updated_at: eb.ref('excluded.updated_at'),
+          })),
+        )
+        .execute();
+      return now;
+    },
 
-  function del(key: string) {
-    return deleteStmt.run(key).changes;
-  }
+    async delete(key: string): Promise<number> {
+      const res = await db.deleteFrom('app_state').where('key', '=', key).executeTakeFirst();
+      return Number(res.numDeletedRows ?? 0);
+    },
 
-  function importBulk(entries: Record<string, unknown>) {
-    upsertMany(Object.entries(entries));
-    return Object.keys(entries).length;
-  }
+    async importBulk(entries: Record<string, unknown>): Promise<number> {
+      const keys = Object.keys(entries);
+      if (keys.length === 0) return 0;
+      const now = Date.now();
+      await db.transaction().execute(async (trx) => {
+        for (const [key, value] of Object.entries(entries)) {
+          await trx
+            .insertInto('app_state')
+            .values({ key, value: JSON.stringify(value), updated_at: now })
+            .onConflict((oc) =>
+              oc.column('key').doUpdateSet((eb) => ({
+                value: eb.ref('excluded.value'),
+                updated_at: eb.ref('excluded.updated_at'),
+              })),
+            )
+            .execute();
+        }
+      });
+      return keys.length;
+    },
 
-  async function stats() {
-    let fileSize: number | null = null;
-    try {
-      const s = await stat(dbPath);
-      fileSize = s.size;
-    } catch {
-      /* ignore */
-    }
-    return {
-      path: dbPath,
-      fileSize,
-      keys: (countStmt.get() as CountRow).n,
-      schemaVersion: db.pragma('user_version', { simple: true }) as number,
-    };
-  }
+    async stats(): Promise<StateStoreStats> {
+      let fileSize: number | null = null;
+      try {
+        fileSize = (await stat(dbPath)).size;
+      } catch {
+        /* ignore */
+      }
+      const count = await db
+        .selectFrom('app_state')
+        .select((eb) => eb.fn.countAll().as('n'))
+        .executeTakeFirst();
+      return {
+        path: dbPath,
+        fileSize,
+        keys: Number(count?.n ?? 0),
+        schemaVersion: await countApplied(db),
+      };
+    },
 
-  function close() {
-    db.close();
-  }
-
-  return { getAll, get, put, delete: del, importBulk, stats, close };
+    async close(): Promise<void> {
+      await db.destroy();
+    },
+  };
 }

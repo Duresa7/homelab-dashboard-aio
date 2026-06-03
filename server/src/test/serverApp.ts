@@ -19,6 +19,7 @@ const ENV_KEYS = [
   'NODE_ENV',
   'DISABLE_ALL',
   'STATE_DB_PATH',
+  'SIEM_DB_PATH',
   'SIEM_ENABLED',
   'UNIFI_ENABLED',
   'UNIFI_BASE_URL',
@@ -57,6 +58,7 @@ export async function loadServerApp(env: Record<string, string> = {}) {
   Object.assign(process.env, {
     NODE_ENV: 'test',
     STATE_DB_PATH: path.join(tempDir, 'state.sqlite'),
+    SIEM_DB_PATH: path.join(tempDir, 'siem.sqlite'),
     SIEM_ENABLED: 'false',
     UNIFI_ENABLED: 'false',
     PORTAINER_ENABLED: 'false',

@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import type { SyslogEvent } from './db.js';
+import type { SyslogEvent } from './types.js';
 
 const HEARTBEAT_MS = 25_000;
 const REPLAY_LIMIT = 1000;
@@ -12,7 +12,7 @@ interface Client {
 }
 
 export interface SseBusOpts {
-  replayAfter: (lastId: number, limit?: number) => SyslogEvent[];
+  replayAfter: (lastId: number, limit?: number) => Promise<SyslogEvent[]>;
 }
 
 export function createSseBus({ replayAfter }: SseBusOpts) {
@@ -51,7 +51,7 @@ export function createSseBus({ replayAfter }: SseBusOpts) {
     }
   }
 
-  function handle(req: Request, res: Response) {
+  async function handle(req: Request, res: Response) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
@@ -75,7 +75,7 @@ export function createSseBus({ replayAfter }: SseBusOpts) {
     if (since > 0) {
       let missed: SyslogEvent[];
       try {
-        missed = replayAfter(since, REPLAY_LIMIT);
+        missed = await replayAfter(since, REPLAY_LIMIT);
       } catch {
         missed = [];
       }
