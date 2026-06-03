@@ -11,6 +11,58 @@ interface CountRow {
   n: number;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function cleanPersistedInventory(value: unknown): { value: unknown; changed: boolean } {
+  if (!isRecord(value) || !Array.isArray(value.spares)) {
+    return { value, changed: false };
+  }
+
+  let changed = false;
+  const spares = value.spares.map((category) => {
+    if (!isRecord(category)) return category;
+
+    let next = category;
+    if (Object.prototype.hasOwnProperty.call(next, 'note')) {
+      next = { ...next };
+      delete next.note;
+      changed = true;
+    }
+    if (next.name === 'Networking (legacy)') {
+      next = { ...next, name: 'Networking' };
+      changed = true;
+    }
+    return next;
+  });
+
+  if (!changed) return { value, changed: false };
+  return { value: { ...value, spares }, changed: true };
+}
+
+function cleanPersistedInventoryRow(db: Database.Database): void {
+  const row = db.prepare(`SELECT value FROM app_state WHERE key = ?`).get('inventory') as
+    | { value: string }
+    | undefined;
+  if (!row) return;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(row.value);
+  } catch {
+    return;
+  }
+
+  const cleaned = cleanPersistedInventory(parsed);
+  if (!cleaned.changed) return;
+
+  db.prepare(`UPDATE app_state SET value = ? WHERE key = ?`).run(
+    JSON.stringify(cleaned.value),
+    'inventory',
+  );
+}
+
 // Ordered schema migrations. The DB's `user_version` pragma records how many
 // have run, so the only step for a future schema change is to append a function
 // here — no manual SQL on deploy. Existing DBs created before versioning (and
@@ -27,6 +79,10 @@ const MIGRATIONS: Array<(db: Database.Database) => void> = [
         updated_at INTEGER NOT NULL
       )`,
     ).run();
+  },
+  // v2 — remove category-level inventory prose and the old "(legacy)" label.
+  (db) => {
+    cleanPersistedInventoryRow(db);
   },
 ];
 

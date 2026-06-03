@@ -26,7 +26,7 @@ describe('OverviewPage', () => {
     expect(screen.getByText('Services')).toBeInTheDocument();
     expect(screen.getByText('CPU')).toBeInTheDocument();
     expect(screen.getByText('Docker')).toBeInTheDocument();
-    expect(screen.getByText('Proxmox')).toBeInTheDocument();
+    expect(screen.getByText('Data Center')).toBeInTheDocument();
     expect(screen.getByText('AMD Ryzen 9 9950X3D')).toBeInTheDocument();
 
     await user.click(screen.getByLabelText('Chart: bars'));

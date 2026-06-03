@@ -210,7 +210,7 @@ function Overview({ data, onOpen }: { data: DashboardState; onOpen: OpenFn }) {
   if (protect.total === 0) {
     return (
       <div className="grid grid-cols-12 gap-[var(--gap)]">
-        <SectionCard span={12} title="UniFi Protect">
+        <SectionCard span={12} title="Cameras">
           <div className="py-10 text-center text-sm text-muted-foreground">
             No cameras reported. Check that PROTECT_ENABLED is true and PROTECT_API_KEY is set.
           </div>

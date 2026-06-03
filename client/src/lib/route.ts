@@ -78,7 +78,7 @@ export const DEFAULT_SUB: Record<Section, string | undefined> = {
 
 export const SECTION_LABEL: Record<Section, string> = {
   overview: 'Overview',
-  proxmox: 'Proxmox',
+  proxmox: 'Data Center',
   network: 'Network',
   docker: 'Docker',
   nas: 'NAS',

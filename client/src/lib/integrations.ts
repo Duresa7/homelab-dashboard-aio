@@ -13,19 +13,19 @@ export const INTEGRATIONS: IntegrationDef[] = [
   {
     key: 'unifi',
     healthField: 'unifi',
-    label: 'UniFi Network',
+    label: 'Network',
     description: 'Gateway, switches, APs, clients, WAN throughput.',
   },
   {
     key: 'protect',
     healthField: 'protect',
-    label: 'Cameras (UniFi Protect)',
+    label: 'Cameras',
     description: 'Camera snapshots, live HLS video, motion + smart-detect events.',
   },
   {
     key: 'proxmox',
     healthField: 'proxmox',
-    label: 'Proxmox',
+    label: 'Data Center',
     description: 'VM/LXC inventory, CPU/RAM, storage pools.',
   },
   {
@@ -37,7 +37,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
   {
     key: 'unas',
     healthField: 'unas',
-    label: 'UniFi NAS',
+    label: 'NAS',
     description: 'Pools, disks, fan profile.',
   },
   {

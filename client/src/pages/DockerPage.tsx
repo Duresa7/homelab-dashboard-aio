@@ -41,21 +41,13 @@ function Hosts({ data }: { data: DashboardState }) {
         icon={<Square strokeWidth={1.75} />}
         label="Stopped"
         value={stopped}
-        hint={stopped === 0 ? 'all healthy' : 'not running'}
       />
-      <StatCard
-        span={3}
-        icon={<Server strokeWidth={1.75} />}
-        label="Hosts"
-        value={hosts.length}
-        hint={hosts.map((h) => h.name).join(' · ')}
-      />
+      <StatCard span={3} icon={<Server strokeWidth={1.75} />} label="Hosts" value={hosts.length} />
       <StatCard
         span={3}
         icon={<Layers strokeWidth={1.75} />}
         label="Stacks"
         value={stacks.length}
-        hint={stacks.join(', ')}
       />
 
       <SectionCard

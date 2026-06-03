@@ -14,7 +14,7 @@ export function ProxmoxTile({ data, span, onExpand, expandable }: Props) {
   const stopped = vms.length - running;
   return (
     <Tile
-      title="Proxmox"
+      title="Data Center"
       sub={node.name}
       span={span}
       onExpand={onExpand}

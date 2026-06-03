@@ -33,7 +33,7 @@ export function ProtectTile({ data, span, onExpand, expandable }: Props) {
   return (
     <Tile
       title="Cameras"
-      sub={nvr ? nvr.name : 'UniFi Protect'}
+      sub={nvr ? nvr.name : 'Cameras'}
       span={span}
       onExpand={onExpand}
       expandable={expandable}

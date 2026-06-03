@@ -23,19 +23,19 @@ const BOOKMARKS: BookmarkDef[] = [
   {
     id: 'bm-proxmox',
     url: 'https://198.51.100.10:8006/#v1:0:18:4:::::::',
-    label: 'Proxmox',
+    label: 'Data Center',
     src: `${DI}/proxmox.svg`,
   },
   {
     id: 'bm-unifi-gw',
     url: 'https://198.51.100.10/network/default/dashboard',
-    label: 'UniFi Network',
+    label: 'Network Console',
     src: `${DI}/unifi-controller.svg`,
   },
   {
     id: 'bm-unifi-drive',
     url: 'https://198.51.100.10/drive/dashboard',
-    label: 'UniFi Drive',
+    label: 'NAS Drive',
     src: `${DI}/unifi-drive.svg`,
   },
   {
