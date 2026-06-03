@@ -14,6 +14,7 @@
    server-backed store (lib/store.ts); user can edit, export/import, reset.
    ========================================================= */
 
+import { getConnectivity } from './connectivity';
 import { getState, setState, isDegraded } from './store';
 
 export interface MetaRow {
@@ -1302,7 +1303,6 @@ function makeSeed(): Inventory {
       name: 'Network',
       deviceType: 'network',
       prefix: '04',
-      note: 'Active Ubiquiti gear powering the network.',
       columns: [
         { id: 'role', label: 'Role' },
         { id: 'brand', label: 'Brand' },
@@ -1450,10 +1450,9 @@ function makeSeed(): Inventory {
     },
     {
       id: genId('cat'),
-      name: 'Networking (legacy)',
+      name: 'Networking',
       deviceType: 'network',
       prefix: '04',
-      note: 'Earlier networking gear retained as spares.',
       columns: [
         { id: 'brand', label: 'Brand' },
         { id: 'model', label: 'Model' },
@@ -1534,6 +1533,15 @@ const SCHEMA_VERSION = 8;
 interface Persisted {
   v: number;
   data: Inventory;
+}
+
+function emptyInventory(): Inventory {
+  return { lastUpdated: '', machines: [], components: [], spares: [] };
+}
+
+function canMaterializeSeed(): boolean {
+  if (isDegraded()) return false;
+  return getConnectivity().status !== 'offline';
 }
 
 /* ---------- migration ---------- */
@@ -1701,10 +1709,15 @@ function migrateV6toV7(old: OldInventory): Inventory {
     const deviceType = cat.kind === 'network' ? 'network' : detectDeviceType(cat.name);
     const prefix = DEVICE_BLOCKS[deviceType];
     // Only the explicitly-active category (the old kind:'network') is deployed;
-    // "Networking (legacy)" and every other device category default to spare.
+    // older spare-networking and every other device category default to spare.
     const activeCategory = cat.kind === 'network';
     // Don't carry vendor-specific category names (e.g. "UniFi Network Infrastructure").
-    const catName = /unifi/i.test(cat.name) ? 'Network' : cat.name;
+    const catName =
+      cat.name === 'Networking (legacy)'
+        ? 'Networking'
+        : /unifi/i.test(cat.name)
+          ? 'Network'
+          : cat.name;
     const cameraItems: SpareItem[] = [];
     const keptItems: SpareItem[] = [];
     // Expand qty>1 identical gear into separate named units (e.g. the 2× USW-Flex
@@ -1761,7 +1774,6 @@ function migrateV6toV7(old: OldInventory): Inventory {
     spares.push({
       id: cat.id,
       name: catName,
-      note: cat.note,
       prefix,
       deviceType,
       columns: cat.columns,
@@ -1920,10 +1932,12 @@ export function loadInventory(): Inventory {
   const persisted = getState<Persisted | null>(STORAGE_KEY, null);
   if (!persisted?.data) {
     // First boot: render the seed AND materialize it into the database so the
-    // server (SQLite) becomes the single, complete source of truth. Skip the
-    // write when the backend is unreachable (degraded).
+    // server (SQLite) becomes the single, complete source of truth. When boot
+    // hydrate failed or the live monitor says offline, return an empty shape
+    // instead of fabricating seed data.
+    if (!canMaterializeSeed()) return emptyInventory();
     const seeded = migrateInventory(makeSeed());
-    if (!isDegraded()) saveInventory(seeded);
+    saveInventory(seeded);
     return seeded;
   }
   if (persisted.v < SCHEMA_VERSION) {

@@ -9,11 +9,17 @@ import '@fontsource-variable/jetbrains-mono';
 // globals.css imports components.css into a low-priority `legacy` cascade layer.
 import './styles/globals.css';
 import { App } from './App';
+import { onReconnect, startHeartbeat } from './lib/connectivity';
 import { TempUnitProvider } from './lib/units';
-import { hydrateStore } from './lib/store';
+import { hydrateStore, rehydrate } from './lib/store';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('#root element not found');
+
+onReconnect(() => {
+  void rehydrate();
+});
+startHeartbeat();
 
 // Pull persistent state from the server before first render so route, theme,
 // inventory, etc. are all in-memory and synchronously readable from components.

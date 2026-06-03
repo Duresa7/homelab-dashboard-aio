@@ -25,6 +25,7 @@ import {
   type SpareColumn,
   type SpareItem,
 } from '../lib/inventory';
+import { getState, subscribe } from '../lib/store';
 import { InventoryDetailPanel } from './InventoryDetailPanel';
 import { toast } from 'sonner';
 
@@ -40,6 +41,11 @@ interface InventoryPageProps {
   onSelectItem?: (id: string | undefined) => void;
 }
 
+interface PersistedInventory {
+  v: number;
+  data: Inventory;
+}
+
 export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPageProps = {}) {
   const [inv, setInv] = useState<Inventory>(() => loadInventory());
   const [tab, setTab] = useState<Tab>('machines');
@@ -52,13 +58,39 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
 
   // Skip the initial mount: loadInventory already returned the persisted value.
   const didMountInv = useRef(false);
+  const invRef = useRef(inv);
+  const skipNextSaveRef = useRef(false);
+
   useEffect(() => {
     if (!didMountInv.current) {
       didMountInv.current = true;
+      invRef.current = inv;
       return;
     }
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      invRef.current = inv;
+      return;
+    }
+    invRef.current = inv;
     saveInventory(inv);
   }, [inv]);
+
+  useEffect(
+    () =>
+      subscribe('inventory', () => {
+        const persisted = getState<PersistedInventory | null>('inventory', null);
+        if (persisted?.data === invRef.current) return;
+
+        const next = loadInventory();
+        if (next === invRef.current) return;
+
+        invRef.current = next;
+        skipNextSaveRef.current = true;
+        setInv(next);
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (!selectedItemId) return;

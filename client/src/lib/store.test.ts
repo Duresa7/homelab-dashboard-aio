@@ -52,24 +52,81 @@ describe('DashboardState persistence store', () => {
     expect(store.getState('route', null)).toEqual({ section: 'overview' });
   });
 
-  it('falls back to legacy localStorage when the server is unreachable', async () => {
+  it('does not read or write legacy localStorage when the server is unreachable', async () => {
     localStorage.setItem('homelab-dashboard.tempUnit', 'f');
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        throw new Error('offline');
-      }),
-    );
+    const fetchMock = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     const store = await loadStore();
     await store.hydrateStore();
 
+    expect(store.isHydrated()).toBe(true);
     expect(store.isDegraded()).toBe(true);
-    expect(store.getState('tempUnit', 'c')).toBe('f');
+    expect(store.getState('tempUnit', 'c')).toBe('c');
 
     store.setState('tempUnit', 'c');
     await vi.advanceTimersByTimeAsync(250);
-    expect(localStorage.getItem('homelab-dashboard.tempUnit')).toBe('c');
+    expect(store.getState('tempUnit', 'f')).toBe('c');
+    expect(localStorage.getItem('homelab-dashboard.tempUnit')).toBe('f');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('imports legacy localStorage only after a successful empty server hydrate', async () => {
+    localStorage.setItem('homelab-dashboard.route', JSON.stringify({ section: 'settings' }));
+    localStorage.setItem('homelab-dashboard.siteName', 'rack.local');
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/state' && !init?.method) return jsonResponse({ values: {} });
+      return jsonResponse({ ok: true });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const store = await loadStore();
+    await store.hydrateStore();
+
+    expect(store.isDegraded()).toBe(false);
+    expect(store.getState('route', null)).toEqual({ section: 'settings' });
+    expect(store.getState('siteName', null)).toBe('rack.local');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/state/_import',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(localStorage.getItem('homelab-dashboard.route')).toBeNull();
+    expect(localStorage.getItem('homelab-dashboard.siteName')).toBeNull();
+  });
+
+  it('rehydrates from the server and notifies existing subscribers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ values: { route: { section: 'overview' } } }))
+      .mockResolvedValueOnce(jsonResponse({ values: { tempUnit: 'f' } }))
+      .mockResolvedValueOnce(jsonResponse({ values: { route: { section: 'settings' } } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const store = await loadStore();
+    await store.hydrateStore();
+
+    const routeListener = vi.fn();
+    const tempListener = vi.fn();
+    store.subscribe('route', routeListener);
+    store.subscribe('tempUnit', tempListener);
+
+    await store.rehydrate();
+
+    expect(store.isHydrated()).toBe(true);
+    expect(store.isDegraded()).toBe(false);
+    expect(store.getState('route', null)).toBeNull();
+    expect(store.getState('tempUnit', 'c')).toBe('f');
+    expect(routeListener).toHaveBeenCalledTimes(1);
+    expect(tempListener).toHaveBeenCalledTimes(1);
+
+    await store.rehydrate();
+
+    expect(store.getState('route', null)).toEqual({ section: 'settings' });
+    expect(store.getState('tempUnit', 'c')).toBe('c');
+    expect(routeListener).toHaveBeenCalledTimes(2);
+    expect(tempListener).toHaveBeenCalledTimes(2);
   });
 
   it('notifies subscribers and debounces server writes', async () => {

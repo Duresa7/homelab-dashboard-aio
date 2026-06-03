@@ -10,4 +10,6 @@ export { StatusBadge } from './StatusBadge';
 export type { StatusKind, StatusBadgeProps } from './StatusBadge';
 export { Segmented } from './Segmented';
 export type { SegOption, SegmentedProps } from './Segmented';
+export { BackendOffline } from './BackendOffline';
+export type { BackendOfflineProps } from './BackendOffline';
 export { SPAN_CLASS, spanClass } from './spans';

@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { describe, expect, it } from 'vitest';
 
+import { loadInventory, saveInventory } from '../lib/inventory';
 import { InventoryPage } from './InventoryPage';
 
 function renderInventory() {
@@ -36,6 +37,23 @@ describe('InventoryPage', () => {
     await user.type(screen.getByPlaceholderText('Filter…'), 'example-server');
 
     expect(screen.getAllByText('example-server').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Example PC')).not.toBeInTheDocument();
+  });
+
+  it('repaints when the persisted inventory changes', async () => {
+    renderInventory();
+
+    const next = loadInventory();
+    saveInventory({
+      ...next,
+      machines: next.machines.map((machine, index) =>
+        index === 0 ? { ...machine, name: 'Recovered inventory host' } : machine,
+      ),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Recovered inventory host')).toBeInTheDocument();
+    });
     expect(screen.queryByText('Example PC')).not.toBeInTheDocument();
   });
 });

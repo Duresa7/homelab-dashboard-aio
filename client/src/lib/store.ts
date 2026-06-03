@@ -1,8 +1,8 @@
 /* =========================================================
-   Persistent app state — server-backed with localStorage fallback.
+   Persistent app state — server-backed with one-time legacy import.
 
    Every persisted setting in the dashboard (inventory, thresholds,
-   bookmarks order, sidebar, route, tempUnit, tweaks) goes through
+   bookmarks order, sidebar, route, tempUnit, tweaks, siteName) goes through
    this module instead of touching `window.localStorage` directly.
 
    On boot, `hydrateStore()` pulls the full state map from
@@ -11,9 +11,8 @@
    a `PUT /api/state/:key` so per-keystroke edits don't hammer the
    network.
 
-   If the initial hydrate fails (e.g. server is down), we fall back
-   to reading legacy `homelab-dashboard.*` keys out of localStorage,
-   so the dashboard still renders.
+   If the initial hydrate fails (e.g. server is down), the in-memory
+   state stays empty so the offline/error state can render truthfully.
 
    First time the server returns an empty state, we copy any legacy
    localStorage entries up to the server in a single bulk import,
@@ -31,6 +30,7 @@ const LEGACY_KEY_MAP: Record<string, string> = {
   thresholds: 'homelab-dashboard.thresholds',
   tempUnit: 'homelab-dashboard.tempUnit',
   tweaks: 'homelab-dashboard.tweaks',
+  siteName: 'homelab-dashboard.siteName',
   sidebarCollapsed: 'homelab-dashboard.sidebar-collapsed',
   sidebarExpanded: 'homelab-dashboard.sidebar-expanded',
   bookmarksOrder: 'homelab-dashboard.bookmarks.order',
@@ -46,6 +46,25 @@ let channel: BroadcastChannel | null = null;
 function notify(key: string): void {
   const set = listeners.get(key);
   if (set) for (const fn of set) fn();
+}
+
+function notifyMany(keys: Iterable<string>): void {
+  for (const key of keys) notify(key);
+}
+
+function ensureBroadcastChannel(): void {
+  if (channel || typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
+  channel = new BroadcastChannel('homelab-state');
+  channel.onmessage = (ev) => {
+    const msg = ev.data as { key?: string; value?: unknown; deleted?: boolean };
+    if (!msg?.key) return;
+    if (msg.deleted) {
+      state.delete(msg.key);
+    } else {
+      state.set(msg.key, msg.value);
+    }
+    notify(msg.key);
+  };
 }
 
 function readLegacy(legacyKey: string): unknown {
@@ -104,60 +123,59 @@ async function importLegacyToServer(): Promise<Record<string, unknown>> {
   }
 }
 
+async function loadServerState(): Promise<Record<string, unknown>> {
+  const res = await fetchWithTimeout('/api/state');
+  if (!res.ok) throw new Error(`state hydrate ${res.status}`);
+  const body = (await res.json()) as { values?: Record<string, unknown> };
+  const values = body.values ?? {};
+
+  // First-time migration: if the server has no rows, bulk-import legacy
+  // localStorage keys so existing users don't lose their data.
+  if (Object.keys(values).length === 0) return importLegacyToServer();
+  return values;
+}
+
+function replaceState(values: Record<string, unknown>): void {
+  const keysToNotify = new Set([...state.keys(), ...Object.keys(values)]);
+  state.clear();
+  for (const [k, v] of Object.entries(values)) state.set(k, v);
+  notifyMany(keysToNotify);
+}
+
 export async function hydrateStore(): Promise<void> {
   if (hydrated) return;
   try {
-    const res = await fetchWithTimeout('/api/state');
-    if (!res.ok) throw new Error(`state hydrate ${res.status}`);
-    const body = (await res.json()) as { values?: Record<string, unknown> };
-    const values = body.values ?? {};
+    replaceState(await loadServerState());
+    degraded = false;
+    ensureBroadcastChannel();
+  } catch {
+    // Server unreachable at boot: do not read legacy localStorage as a fallback.
+    replaceState({});
+    degraded = true;
+  } finally {
+    hydrated = true;
+  }
+}
 
-    // First-time migration: if the server has no rows, bulk-import legacy
-    // localStorage keys so existing users don't lose their data.
-    if (Object.keys(values).length === 0) {
-      const imported = await importLegacyToServer();
-      for (const [k, v] of Object.entries(imported)) state.set(k, v);
-    } else {
-      for (const [k, v] of Object.entries(values)) state.set(k, v);
-    }
-
+export async function rehydrate(): Promise<void> {
+  try {
+    replaceState(await loadServerState());
     hydrated = true;
     degraded = false;
-
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      channel = new BroadcastChannel('homelab-state');
-      channel.onmessage = (ev) => {
-        const msg = ev.data as { key?: string; value?: unknown; deleted?: boolean };
-        if (!msg?.key) return;
-        if (msg.deleted) {
-          state.delete(msg.key);
-        } else {
-          state.set(msg.key, msg.value);
-        }
-        notify(msg.key);
-      };
-    }
+    ensureBroadcastChannel();
   } catch {
-    // Server unreachable — populate from legacy localStorage so the UI still works.
-    for (const [storeKey, legacyKey] of Object.entries(LEGACY_KEY_MAP)) {
-      const value = readLegacy(legacyKey);
-      if (value !== undefined) state.set(storeKey, value);
-    }
-    hydrated = true;
-    degraded = true;
+    /* Reconnect recovery is best-effort; live offline state is owned by connectivity.ts. */
   }
-
-  // Notify every subscriber so modules that snapshotted a value at import
-  // time (before hydrate finished) pick up the real value. Without this,
-  // e.g. thresholds.ts holds DEFAULT_THRESHOLDS forever and silently
-  // overwrites the user's saved customization on the next edit.
-  for (const key of state.keys()) notify(key);
 }
 
 export function isHydrated(): boolean {
   return hydrated;
 }
 
+/**
+ * Whether the initial boot hydrate failed and no later rehydrate has recovered it.
+ * Live backend reachability is owned by connectivity.ts.
+ */
 export function isDegraded(): boolean {
   return degraded;
 }
@@ -193,14 +211,6 @@ export function deleteState(key: string): void {
   const existing = pendingTimers.get(key);
   if (existing) clearTimeout(existing);
   pendingTimers.delete(key);
-  if (degraded) {
-    try {
-      window.localStorage.removeItem(LEGACY_KEY_MAP[key] ?? key);
-    } catch {
-      /* ignore */
-    }
-    return;
-  }
   fetch(`/api/state/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => {
     /* ignore */
   });
@@ -231,23 +241,6 @@ function scheduleFlush(key: string): void {
 
 async function flush(key: string): Promise<void> {
   const value = state.get(key);
-  if (degraded) {
-    // Server unreachable — persist to legacy localStorage so edits survive a reload.
-    try {
-      const legacyKey = LEGACY_KEY_MAP[key];
-      if (!legacyKey) return;
-      if (legacyKey === 'homelab-dashboard.tempUnit' && typeof value === 'string') {
-        window.localStorage.setItem(legacyKey, value);
-      } else if (legacyKey === 'homelab-dashboard.sidebar-collapsed') {
-        window.localStorage.setItem(legacyKey, value ? '1' : '0');
-      } else {
-        window.localStorage.setItem(legacyKey, JSON.stringify(value));
-      }
-    } catch {
-      /* ignore */
-    }
-    return;
-  }
   try {
     await fetch(`/api/state/${encodeURIComponent(key)}`, {
       method: 'PUT',

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   COMPONENT_BLOCKS,
@@ -101,7 +101,7 @@ function v6Fixture() {
       },
       {
         id: 'cat_legacy',
-        name: 'Networking (legacy)',
+        name: 'Networking',
         columns: [
           { id: 'brand', label: 'Brand' },
           { id: 'model', label: 'Model' },
@@ -235,10 +235,26 @@ describe('migrateInventory (v6 → v7)', () => {
     expect(ucg?.ids?.uid?.startsWith('04')).toBe(true);
   });
 
-  it('marks legacy networking gear as spare, not in-service', () => {
-    const legacy = inv.spares.find((c) => /legacy/i.test(c.name));
-    expect(legacy).toBeTruthy();
-    expect(legacy?.items.every((it) => it.deployment === 'spare')).toBe(true);
+  it('marks non-active networking gear as spare, not in-service', () => {
+    const networking = inv.spares.find((c) => c.name === 'Networking');
+    expect(networking).toBeTruthy();
+    expect(networking?.name).not.toMatch(/legacy/i);
+    expect(networking?.note).toBeUndefined();
+    expect(networking?.items.every((it) => it.deployment === 'spare')).toBe(true);
+  });
+
+  it('normalizes old legacy networking labels and category notes', () => {
+    const old = v6Fixture();
+    const oldNetworking = old.spares[2] as Record<string, unknown>;
+    oldNetworking.name = 'Networking (legacy)';
+    oldNetworking.note = 'Earlier networking gear retained as spares.';
+
+    const migrated = migrateInventory(old as never);
+    const networking = migrated.spares.find((c) => c.id === 'cat_legacy');
+
+    expect(networking?.name).toBe('Networking');
+    expect(networking?.note).toBeUndefined();
+    expect(networking?.items[0].values).toEqual({ brand: 'Netgear', model: 'GS308' });
   });
 
   it('splits the qty-2 USW-Flex into two separately-named switches', () => {
@@ -348,10 +364,87 @@ describe('seed (v7)', () => {
     expect(names).toContain('AccessPoint AP');
   });
 
+  it('does not include category prose notes or legacy category labels', () => {
+    expect(seed.spares.every((c) => c.note === undefined)).toBe(true);
+    expect(seed.spares.every((c) => !/legacy/i.test(c.name))).toBe(true);
+  });
+
   it('summarizes installed vs spare components', () => {
     const s = summarize(seed);
     expect(s.installedComponentCount).toBeGreaterThan(0);
     expect(s.spareComponentCount).toBeGreaterThan(0);
     expect(s.machineCount).toBe(seed.machines.length);
+  });
+});
+
+describe('loadInventory persistence gating', () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.doUnmock('./store');
+    vi.doUnmock('./connectivity');
+  });
+
+  async function loadInventoryWith({
+    degraded,
+    status,
+    persisted = null,
+  }: {
+    degraded: boolean;
+    status: 'online' | 'offline' | 'unknown';
+    persisted?: unknown;
+  }) {
+    vi.resetModules();
+    const setState = vi.fn();
+    vi.doMock('./store', () => ({
+      getState: vi.fn(() => persisted),
+      setState,
+      isDegraded: vi.fn(() => degraded),
+    }));
+    vi.doMock('./connectivity', () => ({
+      getConnectivity: vi.fn(() => ({ status, reason: null, code: null, lastChecked: null })),
+    }));
+    const mod = await import('./inventory');
+    return { loadInventory: mod.loadInventory, setState };
+  }
+
+  it('returns an empty shape without seeding after boot hydrate failed', async () => {
+    const { loadInventory, setState } = await loadInventoryWith({
+      degraded: true,
+      status: 'unknown',
+    });
+
+    const inv = loadInventory();
+
+    expect(inv).toEqual({ lastUpdated: '', machines: [], components: [], spares: [] });
+    expect(setState).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty shape without seeding while the backend is offline', async () => {
+    const { loadInventory, setState } = await loadInventoryWith({
+      degraded: false,
+      status: 'offline',
+    });
+
+    const inv = loadInventory();
+
+    expect(inv).toEqual({ lastUpdated: '', machines: [], components: [], spares: [] });
+    expect(setState).not.toHaveBeenCalled();
+  });
+
+  it('seeds and persists on an online first boot', async () => {
+    const { loadInventory, setState } = await loadInventoryWith({
+      degraded: false,
+      status: 'online',
+    });
+
+    const inv = loadInventory();
+
+    expect(inv.machines.length).toBeGreaterThan(0);
+    expect(inv.components.length).toBeGreaterThan(0);
+    expect(inv.spares.length).toBeGreaterThan(0);
+    expect(setState).toHaveBeenCalledWith(
+      'inventory',
+      expect.objectContaining({ v: 8, data: inv }),
+    );
   });
 });

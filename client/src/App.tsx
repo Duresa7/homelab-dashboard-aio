@@ -7,10 +7,11 @@ import { AlertBanner } from './components/layout/AlertBanner';
 import { CommandMenu } from './components/layout/CommandMenu';
 import { ExpandOverlay } from './components/tile/ExpandOverlay';
 import { ALL_TILES, type TileId } from './components/widgets';
+import { BackendOffline } from './components/common';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { getState, setState, isDegraded } from './lib/store';
+import { getState, setState } from './lib/store';
 
 import { OverviewPage } from './pages/OverviewPage';
 import { ProxmoxPage } from './pages/ProxmoxPage';
@@ -44,6 +45,7 @@ import {
 import type { ChartKind } from './types';
 import { useThresholds } from './lib/thresholds';
 import { DEFAULT_DATETIME_PREFERENCES, type DateTimePreferences } from './lib/datetime';
+import { useConnectivity } from './lib/connectivity';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
 type Density = 'compact' | 'regular' | 'comfy';
@@ -94,10 +96,26 @@ const DEFAULTS: TweakState = {
   },
 };
 
+const BACKEND_BACKED_SECTIONS = new Set<Section>([
+  'overview',
+  'proxmox',
+  'network',
+  'docker',
+  'nas',
+  'cameras',
+  'events',
+  'alerts',
+  'health',
+  'siem',
+  'inventory',
+  'playground',
+]);
+
 export function App() {
   useThresholds(); // subscribe so threshold changes re-render all severity-aware tiles
   const [t, setTweak] = useTweaks<TweakState>(DEFAULTS);
   const data = useDashData();
+  const connectivity = useConnectivity();
   const [route, setRouteState] = useState<Route>(() => loadRoute());
   const [chartKinds, setChartKinds] = useState<Partial<Record<TileId, ChartKind>>>({});
   const [expanded, setExpanded] = useState<TileId | null>(null);
@@ -180,10 +198,59 @@ export function App() {
 
   const activeSub = resolveSub(route.section, route.sub);
 
-  // Determined at boot in store.hydrate(): the server was unreachable, so we're
-  // running off in-memory defaults/seed. Surface it instead of silently showing
-  // seed data that looks real — the user's saved inventory lives in the backend.
-  const backendOffline = isDegraded();
+  const backendOffline = connectivity.status === 'offline';
+  const sectionGated = backendOffline && BACKEND_BACKED_SECTIONS.has(route.section);
+
+  const sectionContent = sectionGated ? (
+    <BackendOffline reason={connectivity.reason} />
+  ) : (
+    <>
+      {route.section === 'overview' && (
+        <OverviewPage
+          data={data}
+          layout={t.overviewLayout}
+          chartKinds={chartKinds}
+          setChartKind={setChartKind}
+          onExpand={setExpanded}
+        />
+      )}
+      {route.section === 'proxmox' && <ProxmoxPage data={data} sub={activeSub ?? 'compute'} />}
+      {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
+      {route.section === 'docker' && <DockerPage data={data} sub={activeSub ?? 'hosts'} />}
+      {route.section === 'nas' && <NasPage data={data} sub={activeSub ?? 'pools'} />}
+      {route.section === 'cameras' && <CamerasPage data={data} sub={activeSub ?? 'overview'} />}
+      {route.section === 'events' && <EventsPage data={data} />}
+      {route.section === 'alerts' && <AlertsPage alerts={visibleAlerts} onDismiss={dismiss} />}
+      {route.section === 'health' && <HealthPage integrations={integrations} />}
+      {route.section === 'siem' && <SiemPage />}
+      {route.section === 'inventory' && (
+        <InventoryPage selectedItemId={route.itemId} onSelectItem={setInventoryItemId} />
+      )}
+      {route.section === 'playground' && <PlaygroundPage />}
+      {route.section === 'settings' && (
+        <SettingsPage
+          integrations={integrations}
+          preferences={{
+            theme: t.theme,
+            density: t.density,
+            showAlerts: t.showAlerts,
+            overviewLayout: t.overviewLayout,
+            dateTime: t.dateTime,
+          }}
+          tab={settingsTab}
+          onTabChange={setSettingsTab}
+          onIntegrationChange={(next) => setTweak('integrations', next)}
+          onPreferenceChange={(key, value) => {
+            if (key === 'theme') setTweak('theme', value as ThemeChoice);
+            if (key === 'density') setTweak('density', value as Density);
+            if (key === 'showAlerts') setTweak('showAlerts', value as boolean);
+            if (key === 'overviewLayout') setTweak('overviewLayout', value as TileId[]);
+            if (key === 'dateTime') setTweak('dateTime', value as DateTimePreferences);
+          }}
+        />
+      )}
+    </>
+  );
 
   return (
     <TooltipProvider delayDuration={250}>
@@ -220,69 +287,27 @@ export function App() {
                     Backend offline — showing defaults, not your saved data.
                   </span>
                   <span className="text-muted-foreground">
+                    {connectivity.reason ? (
+                      <>
+                        Reason:{' '}
+                        <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                          {connectivity.reason}
+                        </code>
+                        .{' '}
+                      </>
+                    ) : null}
                     Live telemetry and your saved inventory are stored by the server. Start it with{' '}
                     <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
                       npm run server
                     </code>{' '}
-                    and reload, or your edits here won't be saved.
+                    to restore live data.
                   </span>
                 </div>
               </div>
             ) : null}
             {t.showAlerts ? <AlertBanner alerts={visibleAlerts} onDismiss={dismiss} /> : null}
 
-            {route.section === 'overview' && (
-              <OverviewPage
-                data={data}
-                layout={t.overviewLayout}
-                chartKinds={chartKinds}
-                setChartKind={setChartKind}
-                onExpand={setExpanded}
-              />
-            )}
-            {route.section === 'proxmox' && (
-              <ProxmoxPage data={data} sub={activeSub ?? 'compute'} />
-            )}
-            {route.section === 'network' && (
-              <NetworkPage data={data} sub={activeSub ?? 'overview'} />
-            )}
-            {route.section === 'docker' && <DockerPage data={data} sub={activeSub ?? 'hosts'} />}
-            {route.section === 'nas' && <NasPage data={data} sub={activeSub ?? 'pools'} />}
-            {route.section === 'cameras' && (
-              <CamerasPage data={data} sub={activeSub ?? 'overview'} />
-            )}
-            {route.section === 'events' && <EventsPage data={data} />}
-            {route.section === 'alerts' && (
-              <AlertsPage alerts={visibleAlerts} onDismiss={dismiss} />
-            )}
-            {route.section === 'health' && <HealthPage integrations={integrations} />}
-            {route.section === 'siem' && <SiemPage />}
-            {route.section === 'inventory' && (
-              <InventoryPage selectedItemId={route.itemId} onSelectItem={setInventoryItemId} />
-            )}
-            {route.section === 'playground' && <PlaygroundPage />}
-            {route.section === 'settings' && (
-              <SettingsPage
-                integrations={integrations}
-                preferences={{
-                  theme: t.theme,
-                  density: t.density,
-                  showAlerts: t.showAlerts,
-                  overviewLayout: t.overviewLayout,
-                  dateTime: t.dateTime,
-                }}
-                tab={settingsTab}
-                onTabChange={setSettingsTab}
-                onIntegrationChange={(next) => setTweak('integrations', next)}
-                onPreferenceChange={(key, value) => {
-                  if (key === 'theme') setTweak('theme', value as ThemeChoice);
-                  if (key === 'density') setTweak('density', value as Density);
-                  if (key === 'showAlerts') setTweak('showAlerts', value as boolean);
-                  if (key === 'overviewLayout') setTweak('overviewLayout', value as TileId[]);
-                  if (key === 'dateTime') setTweak('dateTime', value as DateTimePreferences);
-                }}
-              />
-            )}
+            {sectionContent}
           </div>
         </SidebarInset>
 
