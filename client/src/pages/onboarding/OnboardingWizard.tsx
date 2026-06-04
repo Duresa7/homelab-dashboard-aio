@@ -17,8 +17,11 @@ import { toast } from 'sonner';
 
 import {
   completeOnboarding,
+  getDbConfig,
   putSelection,
+  saveDbConfig,
   testIntegration,
+  testDbConnection,
   useCapabilities,
   type Capability,
 } from '@/lib/setup';
@@ -44,6 +47,15 @@ import {
   type CapabilitySelection,
 } from './onboarding-state';
 import { ConfigFieldsForm } from './steps/ConfigFieldsForm';
+import { DatabaseStep } from './steps/DatabaseStep';
+import {
+  dbBodyFromDraft,
+  dbDirty,
+  dbDraftFromView,
+  EMPTY_DB_DRAFT,
+  type DbDraft,
+  type DbStepStatus,
+} from './db-state';
 
 interface Props {
   onDone: () => void | Promise<void>;
@@ -56,6 +68,7 @@ interface StepDef {
 }
 
 const CORE_STEPS: StepDef[] = [
+  { id: 'database', label: 'Database', icon: Database },
   { id: 'capabilities', label: 'Capabilities', icon: Settings2 },
   { id: 'vendors', label: 'Vendors', icon: PlugZap },
   { id: 'credentials', label: 'Credentials', icon: Server },
@@ -82,6 +95,13 @@ function selectionSummary(selection: CapabilitySelection): string {
 export function OnboardingWizard({ onDone }: Props) {
   const { capabilities, loading, error } = useCapabilities();
   const [state, dispatch] = useReducer(onboardingReducer, capabilities, createWizardState);
+  const [dbDraft, setDbDraft] = useState<DbDraft>(EMPTY_DB_DRAFT);
+  const [initialDbDraft, setInitialDbDraft] = useState<DbDraft>(EMPTY_DB_DRAFT);
+  const [dbStatus, setDbStatus] = useState<DbStepStatus>({
+    busy: false,
+    message: 'SQLite works without extra setup.',
+    restartRequired: false,
+  });
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const enabled = useMemo(
@@ -95,8 +115,41 @@ export function OnboardingWizard({ onDone }: Props) {
     if (capabilities.length) dispatch({ type: 'reset', capabilities });
   }, [capabilities]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const draft = dbDraftFromView(await getDbConfig());
+        if (cancelled) return;
+        setDbDraft(draft);
+        setInitialDbDraft(draft);
+        setDbStatus({
+          busy: false,
+          message:
+            draft.driver === 'sqlite'
+              ? 'SQLite works without extra setup.'
+              : 'Saved backend loaded. Test before changing it.',
+          restartRequired: false,
+        });
+      } catch (err) {
+        if (cancelled) return;
+        setDbStatus({
+          busy: false,
+          message: err instanceof Error ? err.message : String(err),
+          restartRequired: false,
+        });
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const credentialsInvalid = hasMissingRequiredFields(capabilities, state.selections);
+  const dbIsDirty = dbDirty(dbDraft, initialDbDraft);
   const nextDisabled =
+    (activeStep.id === 'database' && dbStatus.busy) ||
     (activeStep.id === 'credentials' && credentialsInvalid) ||
     (activeStep.id === 'vendors' &&
       enabled.some(
@@ -125,6 +178,46 @@ export function OnboardingWizard({ onDone }: Props) {
       }
     } finally {
       setTesting(false);
+    }
+  };
+
+  const testDatabase = async () => {
+    setDbStatus({ busy: true, message: 'Testing database connection...', restartRequired: false });
+    try {
+      const result = await testDbConnection(dbBodyFromDraft(dbDraft));
+      setDbStatus({
+        busy: false,
+        message: result.ok ? 'Connection test passed.' : (result.error ?? 'Connection failed.'),
+        restartRequired: false,
+      });
+    } catch (err) {
+      setDbStatus({
+        busy: false,
+        message: err instanceof Error ? err.message : String(err),
+        restartRequired: false,
+      });
+    }
+  };
+
+  const saveDatabase = async () => {
+    setDbStatus({ busy: true, message: 'Saving database settings...', restartRequired: false });
+    try {
+      await saveDbConfig(dbBodyFromDraft(dbDraft));
+      const restartRequired = dbIsDirty;
+      setInitialDbDraft(dbDraft);
+      setDbStatus({
+        busy: false,
+        message: restartRequired
+          ? 'Saved. Restart the server to apply this backend.'
+          : 'Database settings saved.',
+        restartRequired,
+      });
+    } catch (err) {
+      setDbStatus({
+        busy: false,
+        message: err instanceof Error ? err.message : String(err),
+        restartRequired: false,
+      });
     }
   };
 
@@ -187,7 +280,23 @@ export function OnboardingWizard({ onDone }: Props) {
         </header>
 
         <section className="flex flex-1 flex-col rounded-xl border border-border bg-card p-5 shadow-card">
-          {loading ? (
+          {activeStep.id === 'database' ? (
+            <DatabaseStep
+              draft={dbDraft}
+              status={dbStatus}
+              dirty={dbIsDirty}
+              onChange={(next) => {
+                setDbDraft(next);
+                setDbStatus({
+                  busy: false,
+                  message: 'Test or save when you are ready.',
+                  restartRequired: false,
+                });
+              }}
+              onTest={testDatabase}
+              onSave={saveDatabase}
+            />
+          ) : loading ? (
             <div className="grid flex-1 place-items-center text-sm text-muted-foreground">
               Loading setup options...
             </div>
