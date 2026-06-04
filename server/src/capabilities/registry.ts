@@ -13,7 +13,6 @@ export type CapabilityId =
   | 'datacenter'
   | 'network'
   | 'nas'
-  | 'cameras'
   | 'containers'
   | 'gpu'
   | 'sensors'
@@ -212,53 +211,6 @@ export const CAPABILITIES: Capability[] = [
         label: 'QNAP',
         icon: 'qnap',
         adapter: 'unas',
-        status: 'planned',
-        configSchema: [],
-      },
-    ],
-  },
-  {
-    id: 'cameras',
-    label: 'Cameras',
-    integrationKey: 'protect',
-    providers: [
-      {
-        id: 'protect',
-        label: 'UniFi Protect',
-        icon: 'unifi-protect',
-        adapter: 'protect',
-        status: 'available',
-        configSchema: [
-          {
-            name: 'baseUrl',
-            label: 'Base URL',
-            type: 'url',
-            required: true,
-            env: 'PROTECT_BASE_URL',
-          },
-          {
-            name: 'apiKey',
-            label: 'API key',
-            type: 'password',
-            required: true,
-            secret: true,
-            env: 'PROTECT_API_KEY',
-          },
-          {
-            name: 'eventsEnabled',
-            label: 'Enable motion/smart-detect events',
-            type: 'boolean',
-            required: false,
-            default: false,
-            env: 'PROTECT_EVENTS_ENABLED',
-          },
-        ],
-      },
-      {
-        id: 'frigate',
-        label: 'Frigate',
-        icon: 'frigate',
-        adapter: 'protect',
         status: 'planned',
         configSchema: [],
       },

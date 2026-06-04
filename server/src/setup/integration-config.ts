@@ -31,7 +31,6 @@ const ENABLE_ENV: Record<string, string> = {
   datacenter: 'PROXMOX_ENABLED',
   network: 'UNIFI_ENABLED',
   nas: 'UNAS_ENABLED',
-  cameras: 'PROTECT_ENABLED',
   containers: 'PORTAINER_ENABLED',
   gpu: 'GPU_ENABLED',
   sensors: 'SENSORS_ENABLED',

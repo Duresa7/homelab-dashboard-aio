@@ -18,13 +18,6 @@ import { registerUnas, unasStatus, probeUnas } from './integrations/unas.js';
 import { registerUnifi, unifiStatus, probeUnifi } from './integrations/unifi.js';
 import { registerGpu, gpuStatus, probeGpu } from './integrations/gpu.js';
 import { registerWol, wolStatus } from './integrations/wol.js';
-import {
-  registerProtect,
-  protectStatus,
-  probeProtect,
-  startProtect,
-  shutdownProtect,
-} from './integrations/protect.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -69,10 +62,6 @@ app.get('/api/health', (_req, res) => {
     unas: {
       enabled: unasStatus.enabled,
       configured: unasStatus.configured,
-    },
-    protect: {
-      enabled: protectStatus.enabled,
-      configured: protectStatus.configured,
     },
     gpu: {
       enabled: gpuStatus.enabled,
@@ -181,7 +170,6 @@ app.get('/api/health/live', async (req, res) => {
     ),
     runProbe('proxmox', proxmoxStatus.enabled && proxmoxStatus.configured, () => probeProxmox()),
     runProbe('unas', unasStatus.enabled && unasStatus.configured, () => probeUnas()),
-    runProbe('protect', protectStatus.enabled && protectStatus.configured, () => probeProtect()),
     runProbe('gpu', gpuStatus.enabled && gpuStatus.configured, () => probeGpu()),
     runProbe('sensors', SENSORS_ENABLED && (SENSORS_MODE === 'local' || !!SENSORS_SSH_HOST), () =>
       sensorsHandle.runSensors(),
@@ -237,22 +225,6 @@ const sensorsHandle = initSensors(app, {
 });
 
 registerUnas(app);
-registerProtect(app);
-
-// Protect owns long-lived resources (WS subscriber + ffmpeg sessions); tear them
-// down on shutdown. Registered before the state/SIEM handlers to preserve the
-// original ordering.
-if (process.env.NODE_ENV !== 'test') {
-  process.on('SIGINT', () => {
-    shutdownProtect();
-    process.exit(0);
-  });
-  process.on('SIGTERM', () => {
-    shutdownProtect();
-    process.exit(0);
-  });
-  process.on('exit', shutdownProtect);
-}
 
 // Open both stores for the resolved backend (SQLite at today's paths by
 // default). DB selection is read from env/file at boot since the app config
@@ -370,14 +342,6 @@ if (process.env.NODE_ENV !== 'test') {
     } else {
       console.log('UNAS: DISABLED (set UNAS_ENABLED=true in .env to enable)');
     }
-    if (protectStatus.enabled) {
-      console.log(
-        `Protect: ${protectStatus.configured ? `enabled — ${protectStatus.baseUrl}` : 'enabled but NOT configured — set PROTECT_* in .env'}`,
-      );
-      startProtect();
-    } else {
-      console.log('Protect: DISABLED (set PROTECT_ENABLED=true in .env to enable)');
-    }
     if (gpuStatus.enabled) {
       if (gpuStatus.mode === 'local') {
         console.log('GPU: enabled — local nvidia-smi');
@@ -422,4 +386,4 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-export { app, sensorsHandle, shutdownProtect, siemHandle, stateHandle };
+export { app, sensorsHandle, siemHandle, stateHandle };

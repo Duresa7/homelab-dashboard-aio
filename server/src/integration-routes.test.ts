@@ -23,7 +23,6 @@ describe('Integration route contracts', () => {
         '/api/docker',
         '/api/proxmox',
         '/api/unas',
-        '/api/protect',
         '/api/gpu',
         '/api/sensors',
       ]) {
@@ -41,7 +40,6 @@ describe('Integration route contracts', () => {
         PORTAINER_ENABLED: 'true',
         PROXMOX_ENABLED: 'true',
         UNAS_ENABLED: 'true',
-        PROTECT_ENABLED: 'true',
         GPU_ENABLED: 'true',
         GPU_MODE: 'ssh',
         SENSORS_ENABLED: 'true',
@@ -53,7 +51,6 @@ describe('Integration route contracts', () => {
           ['/api/docker', /Portainer not configured/i],
           ['/api/proxmox', /Proxmox not configured/i],
           ['/api/unas', /UNAS not configured/i],
-          ['/api/protect', /Protect not configured/i],
           ['/api/gpu', /GPU_SSH_HOST/i],
           ['/api/sensors', /no host configured/i],
         ];
@@ -319,7 +316,7 @@ describe('Integration route contracts', () => {
     );
   });
 
-  it('normalizes healthy UNAS and Protect upstream responses', async () => {
+  it('normalizes a healthy UNAS upstream response', async () => {
     await withJsonUpstream(
       {
         '/proxy/drive/api/v2/storage': {
@@ -348,24 +345,6 @@ describe('Integration route contracts', () => {
         },
         '/proxy/drive/api/v2/systems/fan-control': { currentProfile: 'balanced' },
         '/api/system': { name: 'NAS NAS', hardware: { shortname: 'UNAS4' } },
-        '/proxy/protect/integration/v1/cameras': [
-          {
-            id: 'cam1',
-            name: 'Garage',
-            modelKey: 'UVC-G6',
-            mac: '00:11:22:33:44:55',
-            state: 'CONNECTED',
-            featureFlags: { hasMic: true, smartDetectTypes: ['person'] },
-            smartDetectSettings: { objectTypes: ['person'] },
-          },
-        ],
-        '/proxy/protect/integration/v1/nvrs': {
-          id: 'nvr1',
-          name: { text: 'UNVR' },
-          modelKey: 'UNVR',
-          armMode: { status: 'armed', breachEventCount: 2 },
-        },
-        '/proxy/protect/integration/v1/meta/info': { applicationVersion: '6.0.0' },
       },
       async (baseUrl) => {
         await usingApp(
@@ -378,26 +357,6 @@ describe('Integration route contracts', () => {
               fanProfile: 'balanced',
             });
             expect(res.body.unas.pools[0]).toMatchObject({ type: 'RAID 5', status: 'online' });
-          },
-        );
-
-        await usingApp(
-          { PROTECT_ENABLED: 'true', PROTECT_BASE_URL: baseUrl, PROTECT_API_KEY: 'key' },
-          async (api) => {
-            const res = await api.get('/api/protect').expect(200);
-            expect(res.body.protect).toMatchObject({
-              total: 1,
-              connected: 1,
-              disconnected: 0,
-              appVersion: '6.0.0',
-            });
-            expect(res.body.protect.cameras[0]).toMatchObject({
-              id: 'cam1',
-              name: 'Garage',
-              state: 'CONNECTED',
-              hasMic: true,
-            });
-            expect(res.body.protect.nvr.name).toBe('UNVR');
           },
         );
       },
@@ -468,15 +427,6 @@ describe('Integration route contracts', () => {
         route: '/api/unas',
         failPath: '/proxy/drive/api/v2/storage',
         env: (baseUrl) => ({ UNAS_ENABLED: 'true', UNAS_BASE_URL: baseUrl, UNAS_API_KEY: 'key' }),
-      },
-      {
-        route: '/api/protect',
-        failPath: '/proxy/protect/integration/v1/cameras',
-        env: (baseUrl) => ({
-          PROTECT_ENABLED: 'true',
-          PROTECT_BASE_URL: baseUrl,
-          PROTECT_API_KEY: 'key',
-        }),
       },
     ];
 

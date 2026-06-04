@@ -38,10 +38,6 @@ const ENV_KEYS = [
   'UNAS_ENABLED',
   'UNAS_BASE_URL',
   'UNAS_API_KEY',
-  'PROTECT_ENABLED',
-  'PROTECT_BASE_URL',
-  'PROTECT_API_KEY',
-  'PROTECT_EVENTS_ENABLED',
   'GPU_ENABLED',
   'GPU_MODE',
   'GPU_SSH_HOST',
@@ -66,8 +62,6 @@ export async function loadServerApp(env: Record<string, string> = {}) {
     PORTAINER_ENABLED: 'false',
     PROXMOX_ENABLED: 'false',
     UNAS_ENABLED: 'false',
-    PROTECT_ENABLED: 'false',
-    PROTECT_EVENTS_ENABLED: 'false',
     GPU_ENABLED: 'false',
     SENSORS_ENABLED: 'false',
     ...env,
@@ -78,7 +72,6 @@ export async function loadServerApp(env: Record<string, string> = {}) {
 
   async function cleanup() {
     try {
-      mod.shutdownProtect?.();
       (mod.sensorsHandle as { shutdown?: () => void })?.shutdown?.();
       mod.siemHandle?.shutdown?.();
       mod.stateHandle?.shutdown?.();

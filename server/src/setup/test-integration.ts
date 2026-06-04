@@ -36,10 +36,6 @@ const HTTP_TESTS: Record<string, HttpTest> = {
     path: '/proxy/drive/api/v2/storage',
     headers: (c) => ({ 'X-API-Key': str(c.apiKey), Accept: 'application/json' }),
   },
-  cameras: {
-    path: '/proxy/protect/integration/v1/meta/info',
-    headers: (c) => ({ 'X-API-Key': str(c.apiKey), Accept: 'application/json' }),
-  },
   containers: {
     path: '/api/endpoints',
     headers: (c) => ({ 'X-API-Key': str(c.apiKey), Accept: 'application/json' }),

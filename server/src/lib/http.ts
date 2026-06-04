@@ -7,9 +7,7 @@ type FetchInit = NonNullable<Parameters<typeof undiciFetch>[1]>;
 type FetchResponse = Awaited<ReturnType<typeof undiciFetch>>;
 
 // Homelab gear uses self-signed certs; skip TLS verification on these fetches only.
-// Exported so integrations that bypass `insecureFetch` (e.g. the Protect
-// WebSocket) can reuse the same dispatcher.
-export const insecureDispatcher = new Agent({ connect: { rejectUnauthorized: false } });
+const insecureDispatcher = new Agent({ connect: { rejectUnauthorized: false } });
 
 export const insecureFetch = (url: FetchInput, opts: FetchInit = {}): Promise<FetchResponse> =>
   undiciFetch(url, { ...opts, dispatcher: insecureDispatcher });

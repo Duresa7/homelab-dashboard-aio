@@ -4,7 +4,7 @@
  * The normalized response shapes each integration emits are inferred from their
  * object literals (and mirror `client/src/types/index.ts` on the wire). What we
  * cannot usefully type is the *input* side: the raw JSON decoded from upstream
- * homelab APIs (UniFi, Proxmox, Portainer, UNAS, Protect, …) is large,
+ * homelab APIs (UniFi, Proxmox, Portainer, UNAS, …) is large,
  * vendor-defined, and loosely versioned. We treat it as `Upstream` at the
  * integration boundary and narrow it into typed normalized shapes in each mapper.
  *

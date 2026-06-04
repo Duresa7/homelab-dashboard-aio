@@ -6,7 +6,6 @@ const EXPECTED_CAPABILITIES: CapabilityId[] = [
   'datacenter',
   'network',
   'nas',
-  'cameras',
   'containers',
   'gpu',
   'sensors',
