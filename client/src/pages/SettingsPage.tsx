@@ -5,6 +5,7 @@ import {
   Clock3,
   Gauge,
   Globe2,
+  KeyRound,
   LayoutGrid,
   Minus,
   MonitorCog,
@@ -31,7 +32,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/common';
 import { cn } from '@/lib/utils';
 import { DEFAULT_SITE_NAME, setSiteName, useSiteNameRaw } from '@/lib/site-name';
+import {
+  getConfig,
+  putSelection,
+  useCapabilities,
+  type Capability,
+  type RedactedCapabilityConfig,
+  type RedactedConfig,
+} from '@/lib/setup';
 import { ALL_TILES, type TileId } from '../components/widgets';
+import { ConfigFieldsForm } from './onboarding/steps/ConfigFieldsForm';
 import { INTEGRATIONS, type HealthInfo, type HealthResponse } from '../lib/integrations';
 import type { IntegrationKey } from '../lib/telemetry';
 import { convertTemp, fToC, useTempUnit, type TempUnit } from '../lib/units';
@@ -55,10 +65,11 @@ import {
   useThresholds,
   type Thresholds,
 } from '../lib/thresholds';
+import { toast } from 'sonner';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
 type Density = 'compact' | 'regular' | 'comfy';
-export type SettingsTabId = 'preferences' | 'integrations' | 'severity';
+export type SettingsTabId = 'preferences' | 'integrations' | 'setup' | 'severity';
 
 export interface SettingsPreferences {
   theme: ThemeChoice;
@@ -602,6 +613,254 @@ function IntegrationsTab({
   );
 }
 
+type SetupDrafts = Record<string, RedactedCapabilityConfig>;
+
+function firstAvailableProviderId(capability: Capability): string {
+  return (
+    capability.providers.find((provider) => provider.status === 'available') ??
+    capability.providers[0]
+  )?.id;
+}
+
+function buildSetupDrafts(capabilities: Capability[], config: RedactedConfig | null): SetupDrafts {
+  const drafts: SetupDrafts = {};
+  for (const capability of capabilities) {
+    const stored = config?.capabilities[capability.id];
+    const vendor = stored?.vendor ?? firstAvailableProviderId(capability);
+    const provider = capability.providers.find((p) => p.id === vendor);
+    const values: Record<string, unknown> = {};
+    for (const field of provider?.configSchema ?? []) {
+      if (field.secret && stored?.secrets[field.name]) values[field.name] = '';
+      else if (stored?.config[field.name] !== undefined)
+        values[field.name] = stored.config[field.name];
+      else if (field.default !== undefined) values[field.name] = field.default;
+      else values[field.name] = field.type === 'boolean' ? false : '';
+    }
+    drafts[capability.id] = {
+      enabled: stored?.enabled ?? false,
+      vendor,
+      config: values,
+      secrets: stored?.secrets ?? {},
+    };
+  }
+  return drafts;
+}
+
+function configForSave(
+  capability: Capability,
+  draft: RedactedCapabilityConfig,
+): Record<string, unknown> {
+  const provider = capability.providers.find((p) => p.id === draft.vendor);
+  const secretFields = new Set(
+    (provider?.configSchema ?? []).filter((f) => f.secret).map((f) => f.name),
+  );
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(draft.config)) {
+    if (secretFields.has(key) && draft.secrets[key] && value === '') continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+function SetupTab() {
+  const { capabilities, loading, error } = useCapabilities();
+  const [config, setConfig] = useState<RedactedConfig | null>(null);
+  const [drafts, setDrafts] = useState<SetupDrafts>({});
+  const [editing, setEditing] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const next = await getConfig();
+        if (cancelled) return;
+        setConfig(next);
+        setConfigError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setConfigError(err instanceof Error ? err.message : String(err));
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (capabilities.length) setDrafts(buildSetupDrafts(capabilities, config));
+  }, [capabilities, config]);
+
+  const updateDraft = (
+    capabilityId: string,
+    update: (draft: RedactedCapabilityConfig) => RedactedCapabilityConfig,
+  ) => {
+    setDrafts((prev) => ({ ...prev, [capabilityId]: update(prev[capabilityId]) }));
+  };
+
+  const save = async (capability: Capability) => {
+    const draft = drafts[capability.id];
+    if (!draft) return;
+    setSaving(capability.id);
+    try {
+      await putSelection({
+        capability: capability.id,
+        vendor: draft.vendor,
+        enabled: draft.enabled,
+        config: configForSave(capability, draft),
+      });
+      const next = await getConfig();
+      setConfig(next);
+      setEditing(null);
+      toast.success(`${capability.label} setup saved`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg tracking-tight text-foreground">Setup</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Saved selections are stored server-side; live telemetry still follows the current server
+            boot configuration.
+          </p>
+        </div>
+      </header>
+
+      {error || configError ? (
+        <div className="rounded-lg border border-bad/40 bg-bad/10 px-3.5 py-2.5 text-sm text-foreground">
+          {error ?? configError}
+        </div>
+      ) : null}
+
+      {loading ? <div className="text-sm text-muted-foreground">Loading setup...</div> : null}
+
+      <div className="grid grid-cols-1 gap-3">
+        {capabilities.map((capability) => {
+          const draft = drafts[capability.id];
+          const provider = draft
+            ? capability.providers.find((candidate) => candidate.id === draft.vendor)
+            : null;
+          const isEditing = editing === capability.id;
+          const configured = !!config?.capabilities[capability.id];
+          if (!draft) return null;
+          return (
+            <section
+              key={capability.id}
+              className="rounded-xl border border-border bg-card p-4 shadow-card"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-medium text-foreground">{capability.label}</h3>
+                    <StatusBadge kind={configured ? 'ok' : 'info'}>
+                      {configured ? 'configured' : 'not configured'}
+                    </StatusBadge>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {provider?.label ?? 'No available provider'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={draft.enabled}
+                    aria-label={`Enable ${capability.label}`}
+                    onCheckedChange={(enabled) =>
+                      updateDraft(capability.id, (cur) => ({ ...cur, enabled }))
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditing(isEditing ? null : capability.id)}
+                  >
+                    Configure
+                  </Button>
+                </div>
+              </div>
+
+              {isEditing ? (
+                <div className="mt-4 flex flex-col gap-4 border-t border-border pt-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={`setup-provider-${capability.id}`}>Provider</Label>
+                      <Select
+                        value={draft.vendor}
+                        onValueChange={(vendor) =>
+                          updateDraft(capability.id, (cur) => ({
+                            ...buildSetupDrafts([capability], {
+                              capabilities: {
+                                [capability.id]: {
+                                  ...cur,
+                                  vendor,
+                                  config: {},
+                                  secrets: cur.secrets,
+                                },
+                              },
+                              onboarding: config?.onboarding ?? { complete: true },
+                            })[capability.id],
+                            enabled: cur.enabled,
+                          }))
+                        }
+                      >
+                        <SelectTrigger id={`setup-provider-${capability.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {capability.providers.map((candidate) => (
+                            <SelectItem
+                              key={candidate.id}
+                              value={candidate.id}
+                              disabled={candidate.status !== 'available'}
+                            >
+                              {candidate.label}
+                              {candidate.status === 'planned' ? ' (coming soon)' : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <ConfigFieldsForm
+                    fields={provider?.configSchema ?? []}
+                    values={draft.config}
+                    secrets={draft.secrets}
+                    onChange={(field, value) =>
+                      updateDraft(capability.id, (cur) => ({
+                        ...cur,
+                        config: { ...cur.config, [field]: value },
+                      }))
+                    }
+                  />
+
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      disabled={saving === capability.id}
+                      onClick={() => save(capability)}
+                    >
+                      {saving === capability.id ? 'Saving...' : 'Save setup'}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function SeverityTab() {
   const thresholds = useThresholds();
   const { unit } = useTempUnit();
@@ -667,6 +926,9 @@ export function SettingsPage({
           <TabsTrigger value="integrations">
             <PlugZap className="size-4" /> Integrations
           </TabsTrigger>
+          <TabsTrigger value="setup">
+            <KeyRound className="size-4" /> Setup
+          </TabsTrigger>
           <TabsTrigger value="severity">
             <Gauge className="size-4" /> Severity
           </TabsTrigger>
@@ -677,6 +939,9 @@ export function SettingsPage({
         </TabsContent>
         <TabsContent value="integrations">
           <IntegrationsTab integrations={integrations} onChange={onIntegrationChange} />
+        </TabsContent>
+        <TabsContent value="setup">
+          <SetupTab />
         </TabsContent>
         <TabsContent value="severity">
           <SeverityTab />
