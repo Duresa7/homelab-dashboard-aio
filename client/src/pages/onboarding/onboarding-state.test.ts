@@ -69,6 +69,10 @@ describe('onboarding reducer', () => {
     expect(hasMissingRequiredFields(capabilities, state.selections)).toBe(false);
   });
 
+  it('tolerates capabilities loading before selections are initialized', () => {
+    expect(hasMissingRequiredFields(capabilities, {})).toBe(false);
+  });
+
   it('maps setup test results into display state', () => {
     expect(testStateFromResult({ ok: true })).toEqual({ status: 'ok' });
     expect(testStateFromResult({ ok: true, untestable: true })).toEqual({

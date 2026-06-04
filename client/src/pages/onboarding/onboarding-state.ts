@@ -142,8 +142,9 @@ export function enabledCapabilities(
 
 export function missingRequiredFields(
   capability: Capability,
-  selection: CapabilitySelection,
+  selection: CapabilitySelection | undefined,
 ): string[] {
+  if (!selection) return [];
   if (!selection.enabled) return [];
   const provider = providerForSelection(capability, selection);
   if (!provider) return ['vendor'];
