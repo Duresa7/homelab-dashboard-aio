@@ -92,7 +92,8 @@ export function slugColumn(label: string, taken: string[] = []): string {
 }
 
 export function csvCell(s: string): string {
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  const safe = /^[\s]*[=+\-@]/.test(s) ? `'${s}` : s;
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 export function download(filename: string, content: string, mime: string): void {

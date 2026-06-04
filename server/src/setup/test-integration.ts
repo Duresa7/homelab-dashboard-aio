@@ -14,6 +14,25 @@ function trimSlash(url: string): string {
   return url.replace(/\/+$/, '');
 }
 
+export function normalizeTestBaseUrl(value: unknown): string {
+  const raw = trimSlash(str(value));
+  if (!raw) throw new Error('base URL is required');
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error('base URL must be a valid absolute URL');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('base URL must use http or https');
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error('base URL must not include credentials');
+  }
+  parsed.hash = '';
+  return trimSlash(parsed.toString());
+}
+
 interface HttpTest {
   path: string;
   headers: (config: Record<string, unknown>) => Record<string, string>;
@@ -57,8 +76,12 @@ export async function testIntegration(
   const test = HTTP_TESTS[capability];
   if (!test) return { ok: true, untestable: true };
 
-  const baseUrl = trimSlash(str(config.baseUrl));
-  if (!baseUrl) return { ok: false, error: 'base URL is required' };
+  let baseUrl: string;
+  try {
+    baseUrl = normalizeTestBaseUrl(config.baseUrl);
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);

@@ -62,10 +62,16 @@ describe('initSensors — I/O edge wiring', () => {
     const res = makeRes();
     await app.routes['/api/sensors']({}, res);
     expect(res.body).toEqual({ disabled: true });
+  });
+
+  it('hides the debug route by default', async () => {
+    const app = makeApp();
+    initSensors(app as unknown as Express, DISABLED_CONFIG);
 
     const dbg = makeRes();
     await app.routes['/api/sensors/debug']({}, dbg);
-    expect(dbg.body).toEqual({ disabled: true });
+    expect(dbg.statusCode).toBe(404);
+    expect(dbg.body).toEqual({ error: 'Not found' });
   });
 
   it('returns 503 when SSH mode has no host configured', async () => {

@@ -10,6 +10,7 @@ import { CAPABILITIES, getCapability } from '../capabilities/registry.js';
 import { errorMessage } from '../lib/errors.js';
 import {
   configFilePath,
+  normalizeSqliteDataPath,
   resolveDbConfig,
   writeDbConfig,
   type DbConfigFile,
@@ -29,7 +30,7 @@ import {
   readSelectionConfig,
   upsertSelection,
 } from './integration-config.js';
-import { testIntegration } from './test-integration.js';
+import { normalizeTestBaseUrl, testIntegration } from './test-integration.js';
 
 class BadRequest extends Error {}
 
@@ -65,8 +66,12 @@ function parseDbConfigFile(input: unknown): DbConfigFile {
     const sqlite: Partial<SqliteSettings> = {};
     const statePath = asString(sIn.statePath);
     const siemPath = asString(sIn.siemPath);
-    if (statePath) sqlite.statePath = statePath;
-    if (siemPath) sqlite.siemPath = siemPath;
+    try {
+      if (statePath) sqlite.statePath = normalizeSqliteDataPath(statePath);
+      if (siemPath) sqlite.siemPath = normalizeSqliteDataPath(siemPath);
+    } catch (err) {
+      throw new BadRequest(errorMessage(err));
+    }
     return { driver, sqlite };
   }
 
@@ -116,6 +121,47 @@ export function initSetup(app: Express, opts: { store?: StateStore } = {}) {
       return next();
     });
   };
+
+  function secretFieldsFor(capabilityId: string): string[] {
+    const capability = getCapability(capabilityId);
+    if (!capability) return [];
+    return [
+      ...new Set(
+        capability.providers.flatMap((provider) =>
+          provider.configSchema.filter((field) => field.secret).map((field) => field.name),
+        ),
+      ),
+    ];
+  }
+
+  function baseUrlOf(config: Record<string, unknown>): string | null {
+    if (typeof config.baseUrl !== 'string' || !config.baseUrl.trim()) return null;
+    try {
+      return normalizeTestBaseUrl(config.baseUrl);
+    } catch {
+      return null;
+    }
+  }
+
+  function mergeTestConfig(
+    capability: string,
+    stored: Record<string, unknown>,
+    incoming: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const storedBaseUrl = baseUrlOf(stored);
+    const incomingBaseUrl = baseUrlOf(incoming);
+    if (storedBaseUrl && incomingBaseUrl && storedBaseUrl !== incomingBaseUrl) {
+      const missing = secretFieldsFor(capability).filter(
+        (field) => typeof incoming[field] !== 'string' || !String(incoming[field]).trim(),
+      );
+      if (missing.length) {
+        throw new BadRequest(
+          `secret fields are required when testing a different base URL: ${missing.join(', ')}`,
+        );
+      }
+    }
+    return { ...stored, ...incoming };
+  }
 
   // Capability/vendor registry — read-only metadata the onboarding UI renders
   // from (no secrets; describes which fields exist, not their values).
@@ -222,7 +268,13 @@ export function initSetup(app: Express, opts: { store?: StateStore } = {}) {
         ? (body.config as Record<string, unknown>)
         : {};
     const stored = store ? await readSelectionConfig(store, capability) : {};
-    const result = await testIntegration(capability, { ...stored, ...incoming });
+    let config: Record<string, unknown>;
+    try {
+      config = mergeTestConfig(capability, stored, incoming);
+    } catch (err) {
+      return res.status(400).json({ ok: false, error: errorMessage(err) });
+    }
+    const result = await testIntegration(capability, config);
     res.json(result);
   });
 }

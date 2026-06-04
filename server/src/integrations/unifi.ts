@@ -5,7 +5,7 @@ import type { Express, Request, Response } from 'express';
 
 import { insecureFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
-import { isEnabled, formatUptime } from '../lib/env.js';
+import { isDebugEndpointEnabled, isEnabled, formatUptime } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
 
@@ -316,7 +316,7 @@ export function registerUnifi(app: Express) {
 
   // Development-only raw passthrough for debugging UniFi API shapes.
   app.get('/api/debug', async (_req: Request, res: Response) => {
-    if (process.env.NODE_ENV !== 'development') {
+    if (!isDebugEndpointEnabled()) {
       return res.status(404).json({ error: 'Not found' });
     }
     if (!UNIFI_ENABLED) return res.status(503).json({ error: 'UniFi disabled' });

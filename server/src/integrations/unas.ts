@@ -4,7 +4,7 @@ import type { Express, Request, Response } from 'express';
 
 import { insecureFetch, makeSafeFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
-import { isEnabled, trimBaseUrl } from '../lib/env.js';
+import { isDebugEndpointEnabled, isEnabled, trimBaseUrl } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
 
@@ -192,6 +192,7 @@ export function registerUnas(app: Express) {
   });
 
   app.get('/api/unas/debug', async (_req: Request, res: Response) => {
+    if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
     if (!UNAS_ENABLED) return res.json({ disabled: true });
     const c = fetchUnasData.peek();
     res.json({

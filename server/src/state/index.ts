@@ -1,6 +1,7 @@
 import express from 'express';
 import type { Express, Request, Response, NextFunction } from 'express';
 
+import { isDebugEndpointEnabled } from '../lib/env.js';
 import type { StateStore } from '../storage/types.js';
 
 const RESERVED_KEYS = new Set([
@@ -111,6 +112,7 @@ export async function initState(app: Express, opts: { store: StateStore }) {
   });
 
   app.get('/api/state/debug', async (_req: Request, res: Response) => {
+    if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
     try {
       res.json(await db.stats());
     } catch (err) {

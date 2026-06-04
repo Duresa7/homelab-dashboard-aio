@@ -80,6 +80,8 @@ app.get('/api/health', (_req, res) => {
 
 const LIVE_HEALTH_CACHE_TTL_MS = Number(process.env.HEALTH_LIVE_CACHE_TTL) || 12000;
 const LIVE_HEALTH_PROBE_TIMEOUT_MS = Number(process.env.HEALTH_LIVE_TIMEOUT) || 5000;
+const LIVE_HEALTH_FORCE_MIN_INTERVAL_MS =
+  Number(process.env.HEALTH_LIVE_FORCE_MIN_INTERVAL) || 30000;
 
 interface ProbeResult {
   name: string;
@@ -98,6 +100,7 @@ interface LiveHealth {
 }
 
 let liveHealthCache: { data: LiveHealth | null; ts: number } = { data: null, ts: 0 };
+let liveHealthInFlight: Promise<LiveHealth> | null = null;
 
 async function runProbe(
   name: string,
@@ -148,19 +151,7 @@ async function runProbe(
   }
 }
 
-app.get('/api/health/live', async (req, res) => {
-  const force = req.query.refresh === '1' || req.query.force === '1';
-  const now = Date.now();
-  if (!force && liveHealthCache.data && now - liveHealthCache.ts < LIVE_HEALTH_CACHE_TTL_MS) {
-    res.set('Cache-Control', 'no-store');
-    return res.json({
-      ...liveHealthCache.data,
-      fromCache: true,
-      ageMs: now - liveHealthCache.ts,
-      cacheTtlMs: LIVE_HEALTH_CACHE_TTL_MS,
-    });
-  }
-
+async function computeLiveHealth(): Promise<LiveHealth> {
   const probes = await Promise.all([
     runProbe('unifi', unifiStatus.enabled && !!unifiStatus.baseUrl && unifiStatus.configured, () =>
       probeUnifi(),
@@ -192,9 +183,44 @@ app.get('/api/health/live', async (req, res) => {
     summary,
     integrations: byKey,
   };
-  liveHealthCache = { data: result, ts: now };
+  return result;
+}
+
+app.get('/api/health/live', async (req, res) => {
+  const forceRequested = req.query.refresh === '1' || req.query.force === '1';
+  const now = Date.now();
+  const cacheAge = liveHealthCache.data ? now - liveHealthCache.ts : null;
+  const forceAllowed =
+    forceRequested &&
+    (!liveHealthCache.data || cacheAge === null || cacheAge >= LIVE_HEALTH_FORCE_MIN_INTERVAL_MS);
+  if (
+    liveHealthCache.data &&
+    ((!forceAllowed && forceRequested) ||
+      (!forceRequested && cacheAge !== null && cacheAge < LIVE_HEALTH_CACHE_TTL_MS))
+  ) {
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      ...liveHealthCache.data,
+      fromCache: true,
+      ageMs: cacheAge,
+      cacheTtlMs: LIVE_HEALTH_CACHE_TTL_MS,
+      forceLimited: forceRequested && !forceAllowed,
+    });
+  }
+
+  liveHealthInFlight ??= computeLiveHealth().finally(() => {
+    liveHealthInFlight = null;
+  });
+  const result = await liveHealthInFlight;
+  liveHealthCache = { data: result, ts: Date.now() };
   res.set('Cache-Control', 'no-store');
-  res.json({ ...result, fromCache: false, ageMs: 0, cacheTtlMs: LIVE_HEALTH_CACHE_TTL_MS });
+  res.json({
+    ...result,
+    fromCache: false,
+    ageMs: 0,
+    cacheTtlMs: LIVE_HEALTH_CACHE_TTL_MS,
+    forceLimited: false,
+  });
 });
 
 registerUnifi(app);

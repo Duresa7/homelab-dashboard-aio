@@ -1,6 +1,7 @@
 // Wake-on-LAN integration. Sends magic packets to registered Compute hosts.
 import express from 'express';
 import dgram from 'node:dgram';
+import net from 'node:net';
 import type { Express, Request, Response } from 'express';
 
 import { errorMessage } from '../lib/errors.js';
@@ -14,6 +15,12 @@ function isWolEnabled(value: string | undefined | null): boolean {
 const WOL_ENABLED = isWolEnabled(process.env.WOL_ENABLED);
 const DEFAULT_BROADCAST = '255.255.255.255';
 const DEFAULT_PORT = 9;
+const ALLOWED_WOL_PORTS = new Set(
+  String(process.env.WOL_ALLOWED_PORTS || '7,9')
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value >= 1 && value <= 65535),
+);
 
 export const wolStatus = {
   enabled: WOL_ENABLED,
@@ -52,7 +59,16 @@ export function buildMagicPacket(mac: string): Buffer {
 export function normalizeBroadcast(broadcast: unknown): string {
   if (broadcast === undefined || broadcast === null || broadcast === '') return DEFAULT_BROADCAST;
   if (typeof broadcast !== 'string') throw new Error('broadcast must be a string');
-  return broadcast.trim();
+  const value = broadcast.trim();
+  if (net.isIP(value) !== 4) throw new Error('broadcast must be an IPv4 address');
+  const octets = value.split('.').map((part) => Number(part));
+  if (octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    throw new Error('broadcast must be an IPv4 address');
+  }
+  if (value !== DEFAULT_BROADCAST && octets[3] !== 255) {
+    throw new Error('broadcast must be an IPv4 subnet broadcast address');
+  }
+  return value;
 }
 
 export function normalizeWolPort(port: unknown): number {
@@ -60,6 +76,9 @@ export function normalizeWolPort(port: unknown): number {
   const value = Number(port);
   if (!Number.isInteger(value) || value < 1 || value > 65535) {
     throw new Error('port must be an integer from 1 to 65535');
+  }
+  if (!ALLOWED_WOL_PORTS.has(value)) {
+    throw new Error(`port must be one of: ${[...ALLOWED_WOL_PORTS].sort().join(', ')}`);
   }
   return value;
 }

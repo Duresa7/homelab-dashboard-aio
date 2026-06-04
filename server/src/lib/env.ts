@@ -17,6 +17,11 @@ export function isEnabled(value: string | undefined | null, defaultEnabled = tru
   return !FALSY_ENV.includes(String(value).trim().toLowerCase());
 }
 
+/** Diagnostic routes are production-off unless explicitly enabled. */
+export function isDebugEndpointEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.NODE_ENV === 'development' || isEnabled(env.DEBUG_ENDPOINTS_ENABLED, false);
+}
+
 /** Strip trailing slashes from a base URL (so `${base}${path}` joins cleanly). */
 export function trimBaseUrl(url: string | undefined | null): string {
   return String(url || '').replace(/\/+$/, '');

@@ -20,12 +20,12 @@ let store: StateStore;
 
 const ENV = {
   PROXMOX_ENABLED: 'true',
-  PROXMOX_BASE_URL: 'https://pve.lan',
+  PROXMOX_BASE_URL: 'https://pve.example.test',
   PROXMOX_TOKEN_ID: 'root@pam!tok',
   PROXMOX_TOKEN_SECRET: 'super-secret',
   PROXMOX_NODE: 'pve1',
   UNIFI_ENABLED: 'true',
-  UNIFI_BASE_URL: 'https://unifi.lan',
+  UNIFI_BASE_URL: 'https://unifi.example.test',
   UNIFI_API_KEY: 'unifi-key',
 };
 
@@ -47,7 +47,7 @@ describe('importConfigFromEnv', () => {
       enabled: true,
       vendor: 'proxmox',
       config: {
-        baseUrl: 'https://pve.lan',
+        baseUrl: 'https://pve.example.test',
         tokenId: 'root@pam!tok',
         tokenSecret: 'super-secret',
         node: 'pve1',
@@ -97,7 +97,7 @@ describe('getRedactedConfig', () => {
       config: Record<string, unknown>;
       secrets: Record<string, boolean>;
     };
-    expect(dc.config).toMatchObject({ baseUrl: 'https://pve.lan', node: 'pve1' });
+    expect(dc.config).toMatchObject({ baseUrl: 'https://pve.example.test', node: 'pve1' });
     expect(dc.config).not.toHaveProperty('tokenSecret');
     expect(dc.secrets).toEqual({ tokenSecret: true });
     expect(JSON.stringify(view)).not.toContain('super-secret');

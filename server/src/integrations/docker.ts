@@ -4,7 +4,7 @@ import type { Express, Request, Response } from 'express';
 
 import { insecureFetch, makeSafeFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
-import { isEnabled, trimBaseUrl, formatUptime } from '../lib/env.js';
+import { isDebugEndpointEnabled, isEnabled, trimBaseUrl, formatUptime } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
 
@@ -224,6 +224,7 @@ export function registerDocker(app: Express) {
   });
 
   app.get('/api/docker/debug', async (_req: Request, res: Response) => {
+    if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
     if (!PORTAINER_ENABLED) return res.json({ disabled: true });
     const c = fetchPortainerDockerData.peek();
     res.json({

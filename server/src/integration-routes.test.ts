@@ -32,6 +32,22 @@ describe('Integration route contracts', () => {
     });
   });
 
+  it('hides diagnostic endpoints unless explicitly enabled', async () => {
+    await usingApp({}, async (api) => {
+      for (const path of [
+        '/api/debug',
+        '/api/docker/debug',
+        '/api/proxmox/debug',
+        '/api/unas/debug',
+        '/api/gpu/debug',
+        '/api/sensors/debug',
+        '/api/state/debug',
+      ]) {
+        await api.get(path).expect(404, { error: 'Not found' });
+      }
+    });
+  });
+
   it('returns 503 not-configured responses without calling upstreams', async () => {
     await usingApp(
       {
@@ -114,7 +130,7 @@ describe('Integration route contracts', () => {
           data: [{ id: 'vpn', name: 'WireGuard', type: 'wireguard', enabled: true }],
         },
         '/proxy/network/integration/v1/sites/site-1/dns/policies': {
-          data: [{ id: 'dns', type: 'A', domain: 'dash.lan', enabled: true }],
+          data: [{ id: 'dns', type: 'A', domain: 'dash.example.test', enabled: true }],
         },
         '/proxy/network/integration/v1/info': { applicationVersion: '9.3.0' },
         '/proxy/network/integration/v1/sites/site-1/devices/gw/statistics/latest': {

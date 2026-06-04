@@ -4,7 +4,7 @@ import type { Express, Request, Response } from 'express';
 
 import { runRemote } from '../lib/remote.js';
 import { withTtlCache } from '../lib/cache.js';
-import { isEnabled } from '../lib/env.js';
+import { isDebugEndpointEnabled, isEnabled } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 
 const GPU_ENABLED = isEnabled(process.env.GPU_ENABLED);
@@ -124,6 +124,7 @@ export function registerGpu(app: Express) {
   });
 
   app.get('/api/gpu/debug', async (_req: Request, res: Response) => {
+    if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
     if (!GPU_ENABLED) return res.json({ disabled: true });
     const config: { mode: string; host?: string; user?: string; port?: number; keyPath?: string } =
       { mode: GPU_MODE };

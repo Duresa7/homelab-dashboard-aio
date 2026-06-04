@@ -32,10 +32,10 @@ describe('resolveDbConfig precedence', () => {
   });
 
   it('uses the file driver when no env override is present', () => {
-    writeFile({ driver: 'postgres', postgres: { host: 'db.lan', database: 'logs' } });
+    writeFile({ driver: 'postgres', postgres: { host: 'db.example.test', database: 'logs' } });
     const cfg = resolveDbConfig({ env: {}, configPath: configPath() });
     expect(cfg.driver).toBe('postgres');
-    expect(cfg.postgres).toMatchObject({ host: 'db.lan', database: 'logs', port: 5432 });
+    expect(cfg.postgres).toMatchObject({ host: 'db.example.test', database: 'logs', port: 5432 });
   });
 
   it('lets env DB_DRIVER override the file driver', () => {
@@ -66,6 +66,16 @@ describe('resolveDbConfig precedence', () => {
     });
     expect(cfg.sqlite.statePath).toBe(path.resolve(state));
     expect(cfg.sqlite.siemPath).toBe(path.resolve(siem));
+  });
+
+  it('ignores file-provided SQLite paths outside data/', () => {
+    writeFile({
+      driver: 'sqlite',
+      sqlite: { statePath: path.join(dir, 'outside.sqlite'), siemPath: 'data/ok.sqlite' },
+    });
+    const cfg = resolveDbConfig({ env: {}, configPath: configPath() });
+    expect(cfg.sqlite.statePath).toBe(DEFAULT_SQLITE_STATE_PATH);
+    expect(cfg.sqlite.siemPath).toBe(path.resolve('data/ok.sqlite'));
   });
 
   it('parses DATABASE_URL for a server backend', () => {

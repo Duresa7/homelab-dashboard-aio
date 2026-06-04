@@ -1,9 +1,23 @@
 import { readFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
 import { loadServerApp, withJsonUpstream } from '../test/serverApp.js';
 import { redactDbConfig } from './index.js';
+
+const SECRET_VALUE = 'tok-XYZ-9876';
+const proxmox = {
+  capability: 'datacenter',
+  vendor: 'proxmox',
+  config: {
+    baseUrl: 'https://pve.example.test',
+    tokenId: 'id',
+    tokenSecret: SECRET_VALUE,
+    node: 'pve1',
+  },
+};
 
 describe('redactDbConfig', () => {
   it('never includes the password and reports presence only', () => {
@@ -152,13 +166,6 @@ describe('database setup API', () => {
 });
 
 describe('integration config API', () => {
-  const SECRET_VALUE = 'tok-XYZ-9876';
-  const proxmox = {
-    capability: 'datacenter',
-    vendor: 'proxmox',
-    config: { baseUrl: 'https://pve.lan', tokenId: 'id', tokenSecret: SECRET_VALUE, node: 'pve1' },
-  };
-
   it('reports onboarding incomplete on a clean instance', async () => {
     const ctx = await loadServerApp();
     try {
@@ -216,7 +223,7 @@ describe('integration config API', () => {
 
       const cfg = await request(ctx.app).get('/api/setup/config').expect(200);
       const dc = cfg.body.capabilities.datacenter;
-      expect(dc.config).toMatchObject({ baseUrl: 'https://pve.lan', node: 'pve1' });
+      expect(dc.config).toMatchObject({ baseUrl: 'https://pve.example.test', node: 'pve1' });
       expect(dc.config).not.toHaveProperty('tokenSecret');
       expect(dc.secrets).toEqual({ tokenSecret: true });
       expect(JSON.stringify(cfg.body)).not.toContain(SECRET_VALUE);
@@ -249,6 +256,22 @@ describe('integration config API', () => {
         .set('Origin', 'http://evil.test')
         .send(proxmox)
         .expect(403);
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
+  it('rejects sqlite paths outside data from setup writes', async () => {
+    const ctx = await loadServerApp();
+    try {
+      const res = await request(ctx.app)
+        .post('/api/setup/db/test')
+        .send({
+          driver: 'sqlite',
+          sqlite: { statePath: path.join(os.tmpdir(), 'outside.sqlite') },
+        })
+        .expect(400);
+      expect(res.body.error).toMatch(/under data/i);
     } finally {
       await ctx.cleanup();
     }
@@ -305,6 +328,35 @@ describe('connection test API', () => {
     } finally {
       await ctx.cleanup();
     }
+  });
+
+  it('does not replay stored secrets to a changed test URL', async () => {
+    await withJsonUpstream(
+      { '/api2/json/version': { data: { version: '8.0' } } },
+      async (baseUrl) => {
+        const ctx = await loadServerApp();
+        try {
+          await request(ctx.app)
+            .put('/api/setup/config')
+            .send({
+              ...proxmox,
+              config: { ...proxmox.config, baseUrl: 'https://pve.example.test' },
+            })
+            .expect(200);
+
+          const res = await request(ctx.app)
+            .post('/api/setup/test')
+            .send({
+              capability: 'datacenter',
+              config: { baseUrl, tokenId: 'id' },
+            })
+            .expect(400);
+          expect(res.body.error).toMatch(/secret fields are required/i);
+        } finally {
+          await ctx.cleanup();
+        }
+      },
+    );
   });
 
   it('marks SSH/listener capabilities as untestable', async () => {

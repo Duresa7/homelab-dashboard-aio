@@ -18,6 +18,8 @@ const MAX_PACKET_BYTES = 8 * 1024;
 // rate we drop the packet and bump a counter for /api/siem/status.
 const RATE_PPS = 200;
 const RATE_BURST = 1000;
+const GLOBAL_RATE_PPS = Number(process.env.SIEM_GLOBAL_RATE_PPS) || 1000;
+const GLOBAL_RATE_BURST = Number(process.env.SIEM_GLOBAL_RATE_BURST) || 5000;
 const RATE_BUCKETS_MAX = 4096; // cap distinct sources tracked
 // Chunked retention sweep: each tick deletes one batch then yields to the
 // event loop so HTTP/SSE/UDP handlers keep flowing.
@@ -44,11 +46,15 @@ function bestLanIp(): string {
     }
   }
   // Skip docker/vEthernet IPs by preferring RFC1918 ranges.
-  const priv = candidates.find(
-    (ip) =>
-      ip.startsWith('198.51.100.') || ip.startsWith('10.') || /^198.51.100.(1[6-9]|2\d|3[01])\./.test(ip),
-  );
+  const priv = candidates.find(isPrivateIpv4);
   return priv || candidates[0] || '127.0.0.1';
+}
+
+function isPrivateIpv4(ip: string): boolean {
+  const octets = ip.split('.').map((part) => Number(part));
+  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part))) return false;
+  const [a, b] = octets;
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
 }
 
 export async function initSiem(app: Express, opts: SiemOptions) {
@@ -123,6 +129,22 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     .filter(Boolean);
   const sourceAllowSet = allowedSources.length ? new Set(allowedSources) : null;
 
+  const globalBucket = { tokens: GLOBAL_RATE_BURST, lastRefillMs: Date.now() };
+  function admitGlobal(): boolean {
+    const now = Date.now();
+    const elapsed = now - globalBucket.lastRefillMs;
+    if (elapsed > 0) {
+      globalBucket.tokens = Math.min(
+        GLOBAL_RATE_BURST,
+        globalBucket.tokens + (elapsed * GLOBAL_RATE_PPS) / 1000,
+      );
+      globalBucket.lastRefillMs = now;
+    }
+    if (globalBucket.tokens < 1) return false;
+    globalBucket.tokens -= 1;
+    return true;
+  }
+
   // Per-source token bucket. Map<ip, {tokens, lastRefillMs}>.
   const rateBuckets = new Map<string, { tokens: number; lastRefillMs: number }>();
   function admit(ip: string): boolean {
@@ -156,6 +178,11 @@ export async function initSiem(app: Express, opts: SiemOptions) {
 
     // Source allowlist check (env-configurable).
     if (sourceAllowSet && !sourceAllowSet.has(rinfo.address)) {
+      stats.packetsRateLimited += 1;
+      return;
+    }
+    // Global rate limiting caps aggregate ingest even when sources rotate.
+    if (!admitGlobal()) {
       stats.packetsRateLimited += 1;
       return;
     }
@@ -308,6 +335,8 @@ export async function initSiem(app: Express, opts: SiemOptions) {
         maxPacketBytes: MAX_PACKET_BYTES,
         ratePps: RATE_PPS,
         rateBurst: RATE_BURST,
+        globalRatePps: GLOBAL_RATE_PPS,
+        globalRateBurst: GLOBAL_RATE_BURST,
         sourceAllowlist: allowedSources,
       });
     } catch (err) {

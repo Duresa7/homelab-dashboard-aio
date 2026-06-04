@@ -22,7 +22,13 @@ vi.mock('node:dgram', () => ({
   },
 }));
 
-import { buildMagicPacket, normalizeMac, registerWol } from './wol.js';
+import {
+  buildMagicPacket,
+  normalizeBroadcast,
+  normalizeMac,
+  normalizeWolPort,
+  registerWol,
+} from './wol.js';
 import { loadServerApp } from '../test/serverApp.js';
 
 function makeApp() {
@@ -60,6 +66,16 @@ describe('Wake-on-LAN integration', () => {
     expect(() => buildMagicPacket('AA:BB-CC:DD:EE:FF')).toThrow(/invalid MAC/i);
   });
 
+  it('allows only IPv4 broadcast-style WOL targets and ports', () => {
+    expect(normalizeBroadcast(undefined)).toBe('255.255.255.255');
+    expect(normalizeBroadcast('198.51.100.255')).toBe('198.51.100.255');
+    expect(() => normalizeBroadcast('198.51.100.10')).toThrow(/subnet broadcast/i);
+    expect(() => normalizeBroadcast('wake.example.test')).toThrow(/IPv4/i);
+    expect(normalizeWolPort(undefined)).toBe(9);
+    expect(normalizeWolPort(7)).toBe(7);
+    expect(() => normalizeWolPort(53)).toThrow(/one of/i);
+  });
+
   it('sends a broadcast packet and returns the resolved target', async () => {
     const api = makeApp();
 
@@ -88,6 +104,17 @@ describe('Wake-on-LAN integration', () => {
     const res = await api.post('/api/wol/wake').send({ mac: 'not-a-mac' }).expect(400);
 
     expect(res.body.error).toMatch(/invalid MAC/i);
+    expect(dgramMock.createSocket).not.toHaveBeenCalled();
+  });
+
+  it('rejects arbitrary WOL route targets before sending UDP', async () => {
+    const api = makeApp();
+
+    await api
+      .post('/api/wol/wake')
+      .send({ mac: 'AA:BB:CC:DD:EE:FF', broadcast: '198.51.100.10', port: 53 })
+      .expect(400);
+
     expect(dgramMock.createSocket).not.toHaveBeenCalled();
   });
 

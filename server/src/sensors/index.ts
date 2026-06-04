@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import { runRemote } from '../lib/remote.js';
 import { errorMessage } from '../lib/errors.js';
+import { isDebugEndpointEnabled } from '../lib/env.js';
 import { parseSensorsJson, parseDiskInventory, type SensorTree } from './parse.js';
 
 export interface SensorsConfig {
@@ -95,6 +96,7 @@ export function initSensors(app: Express, config: SensorsConfig) {
   });
 
   app.get('/api/sensors/debug', async (_req: Request, res: Response) => {
+    if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
     if (!enabled) return res.json({ disabled: true });
     const cfg: { mode: string; host?: string; user?: string; port?: number; keyPath?: string } = {
       mode,

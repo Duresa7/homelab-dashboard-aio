@@ -47,6 +47,7 @@ export interface ResolveDbConfigOpts {
 }
 
 const DATA_DIR = 'data';
+export const DATA_DIR_PATH = path.resolve(DATA_DIR);
 export const DEFAULT_CONFIG_PATH = path.resolve(DATA_DIR, 'database.json');
 
 /** Bootstrap config file location, overridable via DB_CONFIG_PATH. */
@@ -57,6 +58,7 @@ export const DEFAULT_SQLITE_STATE_PATH = path.resolve(DATA_DIR, 'dashboard.sqlit
 export const DEFAULT_SQLITE_SIEM_PATH = path.resolve(DATA_DIR, 'siem.sqlite');
 const DEFAULT_PG_PORT = 5432;
 const DEFAULT_MYSQL_PORT = 3306;
+const SQLITE_EXTENSIONS = new Set(['.sqlite', '.sqlite3', '.db']);
 
 function normalizeDriver(value: unknown): DbDriver | undefined {
   if (typeof value !== 'string') return undefined;
@@ -84,6 +86,24 @@ function parseBool(value: unknown): boolean | undefined {
   return undefined;
 }
 
+function isWithinPath(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+export function normalizeSqliteDataPath(value: string): string {
+  const raw = value.trim();
+  if (!raw) throw new Error('SQLite path is required');
+  const resolved = path.resolve(raw);
+  if (!isWithinPath(DATA_DIR_PATH, resolved)) {
+    throw new Error('SQLite path must stay under data/');
+  }
+  if (!SQLITE_EXTENSIONS.has(path.extname(resolved).toLowerCase())) {
+    throw new Error('SQLite path must end in .sqlite, .sqlite3, or .db');
+  }
+  return path.relative(process.cwd(), resolved);
+}
+
 /** Read + shape-validate the JSON config file. Any problem → null (safe fallback). */
 function readConfigFile(configPath: string): DbConfigFile | null {
   let text: string;
@@ -107,9 +127,23 @@ function resolveSqlite(
   env: NodeJS.ProcessEnv,
   fileSqlite: Partial<SqliteSettings> | undefined,
 ): SqliteSettings {
-  const statePath = env.STATE_DB_PATH || fileSqlite?.statePath || DEFAULT_SQLITE_STATE_PATH;
-  const siemPath = env.SIEM_DB_PATH || fileSqlite?.siemPath || DEFAULT_SQLITE_SIEM_PATH;
+  const fileStatePath = fileSqlite?.statePath
+    ? safeFileSqlitePath(fileSqlite.statePath, DEFAULT_SQLITE_STATE_PATH)
+    : DEFAULT_SQLITE_STATE_PATH;
+  const fileSiemPath = fileSqlite?.siemPath
+    ? safeFileSqlitePath(fileSqlite.siemPath, DEFAULT_SQLITE_SIEM_PATH)
+    : DEFAULT_SQLITE_SIEM_PATH;
+  const statePath = env.STATE_DB_PATH || fileStatePath;
+  const siemPath = env.SIEM_DB_PATH || fileSiemPath;
   return { statePath: path.resolve(statePath), siemPath: path.resolve(siemPath) };
+}
+
+function safeFileSqlitePath(value: string, fallback: string): string {
+  try {
+    return normalizeSqliteDataPath(value);
+  } catch {
+    return fallback;
+  }
 }
 
 function fromDatabaseUrl(url: string, defaultPort: number): SqlServerSettings | null {
