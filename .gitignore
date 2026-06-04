@@ -8,11 +8,17 @@ dist-ssr
 
 # Runtime data (SQLite, HLS scratch, etc.)
 /data
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
 
-# Environment
+# Test coverage
+coverage
+
+# Environment (never commit real secrets — keep only the example template)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Vite
 .vite

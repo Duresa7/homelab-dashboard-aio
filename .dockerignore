@@ -8,6 +8,9 @@ docs
 .env.*
 *.log
 *.md
+*.sqlite
+.scratch
+coverage
 .vscode
 .idea
 .DS_Store
