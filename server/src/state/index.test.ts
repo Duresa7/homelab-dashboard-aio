@@ -72,14 +72,16 @@ describe('state API contract', () => {
       .put('/api/state/tempUnit')
       .set('Host', 'dashboard.test')
       .set('Origin', 'http://evil.test')
-      .send('f')
+      .set('Content-Type', 'application/json')
+      .send('"f"')
       .expect(403, { error: 'cross-origin write rejected' });
 
     await api
       .put('/api/state/tempUnit')
       .set('Host', 'dashboard.test')
       .set('Origin', 'http://dashboard.test')
-      .send('f')
+      .set('Content-Type', 'application/json')
+      .send('"f"')
       .expect(200);
   });
 

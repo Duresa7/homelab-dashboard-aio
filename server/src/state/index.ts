@@ -20,7 +20,7 @@ const RESERVED_KEYS = new Set([
 // /api/state API or shipped to the client in the hydrate snapshot.
 const INTERNAL_KEY_PREFIX = 'setup.';
 
-function isAllowedKey(key: unknown): boolean {
+function isAllowedKey(key: unknown): key is string {
   if (typeof key !== 'string') return false;
   if (key.startsWith(INTERNAL_KEY_PREFIX)) return false;
   if (RESERVED_KEYS.has(key)) return true;
