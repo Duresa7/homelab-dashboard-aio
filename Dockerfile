@@ -20,7 +20,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg openssh-client ca-certificates tini \
+  && apt-get install -y --no-install-recommends openssh-client ca-certificates tini \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./

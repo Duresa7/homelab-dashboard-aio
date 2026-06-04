@@ -1,6 +1,6 @@
 # Context Map — Homelab Dashboard
 
-A single-page dashboard that aggregates live telemetry from a home lab (network gear, hypervisor, NAS, cameras, GPU, host sensors) behind one Express proxy and renders it in a React client.
+A single-page dashboard that aggregates live telemetry from a home lab (network gear, hypervisor, NAS, GPU, host sensors) behind one Express proxy and renders it in a React client.
 
 This repo is split into two domain contexts. Read the `CONTEXT.md` for whichever context you're working in; read both when your change crosses the seam between them. Architecture vocabulary (module, seam, depth, adapter) lives in the reviewer's LANGUAGE.md, not here.
 
@@ -14,7 +14,7 @@ This repo is split into two domain contexts. Read the `CONTEXT.md` for whichever
 ## Shared boundary term
 
 **Integration**:
-One upstream homelab source the dashboard reads — `unifi`, `proxmox`, `docker`, `gpu`, `sensors`, `unas`, `protect`. Each has an enabled flag, a configured check, and a fetch. The **server** proxies it; the **client** polls it. This is the one term both contexts share — defined here because it names the seam between them.
+One upstream homelab source the dashboard reads — `unifi`, `proxmox`, `docker`, `gpu`, `sensors`, `unas`. Each has an enabled flag, a configured check, and a fetch. The **server** proxies it; the **client** polls it. This is the one term both contexts share — defined here because it names the seam between them.
 _Avoid_: service, plugin, provider.
 
 ## Example dialogue (crosses the seam)
