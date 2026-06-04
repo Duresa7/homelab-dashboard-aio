@@ -12,8 +12,10 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { getState, setState } from './lib/store';
+import { useSetupStatus } from './lib/setup';
 
 import { OverviewPage } from './pages/OverviewPage';
+import { OnboardingWizard } from './pages/onboarding/OnboardingWizard';
 import { ProxmoxPage } from './pages/ProxmoxPage';
 import { NetworkPage } from './pages/NetworkPage';
 import { DockerPage } from './pages/DockerPage';
@@ -112,6 +114,7 @@ export function App() {
   const [t, setTweak] = useTweaks<TweakState>(DEFAULTS);
   const data = useDashData();
   const connectivity = useConnectivity();
+  const setupStatus = useSetupStatus();
   const [route, setRouteState] = useState<Route>(() => loadRoute());
   const [chartKinds, setChartKinds] = useState<Partial<Record<TileId, ChartKind>>>({});
   const [expanded, setExpanded] = useState<TileId | null>(null);
@@ -195,7 +198,27 @@ export function App() {
   const activeSub = resolveSub(route.section, route.sub);
 
   const backendOffline = connectivity.status === 'offline';
+  const setupLoading = setupStatus.loading && connectivity.status !== 'offline';
+  const setupRequired =
+    connectivity.status !== 'offline' && setupStatus.status?.onboardingComplete === false;
   const sectionGated = backendOffline && BACKEND_BACKED_SECTIONS.has(route.section);
+
+  if (setupLoading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground">
+        Loading setup...
+      </div>
+    );
+  }
+
+  if (setupRequired) {
+    return (
+      <TooltipProvider delayDuration={250}>
+        <OnboardingWizard onDone={setupStatus.refresh} />
+        <Toaster />
+      </TooltipProvider>
+    );
+  }
 
   const sectionContent = sectionGated ? (
     <BackendOffline reason={connectivity.reason} />
