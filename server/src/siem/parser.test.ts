@@ -68,10 +68,10 @@ describe('SIEM classifier', () => {
     const parsed = parseSyslog(
       '<134>Jun  1 12:34:56 UCG-Fiber kernel: [WAN_IN-3003-A] DROP SRC=1.2.3.4',
     );
-    expect(classifySyslog(parsed!, '198.51.100.10')).toEqual({
+    expect(classifySyslog(parsed!, '198.51.100.1')).toEqual({
       device_kind: 'gateway',
       category: 'firewall',
-      source_ip: '198.51.100.10',
+      source_ip: '198.51.100.1',
     });
   });
 
@@ -79,10 +79,10 @@ describe('SIEM classifier', () => {
     const parsed = parseSyslog(
       String.raw`CEF:0|Ubiquiti|UniFi|9.3|vpn|VPN user connected|5|dvchost=UNVR UNIFIcategory=vpn`,
     );
-    expect(classifySyslog(parsed!, '198.51.100.10')).toEqual({
+    expect(classifySyslog(parsed!, '198.51.100.20')).toEqual({
       device_kind: 'controller',
       category: 'vpn',
-      source_ip: '198.51.100.10',
+      source_ip: '198.51.100.20',
     });
   });
 });

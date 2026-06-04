@@ -82,7 +82,7 @@ describe('ComputeWakeCard', () => {
     const user = userEvent.setup();
     renderCard();
 
-    await user.type(screen.getByLabelText('Name'), 'Example PC');
+    await user.type(screen.getByLabelText('Name'), 'Example Host');
     await user.type(screen.getByLabelText('MAC address'), 'not-a-mac');
     await user.click(screen.getByRole('button', { name: 'Add host' }));
 
@@ -106,10 +106,10 @@ describe('ComputeWakeCard', () => {
     renderCard();
     await screen.findByText('ready');
 
-    await user.type(screen.getByLabelText('Name'), 'Example PC');
+    await user.type(screen.getByLabelText('Name'), 'Example Host');
     await user.type(screen.getByLabelText('MAC address'), 'AA:BB:CC:DD:EE:FF');
     await user.click(screen.getByRole('checkbox', { name: 'Advanced' }));
-    await user.type(screen.getByLabelText('Broadcast'), '198.51.100.10');
+    await user.type(screen.getByLabelText('Broadcast'), '198.51.100.255');
     await user.type(screen.getByLabelText('Port'), '7');
     await user.click(screen.getByRole('button', { name: 'Add host' }));
 
@@ -117,14 +117,14 @@ describe('ComputeWakeCard', () => {
       'computeHosts',
       expect.arrayContaining([
         expect.objectContaining({
-          name: 'Example PC',
+          name: 'Example Host',
           mac: 'AA:BB:CC:DD:EE:FF',
-          broadcast: '198.51.100.10',
+          broadcast: '198.51.100.255',
           port: 7,
         }),
       ]),
     );
-    expect(screen.getByText('Example PC')).toBeInTheDocument();
+    expect(screen.getByText('Example Host')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Wake' }));
     await waitFor(() =>
@@ -137,15 +137,15 @@ describe('ComputeWakeCard', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         mac: 'AA:BB:CC:DD:EE:FF',
-        broadcast: '198.51.100.10',
+        broadcast: '198.51.100.255',
         port: 7,
       }),
     });
-    expect(toastMock.success).toHaveBeenCalledWith('Magic packet sent to Example PC');
+    expect(toastMock.success).toHaveBeenCalledWith('Magic packet sent to Example Host');
   });
 
   it('disables wake when server health reports WoL disabled', async () => {
-    const hosts: ComputeHost[] = [{ id: 'host-1', name: 'Grey Server', mac: 'AA:BB:CC:DD:EE:FF' }];
+    const hosts: ComputeHost[] = [{ id: 'host-1', name: 'Compute Host', mac: 'AA:BB:CC:DD:EE:FF' }];
     storeMock.values.set('computeHosts', hosts);
     vi.stubGlobal(
       'fetch',

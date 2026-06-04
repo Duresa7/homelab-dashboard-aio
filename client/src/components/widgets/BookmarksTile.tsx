@@ -16,138 +16,7 @@ interface BookmarkDef {
   src: string;
 }
 
-const DI = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg';
-const favicon = (host: string) => `https://www.google.com/s2/favicons?domain=${host}&sz=128`;
-
-const BOOKMARKS: BookmarkDef[] = [
-  {
-    id: 'bm-proxmox',
-    url: 'https://198.51.100.10:8006/#v1:0:18:4:::::::',
-    label: 'Data Center',
-    src: `${DI}/proxmox.svg`,
-  },
-  {
-    id: 'bm-unifi-gw',
-    url: 'https://198.51.100.10/network/default/dashboard',
-    label: 'Network Console',
-    src: `${DI}/unifi-controller.svg`,
-  },
-  {
-    id: 'bm-unifi-drive',
-    url: 'https://198.51.100.10/drive/dashboard',
-    label: 'NAS Drive',
-    src: `${DI}/unifi-drive.svg`,
-  },
-  {
-    id: 'bm-unifi-cloud',
-    url: 'https://unifi.ui.com/',
-    label: 'Site Manager',
-    src: `${DI}/ubiquiti.svg`,
-  },
-  {
-    id: 'bm-npm',
-    url: 'http://198.51.100.10:81/',
-    label: 'Proxy Manager',
-    src: `${DI}/nginx-proxy-manager.svg`,
-  },
-  {
-    id: 'bm-immich',
-    url: 'http://198.51.100.10:2283/photos',
-    label: 'Immich',
-    src: `${DI}/immich.svg`,
-  },
-  {
-    id: 'bm-umami',
-    url: 'https://umami.example.test/websites',
-    label: 'Umami',
-    src: `${DI}/umami.svg`,
-  },
-  {
-    id: 'bm-portainer',
-    url: 'https://198.51.100.10:9443/#!/home',
-    label: 'Portainer',
-    src: `${DI}/portainer.svg`,
-  },
-  {
-    id: 'bm-supabase',
-    url: 'http://198.51.100.10:8000/project/default',
-    label: 'Supabase',
-    src: `${DI}/supabase.svg`,
-  },
-  {
-    id: 'bm-personal',
-    url: 'https://example-user.example.test/',
-    label: 'example-user',
-    src: favicon('example-user.example.test'),
-  },
-  {
-    id: 'bm-github',
-    url: 'http://198.51.100.10:3000/',
-    label: 'GitHub',
-    src: `${DI}/github.svg`,
-  },
-  {
-    id: 'bm-wazuh',
-    url: 'https://198.51.100.10/app/wz-home',
-    label: 'Wazuh',
-    src: `${DI}/wazuh.svg`,
-  },
-  { id: 'bm-sshid', url: 'https://sshid.io/example-user2', label: 'SSHID', src: favicon('sshid.io') },
-  {
-    id: 'bm-prometheus',
-    url: 'http://198.51.100.10:9090/query',
-    label: 'Prometheus',
-    src: `${DI}/prometheus.svg`,
-  },
-  {
-    id: 'bm-grafana',
-    url: 'http://198.51.100.10:3000/d/rYdddlPWk/node-exporter-full?orgId=1&from=now-24h&to=now&timezone=browser&var-ds_prometheus=bfgnkdi47u5tsa&var-job=example-server&var-nodename=example-server&var-node=198.51.100.10:9100&refresh=1m',
-    label: 'Grafana',
-    src: `${DI}/grafana.svg`,
-  },
-  {
-    id: 'bm-coolify-lan',
-    url: 'http://198.51.100.10:8000/',
-    label: 'Coolify',
-    src: `${DI}/coolify.svg`,
-  },
-  {
-    id: 'bm-coolify-a1',
-    url: 'https://coolify-a1.example.test/',
-    label: 'Coolify a1',
-    src: `${DI}/coolify.svg`,
-  },
-  {
-    id: 'bm-cloudflare',
-    url: 'https://dash.cloudflare.com/',
-    label: 'Cloudflare',
-    src: `${DI}/cloudflare.svg`,
-  },
-  {
-    id: 'bm-example-org',
-    url: 'https://www.example.test/',
-    label: 'Alpha Sec',
-    src: favicon('example.test'),
-  },
-  {
-    id: 'bm-supabase-cloud',
-    url: 'https://supabase.com/dashboard/organizations',
-    label: 'Supabase Cloud',
-    src: `${DI}/supabase.svg`,
-  },
-  {
-    id: 'bm-vercel',
-    url: 'https://vercel.com/example-projects',
-    label: 'Vercel',
-    src: `${DI}/vercel.svg`,
-  },
-  {
-    id: 'bm-ts3manager',
-    url: 'http://198.51.100.10:9000/servers',
-    label: 'TS3Manager',
-    src: `${DI}/teamspeak.svg`,
-  },
-];
+const BOOKMARKS: BookmarkDef[] = [];
 
 const STORE_KEY = 'bookmarksOrder';
 
@@ -279,7 +148,7 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
     <Tile
       id="bookmarks"
       title="Apps"
-      sub={`${BOOKMARKS.length} · drag to reorder`}
+      sub={BOOKMARKS.length ? `${BOOKMARKS.length} · drag to reorder` : 'No saved apps'}
       span={span}
       onExpand={onExpand}
       expandable={expandable}

@@ -84,7 +84,7 @@ async function getLxcIp(node: string, vmid: number | string) {
       if (ip) return String(ip).split('/')[0];
     }
   }
-  // Fallback: parse static IP from /config (net0: ...,ip=198.51.100.30/24)
+  // Fallback: parse static IP from /config (net0: ...,ip=198.51.100.5/24)
   const cfg = await safePveFetch(`/api2/json/nodes/${node}/lxc/${vmid}/config`);
   if (cfg) {
     for (const key of Object.keys(cfg)) {

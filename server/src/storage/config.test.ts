@@ -72,12 +72,12 @@ describe('resolveDbConfig precedence', () => {
     const cfg = resolveDbConfig({
       env: {
         DB_DRIVER: 'postgres',
-        DATABASE_URL: 'postgres://bob:s3cret@198.51.100.30:6543/metrics?ssl=true',
+        DATABASE_URL: 'postgres://bob:s3cret@198.51.100.5:6543/metrics?ssl=true',
       },
       configPath: configPath(),
     });
     expect(cfg.postgres).toEqual({
-      host: '198.51.100.30',
+      host: '198.51.100.5',
       port: 6543,
       database: 'metrics',
       user: 'bob',

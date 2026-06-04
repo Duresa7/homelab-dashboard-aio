@@ -285,7 +285,7 @@ export function ComputeWakeCard() {
             id="compute-host-name"
             value={form.name}
             onChange={(event) => updateForm({ name: event.target.value })}
-            placeholder="Example PC"
+            placeholder="Example Host"
           />
         </div>
 

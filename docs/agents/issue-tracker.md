@@ -1,6 +1,6 @@
 # Issue tracker: Local Markdown
 
-Issues and PRDs for this repo live as markdown files in `.scratch/`. This repo is on a self-hosted GitHub remote, but issues are tracked locally rather than in GitHub — no CLI or token required.
+Issues and PRDs for this repo live as markdown files in `.scratch/`. Issues are tracked locally rather than on the public GitHub remote, so no issue CLI or token is required.
 
 ## Conventions
 

@@ -19,7 +19,7 @@ afterEach(async () => {
 function evt(over: Partial<InsertEventInput> = {}): InsertEventInput {
   return {
     receivedAt: 1000,
-    sourceIp: '198.51.100.30',
+    sourceIp: '198.51.100.1',
     severity: 6,
     message: 'hello',
     raw: 'raw hello',
@@ -39,7 +39,7 @@ describe('siem store', () => {
     const got = await db.getById(stored.id);
     expect(got).toMatchObject({
       id: stored.id,
-      sourceIp: '198.51.100.30',
+      sourceIp: '198.51.100.1',
       hostname: 'gw',
       extra: { rule: 'block' },
     });

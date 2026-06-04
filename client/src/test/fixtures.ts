@@ -51,7 +51,7 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
       hosts: [
         {
           id: '1',
-          name: 'example-docker',
+          name: 'container-host',
           addr: '198.51.100.10',
           os: 'Debian',
           engine: '27.0',
@@ -65,7 +65,7 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
     proxmox: {
       nodes: 1,
       node: {
-        name: 'grey',
+        name: 'compute-node',
         ip: '198.51.100.10',
         cpu: 25,
         ram: 50,
@@ -113,8 +113,8 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
       clientBreakdown: { wired: 1, wireless: 1, vpn: 0 },
       topTalkers: [
         {
-          name: 'Example PC',
-          ip: '198.51.100.10',
+          name: 'Example Workstation',
+          ip: '198.51.100.50',
           type: 'WIRED',
           access: 'DEFAULT',
           connectedAt: '',
@@ -131,7 +131,7 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
       appVersion: '9.3.0',
     },
     unas: {
-      name: 'NAS NAS',
+      name: 'Example NAS',
       model: 'UNAS 4',
       tempC: 34,
       fanProfile: 'balanced',

@@ -24,9 +24,9 @@ function v6Fixture() {
     lastUpdated: '2026-05-30',
     machines: [
       {
-        id: 'mach_example',
+        id: 'mach_workstation',
         ordinal: '01',
-        name: 'Example PC',
+        name: 'Workstation 1',
         role: 'Windows workstation',
         meta: [{ id: 'm1', label: 'IP', value: '198.51.100.10' }],
         components: [
@@ -198,14 +198,14 @@ describe('migrateInventory (v6 → v7)', () => {
   });
 
   it('moves components into the pool with type-block UIDs and preserves rawSpec', () => {
-    const cpu = inv.components.find((c) => c.type === 'cpu' && c.assignment === 'mach_example');
+    const cpu = inv.components.find((c) => c.type === 'cpu' && c.assignment === 'mach_workstation');
     expect(cpu?.ids?.uid).toBe('1001');
     expect(cpu?.rawSpec).toContain('Ryzen 9 9950X3D');
     expect(fieldValue(cpu!.fields, 'Cores')).toBe('16');
 
     const gpu = inv.components.find((c) => c.type === 'gpu');
     expect(gpu?.ids?.uid).toBe('2001');
-    expect(gpu?.assignment).toBe('mach_example');
+    expect(gpu?.assignment).toBe('mach_workstation');
   });
 
   it('splits the 2×16 GB RAM into two stick entries each with their own UID', () => {
@@ -230,7 +230,7 @@ describe('migrateInventory (v6 → v7)', () => {
     expect(net?.prefix).toBe('04');
     expect(net?.name).not.toMatch(/unifi/i);
     const ucg = net?.items.find((it) => /UCG-Fiber/.test(it.values.model));
-    expect(ucg?.name).toBe('Gateway Gateway');
+    expect(ucg?.name).toBe('Gateway');
     expect(ucg?.deployment).toBe('in-service');
     expect(ucg?.ids?.uid?.startsWith('04')).toBe(true);
   });
@@ -261,7 +261,7 @@ describe('migrateInventory (v6 → v7)', () => {
     const net = inv.spares.find((c) => c.name === 'Network')!;
     const flex = net.items.filter((it) => /USW-Flex/.test(it.values.model));
     expect(flex).toHaveLength(2);
-    expect(flex.map((it) => it.name).sort()).toEqual(['SwitchA-Switch', 'SwitchB-Switch']);
+    expect(flex.map((it) => it.name).sort()).toEqual(['Access Switch 1', 'Access Switch 2']);
     expect(flex.every((it) => it.values.qty === '1')).toBe(true);
     expect(new Set(flex.map((it) => it.ids?.uid)).size).toBe(2);
   });
@@ -286,7 +286,7 @@ describe('migrateInventory (v6 → v7)', () => {
               id: 's_ucg',
               deployment: 'in-service' as const,
               values: { model: 'UCG-Fiber (UniFi Cloud Gateway Fiber)', qty: '1' },
-              name: 'Gateway Gateway',
+              name: 'Gateway',
               ids: { uid: '0401' },
             },
             {
@@ -296,10 +296,10 @@ describe('migrateInventory (v6 → v7)', () => {
               ids: { uid: '0402' },
             },
             {
-              id: 's_switch',
+              id: 's_core_switch',
               deployment: 'in-service' as const,
               values: { model: 'USW-Pro-Max-16-PoE (Pro Max 16 PoE)', qty: '1' },
-              name: 'Switch Switch PoE',
+              name: 'PoE Switch',
               ids: { uid: '0403' },
             },
           ],
@@ -311,10 +311,10 @@ describe('migrateInventory (v6 → v7)', () => {
     const net = repaired.spares[0];
     const flex = net.items.filter((it) => /USW-Flex/.test(it.values.model));
     expect(flex).toHaveLength(2);
-    expect(flex.map((it) => it.name)).toEqual(['SwitchA-Switch', 'SwitchB-Switch']);
+    expect(flex.map((it) => it.name)).toEqual(['Access Switch 1', 'Access Switch 2']);
     expect(flex.map((it) => it.values.qty)).toEqual(['1', '1']);
     expect(flex.map((it) => it.ids?.uid)).toEqual(['0402', '0403']);
-    expect(net.items.find((it) => it.id === 's_switch')?.ids?.uid).toBe('0404');
+    expect(net.items.find((it) => it.id === 's_core_switch')?.ids?.uid).toBe('0404');
   });
 
   it('reclassifies the UVC camera out of the network category into Cameras', () => {
@@ -322,7 +322,7 @@ describe('migrateInventory (v6 → v7)', () => {
     expect(cams).toBeTruthy();
     const cam = cams?.items[0];
     expect(cam?.ids?.uid?.startsWith('07')).toBe(true);
-    expect(cam?.name).toBe('Outside-Left');
+    expect(cam?.name).toBe('Camera 1');
   });
 
   it('records an old→new UID map', () => {
@@ -332,48 +332,19 @@ describe('migrateInventory (v6 → v7)', () => {
   });
 });
 
-describe('seed (v7)', () => {
-  const seed = resetInventory();
-
-  it('has machines in the 08 block with no embedded components', () => {
-    expect(seed.machines.length).toBeGreaterThan(0);
-    for (const m of seed.machines) {
-      expect(m.ids?.uid?.startsWith('08')).toBe(true);
-      expect((m as unknown as Record<string, unknown>).components).toBeUndefined();
-    }
-  });
-
-  it('splits Example PC RAM into two sticks in the pool', () => {
-    const example = seed.machines.find((m) => m.name === 'Example PC')!;
-    const ram = seed.components.filter((c) => c.assignment === example.id && c.type === 'ram');
-    expect(ram).toHaveLength(2);
-  });
-
-  it('gives every component a unique type-block UID', () => {
-    const uids = seed.components.map((c) => c.ids?.uid);
-    expect(new Set(uids).size).toBe(uids.length);
-    const gpus = seed.components.filter((c) => c.type === 'gpu');
-    for (const g of gpus) expect(Number(g.ids!.uid)).toBeGreaterThanOrEqual(2000);
-  });
-
-  it('names the network devices', () => {
-    const net = seed.spares.find((c) => c.deviceType === 'network' && /^network$/i.test(c.name))!;
-    const names = net.items.map((it) => it.name);
-    expect(names).toContain('Gateway Gateway');
-    expect(names).toContain('Switch Switch PoE');
-    expect(names).toContain('AccessPoint AP');
-  });
-
-  it('does not include category prose notes or legacy category labels', () => {
-    expect(seed.spares.every((c) => c.note === undefined)).toBe(true);
-    expect(seed.spares.every((c) => !/legacy/i.test(c.name))).toBe(true);
-  });
-
-  it('summarizes installed vs spare components', () => {
-    const s = summarize(seed);
-    expect(s.installedComponentCount).toBeGreaterThan(0);
-    expect(s.spareComponentCount).toBeGreaterThan(0);
-    expect(s.machineCount).toBe(seed.machines.length);
+describe('empty inventory defaults', () => {
+  it('resets to an empty inventory shape', () => {
+    const fresh = resetInventory();
+    expect(fresh).toEqual({ lastUpdated: '', machines: [], components: [], spares: [] });
+    expect(summarize(fresh)).toEqual({
+      machineCount: 0,
+      componentCount: 0,
+      installedComponentCount: 0,
+      spareComponentCount: 0,
+      deviceCategoryCount: 0,
+      deviceItemCount: 0,
+      networkItemCount: 0,
+    });
   });
 });
 
@@ -431,7 +402,7 @@ describe('loadInventory persistence gating', () => {
     expect(setState).not.toHaveBeenCalled();
   });
 
-  it('seeds and persists on an online first boot', async () => {
+  it('returns an empty shape without seeding on an online first boot', async () => {
     const { loadInventory, setState } = await loadInventoryWith({
       degraded: false,
       status: 'online',
@@ -439,12 +410,7 @@ describe('loadInventory persistence gating', () => {
 
     const inv = loadInventory();
 
-    expect(inv.machines.length).toBeGreaterThan(0);
-    expect(inv.components.length).toBeGreaterThan(0);
-    expect(inv.spares.length).toBeGreaterThan(0);
-    expect(setState).toHaveBeenCalledWith(
-      'inventory',
-      expect.objectContaining({ v: 8, data: inv }),
-    );
+    expect(inv).toEqual({ lastUpdated: '', machines: [], components: [], spares: [] });
+    expect(setState).not.toHaveBeenCalled();
   });
 });

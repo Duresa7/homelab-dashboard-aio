@@ -6,7 +6,7 @@ Agent configuration for the Homelab Dashboard repo.
 
 ### Issue tracker
 
-Issues and PRDs are tracked as local markdown files under `.scratch/<feature-slug>/` (this repo's GitHub remote is not used for issues). See `docs/agents/issue-tracker.md`.
+Issues and PRDs are tracked as local markdown files under `.scratch/<feature-slug>/` (the public GitHub remote is not used for issues). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

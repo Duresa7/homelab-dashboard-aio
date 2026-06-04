@@ -71,30 +71,30 @@ describe('Integration route contracts', () => {
           data: [
             {
               id: 'gw',
-              name: 'Gateway Gateway',
+              name: 'Gateway',
               model: 'UCG-Fiber',
               firmwareVersion: '9.0.1',
               features: ['gateway'],
               ipAddress: '198.51.100.10',
             },
-            { id: 'sw', name: 'Switch Switch', model: 'USW-Pro', features: ['switching'] },
-            { id: 'ap', name: 'AccessPoint AP', model: 'U7-Pro', features: ['accessPoint'] },
+            { id: 'sw', name: 'Core Switch', model: 'USW-Pro', features: ['switching'] },
+            { id: 'ap', name: 'Access Point', model: 'U7-Pro', features: ['accessPoint'] },
           ],
         },
         '/proxy/network/integration/v1/sites/site-1/clients': {
           data: [
             {
-              name: 'Example PC',
+              name: 'Example Workstation',
               type: 'WIRED',
               uplinkDeviceId: 'sw',
-              ipAddress: '198.51.100.10',
+              ipAddress: '198.51.100.50',
               connectedAt: '2026-06-01T12:00:00Z',
             },
             {
               name: 'Tablet',
               type: 'WIRELESS',
               uplinkDeviceId: 'ap',
-              ipAddress: '198.51.100.10',
+              ipAddress: '198.51.100.51',
               connectedAt: '2026-06-01T12:01:00Z',
             },
           ],
@@ -152,7 +152,7 @@ describe('Integration route contracts', () => {
             expect(res.body.unifi.clients).toBe(2);
             expect(res.body.unifi.clientBreakdown).toEqual({ wired: 1, wireless: 1, vpn: 0 });
             expect(res.body.unifi.switches[0]).toMatchObject({
-              name: 'Switch Switch',
+              name: 'Core Switch',
               ports: 2,
               portsUp: 1,
             });
@@ -166,7 +166,7 @@ describe('Integration route contracts', () => {
   it('normalizes a healthy Portainer/Docker upstream response', async () => {
     await withJsonUpstream(
       {
-        '/api/endpoints': [{ Id: 1, Name: 'example-docker', URL: 'tcp://198.51.100.10:2375' }],
+        '/api/endpoints': [{ Id: 1, Name: 'container-host', URL: 'tcp://198.51.100.10:2375' }],
         '/api/endpoints/1/docker/containers/json': [
           {
             Id: 'abc123',
@@ -197,7 +197,7 @@ describe('Integration route contracts', () => {
             expect(res.body.docker).toMatchObject({ running: 1, stopped: 0, total: 1 });
             expect(res.body.docker.hosts[0]).toMatchObject({
               id: '1',
-              name: 'example-docker',
+              name: 'container-host',
               status: 'online',
             });
             expect(res.body.docker.containers[0]).toMatchObject({
@@ -217,7 +217,7 @@ describe('Integration route contracts', () => {
         '/api2/json/nodes': {
           data: [
             {
-              node: 'grey',
+              node: 'node-a',
               status: 'online',
               maxcpu: 16,
               maxmem: 64 * 1024 ** 3,
@@ -227,7 +227,7 @@ describe('Integration route contracts', () => {
             },
           ],
         },
-        '/api2/json/nodes/grey/status': {
+        '/api2/json/nodes/node-a/status': {
           data: {
             cpu: 0.5,
             uptime: 3600,
@@ -243,7 +243,7 @@ describe('Integration route contracts', () => {
               name: 'ai-lab',
               type: 'lxc',
               status: 'running',
-              node: 'grey',
+              node: 'node-a',
               maxcpu: 4,
               cpu: 0.1,
               mem: 2 * 1024 ** 3,
@@ -252,7 +252,7 @@ describe('Integration route contracts', () => {
             },
           ],
         },
-        '/api2/json/nodes/grey/storage': {
+        '/api2/json/nodes/node-a/storage': {
           data: [
             {
               storage: 'local-zfs',
@@ -266,12 +266,12 @@ describe('Integration route contracts', () => {
             },
           ],
         },
-        '/api2/json/nodes/grey/network': {
+        '/api2/json/nodes/node-a/network': {
           data: [{ iface: 'vmbr0', type: 'bridge', active: true, address: '198.51.100.10' }],
         },
-        '/api2/json/nodes/grey/lxc/105/interfaces': { data: [] },
-        '/api2/json/nodes/grey/lxc/105/config': { data: {} },
-        '/api2/json/nodes/grey/disks/list': {
+        '/api2/json/nodes/node-a/lxc/105/interfaces': { data: [] },
+        '/api2/json/nodes/node-a/lxc/105/config': { data: {} },
+        '/api2/json/nodes/node-a/disks/list': {
           data: [
             {
               devpath: '/dev/nvme0n1',
@@ -285,7 +285,7 @@ describe('Integration route contracts', () => {
             },
           ],
         },
-        '/api2/json/nodes/grey/disks/zfs': { data: [{ name: 'rpool', health: 'ONLINE' }] },
+        '/api2/json/nodes/node-a/disks/zfs': { data: [{ name: 'rpool', health: 'ONLINE' }] },
       },
       async (baseUrl) => {
         await usingApp(
@@ -298,7 +298,7 @@ describe('Integration route contracts', () => {
           async (api) => {
             const res = await api.get('/api/proxmox').expect(200);
             expect(res.body.proxmox.node).toMatchObject({
-              name: 'grey',
+              name: 'node-a',
               ip: '198.51.100.10',
               cpu: 50,
               version: '9.1.6',
@@ -344,7 +344,7 @@ describe('Integration route contracts', () => {
           ],
         },
         '/proxy/drive/api/v2/systems/fan-control': { currentProfile: 'balanced' },
-        '/api/system': { name: 'NAS NAS', hardware: { shortname: 'UNAS4' } },
+        '/api/system': { name: 'Example NAS', hardware: { shortname: 'UNAS4' } },
       },
       async (baseUrl) => {
         await usingApp(
@@ -352,7 +352,7 @@ describe('Integration route contracts', () => {
           async (api) => {
             const res = await api.get('/api/unas').expect(200);
             expect(res.body.unas).toMatchObject({
-              name: 'NAS NAS',
+              name: 'Example NAS',
               model: 'UNAS 4',
               fanProfile: 'balanced',
             });

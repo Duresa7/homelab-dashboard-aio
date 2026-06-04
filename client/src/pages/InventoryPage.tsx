@@ -303,9 +303,9 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   };
 
   const onReset = () => {
-    if (!confirm('Reset to default seed inventory? Local changes will be lost.')) return;
+    if (!confirm('Reset to an empty inventory? Local changes will be lost.')) return;
     setInv(resetInventory());
-    toast.success('Reset to default inventory');
+    toast.success('Reset inventory');
   };
 
   /* ---------- derived ---------- */
