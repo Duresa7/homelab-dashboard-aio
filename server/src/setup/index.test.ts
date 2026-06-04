@@ -169,6 +169,46 @@ describe('integration config API', () => {
     }
   });
 
+  it('marks onboarding complete and can reopen it', async () => {
+    const ctx = await loadServerApp();
+    try {
+      await request(ctx.app).post('/api/setup/complete').send({}).expect(200, { ok: true });
+      await request(ctx.app)
+        .get('/api/setup/status')
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.onboardingComplete).toBe(true);
+        });
+
+      await request(ctx.app)
+        .post('/api/setup/complete')
+        .send({ complete: false })
+        .expect(200, { ok: true });
+      await request(ctx.app)
+        .get('/api/setup/status')
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.onboardingComplete).toBe(false);
+        });
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
+  it('rejects cross-origin complete writes', async () => {
+    const ctx = await loadServerApp();
+    try {
+      await request(ctx.app)
+        .post('/api/setup/complete')
+        .set('Host', 'dashboard.test')
+        .set('Origin', 'http://evil.test')
+        .send({})
+        .expect(403);
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
   it('upserts a selection and never echoes the secret back', async () => {
     const ctx = await loadServerApp();
     try {

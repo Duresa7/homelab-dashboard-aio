@@ -25,6 +25,7 @@ import {
   ConfigError,
   getRedactedConfig,
   getStatus,
+  markOnboardingComplete,
   readSelectionConfig,
   upsertSelection,
 } from './integration-config.js';
@@ -177,6 +178,22 @@ export function initSetup(app: Express, opts: { store?: StateStore } = {}) {
     if (!store) return res.status(503).json({ error: 'database unavailable' });
     res.json(await getRedactedConfig(store));
   });
+
+  app.post(
+    '/api/setup/complete',
+    sameOrigin,
+    parseJsonBody,
+    async (req: Request, res: Response) => {
+      if (!store) return res.status(503).json({ ok: false, error: 'database unavailable' });
+      try {
+        const complete = (req.body as { complete?: unknown } | undefined)?.complete !== false;
+        await markOnboardingComplete(store, complete);
+        res.json({ ok: true });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: errorMessage(err) });
+      }
+    },
+  );
 
   app.put('/api/setup/config', sameOrigin, parseJsonBody, async (req: Request, res: Response) => {
     if (!store) return res.status(503).json({ ok: false, error: 'database unavailable' });

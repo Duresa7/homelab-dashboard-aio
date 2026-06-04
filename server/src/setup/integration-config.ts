@@ -103,6 +103,17 @@ export async function importEnvConfigIfEmpty(
   await store.put(ONBOARDING_KEY, imported.onboarding);
 }
 
+export async function markOnboardingComplete(
+  store: StateStore,
+  complete = true,
+  nowIso: string = new Date().toISOString(),
+): Promise<void> {
+  await store.put(
+    ONBOARDING_KEY,
+    complete ? { complete: true, completedAt: nowIso } : { complete: false },
+  );
+}
+
 /** Raw stored config for a capability (includes secrets — server-side only). */
 export async function readSelectionConfig(
   store: StateStore,
