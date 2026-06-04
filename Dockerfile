@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
 RUN apt-get update \
@@ -14,8 +14,15 @@ COPY client ./client
 COPY server ./server
 RUN npm run build
 
+# Clean production-only install (the toolchain here compiles better-sqlite3) so
+# the runtime image can copy a consistent node_modules — the runtime stage ships
+# no compiler. A clean `npm ci` avoids the partial/mixed tree `npm prune` leaves.
+# Drop the `prepare` (husky) script first: it's a dev-only git-hook setup that
+# isn't installed under --omit=dev and would otherwise fail the install.
+RUN npm pkg delete scripts.prepare && npm ci --omit=dev
 
-FROM node:20-bookworm-slim AS runtime
+
+FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
@@ -24,8 +31,10 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
 
+# Reuse the production node_modules (with natively-compiled better-sqlite3) from
+# the builder instead of reinstalling — the runtime image ships no compiler.
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
 
