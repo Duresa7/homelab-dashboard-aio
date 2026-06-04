@@ -312,75 +312,6 @@ export interface UnasData {
   disks: UnasDisk[];
 }
 
-export type ProtectCameraState = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED';
-
-export interface ProtectCamera {
-  id: string;
-  name: string;
-  modelKey: string;
-  mac: string;
-  state: ProtectCameraState;
-  isMicEnabled: boolean;
-  micVolume: number;
-  videoMode: string;
-  hdrType: string;
-  hasMic: boolean;
-  hasSpeaker: boolean;
-  hasLedStatus: boolean;
-  hasHdr: boolean;
-  supportFullHdSnapshot: boolean;
-  hasPackageCamera: boolean;
-  smartDetectTypes: string[];
-  smartDetectAudioTypes: string[];
-  enabledObjectTypes: string[];
-  enabledAudioTypes: string[];
-  osdName: boolean;
-  osdDate: boolean;
-  ledEnabled: boolean;
-}
-
-export type ProtectArmStatus = 'arming' | 'armed' | 'breach' | 'disabled';
-
-export interface ProtectArmMode {
-  status: ProtectArmStatus;
-  armProfileId: string | null;
-  armedAt: number | null;
-  willBeArmedAt: number | null;
-  breachDetectedAt: number | null;
-  breachEventCount: number;
-}
-
-export interface ProtectNvr {
-  id: string;
-  name: string;
-  modelKey: string;
-  armMode: ProtectArmMode;
-}
-
-export interface ProtectEvent {
-  seq: number;
-  action: string;
-  id: string;
-  modelKey: string;
-  type: string;
-  device: string;
-  start: number;
-  end: number | null;
-  smartDetectTypes: string[];
-  metadata: Record<string, unknown>;
-}
-
-export interface ProtectData {
-  cameras: ProtectCamera[];
-  total: number;
-  connected: number;
-  disconnected: number;
-  nvr: ProtectNvr | null;
-  appVersion: string | null;
-  recentEvents: ProtectEvent[];
-  eventsConnected: boolean;
-}
-
 export interface NetworkData {
   downHistory: number[];
   upHistory: number[];
@@ -524,7 +455,6 @@ export interface DashboardState {
   proxmox: ProxmoxData;
   unifi: UnifiData;
   unas: UnasData;
-  protect: ProtectData;
   network: NetworkData;
   backups: Backup[];
   ups: UPSData;

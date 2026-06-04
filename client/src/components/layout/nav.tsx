@@ -2,7 +2,6 @@ import {
   Activity,
   Bell,
   Boxes,
-  Camera,
   Container,
   FlaskConical,
   HardDrive,
@@ -38,7 +37,6 @@ export const NAV_GROUPS: NavGroupDef[] = [
       { section: 'network', icon: Network, hasSubs: true },
       { section: 'docker', icon: Container, hasSubs: true },
       { section: 'nas', icon: HardDrive, hasSubs: true },
-      { section: 'cameras', icon: Camera, hasSubs: true },
     ],
   },
   {

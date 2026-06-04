@@ -14,6 +14,5 @@ export { ExpandedUnifi } from './ExpandedUnifi';
 export { ExpandedNetwork } from './ExpandedNetwork';
 export { ExpandedTopTalkers } from './ExpandedTopTalkers';
 export { ExpandedProxmox } from './ExpandedProxmox';
-export { ExpandedProtect } from './ExpandedProtect';
 export { ExpandedFans } from './ExpandedFans';
 export { ExpandedEvents } from './ExpandedEvents';

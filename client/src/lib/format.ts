@@ -45,9 +45,9 @@ function epochMs(value: Date | number | string | null | undefined): number | nul
 /**
  * Relative "time since" formatter for recent, live-ish timestamps.
  *
- * Default output preserves the dashboard tile/NVR minute-hour-day strings.
- * `granularity: 'second'` preserves camera event-row strings, including
- * second-level freshness and a configurable absolute-date cutoff.
+ * Default output preserves dashboard minute-hour-day strings. `granularity:
+ * 'second'` preserves second-level freshness with a configurable absolute-date
+ * cutoff.
  */
 export function formatSince(
   value: Date | number | string | null | undefined,

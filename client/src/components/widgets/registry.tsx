@@ -8,7 +8,6 @@ import { UnifiTile } from './UnifiTile';
 import { DockerTile } from './DockerTile';
 import { ProxmoxTile } from './ProxmoxTile';
 import { UnasTile } from './UnasTile';
-import { ProtectTile } from './ProtectTile';
 import { FansTile } from './FansTile';
 import { SmartTile } from './SmartTile';
 import { BackupsTile } from './BackupsTile';
@@ -29,7 +28,6 @@ export type TileId =
   | 'docker'
   | 'proxmox'
   | 'unas'
-  | 'protect'
   | 'fans'
   | 'smart'
   | 'backups'
@@ -57,7 +55,6 @@ export const ALL_TILES: TileDef[] = [
   { id: 'docker', label: 'Docker', span: 6 },
   { id: 'proxmox', label: 'Data Center', span: 3 },
   { id: 'unas', label: 'NAS', span: 4 },
-  { id: 'protect', label: 'Cameras', span: 3 },
   { id: 'fans', label: 'Fans', span: 4 },
   { id: 'smart', label: 'Disk Health', span: 4 },
   { id: 'backups', label: 'Backups', span: 4 },
@@ -90,8 +87,6 @@ export function tileData(id: TileId, d: DashboardState): unknown {
       return d.proxmox;
     case 'unas':
       return d.unas;
-    case 'protect':
-      return d.protect;
     case 'fans':
       return d.fans;
     case 'smart':
@@ -160,8 +155,6 @@ export function renderTile({
       return <ProxmoxTile {...common} data={data} />;
     case 'unas':
       return <UnasTile {...common} data={data} compact={compact} />;
-    case 'protect':
-      return <ProtectTile {...common} data={data} />;
     case 'fans':
       return <FansTile {...common} data={data} />;
     case 'smart':

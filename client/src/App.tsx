@@ -18,7 +18,6 @@ import { ProxmoxPage } from './pages/ProxmoxPage';
 import { NetworkPage } from './pages/NetworkPage';
 import { DockerPage } from './pages/DockerPage';
 import { NasPage } from './pages/NasPage';
-import { CamerasPage } from './pages/CamerasPage';
 import { EventsPage } from './pages/EventsPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { SettingsPage, type SettingsTabId } from './pages/SettingsPage';
@@ -74,7 +73,6 @@ const DEFAULTS: TweakState = {
     'docker',
     'storage',
     'unas',
-    'protect',
     'network',
     'fans',
     'smart',
@@ -92,7 +90,6 @@ const DEFAULTS: TweakState = {
     gpu: true,
     sensors: true,
     unas: true,
-    protect: true,
   },
 };
 
@@ -102,7 +99,6 @@ const BACKEND_BACKED_SECTIONS = new Set<Section>([
   'network',
   'docker',
   'nas',
-  'cameras',
   'events',
   'alerts',
   'health',
@@ -218,7 +214,6 @@ export function App() {
       {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
       {route.section === 'docker' && <DockerPage data={data} sub={activeSub ?? 'hosts'} />}
       {route.section === 'nas' && <NasPage data={data} sub={activeSub ?? 'pools'} />}
-      {route.section === 'cameras' && <CamerasPage data={data} sub={activeSub ?? 'overview'} />}
       {route.section === 'events' && <EventsPage data={data} />}
       {route.section === 'alerts' && <AlertsPage alerts={visibleAlerts} onDismiss={dismiss} />}
       {route.section === 'health' && <HealthPage integrations={integrations} />}

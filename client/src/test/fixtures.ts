@@ -138,16 +138,6 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
       pools: [],
       disks: [],
     },
-    protect: {
-      cameras: [],
-      total: 0,
-      connected: 0,
-      disconnected: 0,
-      nvr: null,
-      appVersion: null,
-      recentEvents: [],
-      eventsConnected: false,
-    },
     network: {
       downHistory: [100, 150],
       upHistory: [20, 50],

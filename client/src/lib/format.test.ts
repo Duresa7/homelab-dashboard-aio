@@ -7,7 +7,7 @@ describe('formatSince', () => {
     vi.useRealTimers();
   });
 
-  it('keeps the default minute/hour detail used by Protect status cards', () => {
+  it('keeps the default minute/hour detail used by status cards', () => {
     vi.setSystemTime(new Date('2026-06-02T12:00:00Z'));
 
     expect(formatSince(Date.parse('2026-06-02T10:25:00Z'))).toBe('1h 35m ago');

@@ -4,7 +4,6 @@ export type Section =
   | 'network'
   | 'docker'
   | 'nas'
-  | 'cameras'
   | 'events'
   | 'alerts'
   | 'health'
@@ -21,7 +20,7 @@ export interface Route {
 }
 
 interface PersistedRoute {
-  section?: Section | 'storage';
+  section?: Section | 'storage' | string;
   sub?: string;
   itemId?: string;
 }
@@ -52,12 +51,6 @@ export const SUBS: Partial<Record<Section, SubDef[]>> = {
     { id: 'pools', label: 'Pools' },
     { id: 'disks', label: 'Disks' },
   ],
-  cameras: [
-    { id: 'overview', label: 'Overview' },
-    { id: 'grid', label: 'Live Grid' },
-    { id: 'events', label: 'Events' },
-    { id: 'devices', label: 'Devices' },
-  ],
 };
 
 export const DEFAULT_SUB: Record<Section, string | undefined> = {
@@ -66,7 +59,6 @@ export const DEFAULT_SUB: Record<Section, string | undefined> = {
   network: 'overview',
   docker: 'hosts',
   nas: 'pools',
-  cameras: 'overview',
   events: undefined,
   alerts: undefined,
   health: undefined,
@@ -82,7 +74,6 @@ export const SECTION_LABEL: Record<Section, string> = {
   network: 'Network',
   docker: 'Docker',
   nas: 'NAS',
-  cameras: 'Cameras',
   events: 'Events',
   alerts: 'Alerts',
   health: 'API Health',
@@ -107,9 +98,12 @@ export function subLabel(section: Section, sub: string): string {
 import { getState, setState } from './store';
 
 const STORAGE_KEY = 'route';
+const KNOWN_SECTIONS = new Set<Section>(Object.keys(SECTION_LABEL) as Section[]);
 
 function normalizeRoute(route: PersistedRoute): Route {
-  const section: Section = route.section === 'storage' ? 'nas' : (route.section ?? 'overview');
+  const rawSection = route.section === 'storage' ? 'nas' : route.section;
+  const section: Section =
+    rawSection && KNOWN_SECTIONS.has(rawSection as Section) ? (rawSection as Section) : 'overview';
   const sub = section === 'proxmox' && route.sub === 'drives' ? 'storage' : route.sub;
   const itemId = section === 'inventory' ? route.itemId : undefined;
   return { section, sub: resolveSub(section, sub), itemId };

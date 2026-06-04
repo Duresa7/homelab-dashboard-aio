@@ -17,12 +17,6 @@ export const INTEGRATIONS: IntegrationDef[] = [
     description: 'Gateway, switches, APs, clients, WAN throughput.',
   },
   {
-    key: 'protect',
-    healthField: 'protect',
-    label: 'Cameras',
-    description: 'Camera snapshots, live HLS video, motion + smart-detect events.',
-  },
-  {
     key: 'proxmox',
     healthField: 'proxmox',
     label: 'Data Center',

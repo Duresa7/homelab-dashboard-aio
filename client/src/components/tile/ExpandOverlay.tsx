@@ -18,7 +18,6 @@ import {
   ExpandedNetwork,
   ExpandedTopTalkers,
   ExpandedProxmox,
-  ExpandedProtect,
   ExpandedFans,
   ExpandedEvents,
 } from './expanded';
@@ -99,8 +98,6 @@ function ExpandedBody({ id, data, chartKind, setChartKind }: Omit<Props, 'onClos
       return <ExpandedTopTalkers data={data} />;
     case 'proxmox':
       return <ExpandedProxmox data={data} />;
-    case 'protect':
-      return <ExpandedProtect data={data} />;
     case 'fans':
       return <ExpandedFans data={data} />;
     case 'events':

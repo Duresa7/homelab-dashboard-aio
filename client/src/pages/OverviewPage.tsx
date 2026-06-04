@@ -22,7 +22,7 @@ const SECTIONS: SectionDef[] = [
   { id: 'system', label: 'System', tiles: ['cpu', 'ram', 'gpu', 'ups', 'fans', 'tempHeat'] },
   { id: 'storage', label: 'Storage', tiles: ['storage', 'smart', 'unas', 'backups'] },
   { id: 'network', label: 'Network', tiles: ['internet', 'unifi', 'network', 'topTalkers'] },
-  { id: 'services', label: 'Services', tiles: ['docker', 'proxmox', 'protect'] },
+  { id: 'services', label: 'Services', tiles: ['docker', 'proxmox'] },
   { id: 'activity', label: 'Activity', tiles: ['events'] },
 ];
 
