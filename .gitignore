@@ -37,9 +37,6 @@ docs/*
 .DS_Store
 Thumbs.db
 
-# Internal
-.scratch/
-
 # Editors
 .vscode/*
 !.vscode/extensions.json

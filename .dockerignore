@@ -9,7 +9,6 @@ docs
 *.log
 *.md
 *.sqlite
-.scratch
 coverage
 .vscode
 .idea
