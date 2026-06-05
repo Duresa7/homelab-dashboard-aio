@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { Donut } from '../components/charts';
 import { GPUTile } from '../components/widgets';
-import { BrandIcon } from '../components/icons/BrandIcon';
 import { ComputeWakeCard } from '@/components/proxmox/ComputeWakeCard';
 import { SectionCard, DataTableCard, StatusBadge } from '@/components/common';
 import { spanClass } from '@/components/common';
@@ -21,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
 import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '../lib/units';
+import { PresentationIcon, useCapabilityPresentation } from '@/lib/presentation';
 
 interface Props {
   data: DashboardState;
@@ -214,6 +214,7 @@ function MetricCard({
 
 function Compute({ data }: { data: DashboardState }) {
   const { unit } = useTempUnit();
+  const datacenter = useCapabilityPresentation('datacenter');
   const n = data.proxmox.node;
   const threads = n.cpuThreads || 0;
   const cpusBusy = (n.cpu / 100) * threads;
@@ -237,7 +238,12 @@ function Compute({ data }: { data: DashboardState }) {
         <div className="flex flex-wrap items-center gap-x-10 gap-y-6">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 text-[12.5px] font-semibold tracking-wide text-muted-foreground">
-              <BrandIcon name="proxmox" alt="Proxmox" /> Node
+              <PresentationIcon
+                capability="datacenter"
+                icon={datacenter.icon}
+                label={datacenter.vendorLabel ?? datacenter.label}
+              />{' '}
+              Node
             </div>
             <div className="mt-1 font-display text-2xl font-semibold text-foreground">{n.name}</div>
             <div className="mt-1 text-xs text-muted-foreground">{n.cpuModel}</div>

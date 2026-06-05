@@ -21,6 +21,12 @@ import { NAV_GROUPS } from './nav';
 import { cn } from '@/lib/utils';
 import { splitSiteName, useSiteName, useSiteTitleSync } from '@/lib/site-name';
 import { SUBS, SECTION_LABEL, type Route, type Section } from '../../lib/route';
+import {
+  isSectionVisible,
+  PresentationIcon,
+  SECTION_CAPABILITY,
+  usePresentation,
+} from '@/lib/presentation';
 import type { AlertEntry } from '../../types';
 
 interface Props {
@@ -64,6 +70,7 @@ export function AppSidebar({ route, setRoute, alerts }: Props) {
   const { isMobile, setOpenMobile, state } = useSidebar();
   const siteName = useSiteName();
   useSiteTitleSync();
+  const presentation = usePresentation();
   const collapsed = state === 'collapsed' && !isMobile;
   const alertKind = alerts.some((a) => a.kind === 'bad') ? 'bad' : alerts.length ? 'warn' : null;
 
@@ -82,128 +89,143 @@ export function AppSidebar({ route, setRoute, alerts }: Props) {
       </SidebarHeader>
 
       <SidebarContent>
-        {NAV_GROUPS.map((group, gi) => (
-          <SidebarGroup key={group.label ?? `g${gi}`}>
-            {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((it) => {
-                  const Icon = it.icon;
-                  const label = SECTION_LABEL[it.section];
-                  const isActive = route.section === it.section;
-                  const subs = it.hasSubs ? (SUBS[it.section] ?? []) : [];
-                  const showBadge = it.section === 'alerts' && alerts.length > 0;
+        {NAV_GROUPS.map((group, gi) => {
+          const items = group.items.filter((it) => isSectionVisible(it.section, presentation));
+          if (items.length === 0) return null;
+          return (
+            <SidebarGroup key={group.label ?? `g${gi}`}>
+              {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {items.map((it) => {
+                    const Icon = it.icon;
+                    const capabilityId = SECTION_CAPABILITY[it.section];
+                    const capability = capabilityId ? presentation[capabilityId] : null;
+                    const label = capability?.label ?? SECTION_LABEL[it.section];
+                    const icon = capability ? (
+                      <PresentationIcon
+                        capability={capability.id}
+                        icon={capability.icon}
+                        label={label}
+                      />
+                    ) : (
+                      <Icon strokeWidth={route.section === it.section ? 2.25 : 2} />
+                    );
+                    const isActive = route.section === it.section;
+                    const subs = it.hasSubs ? (SUBS[it.section] ?? []) : [];
+                    const showBadge = it.section === 'alerts' && alerts.length > 0;
 
-                  // --- Leaf item (no sub-pages) ---
-                  if (subs.length === 0) {
+                    // --- Leaf item (no sub-pages) ---
+                    if (subs.length === 0) {
+                      return (
+                        <SidebarMenuItem key={it.section}>
+                          <SidebarMenuButton
+                            tooltip={label}
+                            isActive={isActive}
+                            onClick={() => go(it.section)}
+                          >
+                            {icon}
+                            <span>{label}</span>
+                          </SidebarMenuButton>
+                          {showBadge && (
+                            <>
+                              <SidebarMenuBadge
+                                className={cn(
+                                  'text-white',
+                                  alertKind === 'bad' ? 'bg-bad' : 'bg-warn',
+                                )}
+                              >
+                                {alerts.length}
+                              </SidebarMenuBadge>
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  'absolute right-1.5 top-1.5 hidden size-2 rounded-full ring-2 ring-sidebar group-data-[collapsible=icon]:block',
+                                  alertKind === 'bad' ? 'bg-bad' : 'bg-warn',
+                                )}
+                              />
+                            </>
+                          )}
+                        </SidebarMenuItem>
+                      );
+                    }
+
+                    // --- Section with sub-pages, sidebar collapsed → hover flyout ---
+                    if (collapsed) {
+                      return (
+                        <SidebarMenuItem key={it.section}>
+                          <HoverCard openDelay={80} closeDelay={120}>
+                            <HoverCardTrigger asChild>
+                              <SidebarMenuButton isActive={isActive} onClick={() => go(it.section)}>
+                                {icon}
+                                <span>{label}</span>
+                              </SidebarMenuButton>
+                            </HoverCardTrigger>
+                            <HoverCardContent
+                              side="right"
+                              align="start"
+                              sideOffset={12}
+                              className="w-52 p-1.5"
+                            >
+                              <div className="px-2 pb-1 text-xs font-semibold tracking-wide text-muted-foreground">
+                                {label}
+                              </div>
+                              <div className="flex flex-col">
+                                {subs.map((s) => {
+                                  const subActive = isActive && route.sub === s.id;
+                                  return (
+                                    <button
+                                      key={s.id}
+                                      onClick={() => go(it.section, s.id)}
+                                      className={cn(
+                                        'rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+                                        subActive
+                                          ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                                          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                                      )}
+                                    >
+                                      {s.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </SidebarMenuItem>
+                      );
+                    }
+
+                    // --- Section with sub-pages, sidebar expanded → inline subs for active section ---
                     return (
                       <SidebarMenuItem key={it.section}>
-                        <SidebarMenuButton
-                          tooltip={label}
-                          isActive={isActive}
-                          onClick={() => go(it.section)}
-                        >
-                          <Icon strokeWidth={isActive ? 2.25 : 2} />
+                        <SidebarMenuButton isActive={isActive} onClick={() => go(it.section)}>
+                          {icon}
                           <span>{label}</span>
                         </SidebarMenuButton>
-                        {showBadge && (
-                          <>
-                            <SidebarMenuBadge
-                              className={cn(
-                                'text-white',
-                                alertKind === 'bad' ? 'bg-bad' : 'bg-warn',
-                              )}
-                            >
-                              {alerts.length}
-                            </SidebarMenuBadge>
-                            <span
-                              aria-hidden
-                              className={cn(
-                                'absolute right-1.5 top-1.5 hidden size-2 rounded-full ring-2 ring-sidebar group-data-[collapsible=icon]:block',
-                                alertKind === 'bad' ? 'bg-bad' : 'bg-warn',
-                              )}
-                            />
-                          </>
+                        {isActive && (
+                          <SidebarMenuSub>
+                            {subs.map((s) => {
+                              const subActive = route.sub === s.id;
+                              return (
+                                <SidebarMenuSubItem key={s.id}>
+                                  <SidebarMenuSubButton asChild isActive={subActive}>
+                                    <button type="button" onClick={() => go(it.section, s.id)}>
+                                      <span>{s.label}</span>
+                                    </button>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              );
+                            })}
+                          </SidebarMenuSub>
                         )}
                       </SidebarMenuItem>
                     );
-                  }
-
-                  // --- Section with sub-pages, sidebar collapsed → hover flyout ---
-                  if (collapsed) {
-                    return (
-                      <SidebarMenuItem key={it.section}>
-                        <HoverCard openDelay={80} closeDelay={120}>
-                          <HoverCardTrigger asChild>
-                            <SidebarMenuButton isActive={isActive} onClick={() => go(it.section)}>
-                              <Icon strokeWidth={isActive ? 2.25 : 2} />
-                              <span>{label}</span>
-                            </SidebarMenuButton>
-                          </HoverCardTrigger>
-                          <HoverCardContent
-                            side="right"
-                            align="start"
-                            sideOffset={12}
-                            className="w-52 p-1.5"
-                          >
-                            <div className="px-2 pb-1 text-xs font-semibold tracking-wide text-muted-foreground">
-                              {label}
-                            </div>
-                            <div className="flex flex-col">
-                              {subs.map((s) => {
-                                const subActive = isActive && route.sub === s.id;
-                                return (
-                                  <button
-                                    key={s.id}
-                                    onClick={() => go(it.section, s.id)}
-                                    className={cn(
-                                      'rounded-md px-2 py-1.5 text-left text-sm transition-colors',
-                                      subActive
-                                        ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-                                        : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                                    )}
-                                  >
-                                    {s.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </HoverCardContent>
-                        </HoverCard>
-                      </SidebarMenuItem>
-                    );
-                  }
-
-                  // --- Section with sub-pages, sidebar expanded → inline subs for active section ---
-                  return (
-                    <SidebarMenuItem key={it.section}>
-                      <SidebarMenuButton isActive={isActive} onClick={() => go(it.section)}>
-                        <Icon strokeWidth={isActive ? 2.25 : 2} />
-                        <span>{label}</span>
-                      </SidebarMenuButton>
-                      {isActive && (
-                        <SidebarMenuSub>
-                          {subs.map((s) => {
-                            const subActive = route.sub === s.id;
-                            return (
-                              <SidebarMenuSubItem key={s.id}>
-                                <SidebarMenuSubButton asChild isActive={subActive}>
-                                  <button type="button" onClick={() => go(it.section, s.id)}>
-                                    <span>{s.label}</span>
-                                  </button>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            );
-                          })}
-                        </SidebarMenuSub>
-                      )}
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
 
       <SidebarFooter>

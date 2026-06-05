@@ -1,5 +1,6 @@
 import { Tile } from '../tile/Tile';
 import type { UnifiData } from '../../types';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: UnifiData;
@@ -12,7 +13,7 @@ export function UnifiTile({ data, span, onExpand, expandable }: Props) {
   const { gateway, clients, wan } = data;
   return (
     <Tile
-      title="Network"
+      title={<CapabilityTitle capability="network" />}
       sub={gateway.model}
       span={span}
       onExpand={onExpand}

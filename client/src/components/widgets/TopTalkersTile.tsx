@@ -1,6 +1,6 @@
 import { Tile } from '../tile/Tile';
-import { BrandIcon } from '../icons/BrandIcon';
 import type { TopTalker } from '../../types';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: TopTalker[];
@@ -25,11 +25,7 @@ export function TopTalkersTile({ data, span, onExpand, expandable }: Props) {
   const top = data.slice(0, 3);
   return (
     <Tile
-      title={
-        <>
-          <BrandIcon name="unifi" alt="UniFi" /> Connected Clients
-        </>
-      }
+      title={<CapabilityTitle capability="network" suffix="Connected Clients" />}
       sub="recent"
       span={span}
       onExpand={onExpand}

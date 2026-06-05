@@ -12,6 +12,12 @@ import {
 import { NAV_GROUPS } from './nav';
 import { loadInventory } from '@/lib/inventory';
 import { SECTION_LABEL, SUBS, type Section } from '@/lib/route';
+import {
+  isSectionVisible,
+  PresentationIcon,
+  SECTION_CAPABILITY,
+  usePresentation,
+} from '@/lib/presentation';
 
 interface Props {
   open: boolean;
@@ -23,6 +29,7 @@ interface Props {
 export function CommandMenu({ open, onOpenChange, setRoute }: Props) {
   // Re-read the inventory each time the palette opens so the machine list is fresh.
   const machines = useMemo(() => (open ? loadInventory().machines : []), [open]);
+  const presentation = usePresentation();
 
   const close = () => onOpenChange(false);
   const go = (section: Section, sub?: string, itemId?: string) => {
@@ -76,40 +83,67 @@ export function CommandMenu({ open, onOpenChange, setRoute }: Props) {
           </>
         ) : null}
 
-        {NAV_GROUPS.map((group, gi) => (
-          <Fragment key={group.label ?? `g${gi}`}>
-            <CommandSeparator />
-            <CommandGroup heading={group.label ?? 'Home'}>
-              {group.items.flatMap((it) => {
-                const Icon = it.icon;
-                const label = SECTION_LABEL[it.section];
-                const subs = SUBS[it.section];
-                return [
-                  <CommandItem
-                    key={it.section}
-                    value={`${label} ${it.section}`}
-                    onSelect={() => go(it.section)}
-                  >
+        {NAV_GROUPS.map((group, gi) => {
+          const items = group.items.filter((it) => isSectionVisible(it.section, presentation));
+          if (items.length === 0) return null;
+          return (
+            <Fragment key={group.label ?? `g${gi}`}>
+              <CommandSeparator />
+              <CommandGroup heading={group.label ?? 'Home'}>
+                {items.flatMap((it) => {
+                  const Icon = it.icon;
+                  const capabilityId = SECTION_CAPABILITY[it.section];
+                  const capability = capabilityId ? presentation[capabilityId] : null;
+                  const label = capability?.label ?? SECTION_LABEL[it.section];
+                  const icon = capability ? (
+                    <PresentationIcon
+                      capability={capability.id}
+                      icon={capability.icon}
+                      label={label}
+                      size={16}
+                      className="size-4 text-muted-foreground"
+                    />
+                  ) : (
                     <Icon className="size-4 text-muted-foreground" />
-                    <span>{label}</span>
-                  </CommandItem>,
-                  ...(subs ?? []).map((s) => (
+                  );
+                  const subs = SUBS[it.section];
+                  return [
                     <CommandItem
-                      key={`${it.section}:${s.id}`}
-                      value={`${label} ${s.label} ${it.section} ${s.id}`}
-                      onSelect={() => go(it.section, s.id)}
+                      key={it.section}
+                      value={`${label} ${it.section}`}
+                      onSelect={() => go(it.section)}
                     >
-                      <Icon className="size-4 opacity-40" />
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="opacity-40">/</span>
-                      <span>{s.label}</span>
-                    </CommandItem>
-                  )),
-                ];
-              })}
-            </CommandGroup>
-          </Fragment>
-        ))}
+                      {icon}
+                      <span>{label}</span>
+                    </CommandItem>,
+                    ...(subs ?? []).map((s) => (
+                      <CommandItem
+                        key={`${it.section}:${s.id}`}
+                        value={`${label} ${s.label} ${it.section} ${s.id}`}
+                        onSelect={() => go(it.section, s.id)}
+                      >
+                        {capability ? (
+                          <PresentationIcon
+                            capability={capability.id}
+                            icon={capability.icon}
+                            label={label}
+                            size={16}
+                            className="size-4 opacity-40"
+                          />
+                        ) : (
+                          <Icon className="size-4 opacity-40" />
+                        )}
+                        <span className="text-muted-foreground">{label}</span>
+                        <span className="opacity-40">/</span>
+                        <span>{s.label}</span>
+                      </CommandItem>
+                    )),
+                  ];
+                })}
+              </CommandGroup>
+            </Fragment>
+          );
+        })}
       </CommandList>
     </CommandDialog>
   );

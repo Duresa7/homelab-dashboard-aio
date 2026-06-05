@@ -1,11 +1,13 @@
 import type { DashboardState } from '../../../types';
+import { useCapabilityPresentation } from '@/lib/presentation';
 
 export function ExpandedDocker({ data }: { data: DashboardState }) {
   const { hosts, containers, running, stopped, total, updates } = data.docker;
+  const presentation = useCapabilityPresentation('containers');
   return (
     <div className="ov-grid">
       <div className="tile span-12">
-        <div className="t-title">Summary</div>
+        <div className="t-title">{presentation.label} Summary</div>
         <div className="row" style={{ gap: 32, paddingTop: 4 }}>
           <div>
             <div className="t-big" style={{ fontSize: 30 }}>

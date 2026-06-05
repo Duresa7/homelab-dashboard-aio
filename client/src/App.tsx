@@ -47,6 +47,12 @@ import type { ChartKind } from './types';
 import { useThresholds } from './lib/thresholds';
 import { DEFAULT_DATETIME_PREFERENCES, type DateTimePreferences } from './lib/datetime';
 import { useConnectivity } from './lib/connectivity';
+import {
+  isSectionVisible,
+  PresentationProvider,
+  usePresentation,
+  useVisibleTiles,
+} from './lib/presentation';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
 type Density = 'compact' | 'regular' | 'comfy';
@@ -109,12 +115,13 @@ const BACKEND_BACKED_SECTIONS = new Set<Section>([
   'playground',
 ]);
 
-export function App() {
+function DashboardApp() {
   useThresholds(); // subscribe so threshold changes re-render all severity-aware tiles
   const [t, setTweak] = useTweaks<TweakState>(DEFAULTS);
   const data = useDashData();
   const connectivity = useConnectivity();
   const setupStatus = useSetupStatus();
+  const presentation = usePresentation();
   const [route, setRouteState] = useState<Route>(() => loadRoute());
   const [chartKinds, setChartKinds] = useState<Partial<Record<TileId, ChartKind>>>({});
   const [expanded, setExpanded] = useState<TileId | null>(null);
@@ -196,12 +203,17 @@ export function App() {
   const dismiss = (i: number) => setDismissedAlerts((prev) => new Set(prev).add(i));
 
   const activeSub = resolveSub(route.section, route.sub);
+  const visibleOverviewLayout = useVisibleTiles(t.overviewLayout);
 
   const backendOffline = connectivity.status === 'offline';
   const setupLoading = setupStatus.loading && connectivity.status !== 'offline';
   const setupRequired =
     connectivity.status !== 'offline' && setupStatus.status?.onboardingComplete === false;
   const sectionGated = backendOffline && BACKEND_BACKED_SECTIONS.has(route.section);
+
+  useEffect(() => {
+    if (!isSectionVisible(route.section, presentation)) setRoute('overview');
+  }, [presentation, route.section]);
 
   if (setupLoading) {
     return (
@@ -227,7 +239,7 @@ export function App() {
       {route.section === 'overview' && (
         <OverviewPage
           data={data}
-          layout={t.overviewLayout}
+          layout={visibleOverviewLayout}
           chartKinds={chartKinds}
           setChartKind={setChartKind}
           onExpand={setExpanded}
@@ -342,5 +354,13 @@ export function App() {
         <Toaster />
       </SidebarProvider>
     </TooltipProvider>
+  );
+}
+
+export function App() {
+  return (
+    <PresentationProvider>
+      <DashboardApp />
+    </PresentationProvider>
   );
 }

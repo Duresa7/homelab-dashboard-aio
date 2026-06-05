@@ -1,6 +1,6 @@
 import { Tile } from '../tile/Tile';
-import { BrandIcon } from '../icons/BrandIcon';
 import type { ChartKind, NetworkData } from '../../types';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: NetworkData;
@@ -17,11 +17,7 @@ export function NetworkTile({ data, span, onExpand, chartKind, onChartKind, expa
   const up = upHistory[upHistory.length - 1];
   return (
     <Tile
-      title={
-        <>
-          <BrandIcon name="unifi" alt="UniFi" /> Network
-        </>
-      }
+      title={<CapabilityTitle capability="network" />}
       sub={`${latencyMs.toFixed(1)} ms`}
       span={span}
       onExpand={onExpand}

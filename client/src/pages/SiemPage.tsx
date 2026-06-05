@@ -16,6 +16,7 @@ import { Segmented } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useCapabilityPresentation } from '@/lib/presentation';
 
 type UiSeverity = 'info' | 'warn' | 'bad';
 type SeverityFilter = 'all' | UiSeverity;
@@ -89,6 +90,7 @@ function FilterChip({
 }
 
 export function SiemPage() {
+  const logs = useCapabilityPresentation('logs');
   const [events, setEvents] = useState<SyslogEvent[]>([]);
   const [status, setStatus] = useState<SiemStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -274,7 +276,7 @@ export function SiemPage() {
       {/* Summary + stats */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5 shadow-card">
         <div className="flex flex-col gap-1">
-          <h2 className="font-display text-lg tracking-tight text-foreground">SIEM</h2>
+          <h2 className="font-display text-lg tracking-tight text-foreground">{logs.label}</h2>
           <div className="text-xs text-muted-foreground">
             {device === 'all' ? 'All devices' : deviceKindLabel(device)}
             {category !== 'all' ? ` · ${categoryLabel(category)}` : ''}
@@ -417,7 +419,7 @@ export function SiemPage() {
         ) : filtered.length === 0 ? (
           <div className="p-10 text-center text-sm text-muted-foreground">
             {events.length === 0
-              ? 'No syslog events yet. Configure your UniFi controller to send remote syslog to this server.'
+              ? 'No syslog events yet. Configure your network devices to send remote syslog to this server.'
               : 'No entries match the current filters.'}
           </div>
         ) : (
@@ -546,7 +548,7 @@ function SiemStatusBanner({
         <span className="size-2 shrink-0 rounded-full bg-warn" />
         <span className="text-sm text-muted-foreground">
           SIEM is disabled. Set <code className={code}>SIEM_ENABLED=true</code> in{' '}
-          <code className={code}>.env</code> and restart the server to start receiving UniFi syslog.
+          <code className={code}>.env</code> and restart the server to start receiving syslog.
         </span>
       </div>
     );
@@ -586,10 +588,10 @@ function SiemStatusBanner({
       {setupOpen ? (
         <div className="basis-full border-t border-border pt-3 text-sm text-muted-foreground">
           <div className="mb-2 font-semibold text-foreground">
-            Configure UniFi to send syslog here
+            Configure devices to send syslog here
           </div>
           <ol className="ml-4 list-decimal space-y-1">
-            <li>Open your UniFi Network Application.</li>
+            <li>Open your device or controller logging settings.</li>
             <li>
               Go to <strong className="text-foreground">Settings → System → Remote Logging</strong>.
             </li>
@@ -605,7 +607,7 @@ function SiemStatusBanner({
             <div className="mt-2 text-warn">
               Server reports: {bindMsg}. If port 514 won't bind, set{' '}
               <code className={code}>SIEM_PORT=5514</code> in <code className={code}>.env</code> and
-              use that in UniFi instead.
+              use that in your device or controller instead.
             </div>
           ) : null}
         </div>

@@ -2,16 +2,18 @@ import { AreaChart, Donut } from '../../charts';
 import type { DashboardState } from '../../../types';
 import { fmtTemp } from '../../../lib/units';
 import { gpuTempSeverity, fanSeverity } from '../../../lib/severity';
+import { useCapabilityPresentation } from '@/lib/presentation';
 
 export function ExpandedGPU({ data, unit }: { data: DashboardState; unit: 'C' | 'F' }) {
   const gpu = data.gpu;
+  const presentation = useCapabilityPresentation('gpu');
   const tempKind = gpuTempSeverity(gpu.tempC);
   const fanKind = fanSeverity(gpu.fanPct);
   return (
     <div className="ov-grid">
       <div className="tile span-12">
         <div className="t-head">
-          <div className="t-title">GPU</div>
+          <div className="t-title">{presentation.label}</div>
           <div className="t-sub">{gpu.model}</div>
         </div>
         <div className="metric-row">

@@ -14,6 +14,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { DateTimePreferences } from '../../lib/datetime';
 import { SECTION_LABEL, subLabel, type Section } from '../../lib/route';
+import { SECTION_CAPABILITY, usePresentation } from '@/lib/presentation';
 
 interface Props {
   section: Section;
@@ -51,7 +52,9 @@ function IconAction({
 }
 
 export function Topbar({ section, activeSub, dateTime, onNavigateSection, onOpenSearch }: Props) {
-  const sectionLbl = SECTION_LABEL[section];
+  const presentation = usePresentation();
+  const capabilityId = SECTION_CAPABILITY[section];
+  const sectionLbl = capabilityId ? presentation[capabilityId].label : SECTION_LABEL[section];
   const here = activeSub ? subLabel(section, activeSub) : null;
 
   return (

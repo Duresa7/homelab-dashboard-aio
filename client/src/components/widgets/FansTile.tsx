@@ -1,6 +1,7 @@
 import { Tile } from '../tile/Tile';
 import type { Fan } from '../../types';
 import { fanSeverity } from '../../lib/severity';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: Fan[];
@@ -36,7 +37,7 @@ export function FansTile({ data, span, onExpand, expandable }: Props) {
         : 'critical';
   return (
     <Tile
-      title="Fans"
+      title={<CapabilityTitle capability="sensors" suffix="Fans" />}
       sub={`${count} sensors`}
       span={span}
       onExpand={onExpand}

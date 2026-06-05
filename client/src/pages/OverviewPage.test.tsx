@@ -25,7 +25,7 @@ describe('OverviewPage', () => {
     expect(screen.getByText('System')).toBeInTheDocument();
     expect(screen.getByText('Services')).toBeInTheDocument();
     expect(screen.getByText('CPU')).toBeInTheDocument();
-    expect(screen.getByText('Docker')).toBeInTheDocument();
+    expect(screen.getByText('Containers')).toBeInTheDocument();
     expect(screen.getByText('Data Center')).toBeInTheDocument();
     expect(screen.getByText('AMD Ryzen 9 9950X3D')).toBeInTheDocument();
 

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Play, Square, Server, Layers } from 'lucide-react';
-import { BrandIcon } from '../components/icons/BrandIcon';
 import {
   SectionCard,
   StatCard,
@@ -12,10 +11,23 @@ import {
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
+import { PresentationIcon, useCapabilityPresentation } from '@/lib/presentation';
 
 interface Props {
   data: DashboardState;
   sub: string;
+}
+
+function ContainersBrandIcon({ size = 18 }: { size?: number }) {
+  const containers = useCapabilityPresentation('containers');
+  return (
+    <PresentationIcon
+      capability="containers"
+      icon={containers.icon}
+      label={containers.vendorLabel ?? containers.label}
+      size={size}
+    />
+  );
 }
 
 function Hosts({ data }: { data: DashboardState }) {
@@ -52,8 +64,8 @@ function Hosts({ data }: { data: DashboardState }) {
 
       <SectionCard
         span={12}
-        title="Docker hosts"
-        icon={<BrandIcon name="docker" alt="Docker" />}
+        title="Container hosts"
+        icon={<ContainersBrandIcon />}
         bodyClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
       >
         {hosts.map((h) => {
@@ -147,7 +159,7 @@ function Containers({ data }: { data: DashboardState }) {
             <SectionCard
               key={`${h.id}/${s}`}
               span={6}
-              icon={<BrandIcon name="docker" alt="Docker" size={16} />}
+              icon={<ContainersBrandIcon size={16} />}
               title={
                 <span className="flex items-center gap-1.5">
                   {h.name} <span className="text-muted-foreground/50">/</span> {s}

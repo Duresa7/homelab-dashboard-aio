@@ -1,6 +1,7 @@
 import { Tile } from '../tile/Tile';
 import type { StorageData } from '../../types';
 import { convertTemp, tempSuffix, useTempUnit } from '../../lib/units';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: StorageData;
@@ -21,7 +22,7 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
   const tagKind = bad ? 'bad' : warn ? 'warn' : 'ok';
   return (
     <Tile
-      title="Disk Health"
+      title={<CapabilityTitle capability="nas" suffix="Disk Health" />}
       sub={`${total} drives`}
       span={span}
       onExpand={onExpand}

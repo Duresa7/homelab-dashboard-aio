@@ -21,6 +21,7 @@ import {
   ExpandedFans,
   ExpandedEvents,
 } from './expanded';
+import { tilePresentationLabel, usePresentation } from '@/lib/presentation';
 
 interface TempHeatData {
   cpu: CPUData;
@@ -38,6 +39,7 @@ interface Props {
 
 export function ExpandOverlay({ id, data, chartKind, setChartKind, onClose }: Props) {
   const def = id ? ALL_TILES.find((t) => t.id === id) : null;
+  const presentation = usePresentation();
 
   return (
     <Dialog
@@ -51,7 +53,7 @@ export function ExpandOverlay({ id, data, chartKind, setChartKind, onClose }: Pr
           <>
             <DialogHeader className="border-b border-border px-6 py-4 text-left">
               <DialogTitle className="font-display text-lg tracking-tight">
-                {def ? def.label : id}
+                {def && id ? tilePresentationLabel(id, def.label, presentation) : id}
               </DialogTitle>
             </DialogHeader>
             <div className="overflow-y-auto px-6 py-5">

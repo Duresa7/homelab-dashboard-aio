@@ -1,5 +1,6 @@
 import { Tile } from '../tile/Tile';
 import type { ProxmoxData } from '../../types';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: ProxmoxData;
@@ -14,7 +15,7 @@ export function ProxmoxTile({ data, span, onExpand, expandable }: Props) {
   const stopped = vms.length - running;
   return (
     <Tile
-      title="Data Center"
+      title={<CapabilityTitle capability="datacenter" />}
       sub={node.name}
       span={span}
       onExpand={onExpand}

@@ -43,6 +43,7 @@ import {
 import { ALL_TILES, type TileId } from '../components/widgets';
 import { ConfigFieldsForm } from './onboarding/steps/ConfigFieldsForm';
 import { INTEGRATIONS, type HealthInfo, type HealthResponse } from '../lib/integrations';
+import { tilePresentationLabel, usePresentation } from '@/lib/presentation';
 import type { IntegrationKey } from '../lib/telemetry';
 import { convertTemp, fToC, useTempUnit, type TempUnit } from '../lib/units';
 import {
@@ -371,6 +372,7 @@ function PreferencesTab({
   onPreferenceChange: Props['onPreferenceChange'];
 }) {
   const { unit, setUnit } = useTempUnit();
+  const presentation = usePresentation();
   const siteName = useSiteNameRaw();
   const previewDate = new Date();
   const setDateTime = <K extends keyof DateTimePreferences>(
@@ -510,7 +512,9 @@ function PreferencesTab({
                     onPreferenceChange('overviewLayout', next === true ? [...cur, tile.id] : cur);
                   }}
                 />
-                <span className="truncate">{tile.label}</span>
+                <span className="truncate">
+                  {tilePresentationLabel(tile.id, tile.label, presentation)}
+                </span>
               </label>
             );
           })}

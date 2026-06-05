@@ -8,10 +8,23 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
 import { fmtTemp, useTempUnit } from '../lib/units';
+import { PresentationIcon, useCapabilityPresentation } from '@/lib/presentation';
 
 interface Props {
   data: DashboardState;
   sub: string;
+}
+
+function NetworkBrandIcon({ size = 18 }: { size?: number }) {
+  const network = useCapabilityPresentation('network');
+  return (
+    <PresentationIcon
+      capability="network"
+      icon={network.icon}
+      label={network.vendorLabel ?? network.label}
+      size={size}
+    />
+  );
 }
 
 type DotKind = 'ok' | 'bad' | 'idle';
@@ -66,7 +79,7 @@ function Overview({ data }: { data: DashboardState }) {
         title="Gateway"
         icon={
           <span className="flex items-center gap-1.5">
-            <BrandIcon name="unifi" alt="UniFi" />
+            <NetworkBrandIcon />
             <Router size={14} strokeWidth={1.75} />
           </span>
         }
@@ -112,7 +125,7 @@ function Devices({ data }: { data: DashboardState }) {
         title="Wi-Fi Access Points"
         icon={
           <span className="flex items-center gap-1.5">
-            <BrandIcon name="unifi" alt="UniFi" />
+            <NetworkBrandIcon />
             <Wifi size={14} strokeWidth={1.75} />
           </span>
         }
@@ -142,7 +155,7 @@ function Devices({ data }: { data: DashboardState }) {
         title="Switches & PoE"
         icon={
           <span className="flex items-center gap-1.5">
-            <BrandIcon name="unifi" alt="UniFi" />
+            <NetworkBrandIcon />
             <Cable size={14} strokeWidth={1.75} />
           </span>
         }
@@ -206,7 +219,7 @@ function Config({ data }: { data: DashboardState }) {
         span={6}
         sub={u.networks.length}
         title="Networks & VLANs"
-        icon={<BrandIcon name="unifi" alt="UniFi" />}
+        icon={<NetworkBrandIcon />}
       >
         {u.networks.length === 0
           ? emptyRow('No networks data')
@@ -226,12 +239,7 @@ function Config({ data }: { data: DashboardState }) {
             ))}
       </SectionCard>
 
-      <SectionCard
-        span={6}
-        sub={u.ssids.length}
-        title="Wi-Fi SSIDs"
-        icon={<BrandIcon name="unifi" alt="UniFi" />}
-      >
+      <SectionCard span={6} sub={u.ssids.length} title="Wi-Fi SSIDs" icon={<NetworkBrandIcon />}>
         {u.ssids.length === 0
           ? emptyRow('No SSID data')
           : u.ssids.map((s) => (
@@ -256,7 +264,7 @@ function Config({ data }: { data: DashboardState }) {
         title="Firewall"
         icon={
           <span className="flex items-center gap-1.5">
-            <BrandIcon name="unifi" alt="UniFi" />
+            <NetworkBrandIcon />
             <Shield size={14} strokeWidth={1.75} />
           </span>
         }
@@ -303,7 +311,7 @@ function Config({ data }: { data: DashboardState }) {
         title="DNS Records"
         icon={
           <span className="flex items-center gap-1.5">
-            <BrandIcon name="unifi" alt="UniFi" />
+            <NetworkBrandIcon />
             <Globe size={14} strokeWidth={1.75} />
           </span>
         }

@@ -1,7 +1,7 @@
 import { Tile } from '../tile/Tile';
-import { BrandIcon } from '../icons/BrandIcon';
 import type { NetworkData } from '../../types';
 import { pingSeverity, uptimeSeverity } from '../../lib/severity';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: NetworkData;
@@ -15,11 +15,7 @@ export function InternetTile({ data, span, onExpand, expandable }: Props) {
   const pingKind = pingSeverity(data.speedtest.ping);
   return (
     <Tile
-      title={
-        <>
-          <BrandIcon name="unifi" alt="UniFi" /> Internet
-        </>
-      }
+      title={<CapabilityTitle capability="network" suffix="Internet" />}
       sub={`pub ${data.publicIp}`}
       span={span}
       onExpand={onExpand}

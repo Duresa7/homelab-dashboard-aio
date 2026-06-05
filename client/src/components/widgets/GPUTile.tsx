@@ -1,9 +1,9 @@
 import { Tile } from '../tile/Tile';
 import { AutoChart, Donut } from '../charts';
-import { BrandIcon } from '../icons/BrandIcon';
 import type { ChartKind, GPUData } from '../../types';
 import { fmtTemp, useTempUnit } from '../../lib/units';
 import { gpuTempSeverity, gpuUsageSeverity } from '../../lib/severity';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: GPUData;
@@ -21,11 +21,7 @@ export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
   const usageKind = gpuUsageSeverity(usage);
   return (
     <Tile
-      title={
-        <>
-          <BrandIcon name="nvidia" alt="NVIDIA" /> GPU
-        </>
-      }
+      title={<CapabilityTitle capability="gpu" />}
       sub={model}
       span={span}
       onExpand={onExpand}

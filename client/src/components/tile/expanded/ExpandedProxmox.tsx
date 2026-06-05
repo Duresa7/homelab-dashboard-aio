@@ -1,11 +1,15 @@
 import type { DashboardState } from '../../../types';
+import { useCapabilityPresentation } from '@/lib/presentation';
 
 export function ExpandedProxmox({ data }: { data: DashboardState }) {
   const { node, vms, coresAllocated, coresTotal, storages } = data.proxmox;
+  const presentation = useCapabilityPresentation('datacenter');
   return (
     <div className="ov-grid">
       <div className="tile span-12">
-        <div className="t-title">Node · {node.name}</div>
+        <div className="t-title">
+          {presentation.label} · {node.name}
+        </div>
         <div className="row" style={{ gap: 32, paddingTop: 4 }}>
           <div>
             <div className="t-big" style={{ fontSize: 28 }}>

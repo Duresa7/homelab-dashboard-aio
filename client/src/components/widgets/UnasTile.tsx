@@ -1,7 +1,7 @@
 import { Tile } from '../tile/Tile';
-import { BrandIcon } from '../icons/BrandIcon';
 import type { Severity, UnasData } from '../../types';
 import { fmtTemp, useTempUnit } from '../../lib/units';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: UnasData;
@@ -26,11 +26,7 @@ export function UnasTile({ data, span, onExpand, expandable }: Props) {
 
   return (
     <Tile
-      title={
-        <>
-          <BrandIcon name="unifi" alt="UniFi" /> {model}
-        </>
-      }
+      title={<CapabilityTitle capability="nas" suffix={model} />}
       sub={`${disks.length} drives`}
       span={span}
       onExpand={onExpand}

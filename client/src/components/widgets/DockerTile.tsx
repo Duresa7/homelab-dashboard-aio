@@ -1,5 +1,6 @@
 import { Tile } from '../tile/Tile';
 import type { DockerData } from '../../types';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: DockerData;
@@ -12,7 +13,7 @@ export function DockerTile({ data, span, onExpand, expandable }: Props) {
   const { hosts, running, stopped, total, updates } = data;
   return (
     <Tile
-      title="Docker"
+      title={<CapabilityTitle capability="containers" />}
       sub={`${hosts.length} host${hosts.length === 1 ? '' : 's'}`}
       span={span}
       onExpand={onExpand}

@@ -1,6 +1,7 @@
 import { Tile } from '../tile/Tile';
 import type { Severity, StorageData } from '../../types';
 import { fillSeverity } from '../../lib/severity';
+import { CapabilityTitle } from '@/lib/presentation';
 
 interface Props {
   data: StorageData;
@@ -31,7 +32,7 @@ export function StorageTile({ data, span, onExpand, expandable }: Props) {
   const tagPct = worstKind === 'ok' ? summedPct : worstPct;
   return (
     <Tile
-      title="NAS Pools"
+      title={<CapabilityTitle capability="nas" suffix="Pools" />}
       sub={`${data.pools.length} pools`}
       span={span}
       onExpand={onExpand}
