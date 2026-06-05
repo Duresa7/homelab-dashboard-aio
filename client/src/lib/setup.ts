@@ -95,6 +95,13 @@ export interface SelectionInput {
   config: Record<string, unknown>;
 }
 
+export const SETUP_CONFIG_CHANGED_EVENT = 'homelab:setup-config-changed';
+
+function notifySetupConfigChanged(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(SETUP_CONFIG_CHANGED_EVENT));
+}
+
 async function readJson<T>(res: Response): Promise<T> {
   const body = (await res.json().catch(() => null)) as T | { error?: unknown } | null;
   if (!res.ok) {
@@ -134,7 +141,9 @@ export async function getConfig(): Promise<RedactedConfig> {
 }
 
 export async function putSelection(input: SelectionInput): Promise<{ ok: true }> {
-  return setupFetch<{ ok: true }>('/api/setup/config', jsonInit('PUT', input));
+  const result = await setupFetch<{ ok: true }>('/api/setup/config', jsonInit('PUT', input));
+  notifySetupConfigChanged();
+  return result;
 }
 
 export async function testIntegration(input: {
@@ -157,7 +166,12 @@ export async function saveDbConfig(body: DbConfigBody): Promise<SaveDbResult> {
 }
 
 export async function completeOnboarding(complete = true): Promise<{ ok: true }> {
-  return setupFetch<{ ok: true }>('/api/setup/complete', jsonInit('POST', { complete }));
+  const result = await setupFetch<{ ok: true }>(
+    '/api/setup/complete',
+    jsonInit('POST', { complete }),
+  );
+  notifySetupConfigChanged();
+  return result;
 }
 
 export function useSetupStatus(): {

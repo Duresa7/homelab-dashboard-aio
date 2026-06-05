@@ -14,6 +14,7 @@ interface Props {
   fields: ConfigField[];
   values: Record<string, unknown>;
   secrets?: Record<string, boolean>;
+  idPrefix?: string;
   onChange: (field: string, value: unknown) => void;
 }
 
@@ -21,7 +22,13 @@ function fieldValue(value: unknown): string {
   return value == null ? '' : String(value);
 }
 
-export function ConfigFieldsForm({ fields, values, secrets = {}, onChange }: Props) {
+export function ConfigFieldsForm({
+  fields,
+  values,
+  secrets = {},
+  idPrefix = 'setup',
+  onChange,
+}: Props) {
   if (fields.length === 0) {
     return <p className="text-sm text-muted-foreground">No credentials are required.</p>;
   }
@@ -29,7 +36,7 @@ export function ConfigFieldsForm({ fields, values, secrets = {}, onChange }: Pro
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {fields.map((field) => {
-        const id = `setup-${field.name}`;
+        const id = `${idPrefix}-${field.name}`;
         const help =
           field.secret && secrets[field.name]
             ? `${field.help ? `${field.help} ` : ''}Leave blank to keep the saved value.`

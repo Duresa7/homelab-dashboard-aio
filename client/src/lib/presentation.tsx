@@ -20,7 +20,13 @@ import {
 } from 'react';
 
 import { BrandIcon } from '@/components/icons/BrandIcon';
-import { getCapabilities, getConfig, type Capability, type RedactedConfig } from './setup';
+import {
+  SETUP_CONFIG_CHANGED_EVENT,
+  getCapabilities,
+  getConfig,
+  type Capability,
+  type RedactedConfig,
+} from './setup';
 import type { Section } from './route';
 import type { TileId } from '@/components/widgets';
 
@@ -213,8 +219,8 @@ const PROVIDER_ICON: Record<string, { kind: 'dashboard'; name: string }> = {
 };
 
 function enabledConfig(config: RedactedConfig | null): Record<string, { vendor: string }> | null {
+  if (!config) return null;
   const entries = config?.capabilities ?? {};
-  if (Object.keys(entries).length === 0) return null;
   return Object.fromEntries(
     Object.entries(entries)
       .filter(([, selection]) => selection.enabled)
@@ -283,8 +289,10 @@ export function PresentationProvider({ children }: { children: ReactNode }) {
       }
     };
     void load();
+    window.addEventListener(SETUP_CONFIG_CHANGED_EVENT, load);
     return () => {
       cancelled = true;
+      window.removeEventListener(SETUP_CONFIG_CHANGED_EVENT, load);
     };
   }, []);
 

@@ -4,8 +4,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
-  HardDrive,
-  Network,
   PlugZap,
   Save,
   Server,
@@ -56,6 +54,7 @@ import {
   type DbDraft,
   type DbStepStatus,
 } from './db-state';
+import { PresentationIcon, type CapabilityId } from '@/lib/presentation';
 
 interface Props {
   onDone: () => void | Promise<void>;
@@ -76,12 +75,18 @@ const CORE_STEPS: StepDef[] = [
   { id: 'finish', label: 'Finish', icon: CheckCircle2 },
 ];
 
-function capabilityIcon(id: string): LucideIcon {
-  if (id === 'datacenter') return Server;
-  if (id === 'network') return Network;
-  if (id === 'nas' || id === 'containers') return HardDrive;
-  if (id === 'logs') return Database;
-  return PlugZap;
+const PRESENTATION_CAPABILITY_IDS = new Set<string>([
+  'datacenter',
+  'network',
+  'nas',
+  'containers',
+  'gpu',
+  'sensors',
+  'logs',
+]);
+
+function presentationCapabilityId(id: string): CapabilityId | null {
+  return PRESENTATION_CAPABILITY_IDS.has(id) ? (id as CapabilityId) : null;
 }
 
 function selectionSummary(selection: CapabilitySelection): string {
@@ -375,7 +380,7 @@ function WizardStep({
     return (
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {capabilities.map((capability) => {
-          const Icon = capabilityIcon(capability.id);
+          const presentationId = presentationCapabilityId(capability.id);
           const selection = selections[capability.id];
           return (
             <label
@@ -393,7 +398,11 @@ function WizardStep({
                 }
               />
               <span className="grid size-9 shrink-0 place-items-center rounded-md border border-border bg-muted text-muted-foreground">
-                <Icon className="size-4" />
+                {presentationId ? (
+                  <PresentationIcon capability={presentationId} className="size-4" />
+                ) : (
+                  <PlugZap className="size-4" />
+                )}
               </span>
               <span className="flex min-w-0 flex-col gap-1">
                 <span className="font-medium text-foreground">{capability.label}</span>
@@ -475,6 +484,7 @@ function WizardStep({
               <ConfigFieldsForm
                 fields={provider?.configSchema ?? []}
                 values={selection.config}
+                idPrefix={`setup-${capability.id}`}
                 onChange={(field, value) =>
                   onDispatch({ type: 'setField', capabilityId: capability.id, field, value })
                 }
@@ -542,8 +552,7 @@ function WizardStep({
       <div>
         <h2 className="font-display text-xl tracking-tight">Ready to save</h2>
         <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-          The selected setup will be saved. Live telemetry still uses the current server boot
-          configuration until the integration runtime reads saved selections.
+          The selected setup will be saved and applied to live telemetry.
         </p>
       </div>
     </div>

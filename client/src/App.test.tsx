@@ -17,7 +17,12 @@ async function loadApp({
   connectivity?: 'online' | 'offline' | 'unknown';
 }) {
   vi.resetModules();
-  vi.doMock('./lib/setup', () => ({ useSetupStatus: () => setup }));
+  vi.doMock('./lib/setup', () => ({
+    SETUP_CONFIG_CHANGED_EVENT: 'homelab:setup-config-changed',
+    getCapabilities: vi.fn(async () => []),
+    getConfig: vi.fn(async () => ({ capabilities: {}, onboarding: { complete: true } })),
+    useSetupStatus: () => setup,
+  }));
   vi.doMock('./pages/onboarding/OnboardingWizard', () => ({
     OnboardingWizard: () => <div>Onboarding wizard</div>,
   }));

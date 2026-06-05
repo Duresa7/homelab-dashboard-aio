@@ -13,6 +13,7 @@ import {
   Plus,
   RotateCcw,
   SlidersHorizontal,
+  TestTube2,
   Thermometer,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ import { DEFAULT_SITE_NAME, setSiteName, useSiteNameRaw } from '@/lib/site-name'
 import {
   getConfig,
   putSelection,
+  testIntegration,
   useCapabilities,
   type Capability,
   type RedactedCapabilityConfig,
@@ -672,6 +674,10 @@ function SetupTab() {
   const [drafts, setDrafts] = useState<SetupDrafts>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<
+    Record<string, { kind: 'ok' | 'bad' | 'info'; label: string; message: string }>
+  >({});
   const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -726,14 +732,52 @@ function SetupTab() {
     }
   };
 
+  const test = async (capability: Capability) => {
+    const draft = drafts[capability.id];
+    if (!draft) return;
+    setTesting(capability.id);
+    try {
+      const result = await testIntegration({
+        capability: capability.id,
+        config: configForSave(capability, draft),
+      });
+      setTestResults((prev) => ({
+        ...prev,
+        [capability.id]: result.untestable
+          ? {
+              kind: 'info',
+              label: 'untestable',
+              message: result.error ?? 'This capability has no automatic connection test.',
+            }
+          : result.ok
+            ? { kind: 'ok', label: 'passed', message: 'Connection test passed.' }
+            : {
+                kind: 'bad',
+                label: 'failed',
+                message: result.error ?? 'Connection test failed.',
+              },
+      }));
+    } catch (err) {
+      setTestResults((prev) => ({
+        ...prev,
+        [capability.id]: {
+          kind: 'bad',
+          label: 'failed',
+          message: err instanceof Error ? err.message : String(err),
+        },
+      }));
+    } finally {
+      setTesting(null);
+    }
+  };
+
   return (
     <section className="flex flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-lg tracking-tight text-foreground">Setup</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Saved selections are stored server-side; live telemetry still follows the current server
-            boot configuration.
+            Saved selections are stored server-side and applied to live telemetry immediately.
           </p>
         </div>
       </header>
@@ -753,6 +797,7 @@ function SetupTab() {
             ? capability.providers.find((candidate) => candidate.id === draft.vendor)
             : null;
           const isEditing = editing === capability.id;
+          const testResult = testResults[capability.id];
           const configured = !!config?.capabilities[capability.id];
           if (!draft) return null;
           return (
@@ -838,6 +883,7 @@ function SetupTab() {
                     fields={provider?.configSchema ?? []}
                     values={draft.config}
                     secrets={draft.secrets}
+                    idPrefix={`settings-setup-${capability.id}`}
                     onChange={(field, value) =>
                       updateDraft(capability.id, (cur) => ({
                         ...cur,
@@ -846,10 +892,26 @@ function SetupTab() {
                     }
                   />
 
-                  <div className="flex justify-end">
+                  {testResult ? (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                      <StatusBadge kind={testResult.kind}>{testResult.label}</StatusBadge>
+                      <span className="text-muted-foreground">{testResult.message}</span>
+                    </div>
+                  ) : null}
+
+                  <div className="flex justify-end gap-2">
                     <Button
                       type="button"
-                      disabled={saving === capability.id}
+                      variant="outline"
+                      disabled={testing === capability.id || saving === capability.id}
+                      onClick={() => test(capability)}
+                    >
+                      <TestTube2 className="size-4" />
+                      {testing === capability.id ? 'Testing...' : 'Test'}
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={saving === capability.id || testing === capability.id}
                       onClick={() => save(capability)}
                     >
                       {saving === capability.id ? 'Saving...' : 'Save setup'}
