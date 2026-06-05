@@ -3,6 +3,7 @@ import {
   Bell,
   CalendarDays,
   Clock3,
+  Database,
   Gauge,
   Globe2,
   KeyRound,
@@ -35,7 +36,10 @@ import { cn } from '@/lib/utils';
 import { DEFAULT_SITE_NAME, setSiteName, useSiteNameRaw } from '@/lib/site-name';
 import {
   getConfig,
+  getDbConfig,
   putSelection,
+  saveDbConfig,
+  testDbConnection,
   testIntegration,
   useCapabilities,
   type Capability,
@@ -44,6 +48,15 @@ import {
 } from '@/lib/setup';
 import { ALL_TILES, type TileId } from '../components/widgets';
 import { ConfigFieldsForm } from './onboarding/steps/ConfigFieldsForm';
+import { DatabaseStep } from './onboarding/steps/DatabaseStep';
+import {
+  dbBodyFromDraft,
+  dbDirty,
+  dbDraftFromView,
+  EMPTY_DB_DRAFT,
+  type DbDraft,
+  type DbStepStatus,
+} from './onboarding/db-state';
 import { INTEGRATIONS, type HealthInfo, type HealthResponse } from '../lib/integrations';
 import { tilePresentationLabel, usePresentation } from '@/lib/presentation';
 import type { IntegrationKey } from '../lib/telemetry';
@@ -668,6 +681,163 @@ function configForSave(
   return out;
 }
 
+const DB_LABEL: Record<DbDraft['driver'], string> = {
+  sqlite: 'SQLite',
+  postgres: 'PostgreSQL',
+  mysql: 'MySQL / MariaDB',
+};
+
+function DatabaseSettings() {
+  const [saved, setSaved] = useState<DbDraft | null>(null);
+  const [draft, setDraft] = useState<DbDraft>(EMPTY_DB_DRAFT);
+  const [status, setStatus] = useState<DbStepStatus>({
+    busy: false,
+    message: 'Loading current backend…',
+    restartRequired: false,
+  });
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const view = await getDbConfig();
+        if (cancelled) return;
+        const next = dbDraftFromView(view);
+        setSaved(next);
+        setDraft(next);
+        setStatus({
+          busy: false,
+          message: `Current backend: ${DB_LABEL[next.driver]}.`,
+          restartRequired: false,
+        });
+      } catch (err) {
+        if (cancelled) return;
+        setLoadError(err instanceof Error ? err.message : String(err));
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const dirty = saved ? dbDirty(draft, saved) : false;
+  const driverChanged = !!saved && draft.driver !== saved.driver;
+
+  const onChange = (next: DbDraft) => {
+    setDraft(next);
+    setConfirmSwitch(false); // editing supersedes a pending switch confirmation
+  };
+
+  const test = async () => {
+    setStatus({ busy: true, message: 'Testing database connection…', restartRequired: false });
+    try {
+      const result = await testDbConnection(dbBodyFromDraft(draft));
+      setStatus({
+        busy: false,
+        message: result.ok
+          ? 'Connection test passed.'
+          : `Connection failed: ${result.error ?? 'unknown error'}`,
+        restartRequired: false,
+      });
+    } catch (err) {
+      setStatus({
+        busy: false,
+        message: err instanceof Error ? err.message : String(err),
+        restartRequired: false,
+      });
+    }
+  };
+
+  const persist = async () => {
+    setConfirmSwitch(false);
+    setStatus({ busy: true, message: 'Saving database settings…', restartRequired: false });
+    try {
+      await saveDbConfig(dbBodyFromDraft(draft));
+      const view = await getDbConfig();
+      const next = dbDraftFromView(view);
+      setSaved(next);
+      setDraft(next);
+      setStatus({
+        busy: false,
+        message: `Saved. Current backend: ${DB_LABEL[next.driver]}.`,
+        restartRequired: true,
+      });
+      toast.success('Database settings saved — restart the server to apply');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setStatus({ busy: false, message, restartRequired: false });
+      toast.error(message);
+    }
+  };
+
+  const onSave = () => {
+    if (driverChanged) {
+      setConfirmSwitch(true);
+      return;
+    }
+    void persist();
+  };
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-4 shadow-card">
+      <div className="mb-4 flex items-start gap-3">
+        <div className="grid size-8 shrink-0 place-items-center rounded-md border border-border bg-muted text-muted-foreground">
+          <Database className="size-4" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-foreground">Database backend</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Where the dashboard stores its state and SIEM data. Switching points the app at a fresh
+            database and takes effect after a server restart.
+          </p>
+        </div>
+      </div>
+
+      {loadError ? (
+        <div className="mb-3 rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-foreground">
+          {loadError}
+        </div>
+      ) : null}
+
+      <DatabaseStep
+        draft={draft}
+        status={status}
+        dirty={dirty}
+        onChange={onChange}
+        onTest={test}
+        onSave={onSave}
+      />
+
+      {confirmSwitch ? (
+        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-warn/50 bg-warn/10 p-3 text-sm text-foreground">
+          <div>
+            <b className="font-semibold">Switch to {DB_LABEL[draft.driver]}?</b> Existing data is{' '}
+            <b>not migrated</b> — the new backend starts empty.
+            {saved ? (
+              <>
+                {' '}
+                Your current {DB_LABEL[saved.driver]} data stays on disk but won&apos;t be shown
+                until you switch back.
+              </>
+            ) : null}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setConfirmSwitch(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void persist()}>
+              Switch &amp; save
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function SetupTab() {
   const { capabilities, loading, error } = useCapabilities();
   const [config, setConfig] = useState<RedactedConfig | null>(null);
@@ -789,6 +959,8 @@ function SetupTab() {
       ) : null}
 
       {loading ? <div className="text-sm text-muted-foreground">Loading setup...</div> : null}
+
+      <DatabaseSettings />
 
       <div className="grid grid-cols-1 gap-3">
         {capabilities.map((capability) => {

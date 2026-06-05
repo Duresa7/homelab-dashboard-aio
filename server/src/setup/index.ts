@@ -98,6 +98,22 @@ function parseDbConfigFile(input: unknown): DbConfigFile {
   return { driver, [driver]: server };
 }
 
+/**
+ * Keep the previously-saved password when a re-save/test for the SAME backend
+ * omits it — this is what powers the "leave blank to keep the saved password"
+ * affordance on the Settings re-entry. Switching to a different backend has no
+ * prior secret to inherit, so a password must be supplied for that case.
+ */
+export function keepDbSecrets(file: DbConfigFile, current: ResolvedDbConfig): DbConfigFile {
+  if (file.driver !== 'postgres' && file.driver !== 'mysql') return file;
+  if (current.driver !== file.driver) return file;
+  const incoming = file[file.driver];
+  if (incoming?.password) return file; // an explicitly supplied password wins
+  const prior = file.driver === 'postgres' ? current.postgres : current.mysql;
+  if (!prior?.password) return file;
+  return { ...file, [file.driver]: { ...(incoming ?? {}), password: prior.password } };
+}
+
 /** Current backend for display — connection details minus the password. */
 export function redactDbConfig(config: ResolvedDbConfig): Record<string, unknown> {
   if (config.driver === 'postgres' && config.postgres) {
@@ -188,6 +204,7 @@ export function initSetup(
     } catch (err) {
       return res.status(400).json({ ok: false, error: errorMessage(err) });
     }
+    file = keepDbSecrets(file, resolveDbConfig({ env: {}, configPath: configFilePath() }));
     try {
       await testDbConnection(resolveDbConfig({ env: {}, file }));
       res.json({ ok: true });
@@ -206,6 +223,7 @@ export function initSetup(
     } catch (err) {
       return res.status(400).json({ ok: false, error: errorMessage(err) });
     }
+    file = keepDbSecrets(file, resolveDbConfig({ env: {}, configPath: configFilePath() }));
     try {
       await testDbConnection(resolveDbConfig({ env: {}, file }));
     } catch (err) {

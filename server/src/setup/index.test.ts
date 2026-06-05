@@ -5,7 +5,8 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 
 import { loadServerApp, withJsonUpstream } from '../test/serverApp.js';
-import { redactDbConfig } from './index.js';
+import { keepDbSecrets, redactDbConfig } from './index.js';
+import type { ResolvedDbConfig } from '../storage/config.js';
 
 const SECRET_VALUE = 'tok-XYZ-9876';
 const proxmox = {
@@ -28,6 +29,43 @@ describe('redactDbConfig', () => {
     });
     expect(JSON.stringify(out)).not.toContain('secret');
     expect(out.postgres).toMatchObject({ host: 'h', user: 'u', hasPassword: true });
+  });
+});
+
+describe('keepDbSecrets', () => {
+  const current: ResolvedDbConfig = {
+    driver: 'postgres',
+    sqlite: { statePath: 's', siemPath: 'm' },
+    postgres: { host: 'h', port: 5432, database: 'd', user: 'u', password: 'kept-pw', ssl: false },
+  };
+
+  it('keeps the stored password when a same-backend re-save omits it', () => {
+    const out = keepDbSecrets(
+      { driver: 'postgres', postgres: { host: 'h', database: 'd', user: 'u' } },
+      current,
+    );
+    expect(out.postgres?.password).toBe('kept-pw');
+  });
+
+  it('lets an explicitly supplied password win', () => {
+    const out = keepDbSecrets(
+      { driver: 'postgres', postgres: { host: 'h', database: 'd', user: 'u', password: 'new-pw' } },
+      current,
+    );
+    expect(out.postgres?.password).toBe('new-pw');
+  });
+
+  it('does not inherit a password when switching to a different backend', () => {
+    const out = keepDbSecrets(
+      { driver: 'mysql', mysql: { host: 'h', database: 'd', user: 'u' } },
+      current,
+    );
+    expect(out.mysql?.password).toBeUndefined();
+  });
+
+  it('is a no-op for sqlite (no secret)', () => {
+    const file = { driver: 'sqlite' as const, sqlite: { statePath: 'data/x.sqlite' } };
+    expect(keepDbSecrets(file, current)).toBe(file);
   });
 });
 
