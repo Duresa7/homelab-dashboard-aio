@@ -17,9 +17,7 @@ RUN npm run build
 # Clean production-only install (the toolchain here compiles better-sqlite3) so
 # the runtime image can copy a consistent node_modules — the runtime stage ships
 # no compiler. A clean `npm ci` avoids the partial/mixed tree `npm prune` leaves.
-# Drop the `prepare` (husky) script first: it's a dev-only git-hook setup that
-# isn't installed under --omit=dev and would otherwise fail the install.
-RUN npm pkg delete scripts.prepare && npm ci --omit=dev
+RUN npm ci --omit=dev
 
 
 FROM node:24-bookworm-slim AS runtime
