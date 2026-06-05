@@ -8,17 +8,31 @@ import { isDebugEndpointEnabled, isEnabled, trimBaseUrl } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
 
-const UNAS_ENABLED = isEnabled(process.env.UNAS_ENABLED, false);
-const UNAS_BASE_URL = trimBaseUrl(process.env.UNAS_BASE_URL);
-const UNAS_API_KEY = process.env.UNAS_API_KEY || '';
 const UNAS_CACHE_TTL = Number(process.env.UNAS_POLL_INTERVAL) || 30000;
+
+export interface UnasRuntimeConfig {
+  enabled: boolean;
+  baseUrl?: string;
+  apiKey?: string;
+}
+
+function configFromEnv(): UnasRuntimeConfig {
+  return {
+    enabled: isEnabled(process.env.UNAS_ENABLED, false),
+    baseUrl: trimBaseUrl(process.env.UNAS_BASE_URL),
+    apiKey: process.env.UNAS_API_KEY || '',
+  };
+}
+
+let config = configFromEnv();
 
 const TB = 1024 ** 4;
 const GB = 1024 ** 3;
 
 async function unasFetch(path: string): Promise<Upstream> {
-  const res = await insecureFetch(`${UNAS_BASE_URL}${path}`, {
-    headers: { 'X-API-Key': UNAS_API_KEY, Accept: 'application/json' },
+  if (!config.baseUrl) throw new Error('UNAS base URL is not configured');
+  const res = await insecureFetch(`${config.baseUrl}${path}`, {
+    headers: { 'X-API-Key': config.apiKey ?? '', Accept: 'application/json' },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -165,10 +179,22 @@ async function fetchUnasDataRaw() {
 const fetchUnasData = withTtlCache(fetchUnasDataRaw, UNAS_CACHE_TTL);
 
 export const unasStatus = {
-  enabled: UNAS_ENABLED,
-  configured: !!(UNAS_BASE_URL && UNAS_API_KEY),
-  baseUrl: UNAS_BASE_URL,
+  enabled: config.enabled,
+  configured: config.enabled && !!(config.baseUrl && config.apiKey),
+  baseUrl: config.baseUrl,
 };
+
+export function configureUnas(next: UnasRuntimeConfig): void {
+  config = {
+    enabled: next.enabled,
+    baseUrl: trimBaseUrl(next.baseUrl),
+    apiKey: next.apiKey ?? '',
+  };
+  fetchUnasData.clear();
+  unasStatus.enabled = config.enabled;
+  unasStatus.configured = config.enabled && !!(config.baseUrl && config.apiKey);
+  unasStatus.baseUrl = config.baseUrl;
+}
 
 /** Liveness probe used by /api/health/live. */
 export function probeUnas() {
@@ -177,10 +203,10 @@ export function probeUnas() {
 
 export function registerUnas(app: Express) {
   app.get('/api/unas', async (_req: Request, res: Response) => {
-    if (!UNAS_ENABLED) return res.json({ disabled: true });
-    if (!UNAS_BASE_URL || !UNAS_API_KEY) {
+    if (!config.enabled) return res.json({ disabled: true });
+    if (!config.baseUrl || !config.apiKey) {
       return res.status(503).json({
-        error: 'UNAS not configured. Set UNAS_BASE_URL and UNAS_API_KEY in .env',
+        error: 'UNAS not configured. Set base URL and API key in Setup.',
       });
     }
     try {
@@ -193,10 +219,10 @@ export function registerUnas(app: Express) {
 
   app.get('/api/unas/debug', async (_req: Request, res: Response) => {
     if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
-    if (!UNAS_ENABLED) return res.json({ disabled: true });
+    if (!config.enabled) return res.json({ disabled: true });
     const c = fetchUnasData.peek();
     res.json({
-      config: { baseUrl: UNAS_BASE_URL || null, hasKey: !!UNAS_API_KEY },
+      config: { baseUrl: config.baseUrl || null, hasKey: !!config.apiKey },
       cache: c.data
         ? {
             ageMs: Date.now() - c.ts,

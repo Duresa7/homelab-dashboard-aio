@@ -8,19 +8,34 @@ import { isDebugEndpointEnabled, isEnabled, trimBaseUrl, formatUptime } from '..
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
 
-const PORTAINER_ENABLED = isEnabled(process.env.PORTAINER_ENABLED, false);
-const PORTAINER_BASE_URL = trimBaseUrl(process.env.PORTAINER_BASE_URL);
-const PORTAINER_API_KEY = process.env.PORTAINER_API_KEY || process.env.PORTAINER_TOKEN || '';
 const PORTAINER_CACHE_TTL = Number(process.env.PORTAINER_POLL_INTERVAL) || 10000;
-const PORTAINER_STATS_ENABLED = isEnabled(process.env.PORTAINER_STATS_ENABLED, true);
+
+export interface DockerRuntimeConfig {
+  enabled: boolean;
+  baseUrl?: string;
+  apiKey?: string;
+  statsEnabled?: boolean;
+}
+
+function configFromEnv(): DockerRuntimeConfig {
+  return {
+    enabled: isEnabled(process.env.PORTAINER_ENABLED, false),
+    baseUrl: trimBaseUrl(process.env.PORTAINER_BASE_URL),
+    apiKey: process.env.PORTAINER_API_KEY || process.env.PORTAINER_TOKEN || '',
+    statsEnabled: isEnabled(process.env.PORTAINER_STATS_ENABLED, true),
+  };
+}
+
+let config = configFromEnv();
 
 async function portainerFetch(path: string, { timeoutMs = 10000 } = {}): Promise<Upstream> {
+  if (!config.baseUrl) throw new Error('Portainer base URL is not configured');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await insecureFetch(`${PORTAINER_BASE_URL}${path}`, {
+    const res = await insecureFetch(`${config.baseUrl}${path}`, {
       headers: {
-        'X-API-Key': PORTAINER_API_KEY,
+        'X-API-Key': config.apiKey ?? '',
         Accept: 'application/json',
       },
       signal: controller.signal,
@@ -113,7 +128,7 @@ function memMbFromStats(stats: Upstream) {
 }
 
 async function containerStats(endpointIdValue: string, containerId: string) {
-  if (!PORTAINER_STATS_ENABLED) return { cpu: 0, memMB: 0 };
+  if (!config.statsEnabled) return { cpu: 0, memMB: 0 };
   const stats = await safePortainerFetch(
     `/api/endpoints/${endpointIdValue}/docker/containers/${containerId}/stats?stream=false`,
     null,
@@ -197,10 +212,23 @@ const fetchPortainerDockerData = withTtlCache(fetchPortainerDockerDataRaw, PORTA
 // Status descriptor consumed by the aggregate /api/health route and startup
 // logging in index.js, so they don't need to reach into Portainer config.
 export const dockerStatus = {
-  enabled: PORTAINER_ENABLED,
-  configured: !!(PORTAINER_BASE_URL && PORTAINER_API_KEY),
-  baseUrl: PORTAINER_BASE_URL,
+  enabled: config.enabled,
+  configured: config.enabled && !!(config.baseUrl && config.apiKey),
+  baseUrl: config.baseUrl,
 };
+
+export function configureDocker(next: DockerRuntimeConfig): void {
+  config = {
+    enabled: next.enabled,
+    baseUrl: trimBaseUrl(next.baseUrl),
+    apiKey: next.apiKey ?? '',
+    statsEnabled: next.statsEnabled ?? true,
+  };
+  fetchPortainerDockerData.clear();
+  dockerStatus.enabled = config.enabled;
+  dockerStatus.configured = config.enabled && !!(config.baseUrl && config.apiKey);
+  dockerStatus.baseUrl = config.baseUrl;
+}
 
 /** Liveness probe used by /api/health/live. */
 export function probeDocker(timeoutMs: number) {
@@ -209,10 +237,10 @@ export function probeDocker(timeoutMs: number) {
 
 export function registerDocker(app: Express) {
   app.get('/api/docker', async (_req: Request, res: Response) => {
-    if (!PORTAINER_ENABLED) return res.json({ disabled: true });
-    if (!PORTAINER_BASE_URL || !PORTAINER_API_KEY) {
+    if (!config.enabled) return res.json({ disabled: true });
+    if (!config.baseUrl || !config.apiKey) {
       return res.status(503).json({
-        error: 'Portainer not configured. Set PORTAINER_BASE_URL and PORTAINER_API_KEY in .env',
+        error: 'Portainer not configured. Set base URL and API key in Setup.',
       });
     }
     try {
@@ -225,13 +253,13 @@ export function registerDocker(app: Express) {
 
   app.get('/api/docker/debug', async (_req: Request, res: Response) => {
     if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
-    if (!PORTAINER_ENABLED) return res.json({ disabled: true });
+    if (!config.enabled) return res.json({ disabled: true });
     const c = fetchPortainerDockerData.peek();
     res.json({
       config: {
-        baseUrl: PORTAINER_BASE_URL || null,
-        hasKey: !!PORTAINER_API_KEY,
-        statsEnabled: PORTAINER_STATS_ENABLED,
+        baseUrl: config.baseUrl || null,
+        hasKey: !!config.apiKey,
+        statsEnabled: !!config.statsEnabled,
       },
       cache: c.data
         ? {

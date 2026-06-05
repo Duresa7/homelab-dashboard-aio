@@ -9,21 +9,32 @@ import { isDebugEndpointEnabled, isEnabled, formatUptime } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
 
-const UNIFI_ENABLED = isEnabled(process.env.UNIFI_ENABLED);
-const BASE_URL = process.env.UNIFI_BASE_URL;
-if (UNIFI_ENABLED && !BASE_URL) {
-  console.error('UNIFI_BASE_URL is not set. Add it to your .env file, or set UNIFI_ENABLED=false.');
-  process.exit(1);
-}
-const API_KEY = process.env.UNIFI_API_KEY || '';
-const SITE = process.env.UNIFI_SITE || 'default';
 const CACHE_TTL = Number(process.env.UNIFI_POLL_INTERVAL) || 10000;
 
+export interface UnifiRuntimeConfig {
+  enabled: boolean;
+  baseUrl?: string;
+  apiKey?: string;
+  site?: string;
+}
+
+function configFromEnv(): UnifiRuntimeConfig {
+  return {
+    enabled: isEnabled(process.env.UNIFI_ENABLED, false),
+    baseUrl: process.env.UNIFI_BASE_URL,
+    apiKey: process.env.UNIFI_API_KEY || '',
+    site: process.env.UNIFI_SITE || 'default',
+  };
+}
+
+let config = configFromEnv();
+
 async function uniFetch(path: string): Promise<Upstream> {
-  const url = `${BASE_URL}${path}`;
+  if (!config.baseUrl) throw new Error('UniFi base URL is not configured');
+  const url = `${config.baseUrl}${path}`;
   const res = await insecureFetch(url, {
     headers: {
-      'X-API-Key': API_KEY,
+      'X-API-Key': config.apiKey ?? '',
       Accept: 'application/json',
     },
   });
@@ -73,7 +84,8 @@ async function getSiteId(): Promise<string> {
   if (!Array.isArray(sites) || sites.length === 0) {
     throw new Error('No sites found from UniFi API');
   }
-  const site = sites.find((s: Upstream) => s.name === SITE || s.id === SITE) || sites[0];
+  const siteName = config.site || 'default';
+  const site = sites.find((s: Upstream) => s.name === siteName || s.id === siteName) || sites[0];
   resolvedSiteId = site.id || site._id || site.name;
   return resolvedSiteId as string;
 }
@@ -284,11 +296,26 @@ async function fetchUnifiDataRaw() {
 const fetchUnifiData = withTtlCache(fetchUnifiDataRaw, CACHE_TTL);
 
 export const unifiStatus = {
-  enabled: UNIFI_ENABLED,
-  configured: !!API_KEY,
-  hasKey: !!API_KEY,
-  baseUrl: BASE_URL,
+  enabled: config.enabled,
+  configured: config.enabled && !!(config.baseUrl && config.apiKey),
+  hasKey: config.enabled && !!config.apiKey,
+  baseUrl: config.baseUrl,
 };
+
+export function configureUnifi(next: UnifiRuntimeConfig): void {
+  config = {
+    enabled: next.enabled,
+    baseUrl: next.baseUrl,
+    apiKey: next.apiKey ?? '',
+    site: next.site || 'default',
+  };
+  resolvedSiteId = null;
+  fetchUnifiData.clear();
+  unifiStatus.enabled = config.enabled;
+  unifiStatus.configured = config.enabled && !!(config.baseUrl && config.apiKey);
+  unifiStatus.hasKey = config.enabled && !!config.apiKey;
+  unifiStatus.baseUrl = config.baseUrl;
+}
 
 /** Liveness probe used by /api/health/live. */
 export function probeUnifi() {
@@ -297,12 +324,12 @@ export function probeUnifi() {
 
 export function registerUnifi(app: Express) {
   app.get('/api/unifi', async (_req: Request, res: Response) => {
-    if (!UNIFI_ENABLED) {
+    if (!config.enabled) {
       return res.json({ disabled: true });
     }
-    if (!API_KEY) {
+    if (!config.baseUrl || !config.apiKey) {
       return res.status(503).json({
-        error: 'UNIFI_API_KEY not configured. Add it to your .env file.',
+        error: 'UniFi not configured. Set base URL and API key in Setup, or UNIFI_API_KEY in env.',
       });
     }
     try {
@@ -319,8 +346,8 @@ export function registerUnifi(app: Express) {
     if (!isDebugEndpointEnabled()) {
       return res.status(404).json({ error: 'Not found' });
     }
-    if (!UNIFI_ENABLED) return res.status(503).json({ error: 'UniFi disabled' });
-    if (!API_KEY) return res.status(503).json({ error: 'No API key' });
+    if (!config.enabled) return res.status(503).json({ error: 'UniFi disabled' });
+    if (!config.baseUrl || !config.apiKey) return res.status(503).json({ error: 'No API key' });
     try {
       const siteId = await getSiteId();
       const prefix = `/proxy/network/integration/v1/sites/${siteId}`;

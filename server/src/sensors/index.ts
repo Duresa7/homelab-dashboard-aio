@@ -27,18 +27,18 @@ export interface SensorsConfig {
  * Returns a handle the caller's health probes use (e.g. /api/health/live).
  */
 export function initSensors(app: Express, config: SensorsConfig) {
-  const { enabled, mode, sshHost, sshUser, sshPort, sshKeyPath, cacheTtl } = config;
+  let current = { ...config };
 
   let sensorsCache: { data: SensorTree | null; ts: number } = { data: null, ts: 0 };
   let sensorsLastError: string | null = null;
 
   function runSensorsRemote(localCmd: string, localArgs: string[], remoteCmd: string) {
     return runRemote({
-      mode,
-      host: sshHost,
-      user: sshUser,
-      port: sshPort,
-      keyPath: sshKeyPath,
+      mode: current.mode,
+      host: current.sshHost,
+      user: current.sshUser,
+      port: current.sshPort,
+      keyPath: current.sshKeyPath,
       localCmd,
       localArgs,
       remoteCmd,
@@ -68,7 +68,7 @@ export function initSensors(app: Express, config: SensorsConfig) {
 
   async function fetchSensorsData(): Promise<SensorTree> {
     const now = Date.now();
-    if (sensorsCache.data && now - sensorsCache.ts < cacheTtl) return sensorsCache.data;
+    if (sensorsCache.data && now - sensorsCache.ts < current.cacheTtl) return sensorsCache.data;
 
     const [output, diskInventory] = await Promise.all([runSensors(), fetchSensorDiskInventory()]);
     const parsed = parseSensorsJson(output, diskInventory);
@@ -79,8 +79,8 @@ export function initSensors(app: Express, config: SensorsConfig) {
   }
 
   app.get('/api/sensors', async (_req: Request, res: Response) => {
-    if (!enabled) return res.json({ disabled: true });
-    if (mode === 'ssh' && !sshHost) {
+    if (!current.enabled) return res.json({ disabled: true });
+    if (current.mode === 'ssh' && !current.sshHost) {
       return res.status(503).json({
         error: 'SENSORS_MODE=ssh but no host configured (set SENSORS_SSH_HOST or GPU_SSH_HOST)',
       });
@@ -90,22 +90,24 @@ export function initSensors(app: Express, config: SensorsConfig) {
       res.json({ sensors: data });
     } catch (err) {
       sensorsLastError = errorMessage(err);
-      console.warn(`Sensors: ${mode} sensors -j failed → ${errorMessage(err).split('\n')[0]}`);
+      console.warn(
+        `Sensors: ${current.mode} sensors -j failed → ${errorMessage(err).split('\n')[0]}`,
+      );
       res.status(502).json({ error: errorMessage(err) });
     }
   });
 
   app.get('/api/sensors/debug', async (_req: Request, res: Response) => {
     if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
-    if (!enabled) return res.json({ disabled: true });
+    if (!current.enabled) return res.json({ disabled: true });
     const cfg: { mode: string; host?: string; user?: string; port?: number; keyPath?: string } = {
-      mode,
+      mode: current.mode,
     };
-    if (mode === 'ssh') {
-      cfg.host = sshHost;
-      cfg.user = sshUser;
-      cfg.port = sshPort;
-      cfg.keyPath = sshKeyPath || '(default)';
+    if (current.mode === 'ssh') {
+      cfg.host = current.sshHost;
+      cfg.user = current.sshUser;
+      cfg.port = current.sshPort;
+      cfg.keyPath = current.sshKeyPath || '(default)';
     }
     try {
       const [raw, diskInventory] = await Promise.all([runSensors(), fetchSensorDiskInventory()]);
@@ -121,5 +123,20 @@ export function initSensors(app: Express, config: SensorsConfig) {
     }
   });
 
-  return { runSensors, fetchSensorsData };
+  function configure(next: SensorsConfig): void {
+    current = { ...next };
+    sensorsCache = { data: null, ts: 0 };
+    sensorsLastError = null;
+  }
+
+  function status(): { enabled: boolean; configured: boolean; mode: string; sshHost: string } {
+    return {
+      enabled: current.enabled,
+      configured: current.enabled && (current.mode === 'local' || !!current.sshHost),
+      mode: current.mode,
+      sshHost: current.sshHost,
+    };
+  }
+
+  return { runSensors, fetchSensorsData, configure, status };
 }

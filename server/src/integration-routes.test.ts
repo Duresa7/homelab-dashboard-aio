@@ -79,6 +79,110 @@ describe('Integration route contracts', () => {
     );
   });
 
+  it('reconfigures UniFi live from setup config and degrades when disabled', async () => {
+    await withJsonUpstream(
+      {
+        '/proxy/network/integration/v1/sites': { data: [{ id: 'site-1', name: 'default' }] },
+        '/proxy/network/integration/v1/sites/site-1/devices': { data: [] },
+        '/proxy/network/integration/v1/sites/site-1/clients': { data: [] },
+        '/proxy/network/integration/v1/sites/site-1/networks': { data: [] },
+        '/proxy/network/integration/v1/sites/site-1/wifi/broadcasts': { data: [] },
+        '/proxy/network/integration/v1/sites/site-1/wans': { data: [] },
+        '/proxy/network/integration/v1/sites/site-1/firewall/zones': { data: [] },
+        '/proxy/network/integration/v1/sites/site-1/firewall/policies': { data: [] },
+        '/proxy/network/integration/v1/sites/site-1/vpn/servers': { data: [] },
+        '/proxy/network/integration/v1/sites/site-1/dns/policies': { data: [] },
+        '/proxy/network/integration/v1/info': { applicationVersion: '9.3.0' },
+      },
+      async (baseUrl) => {
+        await usingApp({}, async (api) => {
+          let health = await api.get('/api/health').expect(200);
+          expect(health.body.unifi).toMatchObject({ enabled: false, configured: false });
+
+          await api
+            .put('/api/setup/config')
+            .send({
+              capability: 'network',
+              vendor: 'unifi',
+              enabled: true,
+              config: { baseUrl, apiKey: 'key' },
+            })
+            .expect(200, { ok: true });
+
+          health = await api.get('/api/health').expect(200);
+          expect(health.body.unifi).toMatchObject({
+            enabled: true,
+            configured: true,
+            hasKey: true,
+          });
+
+          const live = await api.get('/api/health/live').expect(200);
+          expect(live.body.integrations.unifi).toMatchObject({ status: 'ok', ok: true });
+
+          const data = await api.get('/api/unifi').expect(200);
+          expect(data.body.unifi.clients).toBe(0);
+
+          await api
+            .put('/api/setup/config')
+            .send({
+              capability: 'network',
+              vendor: 'unifi',
+              enabled: false,
+              config: {},
+            })
+            .expect(200, { ok: true });
+
+          health = await api.get('/api/health').expect(200);
+          expect(health.body.unifi).toMatchObject({ enabled: false, configured: false });
+          await api.get('/api/unifi').expect(200, { disabled: true });
+
+          const disabledLive = await api.get('/api/health/live').expect(200);
+          expect(disabledLive.body.integrations.unifi).toMatchObject({
+            status: 'skipped',
+            ok: null,
+          });
+        });
+      },
+    );
+  });
+
+  it('reconfigures SIEM logs live from setup config and stops the listener when disabled', async () => {
+    await usingApp({}, async (api) => {
+      let status = await api.get('/api/siem/status').expect(200);
+      expect(status.body).toMatchObject({ enabled: false, listening: false });
+
+      await api
+        .put('/api/setup/config')
+        .send({
+          capability: 'logs',
+          vendor: 'syslog',
+          enabled: true,
+          config: { host: '127.0.0.1', port: 0, retentionDays: 7 },
+        })
+        .expect(200, { ok: true });
+
+      const health = await api.get('/api/health').expect(200);
+      expect(health.body.siem).toMatchObject({ enabled: true, configured: true });
+
+      status = await api.get('/api/siem/status').expect(200);
+      expect(status.body).toMatchObject({ enabled: true, listening: true, retentionDays: 7 });
+
+      await api
+        .put('/api/setup/config')
+        .send({
+          capability: 'logs',
+          vendor: 'syslog',
+          enabled: false,
+          config: {},
+        })
+        .expect(200, { ok: true });
+
+      const disabledHealth = await api.get('/api/health').expect(200);
+      expect(disabledHealth.body.siem).toMatchObject({ enabled: false, configured: false });
+      await api.get('/api/siem/logs').expect(200, { disabled: true, events: [] });
+    });
+  });
+
   it('normalizes a healthy UniFi upstream response', async () => {
     await withJsonUpstream(
       {

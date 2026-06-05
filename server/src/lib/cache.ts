@@ -10,6 +10,8 @@ export interface CachedFn<T> {
   (): Promise<T>;
   /** Expose `{ data, ts, lastError }` for the integration's debug route. */
   peek(): TtlCacheState<T>;
+  /** Drop cached data after an integration reconfiguration. */
+  clear(): void;
 }
 
 /**
@@ -44,5 +46,10 @@ export function withTtlCache<T>(fetchFn: () => Promise<T>, ttlMs: number): Cache
   };
 
   cached.peek = () => state;
+  cached.clear = () => {
+    state.data = null;
+    state.ts = 0;
+    state.lastError = null;
+  };
   return cached;
 }

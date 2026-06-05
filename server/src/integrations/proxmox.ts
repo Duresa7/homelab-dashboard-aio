@@ -9,18 +9,34 @@ import { normalizeDiskParts } from '../sensors/parse.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
 
-const PROXMOX_ENABLED = isEnabled(process.env.PROXMOX_ENABLED);
-const PVE_BASE_URL = process.env.PROXMOX_BASE_URL;
-const PVE_TOKEN_ID = process.env.PROXMOX_TOKEN_ID;
-const PVE_TOKEN_SECRET = process.env.PROXMOX_TOKEN_SECRET;
-const PVE_NODE_HINT = process.env.PROXMOX_NODE || '';
 const PVE_CACHE_TTL = Number(process.env.PROXMOX_POLL_INTERVAL) || 5000;
 
+export interface ProxmoxRuntimeConfig {
+  enabled: boolean;
+  baseUrl?: string;
+  tokenId?: string;
+  tokenSecret?: string;
+  node?: string;
+}
+
+function configFromEnv(): ProxmoxRuntimeConfig {
+  return {
+    enabled: isEnabled(process.env.PROXMOX_ENABLED),
+    baseUrl: process.env.PROXMOX_BASE_URL,
+    tokenId: process.env.PROXMOX_TOKEN_ID,
+    tokenSecret: process.env.PROXMOX_TOKEN_SECRET,
+    node: process.env.PROXMOX_NODE || '',
+  };
+}
+
+let config = configFromEnv();
+
 async function pveFetch(path: string): Promise<Upstream> {
-  const url = `${PVE_BASE_URL}${path}`;
+  if (!config.baseUrl) throw new Error('Proxmox base URL is not configured');
+  const url = `${config.baseUrl}${path}`;
   const res = await insecureFetch(url, {
     headers: {
-      Authorization: `PVEAPIToken=${PVE_TOKEN_ID}=${PVE_TOKEN_SECRET}`,
+      Authorization: `PVEAPIToken=${config.tokenId ?? ''}=${config.tokenSecret ?? ''}`,
       Accept: 'application/json',
     },
   });
@@ -103,7 +119,7 @@ async function fetchProxmoxDataRaw() {
   }
 
   const primary =
-    nodes.find((n: Upstream) => n.node === PVE_NODE_HINT) ||
+    nodes.find((n: Upstream) => n.node === (config.node || '')) ||
     nodes.find((n: Upstream) => n.status === 'online') ||
     nodes[0];
 
@@ -248,10 +264,25 @@ async function fetchProxmoxDataRaw() {
 const fetchProxmoxData = withTtlCache(fetchProxmoxDataRaw, PVE_CACHE_TTL);
 
 export const proxmoxStatus = {
-  enabled: PROXMOX_ENABLED,
-  configured: !!(PVE_BASE_URL && PVE_TOKEN_ID && PVE_TOKEN_SECRET),
-  baseUrl: PVE_BASE_URL,
+  enabled: config.enabled,
+  configured: config.enabled && !!(config.baseUrl && config.tokenId && config.tokenSecret),
+  baseUrl: config.baseUrl,
 };
+
+export function configureProxmox(next: ProxmoxRuntimeConfig): void {
+  config = {
+    enabled: next.enabled,
+    baseUrl: next.baseUrl,
+    tokenId: next.tokenId,
+    tokenSecret: next.tokenSecret,
+    node: next.node || '',
+  };
+  fetchProxmoxData.clear();
+  proxmoxStatus.enabled = config.enabled;
+  proxmoxStatus.configured =
+    config.enabled && !!(config.baseUrl && config.tokenId && config.tokenSecret);
+  proxmoxStatus.baseUrl = config.baseUrl;
+}
 
 /** Liveness probe used by /api/health/live. */
 export function probeProxmox() {
@@ -261,8 +292,8 @@ export function probeProxmox() {
 export function registerProxmox(app: Express) {
   app.get('/api/proxmox/debug', async (_req: Request, res: Response) => {
     if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
-    if (!PROXMOX_ENABLED) return res.status(503).json({ error: 'Proxmox disabled' });
-    if (!PVE_BASE_URL || !PVE_TOKEN_ID || !PVE_TOKEN_SECRET) {
+    if (!config.enabled) return res.status(503).json({ error: 'Proxmox disabled' });
+    if (!config.baseUrl || !config.tokenId || !config.tokenSecret) {
       return res.status(503).json({ error: 'Proxmox not configured' });
     }
     const out: Record<string, Upstream> = {};
@@ -271,7 +302,7 @@ export function registerProxmox(app: Express) {
     } catch (e) {
       out.nodesError = errorMessage(e);
     }
-    const nodeName = PVE_NODE_HINT || out.nodes?.[0]?.node;
+    const nodeName = config.node || out.nodes?.[0]?.node;
     if (nodeName) {
       try {
         out.nodeStatus = await pveFetch(`/api2/json/nodes/${nodeName}/status`);
@@ -288,13 +319,12 @@ export function registerProxmox(app: Express) {
   });
 
   app.get('/api/proxmox', async (_req: Request, res: Response) => {
-    if (!PROXMOX_ENABLED) {
+    if (!config.enabled) {
       return res.json({ disabled: true });
     }
-    if (!PVE_BASE_URL || !PVE_TOKEN_ID || !PVE_TOKEN_SECRET) {
+    if (!config.baseUrl || !config.tokenId || !config.tokenSecret) {
       return res.status(503).json({
-        error:
-          'Proxmox not configured. Set PROXMOX_BASE_URL, PROXMOX_TOKEN_ID, PROXMOX_TOKEN_SECRET in .env',
+        error: 'Proxmox not configured. Set base URL, token ID, and token secret in Setup.',
       });
     }
     try {

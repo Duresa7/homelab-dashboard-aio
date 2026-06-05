@@ -7,13 +7,26 @@ import { withTtlCache } from '../lib/cache.js';
 import { isDebugEndpointEnabled, isEnabled } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 
-const GPU_ENABLED = isEnabled(process.env.GPU_ENABLED);
-const GPU_MODE = (process.env.GPU_MODE || 'ssh').toLowerCase();
-const GPU_SSH_HOST = process.env.GPU_SSH_HOST || '';
 const GPU_SSH_USER = process.env.GPU_SSH_USER || 'root';
 const GPU_SSH_PORT = Number(process.env.GPU_SSH_PORT) || 22;
 const GPU_SSH_KEY_PATH = process.env.GPU_SSH_KEY_PATH || '';
 const GPU_CACHE_TTL = Number(process.env.GPU_POLL_INTERVAL) || 5000;
+
+export interface GpuRuntimeConfig {
+  enabled: boolean;
+  mode?: string;
+  sshHost?: string;
+}
+
+function configFromEnv(): GpuRuntimeConfig {
+  return {
+    enabled: isEnabled(process.env.GPU_ENABLED),
+    mode: (process.env.GPU_MODE || 'ssh').toLowerCase(),
+    sshHost: process.env.GPU_SSH_HOST || '',
+  };
+}
+
+let config = configFromEnv();
 
 const NVIDIA_SMI_FIELDS = [
   'name',
@@ -32,8 +45,8 @@ function runNvidiaSmi() {
   const queryArg = `--query-gpu=${NVIDIA_SMI_FIELDS}`;
   const formatArg = '--format=csv,noheader,nounits';
   return runRemote({
-    mode: GPU_MODE,
-    host: GPU_SSH_HOST,
+    mode: (config.mode || 'ssh').toLowerCase(),
+    host: config.sshHost || '',
     user: GPU_SSH_USER,
     port: GPU_SSH_PORT,
     keyPath: GPU_SSH_KEY_PATH,
@@ -95,14 +108,27 @@ const fetchGpuData = withTtlCache(fetchGpuDataRaw, GPU_CACHE_TTL);
 // Status descriptor. Includes the SSH fields because the sensors integration
 // defaults its own SSH config to the GPU host (they usually target the same box).
 export const gpuStatus = {
-  enabled: GPU_ENABLED,
-  configured: GPU_MODE === 'local' || !!GPU_SSH_HOST,
-  mode: GPU_MODE,
-  host: GPU_SSH_HOST,
+  enabled: config.enabled,
+  configured: config.enabled && ((config.mode || 'ssh') === 'local' || !!config.sshHost),
+  mode: (config.mode || 'ssh').toLowerCase(),
+  host: config.sshHost || '',
   user: GPU_SSH_USER,
   port: GPU_SSH_PORT,
   keyPath: GPU_SSH_KEY_PATH,
 };
+
+export function configureGpu(next: GpuRuntimeConfig): void {
+  config = {
+    enabled: next.enabled,
+    mode: (next.mode || 'ssh').toLowerCase(),
+    sshHost: next.sshHost || '',
+  };
+  fetchGpuData.clear();
+  gpuStatus.enabled = config.enabled;
+  gpuStatus.configured = config.enabled && (config.mode === 'local' || !!config.sshHost);
+  gpuStatus.mode = config.mode || 'ssh';
+  gpuStatus.host = config.sshHost || '';
+}
 
 /** Liveness probe used by /api/health/live. */
 export function probeGpu() {
@@ -111,32 +137,38 @@ export function probeGpu() {
 
 export function registerGpu(app: Express) {
   app.get('/api/gpu', async (_req: Request, res: Response) => {
-    if (!GPU_ENABLED) return res.json({ disabled: true });
-    if (GPU_MODE === 'ssh' && !GPU_SSH_HOST) {
-      return res.status(503).json({ error: 'GPU_MODE=ssh but GPU_SSH_HOST is not set in .env' });
+    const mode = (config.mode || 'ssh').toLowerCase();
+    if (!config.enabled) return res.json({ disabled: true });
+    if (mode === 'ssh' && !config.sshHost) {
+      return res.status(503).json({ error: 'GPU_MODE=ssh but GPU_SSH_HOST is not configured' });
     }
     try {
       res.json(await fetchGpuData());
     } catch (err) {
-      console.warn(`GPU: nvidia-smi failed (${GPU_MODE}) → ${errorMessage(err).split('\n')[0]}`);
+      console.warn(`GPU: nvidia-smi failed (${mode}) → ${errorMessage(err).split('\n')[0]}`);
       res.status(502).json({ error: errorMessage(err) });
     }
   });
 
   app.get('/api/gpu/debug', async (_req: Request, res: Response) => {
     if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
-    if (!GPU_ENABLED) return res.json({ disabled: true });
-    const config: { mode: string; host?: string; user?: string; port?: number; keyPath?: string } =
-      { mode: GPU_MODE };
-    if (GPU_MODE === 'ssh') {
-      config.host = GPU_SSH_HOST;
-      config.user = GPU_SSH_USER;
-      config.port = GPU_SSH_PORT;
-      config.keyPath = GPU_SSH_KEY_PATH || '(default)';
+    if (!config.enabled) return res.json({ disabled: true });
+    const debugConfig: {
+      mode: string;
+      host?: string;
+      user?: string;
+      port?: number;
+      keyPath?: string;
+    } = { mode: gpuStatus.mode };
+    if (gpuStatus.mode === 'ssh') {
+      debugConfig.host = gpuStatus.host;
+      debugConfig.user = GPU_SSH_USER;
+      debugConfig.port = GPU_SSH_PORT;
+      debugConfig.keyPath = GPU_SSH_KEY_PATH || '(default)';
     }
     const c = fetchGpuData.peek();
     res.json({
-      config,
+      config: debugConfig,
       cache: c.data ? { ageMs: Date.now() - c.ts, gpus: c.data.gpus } : null,
       lastError: c.lastError,
     });

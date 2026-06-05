@@ -34,6 +34,17 @@ export interface SiemOptions {
   maxPerQuery?: number;
 }
 
+export type SiemRuntimeConfig = Omit<SiemOptions, 'store'>;
+
+export interface SiemStatus {
+  enabled: boolean;
+  configured: boolean;
+  listening: boolean;
+  host: string;
+  port: number;
+  bindError: string | null;
+}
+
 function bestLanIp(): string {
   const ifaces = os.networkInterfaces();
   const candidates: string[] = [];
@@ -58,51 +69,16 @@ function isPrivateIpv4(ip: string): boolean {
 }
 
 export async function initSiem(app: Express, opts: SiemOptions) {
-  const {
-    store,
-    enabled,
-    port = 514,
-    host = '0.0.0.0',
-    retentionDays = 30,
-    maxPerQuery = 1000,
-  } = opts;
-
-  if (!enabled) {
-    app.get('/api/siem/status', (_req: Request, res: Response) => {
-      res.json({
-        enabled: false,
-        listening: false,
-        host,
-        port,
-        serverAddress: bestLanIp(),
-        eventsTotal: 0,
-        eventsLastHour: 0,
-        bytesReceived: 0,
-        packetsReceived: 0,
-        parseErrors: 0,
-        lastEventAt: null,
-        clientCount: 0,
-        bindError: null,
-      });
-    });
-    app.get('/api/siem/logs', (_req: Request, res: Response) =>
-      res.json({ disabled: true, events: [] }),
-    );
-    app.get('/api/siem/stats', (_req: Request, res: Response) => res.json({ disabled: true }));
-    app.get('/api/siem/stream', (_req: Request, res: Response) =>
-      res.status(503).end('SIEM disabled'),
-    );
-    return {
-      shutdown() {
-        void store.close().catch(() => {});
-      },
-    };
-  }
-
-  const db = store;
+  const db = opts.store;
   const sse = createSseBus({ replayAfter: db.replayAfter });
 
-  const stats: {
+  let config = normalizeConfig(opts);
+  let sock: dgram.Socket | null = null;
+  let sweepTimer: NodeJS.Timeout | null = null;
+  let sweepRunning = false;
+  let closed = false;
+
+  type SiemStats = {
     packetsReceived: number;
     bytesReceived: number;
     parseErrors: number;
@@ -111,16 +87,35 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     lastEventAt: number | null;
     bindError: string | null;
     boundAt: number | null;
-  } = {
-    packetsReceived: 0,
-    bytesReceived: 0,
-    parseErrors: 0,
-    packetsTruncated: 0,
-    packetsRateLimited: 0,
-    lastEventAt: null,
-    bindError: null,
-    boundAt: null,
   };
+
+  let stats = createStats();
+
+  function normalizeConfig(next: SiemRuntimeConfig): Required<SiemRuntimeConfig> {
+    const port = Number(next.port);
+    const retentionDays = Number(next.retentionDays);
+    const maxPerQuery = Number(next.maxPerQuery);
+    return {
+      enabled: Boolean(next.enabled),
+      port: Number.isInteger(port) && port >= 0 && port <= 65535 ? port : 514,
+      host: next.host || '0.0.0.0',
+      retentionDays: Number.isFinite(retentionDays) ? retentionDays : 30,
+      maxPerQuery: Number.isFinite(maxPerQuery) && maxPerQuery > 0 ? maxPerQuery : 1000,
+    };
+  }
+
+  function createStats(): SiemStats {
+    return {
+      packetsReceived: 0,
+      bytesReceived: 0,
+      parseErrors: 0,
+      packetsTruncated: 0,
+      packetsRateLimited: 0,
+      lastEventAt: null,
+      bindError: null,
+      boundAt: null,
+    };
+  }
 
   // Optional source-IP allowlist (comma-separated env var). Empty = allow all.
   const allowedSources = String(process.env.SIEM_ALLOWED_SOURCES || '')
@@ -170,9 +165,52 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     return true;
   }
 
-  const sock = dgram.createSocket('udp4');
+  function disabledStatus() {
+    return {
+      enabled: false,
+      listening: false,
+      host: config.host,
+      port: config.port,
+      serverAddress: bestLanIp(),
+      eventsTotal: 0,
+      eventsLastHour: 0,
+      bytesReceived: 0,
+      packetsReceived: 0,
+      parseErrors: 0,
+      lastEventAt: null,
+      clientCount: 0,
+      bindError: null,
+    };
+  }
 
-  sock.on('message', async (buf, rinfo) => {
+  async function sweep() {
+    if (sweepRunning) return;
+    if (!config.retentionDays || config.retentionDays <= 0) return;
+    sweepRunning = true;
+    const cutoff = Date.now() - config.retentionDays * 86400_000;
+    let total = 0;
+    try {
+      // Loop until a chunk returns 0; yield to the event loop between
+      // chunks so UDP, HTTP, and SSE handlers stay responsive.
+      while (true) {
+        const removed = await db.purgeOlderThanChunk(cutoff, RETENTION_CHUNK_ROWS);
+        total += removed;
+        if (removed < RETENTION_CHUNK_ROWS) break;
+        await new Promise<void>((r) => setImmediate(() => r()));
+      }
+      if (total > 0) {
+        console.log(
+          `SIEM: retention sweep removed ${total} events older than ${config.retentionDays}d`,
+        );
+      }
+    } catch (err) {
+      console.warn(`SIEM: retention sweep failed - ${errorMessage(err)}`);
+    } finally {
+      sweepRunning = false;
+    }
+  }
+
+  async function onMessage(buf: Buffer, rinfo: dgram.RemoteInfo) {
     stats.packetsReceived += 1;
     stats.bytesReceived += buf.length;
 
@@ -249,63 +287,74 @@ export async function initSiem(app: Express, opts: SiemOptions) {
       category: stored.category,
       extra: extra || null,
     });
-  });
-
-  sock.on('error', (err) => {
-    stats.bindError = err.message;
-    console.warn(`SIEM: socket error - ${err.message}`);
-  });
-
-  sock.on('listening', () => {
-    stats.boundAt = Date.now();
-    const addr = sock.address();
-    console.log(`SIEM: listening for syslog on UDP ${addr.address}:${addr.port}`);
-  });
-
-  await new Promise<void>((resolve) => {
-    sock.bind(port, host, () => resolve());
-    sock.once('error', (err) => {
-      stats.bindError = err.message;
-      console.warn(
-        `SIEM: failed to bind UDP ${host}:${port} - ${err.message}. ` +
-          `On Windows, ports below 1024 may require an elevated terminal. ` +
-          `Set SIEM_PORT=5514 in .env to use an unprivileged port, then point ` +
-          `your UniFi controller at <server-ip>:5514.`,
-      );
-      resolve();
-    });
-  });
-
-  let sweepRunning = false;
-  async function sweep() {
-    if (sweepRunning) return;
-    if (!retentionDays || retentionDays <= 0) return;
-    sweepRunning = true;
-    const cutoff = Date.now() - retentionDays * 86400_000;
-    let total = 0;
-    try {
-      // Loop until a chunk returns 0; yield to the event loop between
-      // chunks so UDP, HTTP, and SSE handlers stay responsive.
-      while (true) {
-        const removed = await db.purgeOlderThanChunk(cutoff, RETENTION_CHUNK_ROWS);
-        total += removed;
-        if (removed < RETENTION_CHUNK_ROWS) break;
-        await new Promise<void>((r) => setImmediate(() => r()));
-      }
-      if (total > 0) {
-        console.log(`SIEM: retention sweep removed ${total} events older than ${retentionDays}d`);
-      }
-    } catch (err) {
-      console.warn(`SIEM: retention sweep failed - ${errorMessage(err)}`);
-    } finally {
-      sweepRunning = false;
-    }
   }
-  void sweep();
-  const sweepTimer = setInterval(() => {
+
+  async function start() {
+    if (!config.enabled || sock || closed) return;
+    stats = createStats();
+    sweepRunning = false;
+    const nextSock = dgram.createSocket('udp4');
+    sock = nextSock;
+
+    nextSock.on('message', onMessage);
+    nextSock.on('error', (err) => {
+      stats.bindError = err.message;
+      console.warn(`SIEM: socket error - ${err.message}`);
+    });
+
+    nextSock.on('listening', () => {
+      stats.boundAt = Date.now();
+      const addr = nextSock.address();
+      console.log(`SIEM: listening for syslog on UDP ${addr.address}:${addr.port}`);
+    });
+
+    await new Promise<void>((resolve) => {
+      nextSock.bind(config.port, config.host, () => resolve());
+      nextSock.once('error', (err) => {
+        stats.bindError = err.message;
+        console.warn(
+          `SIEM: failed to bind UDP ${config.host}:${config.port} - ${err.message}. ` +
+            `On Windows, ports below 1024 may require an elevated terminal. ` +
+            `Set SIEM_PORT=5514 in .env to use an unprivileged port, then point ` +
+            `your UniFi controller at <server-ip>:5514.`,
+        );
+        resolve();
+      });
+    });
+
+    if (sock !== nextSock) {
+      try {
+        nextSock.close();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
     void sweep();
-  }, RETENTION_SWEEP_INTERVAL_MS);
-  sweepTimer.unref?.();
+    sweepTimer = setInterval(() => {
+      void sweep();
+    }, RETENTION_SWEEP_INTERVAL_MS);
+    sweepTimer.unref?.();
+  }
+
+  function stop() {
+    if (sweepTimer) {
+      clearInterval(sweepTimer);
+      sweepTimer = null;
+    }
+    if (sock) {
+      const oldSock = sock;
+      sock = null;
+      try {
+        oldSock.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    sse.shutdown();
+    stats.boundAt = null;
+  }
 
   // The store is async; Express 4 doesn't catch rejected handler promises, so
   // each handler maps a store failure to a 500 itself.
@@ -313,13 +362,14 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'siem store error' });
 
   app.get('/api/siem/status', async (_req: Request, res: Response) => {
+    if (!config.enabled) return res.json(disabledStatus());
     try {
       const t = await db.totals();
       res.json({
         enabled: true,
         listening: !!stats.boundAt && !stats.bindError,
-        host,
-        port,
+        host: config.host,
+        port: config.port,
         serverAddress: bestLanIp(),
         eventsTotal: t.total,
         eventsLastHour: t.lastHour,
@@ -331,7 +381,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
         lastEventAt: t.lastEventAt,
         clientCount: sse.clientCount(),
         bindError: stats.bindError,
-        retentionDays,
+        retentionDays: config.retentionDays,
         maxPacketBytes: MAX_PACKET_BYTES,
         ratePps: RATE_PPS,
         rateBurst: RATE_BURST,
@@ -345,7 +395,8 @@ export async function initSiem(app: Express, opts: SiemOptions) {
   });
 
   app.get('/api/siem/logs', async (req: Request, res: Response) => {
-    const limit = Math.min(Number(req.query.limit) || 200, maxPerQuery);
+    if (!config.enabled) return res.json({ disabled: true, events: [] });
+    const limit = Math.min(Number(req.query.limit) || 200, config.maxPerQuery);
     try {
       const events = await db.queryEvents({
         since: req.query.since ? Number(req.query.since) : null,
@@ -366,6 +417,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
   });
 
   app.get('/api/siem/stats', async (req: Request, res: Response) => {
+    if (!config.enabled) return res.json({ disabled: true });
     const win = req.query.window || '1h';
     const map: Record<string, number> = {
       '15m': 900_000,
@@ -383,19 +435,35 @@ export async function initSiem(app: Express, opts: SiemOptions) {
   });
 
   app.get('/api/siem/stream', (req: Request, res: Response) => {
+    if (!config.enabled) return res.status(503).end('SIEM disabled');
     void sse.handle(req, res);
   });
 
+  await start();
+
   function shutdown() {
-    clearInterval(sweepTimer);
-    try {
-      sock.close();
-    } catch {
-      /* ignore */
-    }
-    sse.shutdown();
+    closed = true;
+    stop();
     void db.close().catch(() => {});
   }
 
-  return { shutdown };
+  async function configure(next: SiemRuntimeConfig) {
+    if (closed) return;
+    stop();
+    config = normalizeConfig(next);
+    await start();
+  }
+
+  function status(): SiemStatus {
+    return {
+      enabled: config.enabled,
+      configured: config.enabled,
+      listening: !!stats.boundAt && !stats.bindError,
+      host: config.host,
+      port: config.port,
+      bindError: stats.bindError,
+    };
+  }
+
+  return { configure, shutdown, status };
 }

@@ -3,20 +3,35 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { initSiem } from './siem/index.js';
+import { initSiem, type SiemRuntimeConfig } from './siem/index.js';
 import { initState } from './state/index.js';
 import { initSensors } from './sensors/index.js';
 import { initSetup } from './setup/index.js';
-import { importEnvConfigIfEmpty } from './setup/integration-config.js';
+import {
+  importEnvConfigIfEmpty,
+  readIntegrationConfig,
+  type IntegrationConfig,
+  type Selection,
+} from './setup/integration-config.js';
 import { resolveDbConfig } from './storage/config.js';
 import { openStores } from './storage/factory.js';
 import { isEnabled } from './lib/env.js';
 import { errorMessage } from './lib/errors.js';
-import { registerDocker, dockerStatus, probeDocker } from './integrations/docker.js';
-import { registerProxmox, proxmoxStatus, probeProxmox } from './integrations/proxmox.js';
-import { registerUnas, unasStatus, probeUnas } from './integrations/unas.js';
-import { registerUnifi, unifiStatus, probeUnifi } from './integrations/unifi.js';
-import { registerGpu, gpuStatus, probeGpu } from './integrations/gpu.js';
+import {
+  registerDocker,
+  dockerStatus,
+  probeDocker,
+  configureDocker,
+} from './integrations/docker.js';
+import {
+  registerProxmox,
+  proxmoxStatus,
+  probeProxmox,
+  configureProxmox,
+} from './integrations/proxmox.js';
+import { registerUnas, unasStatus, probeUnas, configureUnas } from './integrations/unas.js';
+import { registerUnifi, unifiStatus, probeUnifi, configureUnifi } from './integrations/unifi.js';
+import { registerGpu, gpuStatus, probeGpu, configureGpu } from './integrations/gpu.js';
 import { registerWol, wolStatus } from './integrations/wol.js';
 
 const app = express();
@@ -42,6 +57,133 @@ const SIEM_MAX_PER_QUERY = Number(process.env.SIEM_MAX_PER_QUERY) || 1000;
 // or data/database.json selects otherwise). Used for both the store factory and
 // the startup log.
 const DB_CONFIG = resolveDbConfig();
+
+function text(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function bool(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return isEnabled(value, fallback);
+  return fallback;
+}
+
+function number(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function selectionConfig(selection: Selection | undefined): Record<string, unknown> {
+  return selection?.config ?? {};
+}
+
+function siemConfigFromSelection(
+  selection: Selection | undefined,
+  hasStoredConfig: boolean,
+): SiemRuntimeConfig {
+  const cfg = selectionConfig(selection);
+  return {
+    enabled: selection ? selection.enabled : !hasStoredConfig && SIEM_ENABLED,
+    port: number(cfg.port, SIEM_PORT),
+    host: text(cfg.host) || SIEM_HOST,
+    retentionDays: number(cfg.retentionDays, SIEM_RETENTION_DAYS),
+    maxPerQuery: SIEM_MAX_PER_QUERY,
+  };
+}
+
+function disabledSiemHandle(bindError: string | null = null) {
+  return {
+    async configure() {},
+    shutdown() {},
+    status: () => ({
+      enabled: false,
+      configured: false,
+      listening: false,
+      host: SIEM_HOST,
+      port: SIEM_PORT,
+      bindError,
+    }),
+  };
+}
+
+async function applyRuntimeCapability(
+  capabilityId: string,
+  selection: Selection | undefined,
+): Promise<void> {
+  const enabled = !!selection?.enabled;
+  const cfg = selectionConfig(selection);
+  switch (capabilityId) {
+    case 'network':
+      configureUnifi({
+        enabled,
+        baseUrl: text(cfg.baseUrl),
+        apiKey: text(cfg.apiKey),
+        site: text(cfg.site) || 'default',
+      });
+      break;
+    case 'datacenter':
+      configureProxmox({
+        enabled,
+        baseUrl: text(cfg.baseUrl),
+        tokenId: text(cfg.tokenId),
+        tokenSecret: text(cfg.tokenSecret),
+        node: text(cfg.node) || '',
+      });
+      break;
+    case 'containers':
+      configureDocker({
+        enabled,
+        baseUrl: text(cfg.baseUrl),
+        apiKey: text(cfg.apiKey),
+        statsEnabled: bool(cfg.statsEnabled, true),
+      });
+      break;
+    case 'nas':
+      configureUnas({
+        enabled,
+        baseUrl: text(cfg.baseUrl),
+        apiKey: text(cfg.apiKey),
+      });
+      break;
+    case 'gpu':
+      configureGpu({
+        enabled,
+        mode: text(cfg.mode) || 'ssh',
+        sshHost: text(cfg.sshHost) || '',
+      });
+      break;
+    case 'sensors':
+      sensorsHandle.configure({
+        enabled,
+        mode: text(cfg.mode) || 'ssh',
+        sshHost: text(cfg.sshHost) || gpuStatus.host,
+        sshUser: SENSORS_SSH_USER,
+        sshPort: SENSORS_SSH_PORT,
+        sshKeyPath: SENSORS_SSH_KEY_PATH,
+        cacheTtl: SENSORS_CACHE_TTL,
+      });
+      break;
+    case 'logs':
+      await siemHandle.configure(siemConfigFromSelection(selection, true));
+      break;
+    default:
+      break;
+  }
+  liveHealthCache = { data: null, ts: 0 };
+}
+
+async function applyRuntimeConfig(
+  config: IntegrationConfig,
+  opts: { includeLogs?: boolean } = {},
+): Promise<void> {
+  const hasStoredConfig = Object.keys(config).length > 0;
+  if (!hasStoredConfig) return;
+  const capabilityIds = ['network', 'datacenter', 'containers', 'nas', 'gpu', 'sensors'];
+  if (opts.includeLogs) capabilityIds.push('logs');
+  for (const capabilityId of capabilityIds) {
+    await applyRuntimeCapability(capabilityId, config[capabilityId]);
+  }
+}
 
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -72,8 +214,12 @@ app.get('/api/health', (_req, res) => {
       configured: wolStatus.configured,
     },
     sensors: {
-      enabled: SENSORS_ENABLED,
-      configured: SENSORS_MODE === 'local' || !!SENSORS_SSH_HOST,
+      enabled: sensorsHandle.status().enabled,
+      configured: sensorsHandle.status().configured,
+    },
+    siem: {
+      enabled: siemHandle.status().enabled,
+      configured: siemHandle.status().configured,
     },
   });
 });
@@ -162,9 +308,14 @@ async function computeLiveHealth(): Promise<LiveHealth> {
     runProbe('proxmox', proxmoxStatus.enabled && proxmoxStatus.configured, () => probeProxmox()),
     runProbe('unas', unasStatus.enabled && unasStatus.configured, () => probeUnas()),
     runProbe('gpu', gpuStatus.enabled && gpuStatus.configured, () => probeGpu()),
-    runProbe('sensors', SENSORS_ENABLED && (SENSORS_MODE === 'local' || !!SENSORS_SSH_HOST), () =>
+    runProbe('sensors', sensorsHandle.status().enabled && sensorsHandle.status().configured, () =>
       sensorsHandle.runSensors(),
     ),
+    runProbe('siem', siemHandle.status().enabled && siemHandle.status().configured, () => {
+      const status = siemHandle.status();
+      if (!status.listening) throw new Error(status.bindError || 'SIEM listener is not active');
+      return true;
+    }),
   ]);
 
   const byKey: Record<string, ProbeResult> = {};
@@ -276,6 +427,14 @@ if (stores) {
     console.warn(`Setup: env config import failed - ${errorMessage(err)}`);
   });
 }
+
+const runtimeConfig: IntegrationConfig = stores
+  ? await readIntegrationConfig(stores.state).catch((err) => {
+      console.warn(`Setup: runtime config read failed - ${errorMessage(err)}`);
+      return {};
+    })
+  : {};
+const hasRuntimeConfig = Object.keys(runtimeConfig).length > 0;
 if (process.env.NODE_ENV !== 'test') {
   process.on('SIGINT', () => {
     try {
@@ -297,16 +456,17 @@ if (process.env.NODE_ENV !== 'test') {
 const siemHandle = stores
   ? await initSiem(app, {
       store: stores.siem,
-      enabled: SIEM_ENABLED,
-      port: SIEM_PORT,
-      host: SIEM_HOST,
-      retentionDays: SIEM_RETENTION_DAYS,
-      maxPerQuery: SIEM_MAX_PER_QUERY,
+      ...siemConfigFromSelection(runtimeConfig.logs, hasRuntimeConfig),
     }).catch((err) => {
       console.error(`SIEM: init failed - ${err.message}`);
-      return { shutdown() {} };
+      return disabledSiemHandle(err.message);
     })
-  : { shutdown() {} };
+  : disabledSiemHandle();
+
+await applyRuntimeConfig(runtimeConfig, { includeLogs: false }).catch((err) => {
+  console.warn(`Setup: runtime config apply failed - ${errorMessage(err)}`);
+});
+
 if (process.env.NODE_ENV !== 'test') {
   process.on('SIGINT', () => {
     try {
@@ -325,7 +485,14 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Database setup/onboarding API (test a backend + persist config + selections).
-initSetup(app, { store: stores?.state });
+initSetup(app, {
+  store: stores?.state,
+  onSelectionChanged: async (capabilityId) => {
+    if (!stores) return;
+    const config = await readIntegrationConfig(stores.state);
+    await applyRuntimeCapability(capabilityId, config[capabilityId]);
+  },
+});
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
@@ -379,12 +546,13 @@ if (process.env.NODE_ENV !== 'test') {
     } else {
       console.log('GPU: DISABLED (set GPU_ENABLED=true in .env to enable)');
     }
-    if (SENSORS_ENABLED) {
-      if (SENSORS_MODE === 'local') {
+    const sensorsStatus = sensorsHandle.status();
+    if (sensorsStatus.enabled) {
+      if (sensorsStatus.mode === 'local') {
         console.log('Sensors: enabled — local sensors -j');
-      } else if (SENSORS_SSH_HOST) {
+      } else if (sensorsStatus.sshHost) {
         console.log(
-          `Sensors: enabled — ssh ${SENSORS_SSH_USER}@${SENSORS_SSH_HOST}:${SENSORS_SSH_PORT}`,
+          `Sensors: enabled — ssh ${SENSORS_SSH_USER}@${sensorsStatus.sshHost}:${SENSORS_SSH_PORT}`,
         );
       } else {
         console.log(

@@ -55,6 +55,10 @@ async function readConfig(store: StateStore): Promise<IntegrationConfig> {
   return (row?.value as IntegrationConfig | undefined) ?? {};
 }
 
+export async function readIntegrationConfig(store: StateStore): Promise<IntegrationConfig> {
+  return readConfig(store);
+}
+
 async function readOnboarding(store: StateStore): Promise<OnboardingState> {
   const row = await store.get(ONBOARDING_KEY);
   return (row?.value as OnboardingState | undefined) ?? { complete: false };
@@ -185,6 +189,7 @@ export async function upsertSelection(store: StateStore, input: SelectionInput):
     input.config && typeof input.config === 'object'
       ? (input.config as Record<string, unknown>)
       : {};
+  const enabled = input.enabled !== false;
   const config = await readConfig(store);
   const existing = config[capabilityId]?.config ?? {};
 
@@ -195,12 +200,12 @@ export async function upsertSelection(store: StateStore, input: SelectionInput):
     else if (field.name in existing) value = existing[field.name];
     else if (field.default !== undefined) value = field.default;
 
-    if (field.required && (value === undefined || value === '')) {
+    if (enabled && field.required && (value === undefined || value === '')) {
       throw new ConfigError(`missing required field: ${field.name}`);
     }
     if (value !== undefined) merged[field.name] = value;
   }
 
-  config[capabilityId] = { enabled: input.enabled !== false, vendor, config: merged };
+  config[capabilityId] = { enabled, vendor, config: merged };
   await store.put(CONFIG_KEY, config);
 }

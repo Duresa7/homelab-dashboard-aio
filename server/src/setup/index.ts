@@ -111,7 +111,13 @@ export function redactDbConfig(config: ResolvedDbConfig): Record<string, unknown
   return { driver: config.driver, sqlite: config.sqlite };
 }
 
-export function initSetup(app: Express, opts: { store?: StateStore } = {}) {
+export function initSetup(
+  app: Express,
+  opts: {
+    store?: StateStore;
+    onSelectionChanged?: (capabilityId: string) => Promise<void> | void;
+  } = {},
+) {
   const { store } = opts;
   const sameOrigin = makeSameOriginGuard();
   const jsonBody = express.json({ limit: '64kb' });
@@ -245,6 +251,11 @@ export function initSetup(app: Express, opts: { store?: StateStore } = {}) {
     if (!store) return res.status(503).json({ ok: false, error: 'database unavailable' });
     try {
       await upsertSelection(store, req.body);
+      const capabilityId =
+        req.body && typeof req.body === 'object' && typeof req.body.capability === 'string'
+          ? req.body.capability
+          : '';
+      if (capabilityId && opts.onSelectionChanged) await opts.onSelectionChanged(capabilityId);
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof ConfigError) {
