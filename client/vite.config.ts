@@ -25,7 +25,12 @@ export default defineConfig(({ mode }) => {
       host: true,
       proxy: {
         '/api': {
-          target: `http://localhost:${serverPort}`,
+          // Pin to IPv4 (not `localhost`): the API server binds 0.0.0.0 (IPv4
+          // only), but on Windows `localhost` resolves to ::1 first. Node's proxy
+          // connects to the first resolved address without happy-eyeballs fallback,
+          // so a `localhost` target hangs on the dead ::1 until the client aborts
+          // (net::ERR_ABORTED). 127.0.0.1 avoids the IPv6 attempt entirely.
+          target: `http://127.0.0.1:${serverPort}`,
           // Keep the original Host header so it matches the browser Origin.
           // With changeOrigin:true the server's same-origin write guard
           // (server/src/state/index.js) sees Host=:3001 vs Origin=:5173 and
