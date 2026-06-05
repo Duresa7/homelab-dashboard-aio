@@ -29,15 +29,9 @@ coverage
 # Reference docs (local only)
 docs/*
 
-# Personal agent/workflow files
+# Personal / local-only tooling
 .claude/
 .husky/
-AGENTS.md
-CLAUDE.md
-CONTEXT-MAP.md
-client/CONTEXT.md
-server/CONTEXT.md
-docs/agents/
 
 # OS
 .DS_Store

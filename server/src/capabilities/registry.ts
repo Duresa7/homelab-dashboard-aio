@@ -1,5 +1,5 @@
 // Capability & vendor-provider registry — the single source of truth for the
-// vendor-agnostic model (see .scratch/vendor-onboarding). Pure data + types: it
+// vendor-agnostic model. Pure data + types: it
 // describes WHICH capabilities exist, which vendor providers can fill each, and
 // WHAT config fields each provider needs — never any secret values.
 //
