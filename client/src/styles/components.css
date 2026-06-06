@@ -2079,6 +2079,10 @@
   gap: 16px 10px;
   padding: 4px 2px 2px;
 }
+.bm-item {
+  position: relative;
+  min-width: 0;
+}
 .bm-app {
   display: flex;
   flex-direction: column;
@@ -2182,6 +2186,17 @@
 }
 .bm-app:hover .bm-label {
   color: var(--ink);
+}
+.bm-actions {
+  position: absolute;
+  top: -6px;
+  right: 2px;
+  display: flex;
+  gap: 3px;
+  padding: 2px;
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  box-shadow: 0 4px 12px -8px rgba(15, 17, 21, 0.32);
 }
 
 .bm-app.is-dragging {
