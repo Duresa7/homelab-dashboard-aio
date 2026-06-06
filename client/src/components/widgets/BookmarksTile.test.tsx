@@ -84,4 +84,38 @@ describe('BookmarksTile', () => {
     const link = screen.getByRole('link', { name: /nas/i });
     expect(within(link).getByText('N')).toBeInTheDocument();
   });
+
+  it('hides the default group heading while only one group exists', () => {
+    store.set('bookmarkGroups', [{ id: 'default', label: 'Apps' }]);
+    store.set('bookmarks', [
+      { id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'default' },
+    ]);
+
+    render(<BookmarksTile expandable={false} />);
+
+    expect(screen.getByRole('link', { name: /plex/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Apps' })).not.toBeInTheDocument();
+  });
+
+  it('moves a bookmark between groups from the edit dialog', async () => {
+    const user = userEvent.setup();
+    store.set('bookmarkGroups', [
+      { id: 'default', label: 'Apps' },
+      { id: 'media', label: 'Media' },
+    ]);
+    store.set('bookmarks', [
+      { id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'default' },
+    ]);
+
+    render(<BookmarksTile expandable={false} />);
+    expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Media' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /edit bookmarks/i }));
+    await user.click(screen.getByRole('button', { name: /edit plex/i }));
+    await user.selectOptions(screen.getByLabelText(/group/i), 'media');
+    await user.click(screen.getByRole('button', { name: /save bookmark/i }));
+
+    expect(store.get('bookmarks')).toMatchObject([{ id: 'plex', label: 'Plex', groupId: 'media' }]);
+  });
 });

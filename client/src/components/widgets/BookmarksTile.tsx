@@ -4,9 +4,13 @@ import { toast } from 'sonner';
 
 import {
   BOOKMARKS_KEY,
+  BOOKMARK_GROUPS_KEY,
   DEFAULT_BOOKMARK_GROUP,
   type Bookmark,
+  type BookmarkGroup,
+  deleteBookmarkGroup,
   newBookmarkId,
+  sanitizeBookmarkGroups,
   sanitizeBookmarks,
   suggestBookmarkIcon,
   validateBookmarkUrl,
@@ -37,18 +41,38 @@ interface BookmarkForm {
   label: string;
   url: string;
   icon: string;
+  groupId: string;
 }
 
-const EMPTY_FORM: BookmarkForm = { id: null, label: '', url: '', icon: '' };
+const EMPTY_FORM: BookmarkForm = {
+  id: null,
+  label: '',
+  url: '',
+  icon: '',
+  groupId: DEFAULT_BOOKMARK_GROUP.id,
+};
 const EMPTY_BOOKMARKS: Bookmark[] = [];
+const DEFAULT_GROUPS: BookmarkGroup[] = [DEFAULT_BOOKMARK_GROUP];
 let lastRawBookmarks: unknown = null;
 let lastBookmarks: Bookmark[] = EMPTY_BOOKMARKS;
+let activeGroups: BookmarkGroup[] = DEFAULT_GROUPS;
+let lastRawGroups: unknown = null;
+let lastGroups: BookmarkGroup[] = DEFAULT_GROUPS;
+
+function readGroups(): BookmarkGroup[] {
+  const raw = getState<unknown>(BOOKMARK_GROUPS_KEY, DEFAULT_GROUPS);
+  if (raw === lastRawGroups) return lastGroups;
+  lastRawGroups = raw;
+  lastGroups = sanitizeBookmarkGroups(raw);
+  activeGroups = lastGroups;
+  return lastGroups;
+}
 
 function readBookmarks(): Bookmark[] {
   const raw = getState<unknown>(BOOKMARKS_KEY, EMPTY_BOOKMARKS);
   if (raw === lastRawBookmarks) return lastBookmarks;
   lastRawBookmarks = raw;
-  lastBookmarks = sanitizeBookmarks(raw, [DEFAULT_BOOKMARK_GROUP]);
+  lastBookmarks = sanitizeBookmarks(raw, activeGroups);
   return lastBookmarks;
 }
 
@@ -59,6 +83,16 @@ function useBookmarks(): [Bookmark[], (bookmarks: Bookmark[]) => void] {
     readBookmarks,
   );
   return [bookmarks, (next) => setState<Bookmark[]>(BOOKMARKS_KEY, next)];
+}
+
+function useBookmarkGroups(): [BookmarkGroup[], (groups: BookmarkGroup[]) => void] {
+  const groups = useSyncExternalStore(
+    (fn) => subscribeState(BOOKMARK_GROUPS_KEY, fn),
+    readGroups,
+    readGroups,
+  );
+  activeGroups = groups;
+  return [groups, (next) => setState<BookmarkGroup[]>(BOOKMARK_GROUPS_KEY, next)];
 }
 
 function BookmarkIcon({ bookmark }: { bookmark: Bookmark }) {
@@ -94,6 +128,7 @@ function BookmarkIcon({ bookmark }: { bookmark: Bookmark }) {
 }
 
 export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
+  const [groups, setGroups] = useBookmarkGroups();
   const [bookmarks, setBookmarks] = useBookmarks();
   const [editing, setEditing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -116,6 +151,9 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
       label: bookmark.label,
       url: bookmark.url,
       icon: bookmark.icon ?? '',
+      groupId: groups.some((group) => group.id === bookmark.groupId)
+        ? bookmark.groupId
+        : DEFAULT_BOOKMARK_GROUP.id,
     });
     setError(null);
     setDialogOpen(true);
@@ -150,7 +188,9 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
       label,
       url,
       ...(icon ? { icon } : {}),
-      groupId: DEFAULT_BOOKMARK_GROUP.id,
+      groupId: groups.some((group) => group.id === form.groupId)
+        ? form.groupId
+        : DEFAULT_BOOKMARK_GROUP.id,
     };
     setBookmarks(
       form.id
@@ -168,6 +208,38 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
     if (bookmark) toast.success(`Deleted ${bookmark.label}`);
   };
 
+  const addGroup = () => {
+    const label = prompt('Group name:')?.trim();
+    if (!label) return;
+    const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    setGroups([...groups, { id, label }]);
+    toast.success(`Added ${label}`);
+  };
+
+  const renameGroup = (group: BookmarkGroup) => {
+    const label = prompt('Group name:', group.label)?.trim();
+    if (!label) return;
+    setGroups(groups.map((item) => (item.id === group.id ? { ...item, label } : item)));
+    toast.success(`Renamed ${group.label}`);
+  };
+
+  const removeGroup = (group: BookmarkGroup) => {
+    const result = deleteBookmarkGroup(groups, bookmarks, group.id);
+    if (!result.deleted) {
+      toast.error('The last group cannot be deleted.');
+      return;
+    }
+    setGroups(result.groups);
+    setBookmarks(result.bookmarks);
+    toast.success(`Deleted ${group.label}`);
+  };
+
+  const showGroupHeadings = groups.length > 1;
+  const grouped = groups.map((group) => ({
+    group,
+    bookmarks: bookmarks.filter((bookmark) => bookmark.groupId === group.id),
+  }));
+
   return (
     <>
       <Tile
@@ -180,9 +252,14 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
         action={
           <div className="flex items-center gap-1">
             {editing ? (
-              <Button type="button" size="xs" variant="outline" onClick={openAdd}>
-                <Plus className="size-3" /> Add
-              </Button>
+              <>
+                <Button type="button" size="xs" variant="outline" onClick={openAdd}>
+                  <Plus className="size-3" /> Add
+                </Button>
+                <Button type="button" size="xs" variant="outline" onClick={addGroup}>
+                  <Plus className="size-3" /> Group
+                </Button>
+              </>
             ) : null}
             <Button
               type="button"
@@ -202,45 +279,81 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
             {editing ? 'Add your first bookmark.' : 'No bookmarks saved.'}
           </div>
         ) : (
-          <div className="bm-grid">
-            {bookmarks.map((bookmark) => (
-              <div key={bookmark.id} className="bm-item">
-                <a
-                  href={bookmark.url}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="bm-app"
-                  title={bookmark.url}
-                >
-                  <span className="bm-icon">
-                    <BookmarkIcon bookmark={bookmark} />
-                  </span>
-                  <span className="bm-label">{bookmark.label}</span>
-                </a>
-                {editing ? (
-                  <div className="bm-actions">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="icon-xs"
-                      aria-label={`Edit ${bookmark.label}`}
-                      onClick={() => openEdit(bookmark)}
-                    >
-                      <Pencil className="size-3" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="icon-xs"
-                      aria-label={`Delete ${bookmark.label}`}
-                      onClick={() => deleteBookmark(bookmark.id)}
-                    >
-                      <Trash2 className="size-3" />
-                    </Button>
+          <div className="bm-groups">
+            {grouped.map(({ group, bookmarks: groupBookmarks }) =>
+              groupBookmarks.length || editing || showGroupHeadings ? (
+                <section key={group.id} className="bm-group">
+                  {showGroupHeadings ? (
+                    <header className="bm-group-head">
+                      <h3>{group.label}</h3>
+                      {editing ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={`Rename ${group.label}`}
+                            onClick={() => renameGroup(group)}
+                          >
+                            <Pencil className="size-3" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={`Delete ${group.label}`}
+                            onClick={() => removeGroup(group)}
+                            disabled={groups.length <= 1}
+                          >
+                            <Trash2 className="size-3" />
+                          </Button>
+                        </div>
+                      ) : null}
+                    </header>
+                  ) : null}
+                  <div className="bm-grid">
+                    {groupBookmarks.map((bookmark) => (
+                      <div key={bookmark.id} className="bm-item">
+                        <a
+                          href={bookmark.url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="bm-app"
+                          title={bookmark.url}
+                        >
+                          <span className="bm-icon">
+                            <BookmarkIcon bookmark={bookmark} />
+                          </span>
+                          <span className="bm-label">{bookmark.label}</span>
+                        </a>
+                        {editing ? (
+                          <div className="bm-actions">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="icon-xs"
+                              aria-label={`Edit ${bookmark.label}`}
+                              onClick={() => openEdit(bookmark)}
+                            >
+                              <Pencil className="size-3" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="icon-xs"
+                              aria-label={`Delete ${bookmark.label}`}
+                              onClick={() => deleteBookmark(bookmark.id)}
+                            >
+                              <Trash2 className="size-3" />
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
                   </div>
-                ) : null}
-              </div>
-            ))}
+                </section>
+              ) : null,
+            )}
           </div>
         )}
       </Tile>
@@ -287,6 +400,23 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
                 placeholder="https://.../icon.svg"
               />
             </div>
+            {groups.length > 1 ? (
+              <div className="grid gap-2">
+                <Label htmlFor="bookmark-group">Group</Label>
+                <select
+                  id="bookmark-group"
+                  value={form.groupId}
+                  onChange={(event) => updateForm({ groupId: event.target.value })}
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
+                  {groups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             {error ? <div className="text-sm font-medium text-destructive">{error}</div> : null}
           </div>
           <DialogFooter>

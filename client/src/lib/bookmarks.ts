@@ -66,6 +66,31 @@ export function sanitizeBookmarks(
   });
 }
 
+export function deleteBookmarkGroup(
+  groups: BookmarkGroup[],
+  bookmarks: Bookmark[],
+  groupId: string,
+): { groups: BookmarkGroup[]; bookmarks: Bookmark[]; deleted: boolean } {
+  if (groups.length <= 1) return { groups, bookmarks, deleted: false };
+  const exists = groups.some((group) => group.id === groupId);
+  if (!exists) return { groups, bookmarks, deleted: false };
+
+  const nextGroups = groups.filter((group) => group.id !== groupId);
+  const fallbackGroupId =
+    groupId === DEFAULT_GROUP_ID
+      ? (nextGroups[0]?.id ?? DEFAULT_GROUP_ID)
+      : nextGroups.some((group) => group.id === DEFAULT_GROUP_ID)
+        ? DEFAULT_GROUP_ID
+        : nextGroups[0].id;
+  return {
+    groups: nextGroups,
+    bookmarks: bookmarks.map((bookmark) =>
+      bookmark.groupId === groupId ? { ...bookmark, groupId: fallbackGroupId } : bookmark,
+    ),
+    deleted: true,
+  };
+}
+
 export function validateBookmarkUrl(value: string): string | null {
   try {
     const url = new URL(value.trim());

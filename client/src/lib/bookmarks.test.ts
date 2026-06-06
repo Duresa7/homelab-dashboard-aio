@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_BOOKMARK_GROUP,
   sanitizeBookmarks,
+  deleteBookmarkGroup,
   suggestBookmarkIcon,
   validateBookmarkUrl,
 } from './bookmarks';
@@ -18,6 +19,40 @@ describe('bookmark sanitizer', () => {
     );
 
     expect(bookmarks.map((bookmark) => bookmark.groupId)).toEqual(['default', 'default']);
+  });
+});
+
+describe('bookmark groups', () => {
+  it('deletes a group by reassigning its bookmarks to the default group', () => {
+    const result = deleteBookmarkGroup(
+      [
+        { id: 'default', label: 'Apps' },
+        { id: 'media', label: 'Media' },
+      ],
+      [
+        { id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'media' },
+        { id: 'nas', label: 'NAS', url: 'http://nas.local/', groupId: 'default' },
+      ],
+      'media',
+    );
+
+    expect(result.deleted).toBe(true);
+    expect(result.groups).toEqual([{ id: 'default', label: 'Apps' }]);
+    expect(result.bookmarks.map((bookmark) => [bookmark.id, bookmark.groupId])).toEqual([
+      ['plex', 'default'],
+      ['nas', 'default'],
+    ]);
+  });
+
+  it('does not delete the last remaining group', () => {
+    const groups = [{ id: 'default', label: 'Apps' }];
+    const bookmarks = [
+      { id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'default' },
+    ];
+
+    const result = deleteBookmarkGroup(groups, bookmarks, 'default');
+
+    expect(result).toEqual({ groups, bookmarks, deleted: false });
   });
 });
 
