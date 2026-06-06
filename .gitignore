@@ -3,7 +3,6 @@ node_modules
 
 # Build output
 /dist
-dist-ssr
 *.tsbuildinfo
 
 # Runtime data (SQLite, HLS scratch, etc.)
@@ -20,9 +19,6 @@ coverage
 .env.*
 !.env.example
 
-# Vite
-.vite
-
 # Logs
 *.log
 
@@ -33,7 +29,6 @@ docs/*
 
 # Personal / local-only tooling
 .claude/
-.husky/
 
 # OS
 .DS_Store
