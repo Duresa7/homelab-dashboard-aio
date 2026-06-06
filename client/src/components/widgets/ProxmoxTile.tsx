@@ -42,6 +42,11 @@ export function ProxmoxTile({ data, span, onExpand, expandable }: Props) {
             <span>{node.ram.toFixed(0)}%</span>
           </span>
         ))}
+        {nodes.length > 4 ? (
+          <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px] text-muted-foreground">
+            +{nodes.length - 4}
+          </span>
+        ) : null}
       </div>
     </Tile>
   );

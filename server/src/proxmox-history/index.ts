@@ -26,12 +26,40 @@ function finite(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function samplesFromSnapshot(snapshot: any, ts = Date.now()): HistorySampleInput[] {
+type SnapshotNode = {
+  name?: unknown;
+  cpu?: unknown;
+  ram?: unknown;
+  ramUsedGB?: unknown;
+  disk?: unknown;
+};
+type SnapshotGuest = { id?: unknown; node?: unknown; cpu?: unknown; ram?: unknown };
+type SnapshotStorage = {
+  name?: unknown;
+  node?: unknown;
+  shared?: unknown;
+  usedTB?: unknown;
+  totalTB?: unknown;
+};
+type SnapshotCluster = { cpuPct?: unknown; memPct?: unknown; storagePct?: unknown };
+export interface ProxmoxSnapshot {
+  proxmox?: {
+    nodes?: SnapshotNode[];
+    vms?: SnapshotGuest[];
+    storages?: SnapshotStorage[];
+    cluster?: SnapshotCluster;
+  };
+}
+
+export function samplesFromSnapshot(
+  snapshot: ProxmoxSnapshot | null | undefined,
+  ts = Date.now(),
+): HistorySampleInput[] {
   const p = snapshot?.proxmox;
   if (!p) return [];
   const samples: HistorySampleInput[] = [];
   const push = (
-    entityType: 'node' | 'guest' | 'storage',
+    entityType: HistorySampleInput['entityType'],
     entityId: string,
     node: string | null,
     metric: string,
@@ -43,25 +71,37 @@ export function samplesFromSnapshot(snapshot: any, ts = Date.now()): HistorySamp
   };
 
   for (const node of p.nodes ?? []) {
-    push('node', node.name, node.name, 'cpu_pct', node.cpu);
-    push('node', node.name, node.name, 'mem_pct', node.ram);
-    push('node', node.name, node.name, 'mem_used', node.ramUsedGB);
-    push('node', node.name, node.name, 'disk_pct', node.disk);
+    const name = String(node.name ?? '');
+    if (!name) continue;
+    push('node', name, name, 'cpu_pct', node.cpu);
+    push('node', name, name, 'mem_pct', node.ram);
+    push('node', name, name, 'mem_used', node.ramUsedGB);
+    push('node', name, name, 'disk_pct', node.disk);
   }
   for (const guest of p.vms ?? []) {
-    const id = String(guest.id);
-    push('guest', id, guest.node ?? null, 'cpu_pct', guest.cpu);
-    push('guest', id, guest.node ?? null, 'mem_pct', guest.ram);
-    push('guest', id, guest.node ?? null, 'disk', guest.disk);
-    push('guest', id, guest.node ?? null, 'netin', guest.netin ?? 0);
-    push('guest', id, guest.node ?? null, 'netout', guest.netout ?? 0);
+    const id = String(guest.id ?? '');
+    if (!id) continue;
+    const node = guest.node == null ? null : String(guest.node);
+    push('guest', id, node, 'cpu_pct', guest.cpu);
+    push('guest', id, node, 'mem_pct', guest.ram);
   }
   for (const storage of p.storages ?? []) {
-    const id = storage.shared ? String(storage.name) : `${storage.node}:${storage.name}`;
-    const usedPct = storage.totalTB > 0 ? (storage.usedTB / storage.totalTB) * 100 : 0;
-    push('storage', id, storage.node ?? null, 'used', storage.usedTB);
-    push('storage', id, storage.node ?? null, 'total', storage.totalTB);
-    push('storage', id, storage.node ?? null, 'used_pct', usedPct);
+    const name = String(storage.name ?? '');
+    if (!name) continue;
+    const node = storage.node == null ? null : String(storage.node);
+    const shared = Boolean(storage.shared);
+    const id = shared ? name : `${node ?? ''}:${name}`;
+    const usedTB = Number(storage.usedTB) || 0;
+    const totalTB = Number(storage.totalTB) || 0;
+    const usedPct = totalTB > 0 ? (usedTB / totalTB) * 100 : 0;
+    push('storage', id, node, 'used', usedTB);
+    push('storage', id, node, 'total', totalTB);
+    push('storage', id, node, 'used_pct', usedPct);
+  }
+  if (p.cluster) {
+    push('cluster', 'all', null, 'cpu_pct', p.cluster.cpuPct);
+    push('cluster', 'all', null, 'mem_pct', p.cluster.memPct);
+    push('cluster', 'all', null, 'storage_pct', p.cluster.storagePct);
   }
   return samples;
 }

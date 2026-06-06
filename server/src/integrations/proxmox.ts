@@ -175,6 +175,18 @@ async function fetchProxmoxDataRaw() {
     : Array.isArray(storageList)
       ? storageList.map((s: Upstream) => ({ ...s, node: primary.node }))
       : [];
+  // cluster/resources reports a shared pool once per node; collapse it to a
+  // single entry (keyed by name) so it isn't listed and sampled N times.
+  const displayStorages: Upstream[] = [];
+  const seenSharedStorage = new Set<string>();
+  for (const s of clusterStorages) {
+    if (s.shared) {
+      const name = String(s.storage || '');
+      if (seenSharedStorage.has(name)) continue;
+      seenSharedStorage.add(name);
+    }
+    displayStorages.push(s);
+  }
   const seenStorage = new Set<string>();
   let storageUsed = 0;
   let storageTotal = 0;
@@ -302,7 +314,7 @@ async function fetchProxmoxDataRaw() {
           rpm: Number(d.rpm) || 0,
         };
       }),
-      storages: clusterStorages.map((s: Upstream) => {
+      storages: displayStorages.map((s: Upstream) => {
         const zfsKey = String(s.pool || s.storage || '');
         return {
           name: s.storage || '',

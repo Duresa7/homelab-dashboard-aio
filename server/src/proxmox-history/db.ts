@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 
-export type HistoryEntityType = 'node' | 'guest' | 'storage';
+export type HistoryEntityType = 'node' | 'guest' | 'storage' | 'cluster';
 
 export interface HistorySampleInput {
   ts: number;
@@ -20,20 +20,24 @@ export interface HistorySeriesPoint {
 }
 
 export const NODE_METRICS = new Set(['cpu_pct', 'mem_pct', 'mem_used', 'disk_pct']);
-export const GUEST_METRICS = new Set(['cpu_pct', 'mem_pct', 'disk', 'netin', 'netout']);
+// Only metrics the snapshot actually populates: cpu/mem are live, while guest
+// netin/netout/disk were never sourced and stayed flat, so they're omitted.
+export const GUEST_METRICS = new Set(['cpu_pct', 'mem_pct']);
 export const STORAGE_METRICS = new Set(['used', 'total', 'used_pct']);
+export const CLUSTER_METRICS = new Set(['cpu_pct', 'mem_pct', 'storage_pct']);
 
 export function metricIsValid(entityType: string, metric: string): boolean {
   if (entityType === 'node') return NODE_METRICS.has(metric);
   if (entityType === 'guest') return GUEST_METRICS.has(metric);
   if (entityType === 'storage') return STORAGE_METRICS.has(metric);
+  if (entityType === 'cluster') return CLUSTER_METRICS.has(metric);
   return false;
 }
 
 export function parseHistoryEntity(entity: string): { type: HistoryEntityType; id: string } | null {
   const [type, ...rest] = entity.split(':');
   const id = rest.join(':').trim();
-  if (!id || !['node', 'guest', 'storage'].includes(type)) return null;
+  if (!id || !['node', 'guest', 'storage', 'cluster'].includes(type)) return null;
   return { type: type as HistoryEntityType, id };
 }
 

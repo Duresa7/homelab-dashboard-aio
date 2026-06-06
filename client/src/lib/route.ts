@@ -112,7 +112,7 @@ export function resolveProxmoxSub(itemId?: string, sub?: string): string {
     type === 'datacenter'
       ? ['summary', 'guests', 'storage']
       : type === 'node'
-        ? ['summary', 'disks', 'storage', 'sensors']
+        ? ['summary', 'disks', 'storage', 'network']
         : ['summary'];
   return sub && valid.includes(sub) ? sub : 'summary';
 }

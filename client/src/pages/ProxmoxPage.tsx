@@ -1,19 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box,
   Cpu,
   Database,
   Disc,
+  Fan,
   HardDrive,
   MemoryStick,
+  Network,
   Server,
   Thermometer,
 } from 'lucide-react';
 
 import { AreaChart, Donut } from '../components/charts';
+import { GPUTile } from '../components/widgets';
+import { ComputeWakeCard } from '@/components/proxmox/ComputeWakeCard';
 import { DataTableCard, SectionCard, StatusBadge } from '@/components/common';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '../lib/units';
 import type { DashboardState, ProxmoxStorage, VM } from '../types';
 
 interface Props {
@@ -279,7 +284,7 @@ function Tabs({ itemId, sub, onSelect }: Props) {
     kind === 'datacenter'
       ? ['summary', 'guests', 'storage']
       : kind === 'node'
-        ? ['summary', 'disks', 'storage', 'sensors']
+        ? ['summary', 'disks', 'storage', 'network']
         : ['summary'];
   return (
     <div className="col-span-12 flex flex-wrap gap-1">
@@ -333,19 +338,20 @@ function DatacenterPane({
       />
       <HistoryCard
         title="Cluster CPU History"
-        entity={`node:${p.node.name}`}
+        entity="cluster:all"
         metric="cpu_pct"
         windowId={windowId}
       />
       <HistoryCard
         title="Cluster RAM History"
-        entity={`node:${p.node.name}`}
+        entity="cluster:all"
         metric="mem_pct"
         windowId={windowId}
         color="var(--warn)"
       />
       <GuestsTable vms={p.vms} showNode />
       <StorageTable storages={p.storages.filter((s) => s.shared)} title="Shared Storage" />
+      <LocalHostPanel data={data} />
     </>
   );
 }
@@ -368,22 +374,13 @@ function NodePane({
   if (sub === 'storage') return <StorageTable storages={nodeStorages} />;
   if (sub === 'disks')
     return (
-      <NodeDetailTable
-        title="Disks / ZFS"
-        rows={[...(detail?.disks ?? []), ...(detail?.zfs ?? [])]}
-        loading={loading}
-        error={error}
-      />
+      <>
+        <DisksTable disks={detail?.disks ?? []} loading={loading} error={error} />
+        <ZfsTable pools={detail?.zfs ?? []} />
+      </>
     );
-  if (sub === 'sensors')
-    return (
-      <NodeDetailTable
-        title="Networks / Sensors"
-        rows={detail?.networks ?? []}
-        loading={loading}
-        error={error}
-      />
-    );
+  if (sub === 'network')
+    return <NetworkTable networks={detail?.networks ?? []} loading={loading} error={error} />;
   return (
     <>
       <Stat title="Node" value={node.name} icon={<Server size={14} />} />
@@ -572,44 +569,391 @@ function StorageTable({
   );
 }
 
-function NodeDetailTable({
-  title,
-  rows,
+function fmtBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  if (n >= 1e12) return `${(n / 1e12).toFixed(2)} TB`;
+  if (n >= 1e9) return `${(n / 1e9).toFixed(0)} GB`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(0)} MB`;
+  return `${n} B`;
+}
+
+function str(v: unknown, fallback = '—'): string {
+  if (v == null || v === '') return fallback;
+  if (typeof v === 'object') return fallback;
+  return String(v);
+}
+
+function DisksTable({
+  disks,
   loading,
   error,
 }: {
-  title: string;
-  rows: Record<string, unknown>[];
+  disks: Record<string, unknown>[];
   loading: boolean;
   error: string | null;
 }) {
-  const keys = useMemo(
-    () => Array.from(new Set(rows.flatMap((row) => Object.keys(row)))).slice(0, 6),
-    [rows],
-  );
   return (
     <DataTableCard
       span={12}
-      title={title}
-      sub={loading ? 'loading' : rows.length}
-      isEmpty={!loading && rows.length === 0}
-      empty={error ?? 'No node detail reported'}
+      title="Physical Disks"
+      sub={loading ? 'loading' : `${disks.length} drives`}
+      icon={<HardDrive size={14} strokeWidth={1.75} />}
+      isEmpty={!loading && disks.length === 0}
+      empty={error ?? 'No physical disks reported'}
       head={
         <>
-          {keys.map((key) => (
-            <TableHead key={key}>{key}</TableHead>
-          ))}
+          <TableHead>Device</TableHead>
+          <TableHead>Model</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead className="text-right">Size</TableHead>
+          <TableHead>Health</TableHead>
+          <TableHead className="text-right">Wear</TableHead>
         </>
       }
     >
-      {rows.map((row, index) => (
-        <TableRow key={index}>
-          {keys.map((key) => (
-            <TableCell key={key}>{String(row[key] ?? '—')}</TableCell>
-          ))}
+      {disks.map((d, i) => (
+        <TableRow key={str(d.devpath, String(i))}>
+          <TableCell className="font-mono">{str(d.devpath)}</TableCell>
+          <TableCell>{str(d.model)}</TableCell>
+          <TableCell className="text-muted-foreground">{str(d.type).toUpperCase()}</TableCell>
+          <TableCell className="text-right tabular-nums">{fmtBytes(Number(d.size))}</TableCell>
+          <TableCell>{str(d.health)}</TableCell>
+          <TableCell className="text-right tabular-nums">
+            {typeof d.wearout === 'number' ? `${d.wearout}%` : '—'}
+          </TableCell>
         </TableRow>
       ))}
     </DataTableCard>
+  );
+}
+
+function ZfsTable({ pools }: { pools: Record<string, unknown>[] }) {
+  if (!pools.length) return null;
+  return (
+    <DataTableCard
+      span={12}
+      title="ZFS Pools"
+      sub={`${pools.length} pools`}
+      icon={<Disc size={14} strokeWidth={1.75} />}
+      isEmpty={false}
+      head={
+        <>
+          <TableHead>Pool</TableHead>
+          <TableHead>Health</TableHead>
+          <TableHead className="text-right">Size</TableHead>
+          <TableHead className="text-right">Alloc</TableHead>
+          <TableHead className="text-right">Free</TableHead>
+        </>
+      }
+    >
+      {pools.map((z, i) => (
+        <TableRow key={str(z.name, String(i))}>
+          <TableCell className="font-mono">{str(z.name)}</TableCell>
+          <TableCell>{str(z.health)}</TableCell>
+          <TableCell className="text-right tabular-nums">{fmtBytes(Number(z.size))}</TableCell>
+          <TableCell className="text-right tabular-nums">{fmtBytes(Number(z.alloc))}</TableCell>
+          <TableCell className="text-right tabular-nums">{fmtBytes(Number(z.free))}</TableCell>
+        </TableRow>
+      ))}
+    </DataTableCard>
+  );
+}
+
+function NetworkTable({
+  networks,
+  loading,
+  error,
+}: {
+  networks: Record<string, unknown>[];
+  loading: boolean;
+  error: string | null;
+}) {
+  return (
+    <DataTableCard
+      span={12}
+      title="Network Interfaces"
+      sub={loading ? 'loading' : `${networks.length} interfaces`}
+      icon={<Network size={14} strokeWidth={1.75} />}
+      isEmpty={!loading && networks.length === 0}
+      empty={error ?? 'No network interfaces reported'}
+      head={
+        <>
+          <TableHead>Interface</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead>Active</TableHead>
+          <TableHead>Address</TableHead>
+        </>
+      }
+    >
+      {networks.map((n, i) => (
+        <TableRow key={str(n.iface, String(i))}>
+          <TableCell className="font-mono">{str(n.iface)}</TableCell>
+          <TableCell className="text-muted-foreground">{str(n.type)}</TableCell>
+          <TableCell>{n.active ? 'yes' : 'no'}</TableCell>
+          <TableCell className="font-mono">{str(n.address ?? n.cidr)}</TableCell>
+        </TableRow>
+      ))}
+    </DataTableCard>
+  );
+}
+
+function tempColor(tempC: number, warnAt: number, badAt: number) {
+  if (tempC >= badAt) return 'var(--bad)';
+  if (tempC >= warnAt) return 'var(--warn)';
+  return 'var(--ok)';
+}
+
+function throbProps(over: boolean) {
+  return {
+    className: over ? 'icon-throb' : '',
+    style: over ? { color: 'var(--bad)' } : undefined,
+  } as const;
+}
+
+function SpinningFan({ rpm }: { rpm: number }) {
+  const duration = rpm < 200 ? 0 : Math.max(0.35, Math.min(3.5, 1500 / rpm));
+  return (
+    <Fan
+      size={12}
+      strokeWidth={1.75}
+      style={
+        duration > 0
+          ? { animation: `icon-spin ${duration}s linear infinite`, transformOrigin: '50% 50%' }
+          : undefined
+      }
+    />
+  );
+}
+
+function SensorChip({
+  label,
+  value,
+  color,
+  icon,
+}: {
+  label: string;
+  value: string;
+  color?: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-sm">
+      {icon ? <span className="text-muted-foreground [&_svg]:size-3.5">{icon}</span> : null}
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="font-semibold tabular-nums" style={color ? { color } : undefined}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function SensorSection({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-2 text-[12px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+        <span className="[&_svg]:size-3.5">{icon}</span>
+        {title}
+      </div>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </div>
+  );
+}
+
+function TempCard({
+  title,
+  icon,
+  sub,
+  tempC,
+  warnAt,
+  badAt,
+  unit,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  sub: string;
+  tempC: number | null;
+  warnAt: number;
+  badAt: number;
+  unit: TempUnit;
+}) {
+  const shownTemp = tempC == null ? '—' : Math.round(convertTemp(tempC, unit));
+  const color =
+    tempC == null
+      ? 'var(--ink-3)'
+      : tempC >= badAt
+        ? 'var(--bad)'
+        : tempC >= warnAt
+          ? 'var(--warn)'
+          : 'var(--ok)';
+  const statusLabel =
+    tempC == null ? 'unavailable' : tempC >= badAt ? 'hot' : tempC >= warnAt ? 'warm' : 'normal';
+  const pillKind =
+    tempC == null ? 'idle' : tempC >= badAt ? 'bad' : tempC >= warnAt ? 'warn' : 'ok';
+  return (
+    <SectionCard
+      span={4}
+      title={
+        <span className="flex items-center gap-1.5">
+          {icon}
+          {title}
+        </span>
+      }
+      actions={<StatusBadge kind={pillKind}>{statusLabel}</StatusBadge>}
+    >
+      <div className="flex items-baseline gap-1">
+        <span
+          className="font-mono text-[56px] leading-none font-semibold tracking-tight tabular-nums"
+          style={{ color }}
+        >
+          {shownTemp}
+        </span>
+        <span className="text-[22px] font-medium text-muted-foreground">{tempSuffix(unit)}</span>
+      </div>
+      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
+    </SectionCard>
+  );
+}
+
+function SensorsView({ data }: { data: DashboardState }) {
+  const { unit } = useTempUnit();
+  const s = data.sensors;
+  const hasAny =
+    s.disks.length > 0 ||
+    s.memory.length > 0 ||
+    s.network.length > 0 ||
+    s.fans.some((f) => f.rpm > 0);
+  return (
+    <SectionCard
+      span={12}
+      title="Hardware Sensors"
+      icon={<Thermometer size={14} strokeWidth={1.75} />}
+      bodyClassName="flex flex-col gap-5"
+    >
+      {!hasAny ? (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No hardware sensors detected
+        </div>
+      ) : (
+        <>
+          {s.disks.length > 0 && (
+            <SensorSection title="Drives" icon={<HardDrive size={14} strokeWidth={1.75} />}>
+              {s.disks.map((d) => (
+                <SensorChip
+                  key={d.name}
+                  label={d.name}
+                  value={fmtTemp(d.tempC, unit)}
+                  color={tempColor(d.tempC, 60, 70)}
+                />
+              ))}
+            </SensorSection>
+          )}
+          {s.memory.length > 0 && (
+            <SensorSection title="Memory" icon={<MemoryStick size={14} strokeWidth={1.75} />}>
+              {s.memory.map((m) => (
+                <SensorChip
+                  key={m.name}
+                  label={m.name}
+                  value={fmtTemp(m.tempC, unit)}
+                  color={tempColor(m.tempC, 55, 70)}
+                />
+              ))}
+            </SensorSection>
+          )}
+          {s.network.length > 0 && (
+            <SensorSection title="Network" icon={<Network size={14} strokeWidth={1.75} />}>
+              {s.network.map((nic) => (
+                <SensorChip
+                  key={nic.name}
+                  label={nic.name}
+                  value={fmtTemp(nic.tempC, unit)}
+                  color={tempColor(nic.tempC, 70, 85)}
+                />
+              ))}
+            </SensorSection>
+          )}
+          {s.fans.some((f) => f.rpm > 0) && (
+            <SensorSection
+              title="Fans"
+              icon={<Fan size={14} strokeWidth={1.75} className="icon-spin" />}
+            >
+              {s.fans
+                .filter((f) => f.rpm > 0)
+                .map((f) => (
+                  <SensorChip
+                    key={`${f.chip}-${f.name}`}
+                    label={f.name}
+                    value={`${Math.round(f.rpm)} RPM`}
+                    icon={<SpinningFan rpm={f.rpm} />}
+                  />
+                ))}
+            </SensorSection>
+          )}
+        </>
+      )}
+    </SectionCard>
+  );
+}
+
+function LocalHostPanel({ data }: { data: DashboardState }) {
+  const { unit } = useTempUnit();
+  return (
+    <>
+      <SectionCard span={12} bodyClassName="text-sm text-muted-foreground">
+        Local host — the machine running this dashboard
+      </SectionCard>
+      <TempCard
+        title="System Temp"
+        icon={
+          <Thermometer
+            size={14}
+            strokeWidth={1.75}
+            {...throbProps((data.sensors.systemTempC ?? 0) >= 75)}
+          />
+        }
+        sub={data.sensors.systemTempLabel ?? 'System'}
+        tempC={data.sensors.systemTempC}
+        warnAt={60}
+        badAt={75}
+        unit={unit}
+      />
+      <TempCard
+        title="CPU Temp"
+        icon={
+          <Thermometer
+            size={14}
+            strokeWidth={1.75}
+            {...throbProps((data.sensors.cpuTempC ?? 0) >= 85)}
+          />
+        }
+        sub={data.proxmox.node.cpuModel}
+        tempC={data.sensors.cpuTempC}
+        warnAt={75}
+        badAt={85}
+        unit={unit}
+      />
+      <TempCard
+        title="GPU Temp"
+        icon={
+          <Thermometer size={14} strokeWidth={1.75} {...throbProps((data.gpu.tempC ?? 0) >= 85)} />
+        }
+        sub={data.gpu.model}
+        tempC={data.gpu.tempC || null}
+        warnAt={75}
+        badAt={85}
+        unit={unit}
+      />
+      <GPUTile data={data.gpu} span={12} chartKind="area" expandable={false} />
+      <SensorsView data={data} />
+      <ComputeWakeCard />
+    </>
   );
 }
 
