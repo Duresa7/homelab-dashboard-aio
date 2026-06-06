@@ -111,6 +111,7 @@ export interface VM {
   cpu: number;
   ram: number;
   disk: number;
+  node: string;
   ip: string | null;
 }
 
@@ -130,6 +131,13 @@ export interface ProxmoxNode {
   storagePct: number;
   uptime: string;
   version: string;
+  status?: string;
+  level?: string | null;
+  maxcpu?: number;
+  disk?: number;
+  diskUsedTB?: number;
+  diskTotalTB?: number;
+  uptimeSec?: number;
 }
 
 export interface PhysicalDisk {
@@ -147,6 +155,7 @@ export interface PhysicalDisk {
 
 export interface ProxmoxStorage {
   name: string;
+  node: string;
   type: string;
   content: string;
   usedTB: number;
@@ -156,8 +165,25 @@ export interface ProxmoxStorage {
   zfsHealth: string | null;
 }
 
+export interface ProxmoxCluster {
+  nodesOnline: number;
+  nodesTotal: number;
+  cpuUsed: number;
+  cpuTotal: number;
+  cpuPct: number;
+  memUsedGB: number;
+  memTotalGB: number;
+  memPct: number;
+  storageUsedTB: number;
+  storageTotalTB: number;
+  storagePct: number;
+  guestsRunning: number;
+  guestsTotal: number;
+}
+
 export interface ProxmoxData {
-  nodes: number;
+  nodes: ProxmoxNode[];
+  cluster: ProxmoxCluster;
   node: ProxmoxNode;
   vms: VM[];
   disks: PhysicalDisk[];

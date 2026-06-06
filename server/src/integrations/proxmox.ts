@@ -10,6 +10,8 @@ import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
 
 const PVE_CACHE_TTL = Number(process.env.PROXMOX_POLL_INTERVAL) || 5000;
+const GB = 1024 ** 3;
+const TB = 1024 ** 4;
 
 export interface ProxmoxRuntimeConfig {
   enabled: boolean;
@@ -123,17 +125,24 @@ async function fetchProxmoxDataRaw() {
     nodes.find((n: Upstream) => n.status === 'online') ||
     nodes[0];
 
-  const [nodeStatus, vmResources, storageList, networks, physicalDisks, zfsPools] =
-    await Promise.all([
-      safePveFetch(`/api2/json/nodes/${primary.node}/status`),
-      safePveFetch('/api2/json/cluster/resources?type=vm'),
-      safePveFetch(`/api2/json/nodes/${primary.node}/storage`),
-      safePveFetch(`/api2/json/nodes/${primary.node}/network`),
-      safePveFetch(`/api2/json/nodes/${primary.node}/disks/list`),
-      safePveFetch(`/api2/json/nodes/${primary.node}/disks/zfs`),
-    ]);
+  const [
+    nodeStatus,
+    vmResources,
+    storageResources,
+    storageList,
+    networks,
+    physicalDisks,
+    zfsPools,
+  ] = await Promise.all([
+    safePveFetch(`/api2/json/nodes/${primary.node}/status`),
+    safePveFetch('/api2/json/cluster/resources?type=vm'),
+    safePveFetch('/api2/json/cluster/resources?type=storage'),
+    safePveFetch(`/api2/json/nodes/${primary.node}/storage`),
+    safePveFetch(`/api2/json/nodes/${primary.node}/network`),
+    safePveFetch(`/api2/json/nodes/${primary.node}/disks/list`),
+    safePveFetch(`/api2/json/nodes/${primary.node}/disks/zfs`),
+  ]);
 
-  const totalCores = nodes.reduce((sum: number, n: Upstream) => sum + (n.maxcpu || 0), 0);
   const vms: Upstream[] = Array.isArray(vmResources) ? vmResources : [];
 
   const runningVms = vms.filter((v: Upstream) => v.status === 'running');
@@ -158,14 +167,23 @@ async function fetchProxmoxDataRaw() {
   );
 
   // Dedupe by storage name so shared pools aren't counted twice.
+  const resourceStorages: Upstream[] = Array.isArray(storageResources)
+    ? storageResources.filter((s: Upstream) => s.storage)
+    : [];
+  const clusterStorages: Upstream[] = resourceStorages.length
+    ? resourceStorages
+    : Array.isArray(storageList)
+      ? storageList.map((s: Upstream) => ({ ...s, node: primary.node }))
+      : [];
   const seenStorage = new Set<string>();
   let storageUsed = 0;
   let storageTotal = 0;
-  if (Array.isArray(storageList)) {
-    for (const s of storageList) {
+  if (Array.isArray(clusterStorages)) {
+    for (const s of clusterStorages) {
       if (!s.enabled || !s.active || !s.total) continue;
-      if (seenStorage.has(s.storage)) continue;
-      seenStorage.add(s.storage);
+      const key = s.shared ? String(s.storage) : `${s.node || primary.node}:${s.storage}`;
+      if (seenStorage.has(key)) continue;
+      seenStorage.add(key);
       storageUsed += s.used || 0;
       storageTotal += s.total || 0;
     }
@@ -193,12 +211,54 @@ async function fetchProxmoxDataRaw() {
   const cpuCores = nodeStatus?.cpuinfo?.cores || 0;
   const cpuThreads = nodeStatus?.cpuinfo?.cpus || primary.maxcpu || 0;
 
-  const GB = 1024 ** 3;
-  const TB = 1024 ** 4;
+  const clusterNodes = nodes.map((n: Upstream) => {
+    const memTotal = n.maxmem || 0;
+    const memUsed = n.mem || 0;
+    const diskTotal = n.maxdisk || 0;
+    const diskUsed = n.disk || 0;
+    return {
+      name: n.node || '',
+      status: n.status || 'unknown',
+      level: n.level || null,
+      cpu: (n.cpu || 0) * 100,
+      maxcpu: n.maxcpu || 0,
+      ram: memTotal ? (memUsed / memTotal) * 100 : 0,
+      ramUsedGB: memUsed / GB,
+      ramTotalGB: memTotal / GB,
+      disk: diskTotal ? (diskUsed / diskTotal) * 100 : 0,
+      diskUsedTB: diskUsed / TB,
+      diskTotalTB: diskTotal / TB,
+      uptime: formatUptime(n.uptime || 0),
+      uptimeSec: n.uptime || 0,
+    };
+  });
+  const onlineNodes = clusterNodes.filter((n) => n.status === 'online');
+  const clusterMemUsed = nodes.reduce((sum: number, n: Upstream) => sum + (n.mem || 0), 0);
+  const clusterMemTotal = nodes.reduce((sum: number, n: Upstream) => sum + (n.maxmem || 0), 0);
+  const totalCores = nodes.reduce((sum: number, n: Upstream) => sum + (n.maxcpu || 0), 0);
+  const usedCores = nodes.reduce(
+    (sum: number, n: Upstream) => sum + (n.cpu || 0) * (n.maxcpu || 0),
+    0,
+  );
 
   return {
     proxmox: {
-      nodes: nodes.length,
+      nodes: clusterNodes,
+      cluster: {
+        nodesOnline: onlineNodes.length,
+        nodesTotal: nodes.length,
+        cpuUsed: usedCores,
+        cpuTotal: totalCores,
+        cpuPct: totalCores ? (usedCores / totalCores) * 100 : 0,
+        memUsedGB: clusterMemUsed / GB,
+        memTotalGB: clusterMemTotal / GB,
+        memPct: clusterMemTotal ? (clusterMemUsed / clusterMemTotal) * 100 : 0,
+        storageUsedTB: storageUsed / TB,
+        storageTotalTB: storageTotal / TB,
+        storagePct: storageTotal ? (storageUsed / storageTotal) * 100 : 0,
+        guestsRunning: runningVms.length,
+        guestsTotal: vms.length,
+      },
       node: {
         name: primary.node,
         ip: pickNodeIp(networks),
@@ -224,6 +284,7 @@ async function fetchProxmoxDataRaw() {
         cpu: (v.cpu || 0) * 100,
         ram: v.maxmem ? Math.round((v.mem / v.maxmem) * 100) : 0,
         disk: v.maxdisk ? Math.round(v.maxdisk / GB) : 0,
+        node: v.node || primary.node,
         ip: vmIps[v.vmid] || null,
       })),
       disks: (Array.isArray(physicalDisks) ? physicalDisks : []).map((d: Upstream) => {
@@ -241,10 +302,11 @@ async function fetchProxmoxDataRaw() {
           rpm: Number(d.rpm) || 0,
         };
       }),
-      storages: (Array.isArray(storageList) ? storageList : []).map((s: Upstream) => {
+      storages: clusterStorages.map((s: Upstream) => {
         const zfsKey = String(s.pool || s.storage || '');
         return {
           name: s.storage || '',
+          node: s.node || primary.node,
           type: s.type || '',
           content: s.content || '',
           usedTB: (s.used || 0) / TB,
@@ -263,6 +325,42 @@ async function fetchProxmoxDataRaw() {
 
 const fetchProxmoxData = withTtlCache(fetchProxmoxDataRaw, PVE_CACHE_TTL);
 
+async function fetchNodeDetailRaw(node: string) {
+  const nodes: Upstream[] = (await pveFetch('/api2/json/nodes')) || [];
+  if (!Array.isArray(nodes) || !nodes.some((n: Upstream) => n.node === node)) {
+    throw new Error(`Unknown Proxmox node "${node}"`);
+  }
+  const [status, disks, zfs, networks, storages] = await Promise.all([
+    safePveFetch(`/api2/json/nodes/${node}/status`),
+    safePveFetch(`/api2/json/nodes/${node}/disks/list`),
+    safePveFetch(`/api2/json/nodes/${node}/disks/zfs`),
+    safePveFetch(`/api2/json/nodes/${node}/network`),
+    safePveFetch(`/api2/json/nodes/${node}/storage`),
+  ]);
+  return {
+    status,
+    disks: Array.isArray(disks) ? disks : [],
+    zfs: Array.isArray(zfs) ? zfs : [],
+    networks: Array.isArray(networks) ? networks : [],
+    storages: Array.isArray(storages) ? storages : [],
+  };
+}
+
+const nodeDetailCaches = new Map<string, ReturnType<typeof withTtlCache<Upstream>>>();
+
+function fetchNodeDetail(node: string) {
+  let cached = nodeDetailCaches.get(node);
+  if (!cached) {
+    cached = withTtlCache(() => fetchNodeDetailRaw(node), PVE_CACHE_TTL);
+    nodeDetailCaches.set(node, cached);
+  }
+  return cached();
+}
+
+export function fetchProxmoxSnapshot() {
+  return fetchProxmoxData();
+}
+
 export const proxmoxStatus = {
   enabled: config.enabled,
   configured: config.enabled && !!(config.baseUrl && config.tokenId && config.tokenSecret),
@@ -278,6 +376,7 @@ export function configureProxmox(next: ProxmoxRuntimeConfig): void {
     node: next.node || '',
   };
   fetchProxmoxData.clear();
+  nodeDetailCaches.clear();
   proxmoxStatus.enabled = config.enabled;
   proxmoxStatus.configured =
     config.enabled && !!(config.baseUrl && config.tokenId && config.tokenSecret);
@@ -333,6 +432,23 @@ export function registerProxmox(app: Express) {
     } catch (err) {
       console.error('Proxmox API error:', errorMessage(err));
       res.status(502).json({ error: errorMessage(err) });
+    }
+  });
+
+  app.get('/api/proxmox/node/:node', async (req: Request, res: Response) => {
+    if (!config.enabled) return res.status(503).json({ error: 'Proxmox disabled' });
+    if (!config.baseUrl || !config.tokenId || !config.tokenSecret) {
+      return res.status(503).json({ error: 'Proxmox not configured' });
+    }
+    const node = String(req.params.node || '').trim();
+    if (!/^[A-Za-z0-9_.-]+$/.test(node)) {
+      return res.status(400).json({ error: 'Invalid Proxmox node name' });
+    }
+    try {
+      res.json(await fetchNodeDetail(node));
+    } catch (err) {
+      const msg = errorMessage(err);
+      res.status(msg.startsWith('Unknown Proxmox node') ? 404 : 502).json({ error: msg });
     }
   });
 }

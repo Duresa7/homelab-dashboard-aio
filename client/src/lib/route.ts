@@ -32,9 +32,10 @@ export interface SubDef {
 
 export const SUBS: Partial<Record<Section, SubDef[]>> = {
   proxmox: [
-    { id: 'compute', label: 'Compute' },
+    { id: 'summary', label: 'Summary' },
     { id: 'guests', label: 'Guests' },
     { id: 'storage', label: 'Storage' },
+    { id: 'disks', label: 'Disks/ZFS' },
     { id: 'sensors', label: 'Sensors' },
   ],
   network: [
@@ -55,7 +56,7 @@ export const SUBS: Partial<Record<Section, SubDef[]>> = {
 
 export const DEFAULT_SUB: Record<Section, string | undefined> = {
   overview: undefined,
-  proxmox: 'compute',
+  proxmox: 'summary',
   network: 'overview',
   docker: 'hosts',
   nas: 'pools',
@@ -84,10 +85,36 @@ export const SECTION_LABEL: Record<Section, string> = {
 };
 
 export function resolveSub(section: Section, sub?: string): string | undefined {
+  if (section === 'proxmox') return resolveProxmoxSub(undefined, sub);
   const subs = SUBS[section];
   if (!subs || subs.length === 0) return undefined;
   if (sub && subs.some((s) => s.id === sub)) return sub;
   return DEFAULT_SUB[section];
+}
+
+export function proxmoxEntityType(itemId?: string): 'datacenter' | 'node' | 'guest' | 'storage' {
+  if (!itemId || itemId === 'datacenter') return 'datacenter';
+  if (itemId.startsWith('node/')) return 'node';
+  if (itemId.startsWith('guest/')) return 'guest';
+  if (itemId.startsWith('storage/')) return 'storage';
+  return 'datacenter';
+}
+
+export function normalizeProxmoxItemId(itemId?: string): string {
+  if (!itemId || itemId === 'datacenter') return 'datacenter';
+  if (/^(node|guest|storage)\/[^/]+$/.test(itemId)) return itemId;
+  return 'datacenter';
+}
+
+export function resolveProxmoxSub(itemId?: string, sub?: string): string {
+  const type = proxmoxEntityType(itemId);
+  const valid =
+    type === 'datacenter'
+      ? ['summary', 'guests', 'storage']
+      : type === 'node'
+        ? ['summary', 'disks', 'storage', 'sensors']
+        : ['summary'];
+  return sub && valid.includes(sub) ? sub : 'summary';
 }
 
 export function subLabel(section: Section, sub: string): string {
@@ -104,9 +131,21 @@ function normalizeRoute(route: PersistedRoute): Route {
   const rawSection = route.section === 'storage' ? 'nas' : route.section;
   const section: Section =
     rawSection && KNOWN_SECTIONS.has(rawSection as Section) ? (rawSection as Section) : 'overview';
-  const sub = section === 'proxmox' && route.sub === 'drives' ? 'storage' : route.sub;
-  const itemId = section === 'inventory' ? route.itemId : undefined;
-  return { section, sub: resolveSub(section, sub), itemId };
+  const sub =
+    section === 'proxmox' && (route.sub === 'drives' || route.sub === 'compute')
+      ? 'summary'
+      : route.sub;
+  const itemId =
+    section === 'inventory'
+      ? route.itemId
+      : section === 'proxmox'
+        ? normalizeProxmoxItemId(route.itemId)
+        : undefined;
+  return {
+    section,
+    sub: section === 'proxmox' ? resolveProxmoxSub(itemId, sub) : resolveSub(section, sub),
+    itemId,
+  };
 }
 
 export function loadRoute(): Route {
