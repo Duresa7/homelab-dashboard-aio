@@ -2255,21 +2255,6 @@
   box-shadow: 0 4px 12px -8px rgba(15, 17, 21, 0.32);
 }
 
-.bm-app.is-dragging {
-  opacity: 0.35;
-}
-.bm-app.is-dragging .bm-icon {
-  transform: scale(0.9);
-}
-
-.bm-app.is-over .bm-icon {
-  transform: scale(1.12);
-  box-shadow:
-    0 0 0 2px var(--accent),
-    0 12px 24px -6px color-mix(in oklab, var(--accent) 35%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.36);
-}
-
 [data-theme='dark'] .bm-icon {
   background: #f6f7f9;
   box-shadow:

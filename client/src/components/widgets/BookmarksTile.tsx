@@ -142,6 +142,12 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
     position: 'before' | 'after';
   } | null>(null);
   const [overGroupId, setOverGroupId] = useState<string | null>(null);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [groupForm, setGroupForm] = useState<{ id: string | null; label: string }>({
+    id: null,
+    label: '',
+  });
+  const [groupError, setGroupError] = useState<string | null>(null);
 
   const resetForm = () => {
     setForm(EMPTY_FORM);
@@ -216,22 +222,42 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
     if (bookmark) toast.success(`Deleted ${bookmark.label}`);
   };
 
-  const addGroup = () => {
-    const label = prompt('Group name:')?.trim();
-    if (!label) return;
-    const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-    setGroups([...groups, { id, label }]);
-    toast.success(`Added ${label}`);
+  const openAddGroup = () => {
+    setGroupForm({ id: null, label: '' });
+    setGroupError(null);
+    setGroupDialogOpen(true);
   };
 
-  const renameGroup = (group: BookmarkGroup) => {
-    const label = prompt('Group name:', group.label)?.trim();
-    if (!label) return;
-    setGroups(groups.map((item) => (item.id === group.id ? { ...item, label } : item)));
-    toast.success(`Renamed ${group.label}`);
+  const openRenameGroup = (group: BookmarkGroup) => {
+    setGroupForm({ id: group.id, label: group.label });
+    setGroupError(null);
+    setGroupDialogOpen(true);
+  };
+
+  const saveGroup = () => {
+    const label = groupForm.label.trim();
+    if (!label) {
+      setGroupError('Name is required.');
+      return;
+    }
+    if (groupForm.id) {
+      setGroups(groups.map((item) => (item.id === groupForm.id ? { ...item, label } : item)));
+      toast.success(`Renamed ${label}`);
+    } else {
+      const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      setGroups([...groups, { id, label }]);
+      toast.success(`Added ${label}`);
+    }
+    setGroupDialogOpen(false);
+    setGroupForm({ id: null, label: '' });
+    setGroupError(null);
   };
 
   const removeGroup = (group: BookmarkGroup) => {
+    if (group.id === DEFAULT_BOOKMARK_GROUP.id) {
+      toast.error('The default group cannot be deleted.');
+      return;
+    }
     const result = deleteBookmarkGroup(groups, bookmarks, group.id);
     if (!result.deleted) {
       toast.error('The last group cannot be deleted.');
@@ -351,7 +377,7 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
                 <Button type="button" size="xs" variant="outline" onClick={openAdd}>
                   <Plus className="size-3" /> Add
                 </Button>
-                <Button type="button" size="xs" variant="outline" onClick={addGroup}>
+                <Button type="button" size="xs" variant="outline" onClick={openAddGroup}>
                   <Plus className="size-3" /> Group
                 </Button>
               </>
@@ -409,7 +435,7 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
                             variant="ghost"
                             size="icon-xs"
                             aria-label={`Rename ${group.label}`}
-                            onClick={() => renameGroup(group)}
+                            onClick={() => openRenameGroup(group)}
                           >
                             <Pencil className="size-3" />
                           </Button>
@@ -419,7 +445,7 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
                             size="icon-xs"
                             aria-label={`Delete ${group.label}`}
                             onClick={() => removeGroup(group)}
-                            disabled={groups.length <= 1}
+                            disabled={groups.length <= 1 || group.id === DEFAULT_BOOKMARK_GROUP.id}
                           >
                             <Trash2 className="size-3" />
                           </Button>
@@ -555,6 +581,49 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
           <DialogFooter>
             <Button type="button" onClick={saveBookmark}>
               {form.id ? 'Save bookmark' : 'Add bookmark'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={groupDialogOpen}
+        onOpenChange={(open) => {
+          setGroupDialogOpen(open);
+          if (!open) {
+            setGroupForm({ id: null, label: '' });
+            setGroupError(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{groupForm.id ? 'Rename group' : 'Add group'}</DialogTitle>
+            <DialogDescription>Groups organize your saved apps into sections.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="group-name">Name</Label>
+            <Input
+              id="group-name"
+              value={groupForm.label}
+              autoFocus
+              onChange={(event) => {
+                setGroupForm((prev) => ({ ...prev, label: event.target.value }));
+                setGroupError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') saveGroup();
+              }}
+              placeholder="Media"
+              aria-invalid={groupError ? true : undefined}
+            />
+            {groupError ? (
+              <div className="text-sm font-medium text-destructive">{groupError}</div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" onClick={saveGroup}>
+              {groupForm.id ? 'Save group' : 'Add group'}
             </Button>
           </DialogFooter>
         </DialogContent>

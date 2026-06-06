@@ -46,6 +46,20 @@ describe('bookmark groups', () => {
     ]);
   });
 
+  it('never deletes the default group, even when others exist', () => {
+    const groups = [
+      { id: 'default', label: 'Apps' },
+      { id: 'media', label: 'Media' },
+    ];
+    const bookmarks = [
+      { id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'default' },
+    ];
+
+    const result = deleteBookmarkGroup(groups, bookmarks, 'default');
+
+    expect(result).toEqual({ groups, bookmarks, deleted: false });
+  });
+
   it('does not delete the last remaining group', () => {
     const groups = [{ id: 'default', label: 'Apps' }];
     const bookmarks = [
