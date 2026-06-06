@@ -479,6 +479,10 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
                           rel="noreferrer noopener"
                           className="bm-app"
                           title={bookmark.url}
+                          draggable={editing ? false : undefined}
+                          onClick={(event) => {
+                            if (editing) event.preventDefault();
+                          }}
                         >
                           <span className="bm-icon">
                             <BookmarkIcon bookmark={bookmark} />
