@@ -38,6 +38,8 @@ const ENV_KEYS = [
   'PROXMOX_TOKEN_ID',
   'PROXMOX_TOKEN_SECRET',
   'PROXMOX_NODE',
+  'PROXMOX_HISTORY_DB_PATH',
+  'PROXMOX_HISTORY_ENABLED',
   'UNAS_ENABLED',
   'UNAS_BASE_URL',
   'UNAS_API_KEY',
@@ -65,6 +67,8 @@ export async function loadServerApp(env: Record<string, string> = {}) {
     UNIFI_ENABLED: 'false',
     PORTAINER_ENABLED: 'false',
     PROXMOX_ENABLED: 'false',
+    PROXMOX_HISTORY_DB_PATH: path.join(tempDir, 'proxmox-history.sqlite'),
+    PROXMOX_HISTORY_ENABLED: 'false',
     UNAS_ENABLED: 'false',
     GPU_ENABLED: 'false',
     SENSORS_ENABLED: 'false',
@@ -78,6 +82,7 @@ export async function loadServerApp(env: Record<string, string> = {}) {
     try {
       (mod.sensorsHandle as { shutdown?: () => void })?.shutdown?.();
       mod.siemHandle?.shutdown?.();
+      mod.proxmoxHistoryHandle?.shutdown?.();
       mod.stateHandle?.shutdown?.();
     } finally {
       await rm(tempDir, { recursive: true, force: true });

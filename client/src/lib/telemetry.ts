@@ -78,7 +78,22 @@ function buildInit(): DashboardState {
     storage: { pools: [], disks: [] },
     docker: { running: 0, stopped: 0, total: 0, updates: 0, hosts: [], containers: [] },
     proxmox: {
-      nodes: 0,
+      nodes: [],
+      cluster: {
+        nodesOnline: 0,
+        nodesTotal: 0,
+        cpuUsed: 0,
+        cpuTotal: 0,
+        cpuPct: 0,
+        memUsedGB: 0,
+        memTotalGB: 0,
+        memPct: 0,
+        storageUsedTB: 0,
+        storageTotalTB: 0,
+        storagePct: 0,
+        guestsRunning: 0,
+        guestsTotal: 0,
+      },
       node: {
         name: '—',
         ip: null,
@@ -198,31 +213,32 @@ function applyUnifi(payload: any): boolean {
 function applyProxmox(payload: any): boolean {
   if (!payload.proxmox) return false;
   state.proxmox = payload.proxmox;
-  // Mirror node telemetry into global CPU/RAM so generic tiles render real data.
   const node = payload.proxmox.node;
-  const cpuUsage = node.cpu || 0;
+  const cluster = payload.proxmox.cluster;
+  const cpuUsage = cluster?.cpuPct ?? node.cpu ?? 0;
+  const cpuCores = cluster?.cpuTotal ?? node.cpuCores ?? 0;
   state.cpu = {
     ...state.cpu,
     model: node.cpuModel || state.cpu.model,
-    cores: node.cpuCores || state.cpu.cores,
-    threads: node.cpuThreads || state.cpu.threads,
+    cores: cpuCores,
+    threads: cpuCores,
     usage: cpuUsage,
     target: cpuUsage,
     tempC: 0,
     tempTarget: 0,
     history: push(state.cpu.history, cpuUsage),
     tempHistory: push(state.cpu.tempHistory, 0),
-    coreList: Array.from({ length: node.cpuCores || 0 }, (_, i) => ({
+    coreList: Array.from({ length: Math.min(cpuCores, 128) }, (_, i) => ({
       id: i,
       pct: cpuUsage,
       target: cpuUsage,
     })),
   };
-  const ramPct = node.ram || 0;
+  const ramPct = cluster?.memPct ?? node.ram ?? 0;
   state.ram = {
     ...state.ram,
-    totalGB: Math.round(node.ramTotalGB || 0),
-    usedGB: node.ramUsedGB || 0,
+    totalGB: Math.round(cluster?.memTotalGB ?? node.ramTotalGB ?? 0),
+    usedGB: cluster?.memUsedGB ?? node.ramUsedGB ?? 0,
     target: ramPct,
     cachedGB: 0,
     history: push(state.ram.history, ramPct),

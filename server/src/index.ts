@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { initSiem, type SiemRuntimeConfig } from './siem/index.js';
+import { initProxmoxHistory } from './proxmox-history/index.js';
 import { initState } from './state/index.js';
 import { initSensors } from './sensors/index.js';
 import { initSetup } from './setup/index.js';
@@ -378,6 +379,7 @@ registerUnifi(app);
 registerDocker(app);
 
 registerProxmox(app);
+const proxmoxHistoryHandle = initProxmoxHistory(app);
 registerGpu(app);
 registerWol(app);
 
@@ -471,6 +473,7 @@ if (process.env.NODE_ENV !== 'test') {
   process.on('SIGINT', () => {
     try {
       siemHandle.shutdown();
+      proxmoxHistoryHandle.shutdown();
     } catch {
       /* ignore */
     }
@@ -478,6 +481,7 @@ if (process.env.NODE_ENV !== 'test') {
   process.on('SIGTERM', () => {
     try {
       siemHandle.shutdown();
+      proxmoxHistoryHandle.shutdown();
     } catch {
       /* ignore */
     }
@@ -580,4 +584,4 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-export { app, sensorsHandle, siemHandle, stateHandle };
+export { app, sensorsHandle, siemHandle, stateHandle, proxmoxHistoryHandle };

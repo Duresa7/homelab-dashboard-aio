@@ -25,4 +25,21 @@ describe('route persistence', () => {
 
     expect(route.loadRoute()).toEqual({ section: 'overview', sub: undefined, itemId: undefined });
   });
+
+  it('round-trips proxmox entity selection and normalizes invalid tabs', async () => {
+    const { store, route } = await loadRouteModules();
+
+    store.setState('route', { section: 'proxmox', itemId: 'node/pve1', sub: 'disks' });
+    expect(route.loadRoute()).toEqual({ section: 'proxmox', itemId: 'node/pve1', sub: 'disks' });
+
+    store.setState('route', { section: 'proxmox', itemId: 'guest/105', sub: 'storage' });
+    expect(route.loadRoute()).toEqual({ section: 'proxmox', itemId: 'guest/105', sub: 'summary' });
+
+    store.setState('route', { section: 'proxmox', itemId: 'bad/value/extra', sub: 'compute' });
+    expect(route.loadRoute()).toEqual({
+      section: 'proxmox',
+      itemId: 'datacenter',
+      sub: 'summary',
+    });
+  });
 });

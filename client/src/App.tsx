@@ -37,6 +37,8 @@ import {
 import { useSystemTheme, useTweaks } from './lib/tweaks';
 import {
   DEFAULT_SUB,
+  normalizeProxmoxItemId,
+  resolveProxmoxSub,
   resolveSub,
   saveRoute,
   loadRoute,
@@ -179,10 +181,19 @@ function DashboardApp() {
   }, [integrations]);
 
   const setRoute = (section: Section, sub?: string, itemId?: string) => {
+    const normalizedItemId =
+      section === 'proxmox'
+        ? normalizeProxmoxItemId(itemId)
+        : section === 'inventory'
+          ? itemId
+          : undefined;
     const resolved: Route = {
       section,
-      sub: resolveSub(section, sub ?? DEFAULT_SUB[section]),
-      itemId: section === 'inventory' ? itemId : undefined,
+      sub:
+        section === 'proxmox'
+          ? resolveProxmoxSub(normalizedItemId, sub ?? DEFAULT_SUB[section])
+          : resolveSub(section, sub ?? DEFAULT_SUB[section]),
+      itemId: normalizedItemId,
     };
     setRouteState(resolved);
     saveRoute(resolved);
@@ -202,7 +213,10 @@ function DashboardApp() {
   const visibleAlerts = data.alerts.filter((_, i) => !dismissedAlerts.has(i));
   const dismiss = (i: number) => setDismissedAlerts((prev) => new Set(prev).add(i));
 
-  const activeSub = resolveSub(route.section, route.sub);
+  const activeSub =
+    route.section === 'proxmox'
+      ? resolveProxmoxSub(route.itemId, route.sub)
+      : resolveSub(route.section, route.sub);
   const visibleOverviewLayout = useVisibleTiles(t.overviewLayout);
 
   const backendOffline = connectivity.status === 'offline';
@@ -245,7 +259,14 @@ function DashboardApp() {
           onExpand={setExpanded}
         />
       )}
-      {route.section === 'proxmox' && <ProxmoxPage data={data} sub={activeSub ?? 'compute'} />}
+      {route.section === 'proxmox' && (
+        <ProxmoxPage
+          data={data}
+          itemId={route.itemId ?? 'datacenter'}
+          sub={activeSub ?? 'summary'}
+          onSelect={(itemId, sub) => setRoute('proxmox', sub, itemId)}
+        />
+      )}
       {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
       {route.section === 'docker' && <DockerPage data={data} sub={activeSub ?? 'hosts'} />}
       {route.section === 'nas' && <NasPage data={data} sub={activeSub ?? 'pools'} />}
