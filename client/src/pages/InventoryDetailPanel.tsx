@@ -10,7 +10,7 @@ import {
   type Machine,
   type ProblemLogEntry,
   type PurchaseInfo,
-  type SpareItem,
+  type Device,
 } from '../lib/inventory';
 import {
   Dialog,
@@ -23,15 +23,15 @@ import { Button } from '@/components/ui/button';
 
 import { STATUS_KIND, today } from './inventory/detail/primitives';
 import { StatusSelect } from './inventory/detail/StatusSelect';
-import { ComponentHeader, MachineHeader, SpareHeader } from './inventory/detail/headers';
-import { ComponentSpecsSection, SpareSpecsSection } from './inventory/detail/specs';
+import { ComponentHeader, DeviceHeader, MachineHeader } from './inventory/detail/headers';
+import { ComponentSpecsSection, DeviceSpecsSection } from './inventory/detail/specs';
 import { AssignmentSection, DeviceSection } from './inventory/detail/assignment';
 import { ComponentsSection } from './inventory/detail/ComponentsSection';
 import { ProblemLogSection } from './inventory/detail/ProblemLogSection';
 import { ProvenanceSection } from './inventory/detail/ProvenanceSection';
 import { IdentifiersSection } from './inventory/detail/IdentifiersSection';
 
-type AnyItem = Machine | SpareItem | Component;
+type AnyItem = Machine | Device | Component;
 type Mutator<T> = (mut: (cur: T) => T) => void;
 
 interface Props {
@@ -117,7 +117,7 @@ export function InventoryDetailPanel({
         onChange={(mut) => onChange(itemId, mut as (m: AnyItem) => AnyItem)}
       />
     ) : found.kind === 'spare' ? (
-      <SpareHeader
+      <DeviceHeader
         item={found.item}
         category={found.category}
         isEditing={isEditing}
@@ -134,8 +134,8 @@ export function InventoryDetailPanel({
 
   const setComponent = (mut: (c: Component) => Component) =>
     onChange(itemId, (cur) => mut(cur as Component) as AnyItem);
-  const setSpare = (mut: (it: SpareItem) => SpareItem) =>
-    onChange(itemId, (cur) => mut(cur as SpareItem) as AnyItem);
+  const setDevice = (mut: (it: Device) => Device) =>
+    onChange(itemId, (cur) => mut(cur as Device) as AnyItem);
 
   return (
     <Dialog
@@ -185,11 +185,11 @@ export function InventoryDetailPanel({
             />
           ) : null}
           {found.kind === 'spare' ? (
-            <SpareSpecsSection
+            <DeviceSpecsSection
               item={found.item}
               category={found.category}
               isEditing={isEditing}
-              onChange={setSpare}
+              onChange={setDevice}
             />
           ) : null}
 
@@ -202,7 +202,7 @@ export function InventoryDetailPanel({
           ) : null}
 
           {found.kind === 'spare' ? (
-            <DeviceSection item={found.item} isEditing={isEditing} onChange={setSpare} />
+            <DeviceSection item={found.item} isEditing={isEditing} onChange={setDevice} />
           ) : null}
 
           <ProvenanceSection purchase={purchase} isEditing={isEditing} setPurchase={setPurchase} />

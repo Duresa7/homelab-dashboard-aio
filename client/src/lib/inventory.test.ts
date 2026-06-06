@@ -220,12 +220,12 @@ describe('migrateInventory (v6 → v7)', () => {
     const spareCpu = inv.components.find((c) => c.type === 'cpu' && c.assignment === SPARE);
     expect(spareCpu).toBeTruthy();
     expect(spareCpu?.ids?.uid).toBe('1002');
-    // No component categories should remain in spares.
-    expect(inv.spares.some((c) => /cpus?/i.test(c.name))).toBe(false);
+    // No component categories should remain in devices.
+    expect(inv.devices.some((c) => /cpus?/i.test(c.name))).toBe(false);
   });
 
   it('keeps active network gear as a device category, renames it generically, marks it in-service', () => {
-    const net = inv.spares.find((c) => c.name === 'Network');
+    const net = inv.devices.find((c) => c.name === 'Network');
     expect(net?.deviceType).toBe('network');
     expect(net?.prefix).toBe('04');
     expect(net?.name).not.toMatch(/unifi/i);
@@ -236,7 +236,7 @@ describe('migrateInventory (v6 → v7)', () => {
   });
 
   it('marks non-active networking gear as spare, not in-service', () => {
-    const networking = inv.spares.find((c) => c.name === 'Networking');
+    const networking = inv.devices.find((c) => c.name === 'Networking');
     expect(networking).toBeTruthy();
     expect(networking?.name).not.toMatch(/legacy/i);
     expect(networking?.note).toBeUndefined();
@@ -250,7 +250,7 @@ describe('migrateInventory (v6 → v7)', () => {
     oldNetworking.note = 'Earlier networking gear retained as spares.';
 
     const migrated = migrateInventory(old as never);
-    const networking = migrated.spares.find((c) => c.id === 'cat_legacy');
+    const networking = migrated.devices.find((c) => c.id === 'cat_legacy');
 
     expect(networking?.name).toBe('Networking');
     expect(networking?.note).toBeUndefined();
@@ -258,7 +258,7 @@ describe('migrateInventory (v6 → v7)', () => {
   });
 
   it('splits the qty-2 USW-Flex into two separately-named switches', () => {
-    const net = inv.spares.find((c) => c.name === 'Network')!;
+    const net = inv.devices.find((c) => c.name === 'Network')!;
     const flex = net.items.filter((it) => /USW-Flex/.test(it.values.model));
     expect(flex).toHaveLength(2);
     expect(flex.map((it) => it.name).sort()).toEqual(['Access Switch 1', 'Access Switch 2']);
@@ -271,7 +271,7 @@ describe('migrateInventory (v6 → v7)', () => {
       lastUpdated: '2026-06-01',
       machines: [],
       components: [],
-      spares: [
+      devices: [
         {
           id: 'cat_net',
           name: 'Network',
@@ -308,7 +308,7 @@ describe('migrateInventory (v6 → v7)', () => {
     };
 
     const repaired = migrateInventory(inv7);
-    const net = repaired.spares[0];
+    const net = repaired.devices[0];
     const flex = net.items.filter((it) => /USW-Flex/.test(it.values.model));
     expect(flex).toHaveLength(2);
     expect(flex.map((it) => it.name)).toEqual(['Access Switch 1', 'Access Switch 2']);
@@ -318,7 +318,7 @@ describe('migrateInventory (v6 → v7)', () => {
   });
 
   it('reclassifies the UVC camera out of the network category into Cameras', () => {
-    const cams = inv.spares.find((c) => c.deviceType === 'camera');
+    const cams = inv.devices.find((c) => c.deviceType === 'camera');
     expect(cams).toBeTruthy();
     const cam = cams?.items[0];
     expect(cam?.ids?.uid?.startsWith('07')).toBe(true);
@@ -332,10 +332,53 @@ describe('migrateInventory (v6 → v7)', () => {
   });
 });
 
+describe('migrateInventory (spares → devices)', () => {
+  it('maps an already-flat persisted spares array to devices without losing item data', () => {
+    const legacy = {
+      lastUpdated: '2026-06-05',
+      machines: [],
+      components: [],
+      spares: [
+        {
+          id: 'cat_net',
+          name: 'Network',
+          deviceType: 'network' as const,
+          prefix: '04',
+          columns: [{ id: 'model', label: 'Model' }],
+          items: [
+            {
+              id: 'dev_gateway',
+              name: 'Gateway',
+              deployment: 'in-service' as const,
+              values: { model: 'UCG-Fiber' },
+              ids: { uid: '0401' },
+              status: 'working' as const,
+            },
+          ],
+        },
+      ],
+    };
+
+    const migrated = migrateInventory(legacy as never);
+
+    expect((migrated as unknown as Record<string, unknown>).spares).toBeUndefined();
+    expect(migrated.devices).toHaveLength(1);
+    expect(migrated.devices[0].id).toBe('cat_net');
+    expect(migrated.devices[0].items[0]).toMatchObject({
+      id: 'dev_gateway',
+      name: 'Gateway',
+      deployment: 'in-service',
+      values: { model: 'UCG-Fiber' },
+      ids: { uid: '0401' },
+      status: 'working',
+    });
+  });
+});
+
 describe('empty inventory defaults', () => {
   it('resets to an empty inventory shape', () => {
     const fresh = resetInventory();
-    expect(fresh).toEqual({ lastUpdated: '', machines: [], components: [], spares: [] });
+    expect(fresh).toEqual({ lastUpdated: '', machines: [], components: [], devices: [] });
     expect(summarize(fresh)).toEqual({
       machineCount: 0,
       componentCount: 0,
@@ -386,7 +429,7 @@ describe('loadInventory persistence gating', () => {
 
     const inv = loadInventory();
 
-    expect(inv).toEqual({ lastUpdated: '', machines: [], components: [], spares: [] });
+    expect(inv).toEqual({ lastUpdated: '', machines: [], components: [], devices: [] });
     expect(setState).not.toHaveBeenCalled();
   });
 
@@ -398,7 +441,7 @@ describe('loadInventory persistence gating', () => {
 
     const inv = loadInventory();
 
-    expect(inv).toEqual({ lastUpdated: '', machines: [], components: [], spares: [] });
+    expect(inv).toEqual({ lastUpdated: '', machines: [], components: [], devices: [] });
     expect(setState).not.toHaveBeenCalled();
   });
 
@@ -410,7 +453,7 @@ describe('loadInventory persistence gating', () => {
 
     const inv = loadInventory();
 
-    expect(inv).toEqual({ lastUpdated: '', machines: [], components: [], spares: [] });
+    expect(inv).toEqual({ lastUpdated: '', machines: [], components: [], devices: [] });
     expect(setState).not.toHaveBeenCalled();
   });
 });

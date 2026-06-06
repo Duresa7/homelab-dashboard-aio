@@ -29,16 +29,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function inventoryCategoryKey(value: Record<string, unknown>): 'devices' | 'spares' | null {
+  if (Array.isArray(value.devices)) return 'devices';
+  if (Array.isArray(value.spares)) return 'spares';
+  return null;
+}
+
 // Strip the per-category descriptive `note` and rename the old
 // "Networking (legacy)" category — the vendor-neutral cleanup applied to an
 // already-persisted inventory blob.
 function cleanPersistedInventory(value: unknown): { value: unknown; changed: boolean } {
-  if (!isRecord(value) || !Array.isArray(value.spares)) {
+  if (!isRecord(value)) {
     return { value, changed: false };
   }
 
+  const key = inventoryCategoryKey(value);
+  if (!key) return { value, changed: false };
+
   let changed = false;
-  const spares = value.spares.map((category) => {
+  const categories = (value[key] as unknown[]).map((category) => {
     if (!isRecord(category)) return category;
 
     let next = category;
@@ -55,7 +64,22 @@ function cleanPersistedInventory(value: unknown): { value: unknown; changed: boo
   });
 
   if (!changed) return { value, changed: false };
-  return { value: { ...value, spares }, changed: true };
+  return { value: { ...value, [key]: categories }, changed: true };
+}
+
+function renamePersistedInventoryDevices(value: unknown): { value: unknown; changed: boolean } {
+  if (!isRecord(value) || !Array.isArray(value.spares)) {
+    return { value, changed: false };
+  }
+
+  const { spares, ...rest } = value;
+  return {
+    value: {
+      ...rest,
+      devices: Array.isArray(value.devices) ? value.devices : spares,
+    },
+    changed: true,
+  };
 }
 
 // Ordered migrations. Names map 1:1 to the old `user_version` steps so an
@@ -95,6 +119,31 @@ export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
       await db
         .updateTable('app_state')
         .set({ value: JSON.stringify(cleaned.value) })
+        .where('key', '=', 'inventory')
+        .execute();
+    },
+  },
+  {
+    name: '003_rename_inventory_devices',
+    up: async (db) => {
+      const row = await db
+        .selectFrom('app_state')
+        .select('value')
+        .where('key', '=', 'inventory')
+        .executeTakeFirst();
+      if (!row) return;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(row.value);
+      } catch {
+        return;
+      }
+      const renamed = renamePersistedInventoryDevices(parsed);
+      if (!renamed.changed) return;
+      // Update value only — leave updated_at so the row's age is preserved.
+      await db
+        .updateTable('app_state')
+        .set({ value: JSON.stringify(renamed.value) })
         .where('key', '=', 'inventory')
         .execute();
     },

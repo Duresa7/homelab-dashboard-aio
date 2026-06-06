@@ -7,7 +7,7 @@ import {
   SPARE,
   type Inventory,
   type Machine,
-  type SpareItem,
+  type Device,
 } from '../lib/inventory';
 import {
   SLOT_DEFS,
@@ -60,7 +60,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function spareLabel(item: SpareItem): string {
+function spareLabel(item: Device): string {
   const brand = item.values.brand ?? '';
   const model = item.values.model ?? item.values.part ?? '';
   return [brand, model].filter(Boolean).join(' ') || 'Spare item';
@@ -70,7 +70,7 @@ function resolveEntryLabel(entry: SlotEntry, inv: Inventory): string {
   if (entry.source === 'empty') return '—';
   if (entry.source === 'custom') return entry.customText?.trim() || '(custom)';
   if (entry.source === 'spare' && entry.spareId) {
-    for (const cat of inv.spares) {
+    for (const cat of inv.devices) {
       const it = cat.items.find((x) => x.id === entry.spareId);
       if (it) return spareLabel(it);
     }
@@ -94,7 +94,7 @@ function buildPickerOptions(slot: SlotDef, inv: Inventory): PickerOption[] {
   const opts: PickerOption[] = [];
 
   // Spare-parts options, filtered by category regex if defined; otherwise everything.
-  for (const cat of inv.spares) {
+  for (const cat of inv.devices) {
     if (cat.deviceType === 'network') continue;
     if (slot.categoryMatch && !slot.categoryMatch.test(cat.name)) continue;
     for (const it of cat.items) {

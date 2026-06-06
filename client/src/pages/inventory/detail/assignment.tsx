@@ -5,7 +5,7 @@ import {
   type Component,
   type Deployment,
   type Machine,
-  type SpareItem,
+  type Device,
 } from '../../../lib/inventory';
 import {
   Select,
@@ -84,9 +84,9 @@ export function DeviceSection({
   isEditing,
   onChange,
 }: {
-  item: SpareItem;
+  item: Device;
   isEditing: boolean;
-  onChange: (mut: (it: SpareItem) => SpareItem) => void;
+  onChange: (mut: (it: Device) => Device) => void;
 }) {
   return (
     <Section icon={Tag} title="Placement">

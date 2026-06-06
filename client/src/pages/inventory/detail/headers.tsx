@@ -4,8 +4,8 @@ import {
   componentTitle,
   type Component,
   type Machine,
-  type SpareCategory,
-  type SpareItem,
+  type DeviceCategory,
+  type Device,
 } from '../../../lib/inventory';
 import { BrandGlyph, categoryIcon, componentIcon, roleIcon } from '../../../lib/inventoryIcons';
 
@@ -56,19 +56,19 @@ export function MachineHeader({
   );
 }
 
-export function SpareHeader({
+export function DeviceHeader({
   item,
   category,
   isEditing,
   onChange,
 }: {
-  item: SpareItem;
-  category: SpareCategory;
+  item: Device;
+  category: DeviceCategory;
   isEditing: boolean;
-  onChange: (mut: (it: SpareItem) => SpareItem) => void;
+  onChange: (mut: (it: Device) => Device) => void;
 }) {
   const CatIcon = categoryIcon(category.name);
-  const title = describeSpare(item, category);
+  const title = describeDevice(item, category);
   const brand = item.values.brand ?? '';
   return (
     <div className="flex min-w-0 flex-col gap-1">
@@ -151,7 +151,7 @@ export function ComponentHeader({
   );
 }
 
-function describeSpare(item: SpareItem, category: SpareCategory): string {
+function describeDevice(item: Device, category: DeviceCategory): string {
   if (item.name?.trim()) return item.name.trim();
   const brand = item.values.brand?.trim();
   const model = item.values.model?.trim() || item.values.part?.trim();

@@ -20,14 +20,14 @@ describe('state DB schema migrations', () => {
     const dbPath = path.join(tempDir, 'state.sqlite');
 
     const db = await openStateDb(dbPath);
-    expect((await db.stats()).schemaVersion).toBe(2);
+    expect((await db.stats()).schemaVersion).toBe(3);
     await db.put('tempUnit', 'f');
     await db.close();
 
     // Re-open: migrations are already recorded so the runner is a no-op,
     // and the previously-written row survives.
     const reopened = await openStateDb(dbPath);
-    expect((await reopened.stats()).schemaVersion).toBe(2);
+    expect((await reopened.stats()).schemaVersion).toBe(3);
     expect((await reopened.get('tempUnit'))?.value).toBe('f');
     await reopened.close();
   });
@@ -87,14 +87,20 @@ describe('state DB schema migrations', () => {
     raw.close();
 
     const db = await openStateDb(dbPath);
-    expect((await db.stats()).schemaVersion).toBe(2);
+    expect((await db.stats()).schemaVersion).toBe(3);
     const cleanedRow = await db.get('inventory');
-    const cleaned = cleanedRow?.value as typeof legacyInventory;
+    const cleaned = cleanedRow?.value as {
+      devices: Array<{
+        name: string;
+        items: unknown[];
+      }>;
+    };
 
-    expect(cleaned.spares.map((category) => category.name)).toEqual(['Network', 'Networking']);
-    expect(cleaned.spares.every((category) => !('note' in category))).toBe(true);
-    expect(cleaned.spares[0].items).toEqual(legacyInventory.spares[0].items);
-    expect(cleaned.spares[1].items).toEqual(legacyInventory.spares[1].items);
+    expect(cleaned.devices.map((category) => category.name)).toEqual(['Network', 'Networking']);
+    expect(cleaned.devices.every((category) => !('note' in category))).toBe(true);
+    expect((cleaned as Record<string, unknown>).spares).toBeUndefined();
+    expect(cleaned.devices[0].items).toEqual(legacyInventory.spares[0].items);
+    expect(cleaned.devices[1].items).toEqual(legacyInventory.spares[1].items);
     expect(cleanedRow?.updatedAt).toBe(123);
     await db.close();
 

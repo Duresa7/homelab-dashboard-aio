@@ -1,6 +1,6 @@
 import { Plus, Trash2, X } from 'lucide-react';
 
-import { genId, nextDeviceUid, type SpareCategory, type SpareItem } from '../../lib/inventory';
+import { genId, nextDeviceUid, type DeviceCategory, type Device } from '../../lib/inventory';
 import { BrandGlyph, categoryIcon } from '../../lib/inventoryIcons';
 import {
   Table,
@@ -17,11 +17,11 @@ import { Editable } from './Editable';
 import { ADD_ROW_BTN, GHOST_ICON_BTN, pad2 } from './shared';
 
 interface CategoryBlockProps {
-  category: SpareCategory;
-  items: SpareItem[];
+  category: DeviceCategory;
+  items: Device[];
   deployment: 'in-service' | 'spare';
   isEditing: boolean;
-  onChange: (mut: (c: SpareCategory) => SpareCategory) => void;
+  onChange: (mut: (c: DeviceCategory) => DeviceCategory) => void;
   onDelete: () => void;
   onOpenItem: (id: string) => void;
   openItemId?: string;

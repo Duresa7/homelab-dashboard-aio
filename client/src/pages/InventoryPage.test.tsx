@@ -38,7 +38,7 @@ function inventoryFixture(): Inventory {
         ids: { uid: '1002' },
       },
     ],
-    spares: [
+    devices: [
       {
         id: 'category-network',
         name: 'Network',

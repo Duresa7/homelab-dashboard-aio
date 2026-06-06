@@ -31,7 +31,7 @@ Machine via Assignment; reassigning is just changing that pointer, and the UID n
 **Device category**:
 A grouping of Devices by kind (laptop, phone, printer, network, peripheral, monitor,
 camera, other) that drives the UID block and icon.
-_Avoid_: spare category (legacy code name — see ADR-0001).
+_Avoid_: spare category.
 
 **Deployment**:
 _Whether_ a unit is in active use (`in-service`) or stored (`spare`). Carried by whole

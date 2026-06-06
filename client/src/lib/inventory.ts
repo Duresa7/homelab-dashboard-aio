@@ -6,7 +6,7 @@
    - `components`   — ONE flat pool of parts (CPU/GPU/RAM/…). Each carries
                       structured `fields`, a type-block UID (CPU 1000, GPU 2000…),
                       and an `assignment` (a machine id, or the literal 'spare').
-   - `spares`       — DEVICE categories only now (laptops 01, phones 02, printers
+   - `devices`       — DEVICE categories only now (laptops 01, phones 02, printers
                       03, network 04, peripherals 05, monitors 06, cameras 07).
                       Each item has a per-item `deployment` (in-service|spare).
 
@@ -104,7 +104,7 @@ export interface Machine extends ItemDetail {
   meta: MetaRow[];
 }
 
-/* ---------- device categories (spares) ---------- */
+/* ---------- device categories (devices) ---------- */
 
 export type DeviceCategoryType =
   | 'laptop'
@@ -116,7 +116,7 @@ export type DeviceCategoryType =
   | 'camera'
   | 'other';
 
-export interface SpareItem extends ItemDetail {
+export interface Device extends ItemDetail {
   id: string;
   /** Friendly name (laptops + network gear). Falls back to model/brand for display. */
   name?: string;
@@ -125,13 +125,13 @@ export interface SpareItem extends ItemDetail {
   values: Record<string, string>;
 }
 
-export interface SpareColumn {
+export interface DeviceColumn {
   id: string;
   label: string;
   align?: 'left' | 'right';
 }
 
-export interface SpareCategory {
+export interface DeviceCategory {
   id: string;
   name: string;
   note?: string;
@@ -141,15 +141,15 @@ export interface SpareCategory {
   deviceType?: DeviceCategoryType;
   /** @deprecated pre-v7 network split; superseded by deviceType. */
   kind?: 'spare' | 'network';
-  columns: SpareColumn[];
-  items: SpareItem[];
+  columns: DeviceColumn[];
+  items: Device[];
 }
 
 export interface Inventory {
   lastUpdated: string;
   machines: Machine[];
   components: Component[];
-  spares: SpareCategory[];
+  devices: DeviceCategory[];
 }
 
 /* ---------- ids ---------- */
@@ -519,13 +519,13 @@ export function componentTitle(c: Component): string {
 /* ---------- defaults ---------- */
 
 export function emptyInventory(): Inventory {
-  return { lastUpdated: '', machines: [], components: [], spares: [] };
+  return { lastUpdated: '', machines: [], components: [], devices: [] };
 }
 
 /* ---------- storage ---------- */
 
 const STORAGE_KEY = 'inventory';
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 interface Persisted {
   v: number;
@@ -571,23 +571,24 @@ interface OldMachine extends ItemDetail {
   meta: MetaRow[];
   components?: OldSpecRow[];
 }
-interface OldSpareItem extends ItemDetail {
+interface OldDeviceItem extends ItemDetail {
   id: string;
   values: Record<string, string>;
 }
-interface OldSpareCategory {
+interface OldDeviceCategory {
   id: string;
   name: string;
   note?: string;
   prefix?: string;
   kind?: string;
-  columns: SpareColumn[];
-  items: OldSpareItem[];
+  columns: DeviceColumn[];
+  items: OldDeviceItem[];
 }
 interface OldInventory {
   lastUpdated: string;
   machines: OldMachine[];
-  spares: OldSpareCategory[];
+  devices?: OldDeviceCategory[];
+  spares?: OldDeviceCategory[];
   components?: unknown;
 }
 
@@ -656,10 +657,10 @@ function migrateV6toV7(old: OldInventory): Inventory {
     return machine;
   });
 
-  const spares: SpareCategory[] = [];
-  for (const cat of old.spares ?? []) {
+  const devices: DeviceCategory[] = [];
+  for (const cat of old.devices ?? old.spares ?? []) {
     if (COMPONENT_CATEGORY.test(cat.name.trim())) {
-      // Dissolve component categories into the pool as spares.
+      // Dissolve component categories into the component pool as spares.
       const type = detectComponentType(cat.name);
       for (const it of cat.items) {
         const spec = [
@@ -706,12 +707,12 @@ function migrateV6toV7(old: OldInventory): Inventory {
         : /unifi/i.test(cat.name)
           ? 'Network'
           : cat.name;
-    const cameraItems: SpareItem[] = [];
-    const keptItems: SpareItem[] = [];
+    const cameraItems: Device[] = [];
+    const keptItems: Device[] = [];
     // Expand qty>1 identical gear into separately named units; other items pass
     // through as a single unit.
     interface Unit {
-      src: OldSpareItem;
+      src: OldDeviceItem;
       name?: string;
       first: boolean;
       values: Record<string, string>;
@@ -741,11 +742,11 @@ function migrateV6toV7(old: OldInventory): Inventory {
       const target = isCamera && activeCategory ? cameraItems : keptItems;
       const block = isCamera && activeCategory ? DEVICE_BLOCKS.camera : prefix;
       const uid = nextDeviceUid(block, [
-        ...allDeviceUids(spares),
+        ...allDeviceUids(devices),
         ...keptItems.map((t) => t.ids?.uid),
         ...cameraItems.map((t) => t.ids?.uid),
       ]);
-      const item: SpareItem = {
+      const item: Device = {
         id: u.first ? it.id : genId('s'),
         values: u.values,
         name: u.name ?? (isCamera ? 'Camera' : undefined),
@@ -759,7 +760,7 @@ function migrateV6toV7(old: OldInventory): Inventory {
       target.push(item);
       map.push({ old: it.ids?.uid || it.id, new: uid, label: u.name ?? model });
     }
-    spares.push({
+    devices.push({
       id: cat.id,
       name: catName,
       prefix,
@@ -768,7 +769,7 @@ function migrateV6toV7(old: OldInventory): Inventory {
       items: keptItems,
     });
     if (cameraItems.length) {
-      spares.push({
+      devices.push({
         id: genId('cat'),
         name: 'Cameras',
         deviceType: 'camera',
@@ -780,7 +781,7 @@ function migrateV6toV7(old: OldInventory): Inventory {
   }
 
   _lastUidMap = map;
-  return { lastUpdated: old.lastUpdated ?? '2026-06-01', machines, components, spares };
+  return { lastUpdated: old.lastUpdated ?? '2026-06-01', machines, components, devices };
 }
 
 function normalizeBaseLabel(label: string): string {
@@ -809,11 +810,11 @@ const NETWORK_NAMES: Record<string, string> = {
   'UVC-G6-Bullet': 'Camera 1',
 };
 
-function allDeviceUids(spares: SpareCategory[]): Array<string | undefined> {
-  return spares.flatMap((c) => c.items.map((it) => it.ids?.uid));
+function allDeviceUids(devices: DeviceCategory[]): Array<string | undefined> {
+  return devices.flatMap((c) => c.items.map((it) => it.ids?.uid));
 }
 
-function valuesToFields(values: Record<string, string>, columns: SpareColumn[]): SpecField[] {
+function valuesToFields(values: Record<string, string>, columns: DeviceColumn[]): SpecField[] {
   const labelFor = (id: string) => columns.find((c) => c.id === id)?.label ?? id;
   return Object.entries(values)
     .filter(([, v]) => v != null && String(v).trim())
@@ -821,11 +822,20 @@ function valuesToFields(values: Record<string, string>, columns: SpareColumn[]):
 }
 
 /** Fill defaults / assign any missing UIDs on an already-v7 inventory. */
-function ensureNew(data: Inventory): Inventory {
-  const inv = cloneInventory(data);
+type MaybeLegacyDevices = Omit<Inventory, 'devices'> & {
+  devices?: DeviceCategory[];
+  spares?: DeviceCategory[];
+};
+
+function ensureNew(data: Inventory | MaybeLegacyDevices): Inventory {
+  const inv = cloneInventory(data) as Inventory & { spares?: DeviceCategory[] };
+  if (!Array.isArray(inv.devices) && Array.isArray(inv.spares)) {
+    inv.devices = inv.spares;
+  }
+  delete inv.spares;
   if (!Array.isArray(inv.machines)) inv.machines = [];
   if (!Array.isArray(inv.components)) inv.components = [];
-  if (!Array.isArray(inv.spares)) inv.spares = [];
+  if (!Array.isArray(inv.devices)) inv.devices = [];
   const renumberPrefixes = expandKnownQuantityDevices(inv);
 
   for (const machine of inv.machines) {
@@ -845,14 +855,14 @@ function ensureNew(data: Inventory): Inventory {
     ensureDetail(comp);
     if (!comp.ids!.uid) comp.ids!.uid = nextComponentUid(comp.type, inv.components);
   }
-  for (const cat of inv.spares) {
+  for (const cat of inv.devices) {
     if (!cat.deviceType)
       cat.deviceType = cat.kind === 'network' ? 'network' : detectDeviceType(cat.name);
     if (!cat.prefix) cat.prefix = DEVICE_BLOCKS[cat.deviceType];
     for (const it of cat.items) {
       if (!it.deployment) it.deployment = cat.deviceType === 'network' ? 'in-service' : 'spare';
       ensureDetail(it);
-      if (!it.ids!.uid) it.ids!.uid = nextDeviceUid(cat.prefix!, allDeviceUids(inv.spares));
+      if (!it.ids!.uid) it.ids!.uid = nextDeviceUid(cat.prefix!, allDeviceUids(inv.devices));
     }
   }
   if (renumberPrefixes.size) renumberDevicePrefixes(inv, renumberPrefixes);
@@ -861,11 +871,11 @@ function ensureNew(data: Inventory): Inventory {
 
 function expandKnownQuantityDevices(inv: Inventory): Set<string> {
   const renumberPrefixes = new Set<string>();
-  for (const cat of inv.spares) {
+  for (const cat of inv.devices) {
     const deviceType =
       cat.deviceType ?? (cat.kind === 'network' ? 'network' : detectDeviceType(cat.name));
     const activeCategory = deviceType === 'network' && !/legacy/i.test(cat.name);
-    const nextItems: SpareItem[] = [];
+    const nextItems: Device[] = [];
 
     for (const it of cat.items ?? []) {
       const model = stripModel(it.values?.model ?? '');
@@ -898,7 +908,7 @@ function expandKnownQuantityDevices(inv: Inventory): Set<string> {
 
 function renumberDevicePrefixes(inv: Inventory, prefixes: Set<string>): void {
   const nextByPrefix = new Map<string, number>();
-  for (const cat of inv.spares) {
+  for (const cat of inv.devices) {
     const prefix = cat.prefix ?? DEVICE_BLOCKS[cat.deviceType ?? detectDeviceType(cat.name)];
     if (!prefixes.has(prefix)) continue;
     for (const it of cat.items) {
@@ -909,9 +919,9 @@ function renumberDevicePrefixes(inv: Inventory, prefixes: Set<string>): void {
   }
 }
 
-export function migrateInventory(data: Inventory | OldInventory): Inventory {
+export function migrateInventory(data: Inventory | OldInventory | MaybeLegacyDevices): Inventory {
   if (isOldShape(data)) return ensureNew(migrateV6toV7(data));
-  return ensureNew(data as Inventory);
+  return ensureNew(data);
 }
 
 /* ---------- load / save ---------- */
@@ -966,7 +976,8 @@ export function tryImportInventoryJSON(text: string): Inventory | null {
     if (
       !candidate ||
       !Array.isArray((candidate as Inventory).machines) ||
-      !Array.isArray((candidate as Inventory).spares)
+      (!Array.isArray((candidate as Inventory).devices) &&
+        !Array.isArray((candidate as MaybeLegacyDevices).spares))
     ) {
       return null;
     }
@@ -980,7 +991,7 @@ export function tryImportInventoryJSON(text: string): Inventory | null {
 
 export type FoundItem =
   | { kind: 'machine'; machine: Machine }
-  | { kind: 'spare'; item: SpareItem; category: SpareCategory }
+  | { kind: 'spare'; item: Device; category: DeviceCategory }
   | { kind: 'component'; component: Component; machine: Machine | null };
 
 export function findItem(inv: Inventory, id: string): FoundItem | null {
@@ -994,7 +1005,7 @@ export function findItem(inv: Inventory, id: string): FoundItem | null {
         : (inv.machines.find((mm) => mm.id === comp.assignment) ?? null);
     return { kind: 'component', component: comp, machine: owner };
   }
-  for (const cat of inv.spares) {
+  for (const cat of inv.devices) {
     const it = cat.items.find((x) => x.id === id);
     if (it) return { kind: 'spare', item: it, category: cat };
   }
@@ -1027,7 +1038,7 @@ export function summarize(inv: Inventory): InventoryStats {
   }
   let deviceItems = 0;
   let networkItems = 0;
-  for (const cat of inv.spares) {
+  for (const cat of inv.devices) {
     deviceItems += cat.items.length;
     if (cat.deviceType === 'network') networkItems += cat.items.length;
   }
@@ -1036,7 +1047,7 @@ export function summarize(inv: Inventory): InventoryStats {
     componentCount: inv.components.length,
     installedComponentCount: installed,
     spareComponentCount: spare,
-    deviceCategoryCount: inv.spares.length,
+    deviceCategoryCount: inv.devices.length,
     deviceItemCount: deviceItems,
     networkItemCount: networkItems,
   };

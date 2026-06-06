@@ -21,9 +21,9 @@ import {
   type ComponentType,
   type Inventory,
   type Machine,
-  type SpareCategory,
-  type SpareColumn,
-  type SpareItem,
+  type DeviceCategory,
+  type DeviceColumn,
+  type Device,
 } from '../lib/inventory';
 import { getState, subscribe } from '../lib/store';
 import { InventoryDetailPanel } from './InventoryDetailPanel';
@@ -112,10 +112,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   /* ---------- mutations ---------- */
 
   const updateItemById = useCallback(
-    (
-      id: string,
-      mut: (item: Machine | SpareItem | Component) => Machine | SpareItem | Component,
-    ) => {
+    (id: string, mut: (item: Machine | Device | Component) => Machine | Device | Component) => {
       patch((prev) => {
         if (prev.machines.some((m) => m.id === id)) {
           return {
@@ -133,9 +130,9 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
         }
         return {
           ...prev,
-          spares: prev.spares.map((cat) => ({
+          devices: prev.devices.map((cat) => ({
             ...cat,
-            items: cat.items.map((it) => (it.id === id ? (mut(it) as SpareItem) : it)),
+            items: cat.items.map((it) => (it.id === id ? (mut(it) as Device) : it)),
           })),
           lastUpdated: today(),
         };
@@ -151,10 +148,10 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
       lastUpdated: today(),
     }));
 
-  const updateCategory = (id: string, mut: (c: SpareCategory) => SpareCategory) =>
+  const updateCategory = (id: string, mut: (c: DeviceCategory) => DeviceCategory) =>
     patch((prev) => ({
       ...prev,
-      spares: prev.spares.map((c) => (c.id === id ? mut(c) : c)),
+      devices: prev.devices.map((c) => (c.id === id ? mut(c) : c)),
       lastUpdated: today(),
     }));
 
@@ -229,7 +226,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     if (!name) return;
     const colsRaw = prompt('Column names, comma-separated:', 'Brand, Model, Notes')?.trim();
     if (!colsRaw) return;
-    const columns: SpareColumn[] = colsRaw
+    const columns: DeviceColumn[] = colsRaw
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
@@ -239,8 +236,8 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
       const deviceType = detectDeviceType(name);
       return {
         ...prev,
-        spares: [
-          ...prev.spares,
+        devices: [
+          ...prev.devices,
           {
             id: genId('cat'),
             name,
@@ -260,7 +257,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     if (!confirm('Delete this entire category and all its items?')) return;
     patch((prev) => ({
       ...prev,
-      spares: prev.spares.filter((c) => c.id !== id),
+      devices: prev.devices.filter((c) => c.id !== id),
       lastUpdated: today(),
     }));
   };

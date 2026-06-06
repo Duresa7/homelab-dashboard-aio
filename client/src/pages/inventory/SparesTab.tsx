@@ -5,7 +5,7 @@ import {
   SPARE,
   type ComponentType,
   type Inventory,
-  type SpareCategory,
+  type DeviceCategory,
 } from '../../lib/inventory';
 import { categoryIcon, componentIcon } from '../../lib/inventoryIcons';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +30,7 @@ interface SparesTabProps {
   query: string;
   filter: string;
   setFilter: (s: string) => void;
-  updateCategory: (id: string, mut: (c: SpareCategory) => SpareCategory) => void;
+  updateCategory: (id: string, mut: (c: DeviceCategory) => DeviceCategory) => void;
   deleteCategory: (id: string) => void;
   addCategory: () => void;
   addComponent: (type: ComponentType, assignment: string) => void;
@@ -54,7 +54,7 @@ export function SparesTab({
   openItemId,
 }: SparesTabProps) {
   // Spare device categories (items with deployment 'spare').
-  const deviceGroups = inv.spares
+  const deviceGroups = inv.devices
     .map((cat) => ({
       cat,
       items: cat.items.filter(

@@ -1,4 +1,4 @@
-import type { Inventory, SpareCategory } from '../../lib/inventory';
+import type { Inventory, DeviceCategory } from '../../lib/inventory';
 
 import { CategoryBlock } from './CategoryBlock';
 import { EmptyState, matchItem } from './shared';
@@ -7,7 +7,7 @@ interface DeviceTabProps {
   inv: Inventory;
   isEditing: boolean;
   query: string;
-  updateCategory: (id: string, mut: (c: SpareCategory) => SpareCategory) => void;
+  updateCategory: (id: string, mut: (c: DeviceCategory) => DeviceCategory) => void;
   deleteCategory: (id: string) => void;
   addCategory: () => void;
   onOpenItem: (id: string) => void;
@@ -23,7 +23,7 @@ export function NetworkTab({
   onOpenItem,
   openItemId,
 }: DeviceTabProps) {
-  const cats = inv.spares
+  const cats = inv.devices
     .map((cat) => ({
       cat,
       items: cat.items.filter(

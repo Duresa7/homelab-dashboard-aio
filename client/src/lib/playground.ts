@@ -1,5 +1,5 @@
 /* =========================================================
-   Playground — hypothetical PC builds assembled from spares,
+   Playground — hypothetical PC builds assembled from devices,
    existing machine components, or free-text wishlist entries.
    Persisted via lib/store.ts under the `playground` key.
    ========================================================= */
@@ -77,7 +77,7 @@ export type SlotSource = 'empty' | 'spare' | 'machine-component' | 'custom';
 
 export interface SlotEntry {
   source: SlotSource;
-  /** SpareItem.id when source='spare'. */
+  /** Device.id when source='spare'. */
   spareId?: string;
   /** SpecRow.id when source='machine-component'. */
   componentId?: string;
@@ -226,7 +226,7 @@ export interface BuildStatus {
 }
 
 export function computeBuildStatus(build: PlaygroundBuild): BuildStatus {
-  let missing: SlotId[] = [];
+  const missing: SlotId[] = [];
   let filled = 0;
   let required = 0;
   let powerDraw = 0;

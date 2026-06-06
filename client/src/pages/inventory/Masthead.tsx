@@ -92,7 +92,7 @@ export function Masthead({
             <TabsTrigger value="service">
               <Settings2 className="size-3.5" /> In service {count(stats.installedComponentCount)}
             </TabsTrigger>
-            <TabsTrigger value="spares">
+            <TabsTrigger value="devices">
               <Layers className="size-3.5" /> Spare parts{' '}
               {count(stats.spareComponentCount + stats.deviceItemCount)}
             </TabsTrigger>

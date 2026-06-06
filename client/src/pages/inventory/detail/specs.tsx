@@ -5,8 +5,8 @@ import {
   genId,
   type Component,
   type ComponentType,
-  type SpareCategory,
-  type SpareItem,
+  type DeviceCategory,
+  type Device,
   type SpecField,
 } from '../../../lib/inventory';
 import { Input } from '@/components/ui/input';
@@ -118,16 +118,16 @@ export function ComponentSpecsSection({
   );
 }
 
-export function SpareSpecsSection({
+export function DeviceSpecsSection({
   item,
   category,
   isEditing,
   onChange,
 }: {
-  item: SpareItem;
-  category: SpareCategory;
+  item: Device;
+  category: DeviceCategory;
   isEditing: boolean;
-  onChange: (mut: (it: SpareItem) => SpareItem) => void;
+  onChange: (mut: (it: Device) => Device) => void;
 }) {
   const onValue = (colId: string, v: string) =>
     onChange((cur) => ({ ...cur, values: { ...cur.values, [colId]: v } }));

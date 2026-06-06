@@ -6,12 +6,12 @@ import {
   type Component,
   type ComponentType,
   type Machine,
-  type SpareItem,
+  type Device,
 } from '../../lib/inventory';
 import { categoryIcon } from '../../lib/inventoryIcons';
 import type { StatusKind } from '@/components/common';
 
-export type Tab = 'machines' | 'network' | 'service' | 'spares';
+export type Tab = 'machines' | 'network' | 'service' | 'devices';
 export type Mode = 'browse' | 'edit';
 
 export interface Chip {
@@ -49,7 +49,7 @@ export function matchMachine(m: Machine, q: string): boolean {
     .toLowerCase()
     .includes(q);
 }
-export function matchItem(it: SpareItem, q: string): boolean {
+export function matchItem(it: Device, q: string): boolean {
   if (!q) return true;
   return `${it.name ?? ''} ${Object.values(it.values).join(' ')}`.toLowerCase().includes(q);
 }
