@@ -4,6 +4,8 @@ import {
   DEFAULT_BOOKMARK_GROUP,
   sanitizeBookmarks,
   deleteBookmarkGroup,
+  moveBookmark,
+  moveGroup,
   suggestBookmarkIcon,
   validateBookmarkUrl,
 } from './bookmarks';
@@ -53,6 +55,56 @@ describe('bookmark groups', () => {
     const result = deleteBookmarkGroup(groups, bookmarks, 'default');
 
     expect(result).toEqual({ groups, bookmarks, deleted: false });
+  });
+});
+
+describe('bookmark drag math', () => {
+  const bookmarks = [
+    { id: 'a', label: 'A', url: 'http://a.local/', groupId: 'default' },
+    { id: 'b', label: 'B', url: 'http://b.local/', groupId: 'default' },
+    { id: 'c', label: 'C', url: 'http://c.local/', groupId: 'media' },
+  ];
+
+  it('reorders bookmarks within a group', () => {
+    expect(
+      moveBookmark(bookmarks, 'b', { kind: 'bookmark', targetId: 'a', position: 'before' }),
+    ).toEqual([
+      { id: 'b', label: 'B', url: 'http://b.local/', groupId: 'default' },
+      { id: 'a', label: 'A', url: 'http://a.local/', groupId: 'default' },
+      { id: 'c', label: 'C', url: 'http://c.local/', groupId: 'media' },
+    ]);
+  });
+
+  it('moves a bookmark across groups and assigns the target group', () => {
+    expect(
+      moveBookmark(bookmarks, 'a', { kind: 'bookmark', targetId: 'c', position: 'after' }),
+    ).toEqual([
+      { id: 'b', label: 'B', url: 'http://b.local/', groupId: 'default' },
+      { id: 'c', label: 'C', url: 'http://c.local/', groupId: 'media' },
+      { id: 'a', label: 'A', url: 'http://a.local/', groupId: 'media' },
+    ]);
+  });
+
+  it('appends a bookmark into an empty group container', () => {
+    expect(moveBookmark(bookmarks, 'a', { kind: 'group', groupId: 'empty' })).toEqual([
+      { id: 'b', label: 'B', url: 'http://b.local/', groupId: 'default' },
+      { id: 'c', label: 'C', url: 'http://c.local/', groupId: 'media' },
+      { id: 'a', label: 'A', url: 'http://a.local/', groupId: 'empty' },
+    ]);
+  });
+
+  it('reorders groups', () => {
+    const groups = [
+      { id: 'default', label: 'Apps' },
+      { id: 'media', label: 'Media' },
+      { id: 'infra', label: 'Infra' },
+    ];
+
+    expect(moveGroup(groups, 'infra', 'default')).toEqual([
+      { id: 'infra', label: 'Infra' },
+      { id: 'default', label: 'Apps' },
+      { id: 'media', label: 'Media' },
+    ]);
   });
 });
 

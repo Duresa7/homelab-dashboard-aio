@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore, type DragEvent } from 'react';
 import { Pencil, Plus, Settings2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -9,6 +9,8 @@ import {
   type Bookmark,
   type BookmarkGroup,
   deleteBookmarkGroup,
+  moveBookmark,
+  moveGroup,
   newBookmarkId,
   sanitizeBookmarkGroups,
   sanitizeBookmarks,
@@ -134,6 +136,12 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<BookmarkForm>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<{ type: 'bookmark' | 'group'; id: string } | null>(null);
+  const [overBookmark, setOverBookmark] = useState<{
+    id: string;
+    position: 'before' | 'after';
+  } | null>(null);
+  const [overGroupId, setOverGroupId] = useState<string | null>(null);
 
   const resetForm = () => {
     setForm(EMPTY_FORM);
@@ -234,6 +242,93 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
     toast.success(`Deleted ${group.label}`);
   };
 
+  const clearDrag = () => {
+    setDragging(null);
+    setOverBookmark(null);
+    setOverGroupId(null);
+  };
+
+  const startBookmarkDrag = (event: DragEvent<HTMLElement>, bookmarkId: string) => {
+    if (!editing) return;
+    setDragging({ type: 'bookmark', id: bookmarkId });
+    event.dataTransfer.effectAllowed = 'move';
+    try {
+      event.dataTransfer.setData('text/plain', bookmarkId);
+    } catch {
+      /* noop */
+    }
+  };
+
+  const bookmarkDropPosition = (
+    event: DragEvent<HTMLElement>,
+    element: HTMLElement,
+  ): 'before' | 'after' => {
+    const rect = element.getBoundingClientRect();
+    return event.clientY > rect.top + rect.height / 2 ? 'after' : 'before';
+  };
+
+  const overBookmarkTarget = (event: DragEvent<HTMLElement>, bookmarkId: string) => {
+    if (!dragging || dragging.type !== 'bookmark' || dragging.id === bookmarkId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+    setOverGroupId(null);
+    setOverBookmark({ id: bookmarkId, position: bookmarkDropPosition(event, event.currentTarget) });
+  };
+
+  const dropOnBookmark = (event: DragEvent<HTMLElement>, bookmarkId: string) => {
+    if (!dragging || dragging.type !== 'bookmark') return;
+    event.preventDefault();
+    event.stopPropagation();
+    const position = overBookmark?.id === bookmarkId ? overBookmark.position : 'before';
+    setBookmarks(
+      moveBookmark(bookmarks, dragging.id, { kind: 'bookmark', targetId: bookmarkId, position }),
+    );
+    clearDrag();
+  };
+
+  const overGroupTarget = (event: DragEvent<HTMLElement>, groupId: string) => {
+    if (!dragging || dragging.type !== 'bookmark') return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setOverBookmark(null);
+    setOverGroupId(groupId);
+  };
+
+  const dropOnGroup = (event: DragEvent<HTMLElement>, groupId: string) => {
+    if (!dragging || dragging.type !== 'bookmark') return;
+    event.preventDefault();
+    setBookmarks(moveBookmark(bookmarks, dragging.id, { kind: 'group', groupId }));
+    clearDrag();
+  };
+
+  const startGroupDrag = (event: DragEvent<HTMLElement>, groupId: string) => {
+    if (!editing) return;
+    setDragging({ type: 'group', id: groupId });
+    event.dataTransfer.effectAllowed = 'move';
+    try {
+      event.dataTransfer.setData('text/plain', groupId);
+    } catch {
+      /* noop */
+    }
+  };
+
+  const overGroupHeader = (event: DragEvent<HTMLElement>, groupId: string) => {
+    if (!dragging || dragging.type !== 'group' || dragging.id === groupId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'move';
+    setOverGroupId(groupId);
+  };
+
+  const dropGroupHeader = (event: DragEvent<HTMLElement>, groupId: string) => {
+    if (!dragging || dragging.type !== 'group') return;
+    event.preventDefault();
+    event.stopPropagation();
+    setGroups(moveGroup(groups, dragging.id, groupId));
+    clearDrag();
+  };
+
   const showGroupHeadings = groups.length > 1;
   const grouped = groups.map((group) => ({
     group,
@@ -279,12 +374,33 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
             {editing ? 'Add your first bookmark.' : 'No bookmarks saved.'}
           </div>
         ) : (
-          <div className="bm-groups">
+          <div className="bm-groups" onDragEnd={clearDrag}>
             {grouped.map(({ group, bookmarks: groupBookmarks }) =>
               groupBookmarks.length || editing || showGroupHeadings ? (
-                <section key={group.id} className="bm-group">
+                <section
+                  key={group.id}
+                  className={[
+                    'bm-group',
+                    overGroupId === group.id && dragging?.type === 'bookmark' ? 'is-over' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onDragOver={(event) => overGroupTarget(event, group.id)}
+                  onDrop={(event) => dropOnGroup(event, group.id)}
+                >
                   {showGroupHeadings ? (
-                    <header className="bm-group-head">
+                    <header
+                      className={[
+                        'bm-group-head',
+                        overGroupId === group.id && dragging?.type === 'group' ? 'is-over' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      draggable={editing}
+                      onDragStart={(event) => startGroupDrag(event, group.id)}
+                      onDragOver={(event) => overGroupHeader(event, group.id)}
+                      onDrop={(event) => dropGroupHeader(event, group.id)}
+                    >
                       <h3>{group.label}</h3>
                       {editing ? (
                         <div className="flex items-center gap-1">
@@ -313,7 +429,24 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
                   ) : null}
                   <div className="bm-grid">
                     {groupBookmarks.map((bookmark) => (
-                      <div key={bookmark.id} className="bm-item">
+                      <div
+                        key={bookmark.id}
+                        className={[
+                          'bm-item',
+                          dragging?.type === 'bookmark' && dragging.id === bookmark.id
+                            ? 'is-dragging'
+                            : '',
+                          overBookmark?.id === bookmark.id
+                            ? `is-over-${overBookmark.position}`
+                            : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        draggable={editing}
+                        onDragStart={(event) => startBookmarkDrag(event, bookmark.id)}
+                        onDragOver={(event) => overBookmarkTarget(event, bookmark.id)}
+                        onDrop={(event) => dropOnBookmark(event, bookmark.id)}
+                      >
                         <a
                           href={bookmark.url}
                           target="_blank"

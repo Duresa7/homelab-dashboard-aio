@@ -91,6 +91,50 @@ export function deleteBookmarkGroup(
   };
 }
 
+export type BookmarkMoveTarget =
+  | { kind: 'bookmark'; targetId: string; position: 'before' | 'after' }
+  | { kind: 'group'; groupId: string };
+
+export function moveBookmark(
+  bookmarks: Bookmark[],
+  bookmarkId: string,
+  target: BookmarkMoveTarget,
+): Bookmark[] {
+  const moving = bookmarks.find((bookmark) => bookmark.id === bookmarkId);
+  if (!moving) return bookmarks;
+
+  const remaining = bookmarks.filter((bookmark) => bookmark.id !== bookmarkId);
+  if (target.kind === 'group') {
+    return [...remaining, { ...moving, groupId: target.groupId }];
+  }
+
+  const targetIndex = remaining.findIndex((bookmark) => bookmark.id === target.targetId);
+  if (targetIndex < 0) return bookmarks;
+  const targetBookmark = remaining[targetIndex];
+  const insertAt = target.position === 'after' ? targetIndex + 1 : targetIndex;
+  const next = [...remaining];
+  next.splice(insertAt, 0, { ...moving, groupId: targetBookmark.groupId });
+  return next;
+}
+
+export function moveGroup(
+  groups: BookmarkGroup[],
+  groupId: string,
+  targetId: string,
+  position: 'before' | 'after' = 'before',
+): BookmarkGroup[] {
+  if (groupId === targetId) return groups;
+  const moving = groups.find((group) => group.id === groupId);
+  if (!moving) return groups;
+  const remaining = groups.filter((group) => group.id !== groupId);
+  const targetIndex = remaining.findIndex((group) => group.id === targetId);
+  if (targetIndex < 0) return groups;
+  const insertAt = position === 'after' ? targetIndex + 1 : targetIndex;
+  const next = [...remaining];
+  next.splice(insertAt, 0, moving);
+  return next;
+}
+
 export function validateBookmarkUrl(value: string): string | null {
   try {
     const url = new URL(value.trim());
