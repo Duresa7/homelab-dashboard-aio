@@ -4,13 +4,18 @@ export type Section =
   | 'network'
   | 'docker'
   | 'nas'
-  | 'events'
-  | 'alerts'
-  | 'health'
-  | 'siem'
+  | 'observability'
   | 'inventory'
   | 'playground'
   | 'settings';
+
+/** Legacy top-level sections folded into Observability tabs (for route migration). */
+const OBSERVABILITY_LEGACY: Record<string, string> = {
+  events: 'events',
+  alerts: 'alerts',
+  health: 'health',
+  siem: 'siem',
+};
 
 export interface Route {
   section: Section;
@@ -52,6 +57,12 @@ export const SUBS: Partial<Record<Section, SubDef[]>> = {
     { id: 'pools', label: 'Pools' },
     { id: 'disks', label: 'Disks' },
   ],
+  observability: [
+    { id: 'alerts', label: 'Alerts' },
+    { id: 'events', label: 'Events' },
+    { id: 'siem', label: 'SIEM' },
+    { id: 'health', label: 'API Health' },
+  ],
 };
 
 export const DEFAULT_SUB: Record<Section, string | undefined> = {
@@ -60,10 +71,7 @@ export const DEFAULT_SUB: Record<Section, string | undefined> = {
   network: 'overview',
   docker: 'hosts',
   nas: 'pools',
-  events: undefined,
-  alerts: undefined,
-  health: undefined,
-  siem: undefined,
+  observability: 'alerts',
   inventory: undefined,
   playground: undefined,
   settings: undefined,
@@ -75,10 +83,7 @@ export const SECTION_LABEL: Record<Section, string> = {
   network: 'Network',
   docker: 'Docker',
   nas: 'NAS',
-  events: 'Events',
-  alerts: 'Alerts',
-  health: 'API Health',
-  siem: 'SIEM',
+  observability: 'Observability',
   inventory: 'Inventory',
   playground: 'Playground',
   settings: 'Settings',
@@ -128,13 +133,21 @@ const STORAGE_KEY = 'route';
 const KNOWN_SECTIONS = new Set<Section>(Object.keys(SECTION_LABEL) as Section[]);
 
 function normalizeRoute(route: PersistedRoute): Route {
-  const rawSection = route.section === 'storage' ? 'nas' : route.section;
+  let rawSection = route.section === 'storage' ? 'nas' : route.section;
+  // Legacy top-level sections (events/alerts/health/siem) now live as
+  // Observability tabs — redirect deep links and persisted routes.
+  let legacySub: string | undefined;
+  if (typeof rawSection === 'string' && rawSection in OBSERVABILITY_LEGACY) {
+    legacySub = OBSERVABILITY_LEGACY[rawSection];
+    rawSection = 'observability';
+  }
   const section: Section =
     rawSection && KNOWN_SECTIONS.has(rawSection as Section) ? (rawSection as Section) : 'overview';
   const sub =
-    section === 'proxmox' && (route.sub === 'drives' || route.sub === 'compute')
+    legacySub ??
+    (section === 'proxmox' && (route.sub === 'drives' || route.sub === 'compute')
       ? 'summary'
-      : route.sub;
+      : route.sub);
   const itemId =
     section === 'inventory'
       ? route.itemId

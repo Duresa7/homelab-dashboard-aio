@@ -55,7 +55,8 @@ export const SECTION_CAPABILITY: Partial<Record<Section, CapabilityId>> = {
   network: 'network',
   docker: 'containers',
   nas: 'nas',
-  siem: 'logs',
+  // Observability stays always-visible; the SIEM tab self-gates on the `logs`
+  // capability inside ObservabilityPage.
 };
 
 export const TILE_CAPABILITY: Partial<Record<TileId, CapabilityId>> = {

@@ -20,11 +20,8 @@ import { ProxmoxPage } from './pages/ProxmoxPage';
 import { NetworkPage } from './pages/NetworkPage';
 import { DockerPage } from './pages/DockerPage';
 import { NasPage } from './pages/NasPage';
-import { EventsPage } from './pages/EventsPage';
-import { AlertsPage } from './pages/AlertsPage';
+import { ObservabilityPage } from './pages/ObservabilityPage';
 import { SettingsPage, type SettingsTabId } from './pages/SettingsPage';
-import { HealthPage } from './pages/HealthPage';
-import { SiemPage } from './pages/SiemPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
 
@@ -109,10 +106,7 @@ const BACKEND_BACKED_SECTIONS = new Set<Section>([
   'network',
   'docker',
   'nas',
-  'events',
-  'alerts',
-  'health',
-  'siem',
+  'observability',
   'inventory',
   'playground',
 ]);
@@ -270,10 +264,16 @@ function DashboardApp() {
       {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
       {route.section === 'docker' && <DockerPage data={data} sub={activeSub ?? 'hosts'} />}
       {route.section === 'nas' && <NasPage data={data} sub={activeSub ?? 'pools'} />}
-      {route.section === 'events' && <EventsPage data={data} />}
-      {route.section === 'alerts' && <AlertsPage alerts={visibleAlerts} onDismiss={dismiss} />}
-      {route.section === 'health' && <HealthPage integrations={integrations} />}
-      {route.section === 'siem' && <SiemPage />}
+      {route.section === 'observability' && (
+        <ObservabilityPage
+          data={data}
+          integrations={integrations}
+          alerts={visibleAlerts}
+          onDismissAlert={dismiss}
+          sub={activeSub ?? 'alerts'}
+          onSelectSub={(s) => setRoute('observability', s)}
+        />
+      )}
       {route.section === 'inventory' && (
         <InventoryPage selectedItemId={route.itemId} onSelectItem={setInventoryItemId} />
       )}

@@ -113,7 +113,7 @@ export function AppSidebar({ route, setRoute, alerts }: Props) {
                     );
                     const isActive = route.section === it.section;
                     const subs = it.hasSubs ? (SUBS[it.section] ?? []) : [];
-                    const showBadge = it.section === 'alerts' && alerts.length > 0;
+                    const showBadge = it.section === 'observability' && alerts.length > 0;
 
                     // --- Leaf item (no sub-pages) ---
                     if (subs.length === 0) {
