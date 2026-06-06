@@ -13,3 +13,7 @@ Default five-label vocabulary (needs-triage, needs-info, ready-for-agent, ready-
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Commit conventions
+
+Do **not** add `Co-Authored-By` trailers (or any other attribution) crediting AI agents — Claude, Copilot, Cursor, etc. — to commits, PRs, or any contribution. No AI co-authorship attribution anywhere.
