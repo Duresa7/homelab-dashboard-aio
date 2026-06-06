@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -74,6 +74,23 @@ describe('BookmarksTile', () => {
     expect(screen.queryByRole('link', { name: /plex/i })).not.toBeInTheDocument();
   });
 
+  it('suppresses native link dragging and navigation while editing bookmarks', async () => {
+    const user = userEvent.setup();
+    store.set('bookmarks', [
+      { id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'default' },
+    ]);
+
+    render(<BookmarksTile expandable={false} />);
+    const link = screen.getByRole('link', { name: /plex/i });
+
+    expect(fireEvent.click(link)).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: /edit bookmarks/i }));
+
+    expect(link).toHaveAttribute('draggable', 'false');
+    expect(fireEvent.click(link)).toBe(false);
+  });
+
   it('renders broken or empty icons with the first-letter fallback', () => {
     store.set('bookmarks', [
       { id: 'nas', label: 'NAS', url: 'http://nas.local/', groupId: 'default' },
@@ -83,6 +100,41 @@ describe('BookmarksTile', () => {
 
     const link = screen.getByRole('link', { name: /nas/i });
     expect(within(link).getByText('N')).toBeInTheDocument();
+  });
+
+  it('falls back from a missing dashboard-icons slug to the first letter', () => {
+    store.set('bookmarks', [
+      {
+        id: 'missing',
+        label: 'Missing',
+        url: 'https://missing.example.com/',
+        icon: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/missing.svg',
+        groupId: 'default',
+      },
+    ]);
+
+    render(<BookmarksTile expandable={false} />);
+
+    const link = screen.getByRole('link', { name: /missing/i });
+    const svg = link.querySelector('.bm-img');
+    if (!svg) throw new Error('Expected dashboard icon image to render');
+    expect(svg).toHaveAttribute(
+      'src',
+      'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/missing.svg',
+    );
+
+    fireEvent.error(svg);
+
+    const png = link.querySelector('.bm-img');
+    if (!png) throw new Error('Expected dashboard icon PNG fallback to render');
+    expect(png).toHaveAttribute(
+      'src',
+      'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/missing.png',
+    );
+
+    fireEvent.error(png);
+
+    expect(within(link).getByText('M')).toBeInTheDocument();
   });
 
   it('hides the default group heading while only one group exists', () => {

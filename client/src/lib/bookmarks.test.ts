@@ -130,8 +130,14 @@ describe('bookmark URLs and icons', () => {
     expect(validateBookmarkUrl('ftp://nas.local')).toBeNull();
   });
 
-  it('suggests dashboard-icons for public hosts', () => {
+  it('suggests dashboard-icons from the service subdomain for public hosts', () => {
     expect(suggestBookmarkIcon('https://grafana.example.com')).toBe(
+      'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/grafana.svg',
+    );
+  });
+
+  it('suggests dashboard-icons from the bare domain for public hosts without subdomains', () => {
+    expect(suggestBookmarkIcon('https://example.com')).toBe(
       'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/example.svg',
     );
   });

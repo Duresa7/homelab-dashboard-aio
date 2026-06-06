@@ -170,7 +170,7 @@ function isLanHost(hostname: string): boolean {
 
 function slugHost(hostname: string): string {
   const labels = hostname.toLowerCase().split('.').filter(Boolean);
-  const base = labels.length > 1 ? labels[labels.length - 2] : labels[0];
+  const base = labels[0];
   return base.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') || 'app';
 }
 
