@@ -67,6 +67,18 @@ describe('state API contract', () => {
     });
   });
 
+  it('accepts current bookmark keys and rejects the retired bookmarksOrder key', async () => {
+    await api
+      .put('/api/state/bookmarks')
+      .send([{ id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'default' }])
+      .expect(200);
+    await api
+      .put('/api/state/bookmarkGroups')
+      .send([{ id: 'default', label: 'Apps' }])
+      .expect(200);
+    await api.put('/api/state/bookmarksOrder').send(['plex']).expect(400);
+  });
+
   it('enforces same-origin writes for browser-originated requests', async () => {
     await api
       .put('/api/state/tempUnit')

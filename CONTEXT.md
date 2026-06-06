@@ -62,6 +62,19 @@ An optional, user-chosen friendly display name offered for Machines and notable 
 label, but it carries no identity weight; canonical identity is the hostname/model/IP.
 (The owner's Star Wars theme is a personal convention, not a model rule.)
 
+### Bookmarks
+
+**Bookmark**:
+A saved link to a service — a name, a URL, and an icon — that you click to launch
+(opens in a new tab). The "Apps" tile is the display of your Bookmarks.
+_Avoid_: app (that's only the tile's display label), shortcut, link.
+
+**Group** (Bookmarks):
+A labeled cluster of Bookmarks (e.g. "Media", "Infra"). Every Bookmark belongs to exactly
+one Group; a default Group always exists so none are orphaned.
+_Avoid_: category (reserved for syslog event types), section (reserved for dashboard sections),
+folder.
+
 ### Compute
 
 **Node** (Proxmox):

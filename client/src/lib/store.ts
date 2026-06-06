@@ -2,7 +2,7 @@
    Persistent app state — server-backed with one-time legacy import.
 
    Every persisted setting in the dashboard (inventory, thresholds,
-   bookmarks order, sidebar, route, tempUnit, tweaks, siteName) goes through
+   bookmarks, sidebar, route, tempUnit, tweaks, siteName) goes through
    this module instead of touching `window.localStorage` directly.
 
    On boot, `hydrateStore()` pulls the full state map from
@@ -33,7 +33,6 @@ const LEGACY_KEY_MAP: Record<string, string> = {
   siteName: 'homelab-dashboard.siteName',
   sidebarCollapsed: 'homelab-dashboard.sidebar-collapsed',
   sidebarExpanded: 'homelab-dashboard.sidebar-expanded',
-  bookmarksOrder: 'homelab-dashboard.bookmarks.order',
 };
 
 const state = new Map<string, unknown>();

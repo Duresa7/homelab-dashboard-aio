@@ -13,8 +13,10 @@ const RESERVED_KEYS = new Set([
   'siteName',
   'sidebarCollapsed',
   'sidebarExpanded',
-  'bookmarksOrder',
+  'bookmarks',
+  'bookmarkGroups',
 ]);
+const RETIRED_KEYS = new Set(['bookmarksOrder']);
 
 // Server-internal keys (e.g. setup.integrationConfig holding integration
 // secrets) live in the same DB but must never be read/written through the public
@@ -24,6 +26,7 @@ const INTERNAL_KEY_PREFIX = 'setup.';
 function isAllowedKey(key: unknown): key is string {
   if (typeof key !== 'string') return false;
   if (key.startsWith(INTERNAL_KEY_PREFIX)) return false;
+  if (RETIRED_KEYS.has(key)) return false;
   if (RESERVED_KEYS.has(key)) return true;
   return /^[a-zA-Z][a-zA-Z0-9._-]{0,63}$/.test(key);
 }
