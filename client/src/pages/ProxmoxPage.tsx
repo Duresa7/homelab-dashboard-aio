@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  ArrowLeft,
   Box,
   Cpu,
   Database,
@@ -12,14 +13,36 @@ import {
   Thermometer,
 } from 'lucide-react';
 
-import { AreaChart, Donut } from '../components/charts';
+import { AreaChart } from '../components/charts';
 import { GPUTile } from '../components/widgets';
 import { ComputeWakeCard } from '@/components/proxmox/ComputeWakeCard';
-import { DataTableCard, SectionCard, StatusBadge } from '@/components/common';
+import {
+  ChartCard,
+  DataTableCard,
+  EntityCard,
+  MiniGauge,
+  SectionCard,
+  StatList,
+  StatRow,
+  StatusBadge,
+  SubTabs,
+  SummaryBar,
+  type EntityMetric,
+  type StatTone,
+  type SummaryStat,
+} from '@/components/common';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { cpuUsageSeverity, fillSeverity, ramUsageSeverity } from '../lib/severity';
 import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '../lib/units';
-import type { DashboardState, ProxmoxStorage, VM } from '../types';
+import type {
+  DashboardState,
+  PhysicalDisk,
+  ProxmoxNode,
+  ProxmoxStorage,
+  Severity,
+  VM,
+} from '../types';
 
 interface Props {
   data: DashboardState;
@@ -45,6 +68,21 @@ const WINDOW_MS: Record<WindowId, number> = {
   '48h': 48 * 60 * 60 * 1000,
 };
 
+const DC_TABS = [
+  { id: 'summary', label: 'Summary' },
+  { id: 'guests', label: 'Guests' },
+  { id: 'storage', label: 'Storage' },
+  { id: 'disks', label: 'Disks' },
+  { id: 'sensors', label: 'Sensors' },
+];
+
+const NODE_TABS = [
+  { id: 'summary', label: 'Overview' },
+  { id: 'disks', label: 'Disks / ZFS' },
+  { id: 'storage', label: 'Storage' },
+  { id: 'network', label: 'Network' },
+];
+
 function entityKind(itemId: string): 'datacenter' | 'node' | 'guest' | 'storage' {
   if (itemId.startsWith('node/')) return 'node';
   if (itemId.startsWith('guest/')) return 'guest';
@@ -65,6 +103,20 @@ function pct(value: number): string {
 function tb(value: number): string {
   return `${value.toFixed(2)} TB`;
 }
+
+/** Severity → StatCard/SummaryBar tone, leaving "ok" neutral so color = meaning. */
+function tone(sev: Severity): StatTone {
+  return sev === 'ok' ? 'default' : sev;
+}
+
+function nodeStatusKind(node: ProxmoxNode): 'ok' | 'bad' {
+  const online = node.status ? node.status === 'online' : true;
+  return online ? 'ok' : 'bad';
+}
+
+// ---------------------------------------------------------------------------
+// Data hooks (unchanged behavior)
+// ---------------------------------------------------------------------------
 
 function useNodeDetail(itemId: string): {
   detail: NodeDetail | null;
@@ -145,15 +197,9 @@ function HistoryCard({
 }) {
   const data = useHistory(entity, metric, windowId);
   return (
-    <SectionCard span={6} title={title}>
-      {data.length ? (
-        <AreaChart data={data} height={120} color={color} />
-      ) : (
-        <div className="grid h-[120px] place-items-center rounded-md border border-dashed border-border text-sm text-muted-foreground">
-          Waiting for history samples
-        </div>
-      )}
-    </SectionCard>
+    <ChartCard title={title} span={6} height={120} isEmpty={data.length === 0}>
+      <AreaChart data={data} height={120} color={color} />
+    </ChartCard>
   );
 }
 
@@ -180,263 +226,381 @@ function WindowPicker({
   );
 }
 
-function ClusterTree({ data, itemId, onSelect }: Props) {
-  const shared = data.proxmox.storages.filter((s) => s.shared);
+/** Section heading inside the 12-col grid. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <SectionCard span={3} title="Cluster Tree" bodyClassName="flex flex-col gap-1">
-      <TreeButton
-        active={itemId === 'datacenter'}
-        onClick={() => onSelect('datacenter', 'summary')}
-      >
-        <Database size={14} /> Datacenter
-      </TreeButton>
-      {shared.map((s) => (
-        <TreeButton
-          key={`shared-${s.name}`}
-          active={itemId === `storage/${encodeURIComponent(s.name)}`}
-          indent
-          onClick={() => onSelect(`storage/${encodeURIComponent(s.name)}`, 'summary')}
-        >
-          <Disc size={14} /> {s.name}
-        </TreeButton>
-      ))}
-      {data.proxmox.nodes.map((node) => {
-        const guests = data.proxmox.vms.filter((v) => v.node === node.name);
-        const storages = data.proxmox.storages.filter((s) => !s.shared && s.node === node.name);
-        return (
-          <div key={node.name} className="mt-1 flex flex-col gap-1">
-            <TreeButton
-              active={itemId === `node/${encodeURIComponent(node.name)}`}
-              onClick={() => onSelect(`node/${encodeURIComponent(node.name)}`, 'summary')}
-            >
-              <span className={`d ${node.status === 'online' ? '' : 'warn'}`} />
-              <Server size={14} /> {node.name}
-            </TreeButton>
-            {guests.map((guest) => (
-              <TreeButton
-                key={guest.id}
-                active={itemId === `guest/${guest.id}`}
-                indent
-                onClick={() => onSelect(`guest/${guest.id}`, 'summary')}
-              >
-                <span className={`d ${guest.state === 'running' ? '' : 'idle'}`} />
-                <Box size={14} /> {guest.name}
-              </TreeButton>
-            ))}
-            {storages.map((s) => (
-              <TreeButton
-                key={`${s.node}-${s.name}`}
-                active={itemId === `storage/${encodeURIComponent(`${s.node}:${s.name}`)}`}
-                indent
-                onClick={() =>
-                  onSelect(`storage/${encodeURIComponent(`${s.node}:${s.name}`)}`, 'summary')
-                }
-              >
-                <Disc size={14} /> {s.name}
-              </TreeButton>
-            ))}
-          </div>
-        );
-      })}
-    </SectionCard>
-  );
-}
-
-function TreeButton({
-  active,
-  indent,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  indent?: boolean;
-  children: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex min-h-9 items-center gap-2 rounded-md px-2 text-left text-sm ${
-        indent ? 'ml-5' : ''
-      } ${active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-    >
+    <div className="col-span-12 -mb-1 flex items-center gap-2 text-[12px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
       {children}
-    </button>
-  );
-}
-
-function Stat({ title, value, icon }: { title: string; value: string; icon?: React.ReactNode }) {
-  return (
-    <SectionCard span={3}>
-      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-        {icon}
-        {title}
-      </div>
-      <div className="mt-2 text-2xl font-semibold text-foreground">{value}</div>
-    </SectionCard>
-  );
-}
-
-function Tabs({ itemId, sub, onSelect }: Props) {
-  const kind = entityKind(itemId);
-  const tabs =
-    kind === 'datacenter'
-      ? ['summary', 'guests', 'storage']
-      : kind === 'node'
-        ? ['summary', 'disks', 'storage', 'network']
-        : ['summary'];
-  return (
-    <div className="col-span-12 flex flex-wrap gap-1">
-      {tabs.map((tab) => (
-        <Button
-          key={tab}
-          variant={sub === tab ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => onSelect(itemId, tab)}
-        >
-          {tab}
-        </Button>
-      ))}
     </div>
   );
 }
 
-function DatacenterPane({
-  data,
-  sub,
-  windowId,
+/** Back affordance + title + status for drill-in detail views. */
+function DetailHeader({
+  onBack,
+  backLabel,
+  title,
+  status,
+  statusLabel,
+  icon,
 }: {
-  data: DashboardState;
-  sub: string;
-  windowId: WindowId;
+  onBack: () => void;
+  backLabel: string;
+  title: string;
+  status?: 'ok' | 'warn' | 'bad' | 'idle';
+  statusLabel?: string;
+  icon?: React.ReactNode;
 }) {
-  const p = data.proxmox;
-  if (sub === 'guests') return <GuestsTable vms={p.vms} showNode />;
-  if (sub === 'storage') return <StorageTable storages={p.storages} />;
+  return (
+    <div className="col-span-12 flex flex-wrap items-center gap-3">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-2 gap-1.5 text-muted-foreground"
+        onClick={onBack}
+      >
+        <ArrowLeft className="size-4" />
+        {backLabel}
+      </Button>
+      <div className="flex min-w-0 items-center gap-2">
+        {icon ? <span className="text-muted-foreground [&_svg]:size-4">{icon}</span> : null}
+        <span className="truncate font-display text-lg font-semibold tracking-tight text-foreground">
+          {title}
+        </span>
+        {statusLabel ? <StatusBadge kind={status ?? 'idle'}>{statusLabel}</StatusBadge> : null}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cluster summary + node cards
+// ---------------------------------------------------------------------------
+
+function clusterStats(data: DashboardState): SummaryStat[] {
+  const c = data.proxmox.cluster;
+  return [
+    {
+      key: 'nodes',
+      label: 'Nodes',
+      value: `${c.nodesOnline}/${c.nodesTotal}`,
+      sub: 'online',
+      tone: c.nodesOnline < c.nodesTotal ? 'warn' : 'default',
+      icon: <Server />,
+    },
+    {
+      key: 'cpu',
+      label: 'CPU',
+      value: pct(c.cpuPct),
+      sub: `${c.cpuUsed.toFixed(0)}/${c.cpuTotal} cores`,
+      tone: tone(cpuUsageSeverity(c.cpuPct)),
+      icon: <Cpu />,
+    },
+    {
+      key: 'mem',
+      label: 'Memory',
+      value: pct(c.memPct),
+      sub: `${c.memUsedGB.toFixed(0)}/${c.memTotalGB.toFixed(0)} GB`,
+      tone: tone(ramUsageSeverity(c.memPct)),
+      icon: <MemoryStick />,
+    },
+    {
+      key: 'storage',
+      label: 'Storage',
+      value: pct(c.storagePct),
+      sub: `${c.storageUsedTB.toFixed(1)}/${c.storageTotalTB.toFixed(1)} TB`,
+      tone: tone(fillSeverity(c.storagePct)),
+      icon: <Database />,
+    },
+    {
+      key: 'guests',
+      label: 'Guests',
+      value: `${c.guestsRunning}/${c.guestsTotal}`,
+      sub: 'running',
+      icon: <Box />,
+    },
+  ];
+}
+
+function nodeMetrics(node: ProxmoxNode): EntityMetric[] {
+  return [
+    { key: 'cpu', label: 'CPU', pct: node.cpu, tone: cpuUsageSeverity(node.cpu) },
+    {
+      key: 'ram',
+      label: 'RAM',
+      pct: node.ram,
+      tone: ramUsageSeverity(node.ram),
+      value: `${node.ramUsedGB.toFixed(0)}/${node.ramTotalGB.toFixed(0)} GB`,
+    },
+    {
+      key: 'disk',
+      label: 'Disk',
+      pct: node.storagePct,
+      tone: fillSeverity(node.storagePct),
+      value: `${node.storageUsedTB.toFixed(1)}/${node.storageTotalTB.toFixed(1)} TB`,
+    },
+  ];
+}
+
+function NodesGrid({ data, onSelect }: { data: DashboardState; onSelect: Props['onSelect'] }) {
+  const nodes = data.proxmox.nodes;
+  if (nodes.length === 0) {
+    return (
+      <SectionCard span={12} bodyClassName="py-8 text-center text-sm text-muted-foreground">
+        No Proxmox nodes detected
+      </SectionCard>
+    );
+  }
   return (
     <>
-      <Stat
-        title="Nodes"
-        value={`${p.cluster.nodesOnline}/${p.cluster.nodesTotal} online`}
-        icon={<Server size={14} />}
-      />
-      <Stat
-        title="CPU"
-        value={`${p.cluster.cpuUsed.toFixed(1)}/${p.cluster.cpuTotal} cores`}
-        icon={<Cpu size={14} />}
-      />
-      <Stat
-        title="RAM"
-        value={`${p.cluster.memUsedGB.toFixed(1)}/${p.cluster.memTotalGB.toFixed(1)} GB`}
-        icon={<MemoryStick size={14} />}
-      />
-      <Stat
-        title="Guests"
-        value={`${p.cluster.guestsRunning}/${p.cluster.guestsTotal} running`}
-        icon={<Box size={14} />}
-      />
-      <HistoryCard
-        title="Cluster CPU History"
-        entity="cluster:all"
-        metric="cpu_pct"
-        windowId={windowId}
-      />
-      <HistoryCard
-        title="Cluster RAM History"
-        entity="cluster:all"
-        metric="mem_pct"
-        windowId={windowId}
-        color="var(--warn)"
-      />
-      <GuestsTable vms={p.vms} showNode />
-      <StorageTable storages={p.storages.filter((s) => s.shared)} title="Shared Storage" />
-      <LocalHostPanel data={data} />
+      <SectionLabel>
+        <Server className="size-3.5" /> Nodes · {nodes.length}
+      </SectionLabel>
+      {nodes.map((node) => {
+        const guests = data.proxmox.vms.filter((v) => v.node === node.name);
+        const running = guests.filter((v) => v.state === 'running').length;
+        const kind = nodeStatusKind(node);
+        return (
+          <EntityCard
+            key={node.name}
+            span={4}
+            name={node.name}
+            subtitle={node.cpuModel}
+            icon={<Server />}
+            status={kind}
+            statusLabel={node.status ?? 'online'}
+            metrics={nodeMetrics(node)}
+            meta={[
+              { key: 'guests', value: `${running}/${guests.length} guests` },
+              { key: 'uptime', value: `↑ ${node.uptime}` },
+              { key: 'ip', value: node.ip ?? '—' },
+            ]}
+            onClick={() => onSelect(`node/${encodeURIComponent(node.name)}`, 'summary')}
+          />
+        );
+      })}
     </>
   );
 }
 
-function NodePane({
+// ---------------------------------------------------------------------------
+// Datacenter view
+// ---------------------------------------------------------------------------
+
+function DatacenterView({
+  data,
+  sub,
+  windowId,
+  setWindowId,
+  onSelect,
+}: {
+  data: DashboardState;
+  sub: string;
+  windowId: WindowId;
+  setWindowId: (w: WindowId) => void;
+  onSelect: Props['onSelect'];
+}) {
+  const p = data.proxmox;
+  const showWindow = sub === 'summary';
+  return (
+    <>
+      <SubTabs
+        tabs={DC_TABS}
+        active={sub}
+        onChange={(id) => onSelect('datacenter', id)}
+        actions={showWindow ? <WindowPicker value={windowId} onChange={setWindowId} /> : undefined}
+      />
+      {sub === 'guests' && <GuestsTable vms={p.vms} showNode />}
+      {sub === 'storage' && <StorageTable storages={p.storages} />}
+      {sub === 'disks' && <ClusterDisksTable disks={p.disks} />}
+      {sub === 'sensors' && <SensorsTab data={data} />}
+      {sub === 'summary' && (
+        <>
+          <SummaryBar stats={clusterStats(data)} />
+          <NodesGrid data={data} onSelect={onSelect} />
+          <SectionLabel>Cluster history</SectionLabel>
+          <HistoryCard title="CPU" entity="cluster:all" metric="cpu_pct" windowId={windowId} />
+          <HistoryCard
+            title="Memory"
+            entity="cluster:all"
+            metric="mem_pct"
+            windowId={windowId}
+            color="var(--warn)"
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Node view (drill-in)
+// ---------------------------------------------------------------------------
+
+function NodeView({
   data,
   itemId,
   sub,
   windowId,
+  setWindowId,
+  onSelect,
 }: {
   data: DashboardState;
   itemId: string;
   sub: string;
   windowId: WindowId;
+  setWindowId: (w: WindowId) => void;
+  onSelect: Props['onSelect'];
 }) {
   const nodeName = entityName(itemId);
   const node = data.proxmox.nodes.find((n) => n.name === nodeName) ?? data.proxmox.node;
   const { detail, loading, error } = useNodeDetail(itemId);
   const nodeStorages = data.proxmox.storages.filter((s) => s.node === nodeName);
-  if (sub === 'storage') return <StorageTable storages={nodeStorages} />;
-  if (sub === 'disks')
-    return (
-      <>
-        <DisksTable disks={detail?.disks ?? []} loading={loading} error={error} />
-        <ZfsTable pools={detail?.zfs ?? []} />
-      </>
-    );
-  if (sub === 'network')
-    return <NetworkTable networks={detail?.networks ?? []} loading={loading} error={error} />;
+  const guests = data.proxmox.vms.filter((v) => v.node === nodeName);
+  const running = guests.filter((v) => v.state === 'running').length;
+  const kind = nodeStatusKind(node);
+
   return (
     <>
-      <Stat title="Node" value={node.name} icon={<Server size={14} />} />
-      <Stat title="CPU" value={pct(node.cpu)} icon={<Cpu size={14} />} />
-      <Stat title="RAM" value={pct(node.ram)} icon={<MemoryStick size={14} />} />
-      <Stat title="Uptime" value={node.uptime} icon={<Thermometer size={14} />} />
-      <SectionCard span={6} title="CPU Gauge">
-        <Donut value={node.cpu} max={100} label={pct(node.cpu)} sub="CPU" />
-      </SectionCard>
-      <SectionCard span={6} title="RAM Gauge">
-        <Donut value={node.ram} max={100} label={pct(node.ram)} sub="RAM" color="var(--warn)" />
-      </SectionCard>
-      <HistoryCard
-        title="Node CPU History"
-        entity={`node:${node.name}`}
-        metric="cpu_pct"
-        windowId={windowId}
+      <DetailHeader
+        onBack={() => onSelect('datacenter', 'summary')}
+        backLabel="Data Center"
+        title={node.name}
+        icon={<Server />}
+        status={kind}
+        statusLabel={node.status ?? 'online'}
       />
-      <HistoryCard
-        title="Node RAM History"
-        entity={`node:${node.name}`}
-        metric="mem_pct"
-        windowId={windowId}
-        color="var(--warn)"
+      <SubTabs
+        tabs={NODE_TABS}
+        active={sub}
+        onChange={(id) => onSelect(itemId, id)}
+        actions={
+          sub === 'summary' ? <WindowPicker value={windowId} onChange={setWindowId} /> : undefined
+        }
       />
+      {sub === 'storage' && <StorageTable storages={nodeStorages} />}
+      {sub === 'disks' && (
+        <>
+          <DisksTable disks={detail?.disks ?? []} loading={loading} error={error} />
+          <ZfsTable pools={detail?.zfs ?? []} />
+        </>
+      )}
+      {sub === 'network' && (
+        <NetworkTable networks={detail?.networks ?? []} loading={loading} error={error} />
+      )}
+      {sub === 'summary' && (
+        <>
+          <SectionCard span={4} title="CPU" icon={<Cpu size={14} strokeWidth={1.75} />}>
+            <div className="grid place-items-center py-1">
+              <MiniGauge value={node.cpu} sub="CPU" tone={cpuUsageSeverity(node.cpu)} size={120} />
+            </div>
+          </SectionCard>
+          <SectionCard span={4} title="Memory" icon={<MemoryStick size={14} strokeWidth={1.75} />}>
+            <div className="grid place-items-center py-1">
+              <MiniGauge value={node.ram} sub="RAM" tone={ramUsageSeverity(node.ram)} size={120} />
+            </div>
+            <div className="mt-1 text-center text-xs text-muted-foreground tabular-nums">
+              {node.ramUsedGB.toFixed(1)} / {node.ramTotalGB.toFixed(1)} GB
+            </div>
+          </SectionCard>
+          <SectionCard span={4} title="Node" icon={<Server size={14} strokeWidth={1.75} />}>
+            <StatList>
+              <StatRow label="CPU" value={node.cpuModel} />
+              <StatRow label="Cores / threads" value={`${node.cpuCores} / ${node.cpuThreads}`} />
+              <StatRow
+                label="Storage"
+                value={`${tb(node.storageUsedTB)} / ${tb(node.storageTotalTB)}`}
+              />
+              <StatRow label="Guests" value={`${running}/${guests.length} running`} />
+              <StatRow label="IP" value={node.ip ?? '—'} />
+              <StatRow label="Uptime" value={node.uptime} />
+              <StatRow label="Version" value={node.version} />
+            </StatList>
+          </SectionCard>
+          <HistoryCard
+            title="CPU history"
+            entity={`node:${node.name}`}
+            metric="cpu_pct"
+            windowId={windowId}
+          />
+          <HistoryCard
+            title="Memory history"
+            entity={`node:${node.name}`}
+            metric="mem_pct"
+            windowId={windowId}
+            color="var(--warn)"
+          />
+        </>
+      )}
     </>
   );
 }
 
-function GuestPane({
+// ---------------------------------------------------------------------------
+// Guest + storage detail (drill-in)
+// ---------------------------------------------------------------------------
+
+function GuestView({
   data,
   itemId,
   windowId,
+  setWindowId,
+  onSelect,
 }: {
   data: DashboardState;
   itemId: string;
   windowId: WindowId;
+  setWindowId: (w: WindowId) => void;
+  onSelect: Props['onSelect'];
 }) {
   const guest = data.proxmox.vms.find((v) => String(v.id) === entityName(itemId));
-  if (!guest) return <SectionCard span={12}>Guest not found.</SectionCard>;
+  if (!guest) {
+    return (
+      <SectionCard span={12} bodyClassName="py-8 text-center text-sm text-muted-foreground">
+        Guest not found.
+      </SectionCard>
+    );
+  }
+  const kind = guest.state === 'running' ? 'ok' : 'idle';
   return (
     <>
-      <Stat title="State" value={guest.state} icon={<Box size={14} />} />
-      <Stat title="Node" value={guest.node} icon={<Server size={14} />} />
-      <Stat title="CPU" value={pct(guest.cpu)} icon={<Cpu size={14} />} />
-      <Stat title="RAM" value={pct(guest.ram)} icon={<MemoryStick size={14} />} />
-      <Stat title="Disk" value={`${guest.disk} GB`} icon={<HardDrive size={14} />} />
-      <Stat title="IP" value={guest.ip ?? 'unavailable'} />
+      <DetailHeader
+        onBack={() => onSelect('datacenter', 'guests')}
+        backLabel="Data Center"
+        title={guest.name}
+        icon={<Box />}
+        status={kind}
+        statusLabel={guest.state}
+      />
+      <div className="col-span-12 flex justify-end">
+        <WindowPicker value={windowId} onChange={setWindowId} />
+      </div>
+      <SectionCard span={4} title="CPU" icon={<Cpu size={14} strokeWidth={1.75} />}>
+        <div className="grid place-items-center py-1">
+          <MiniGauge value={guest.cpu} sub="CPU" tone={cpuUsageSeverity(guest.cpu)} size={120} />
+        </div>
+      </SectionCard>
+      <SectionCard span={4} title="Memory" icon={<MemoryStick size={14} strokeWidth={1.75} />}>
+        <div className="grid place-items-center py-1">
+          <MiniGauge value={guest.ram} sub="RAM" tone={ramUsageSeverity(guest.ram)} size={120} />
+        </div>
+      </SectionCard>
+      <SectionCard span={4} title="Guest" icon={<Box size={14} strokeWidth={1.75} />}>
+        <StatList>
+          <StatRow label="Type" value={guest.type} />
+          <StatRow label="Node" value={guest.node} />
+          <StatRow label="Disk" value={`${guest.disk} GB`} />
+          <StatRow label="IP" value={guest.ip ?? 'unavailable'} />
+        </StatList>
+      </SectionCard>
       <HistoryCard
-        title="Guest CPU History"
+        title="CPU history"
         entity={`guest:${guest.id}`}
         metric="cpu_pct"
         windowId={windowId}
       />
       <HistoryCard
-        title="Guest RAM History"
+        title="Memory history"
         entity={`guest:${guest.id}`}
         metric="mem_pct"
         windowId={windowId}
@@ -446,48 +610,72 @@ function GuestPane({
   );
 }
 
-function StoragePane({
+function StorageView({
   data,
   itemId,
   windowId,
+  setWindowId,
+  onSelect,
 }: {
   data: DashboardState;
   itemId: string;
   windowId: WindowId;
+  setWindowId: (w: WindowId) => void;
+  onSelect: Props['onSelect'];
 }) {
   const key = entityName(itemId);
   const storage =
     data.proxmox.storages.find((s) => (s.shared ? s.name : `${s.node}:${s.name}`) === key) ??
     data.proxmox.storages.find((s) => s.name === key);
-  if (!storage) return <SectionCard span={12}>Storage not found.</SectionCard>;
+  if (!storage) {
+    return (
+      <SectionCard span={12} bodyClassName="py-8 text-center text-sm text-muted-foreground">
+        Storage not found.
+      </SectionCard>
+    );
+  }
   const usedPct = storage.totalTB > 0 ? (storage.usedTB / storage.totalTB) * 100 : 0;
   const entity = `storage:${storage.shared ? storage.name : `${storage.node}:${storage.name}`}`;
   return (
     <>
-      <Stat title="Type" value={storage.type || 'unknown'} icon={<Disc size={14} />} />
-      <Stat title="Content" value={storage.content || 'none'} />
-      <Stat title="Used" value={`${tb(storage.usedTB)} / ${tb(storage.totalTB)}`} />
-      <Stat title="Shared" value={storage.shared ? 'yes' : 'no'} />
-      <Stat title="ZFS Health" value={storage.zfsHealth ?? 'n/a'} />
-      <HistoryCard
-        title="Storage Used History"
-        entity={entity}
-        metric="used_pct"
-        windowId={windowId}
+      <DetailHeader
+        onBack={() => onSelect('datacenter', 'storage')}
+        backLabel="Data Center"
+        title={storage.name}
+        icon={<Disc />}
       />
+      <div className="col-span-12 flex justify-end">
+        <WindowPicker value={windowId} onChange={setWindowId} />
+      </div>
+      <SectionCard span={4} title="Usage" icon={<Disc size={14} strokeWidth={1.75} />}>
+        <div className="grid place-items-center py-1">
+          <MiniGauge value={usedPct} sub="used" tone={fillSeverity(usedPct)} size={120} />
+        </div>
+      </SectionCard>
+      <SectionCard span={8} title="Storage" icon={<Database size={14} strokeWidth={1.75} />}>
+        <StatList>
+          <StatRow label="Type" value={storage.type || 'unknown'} />
+          <StatRow label="Content" value={storage.content || 'none'} />
+          <StatRow label="Used" value={`${tb(storage.usedTB)} / ${tb(storage.totalTB)}`} />
+          <StatRow label="Shared" value={storage.shared ? 'yes' : 'no'} />
+          <StatRow label="ZFS health" value={storage.zfsHealth ?? 'n/a'} />
+        </StatList>
+      </SectionCard>
+      <HistoryCard title="Used history" entity={entity} metric="used_pct" windowId={windowId} />
       <HistoryCard
-        title="Storage Capacity History"
+        title="Capacity history"
         entity={entity}
         metric="used"
         windowId={windowId}
         color="var(--warn)"
       />
-      <SectionCard span={6} title="Usage">
-        <Donut value={usedPct} max={100} label={pct(usedPct)} sub="used" />
-      </SectionCard>
     </>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Tables (unchanged)
+// ---------------------------------------------------------------------------
 
 function GuestsTable({ vms, showNode }: { vms: VM[]; showNode?: boolean }) {
   return (
@@ -581,6 +769,45 @@ function str(v: unknown, fallback = '—'): string {
   if (v == null || v === '') return fallback;
   if (typeof v === 'object') return fallback;
   return String(v);
+}
+
+/** Cluster-wide physical disks from the live state (no per-node fetch). */
+function ClusterDisksTable({ disks }: { disks: PhysicalDisk[] }) {
+  return (
+    <DataTableCard
+      span={12}
+      title="Physical Disks"
+      sub={`${disks.length} drives`}
+      icon={<HardDrive size={14} strokeWidth={1.75} />}
+      isEmpty={disks.length === 0}
+      empty="No physical disks reported"
+      head={
+        <>
+          <TableHead>Device</TableHead>
+          <TableHead>Model</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead className="text-right">Size</TableHead>
+          <TableHead>Health</TableHead>
+          <TableHead className="text-right">Wear</TableHead>
+        </>
+      }
+    >
+      {disks.map((d, i) => (
+        <TableRow key={d.devpath || String(i)}>
+          <TableCell className="font-mono">{d.devpath || '—'}</TableCell>
+          <TableCell>{d.model || '—'}</TableCell>
+          <TableCell className="text-muted-foreground">
+            {(d.type || '').toUpperCase() || '—'}
+          </TableCell>
+          <TableCell className="text-right tabular-nums">{fmtBytes(d.sizeBytes)}</TableCell>
+          <TableCell>{d.health ?? '—'}</TableCell>
+          <TableCell className="text-right tabular-nums">
+            {typeof d.wearout === 'number' ? `${d.wearout}%` : '—'}
+          </TableCell>
+        </TableRow>
+      ))}
+    </DataTableCard>
+  );
 }
 
 function DisksTable({
@@ -696,6 +923,10 @@ function NetworkTable({
     </DataTableCard>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Sensors tab (local host hardware)
+// ---------------------------------------------------------------------------
 
 function tempColor(tempC: number, warnAt: number, badAt: number) {
   if (tempC >= badAt) return 'var(--bad)';
@@ -902,13 +1133,10 @@ function SensorsView({ data }: { data: DashboardState }) {
   );
 }
 
-function LocalHostPanel({ data }: { data: DashboardState }) {
+function SensorsTab({ data }: { data: DashboardState }) {
   const { unit } = useTempUnit();
   return (
     <>
-      <SectionCard span={12} bodyClassName="text-sm text-muted-foreground">
-        Local host — the machine running this dashboard
-      </SectionCard>
       <TempCard
         title="System Temp"
         icon={
@@ -957,30 +1185,53 @@ function LocalHostPanel({ data }: { data: DashboardState }) {
   );
 }
 
-export function ProxmoxPage(props: Props) {
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+export function ProxmoxPage({ data, itemId, sub, onSelect }: Props) {
   const [windowId, setWindowId] = useState<WindowId>('1h');
-  const { data, itemId, sub } = props;
   const kind = entityKind(itemId);
 
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
-      <ClusterTree {...props} />
-      <div className="col-span-12 grid grid-cols-12 gap-[var(--gap)] lg:col-span-9">
-        <div className="col-span-12 flex items-center justify-between gap-3">
-          <Tabs {...props} />
-          <WindowPicker value={windowId} onChange={setWindowId} />
-        </div>
-        {kind === 'datacenter' ? (
-          <DatacenterPane data={data} sub={sub} windowId={windowId} />
-        ) : null}
-        {kind === 'node' ? (
-          <NodePane data={data} itemId={itemId} sub={sub} windowId={windowId} />
-        ) : null}
-        {kind === 'guest' ? <GuestPane data={data} itemId={itemId} windowId={windowId} /> : null}
-        {kind === 'storage' ? (
-          <StoragePane data={data} itemId={itemId} windowId={windowId} />
-        ) : null}
-      </div>
+      {kind === 'datacenter' && (
+        <DatacenterView
+          data={data}
+          sub={sub}
+          windowId={windowId}
+          setWindowId={setWindowId}
+          onSelect={onSelect}
+        />
+      )}
+      {kind === 'node' && (
+        <NodeView
+          data={data}
+          itemId={itemId}
+          sub={sub}
+          windowId={windowId}
+          setWindowId={setWindowId}
+          onSelect={onSelect}
+        />
+      )}
+      {kind === 'guest' && (
+        <GuestView
+          data={data}
+          itemId={itemId}
+          windowId={windowId}
+          setWindowId={setWindowId}
+          onSelect={onSelect}
+        />
+      )}
+      {kind === 'storage' && (
+        <StorageView
+          data={data}
+          itemId={itemId}
+          windowId={windowId}
+          setWindowId={setWindowId}
+          onSelect={onSelect}
+        />
+      )}
     </div>
   );
 }

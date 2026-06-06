@@ -110,7 +110,7 @@ export function resolveProxmoxSub(itemId?: string, sub?: string): string {
   const type = proxmoxEntityType(itemId);
   const valid =
     type === 'datacenter'
-      ? ['summary', 'guests', 'storage']
+      ? ['summary', 'guests', 'storage', 'disks', 'sensors']
       : type === 'node'
         ? ['summary', 'disks', 'storage', 'network']
         : ['summary'];
