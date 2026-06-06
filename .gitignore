@@ -24,8 +24,9 @@ coverage
 
 # Reference docs (local only)
 docs/*
-# ...except agent-skills config, which is shared with the repo
+# ...except agent-skills config + architecture decision records, shared with the repo
 !docs/agents/
+!docs/adr/
 
 # Personal / local-only tooling
 .claude/
