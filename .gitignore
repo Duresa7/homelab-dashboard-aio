@@ -28,6 +28,8 @@ coverage
 
 # Reference docs (local only)
 docs/*
+# ...except agent-skills config, which is shared with the repo
+!docs/agents/
 
 # Personal / local-only tooling
 .claude/
