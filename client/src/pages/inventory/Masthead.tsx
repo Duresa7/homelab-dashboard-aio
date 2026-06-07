@@ -1,22 +1,11 @@
 import type { ReactNode } from 'react';
-import {
-  Download,
-  Layers,
-  ListOrdered,
-  Network,
-  Pencil,
-  RefreshCw,
-  Search,
-  Server,
-  Settings2,
-  Upload,
-} from 'lucide-react';
+import { Download, ListOrdered, Pencil, RefreshCw, Search, Upload } from 'lucide-react';
 
 import { summarize, type Inventory } from '../../lib/inventory';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SubTabs, SummaryBar, type SummaryStat } from '@/components/common';
 
 import { pad2, type Mode, type Tab } from './shared';
 
@@ -35,12 +24,12 @@ interface MastheadProps {
   onUidMap: () => void;
 }
 
-function MhStat({ label, value }: { label: string; value: ReactNode }) {
+function TabLabel({ text, n }: { text: string; n: ReactNode }) {
   return (
-    <div className="flex flex-col">
-      <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">{label}</dt>
-      <dd className="font-display text-xl font-semibold tabular-nums text-foreground">{value}</dd>
-    </div>
+    <span className="flex items-center gap-1.5">
+      {text}
+      <span className="text-[11px] tabular-nums opacity-50">{n}</span>
+    </span>
   );
 }
 
@@ -59,45 +48,34 @@ export function Masthead({
   onUidMap,
 }: MastheadProps) {
   const isEditing = mode === 'edit';
-  const count = (n: ReactNode) => (
-    <span className="ml-1 text-[11px] tabular-nums opacity-60">{n}</span>
-  );
+
+  const summaryStats: SummaryStat[] = [
+    { key: 'machines', label: 'Machines', value: pad2(stats.machineCount) },
+    { key: 'installed', label: 'Installed parts', value: stats.installedComponentCount },
+    { key: 'spare', label: 'Spare parts', value: stats.spareComponentCount },
+    { key: 'devices', label: 'Devices', value: stats.deviceItemCount },
+  ];
+
+  const tabs = [
+    { id: 'machines', label: <TabLabel text="Active machines" n={pad2(stats.machineCount)} /> },
+    { id: 'network', label: <TabLabel text="Network" n={pad2(stats.networkItemCount)} /> },
+    { id: 'service', label: <TabLabel text="In service" n={stats.installedComponentCount} /> },
+    {
+      id: 'devices',
+      label: <TabLabel text="Spare parts" n={stats.spareComponentCount + stats.deviceItemCount} />,
+    },
+  ];
+
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-card">
+    <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-0.5">
           <span className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
             Datacenter index
           </span>
-          <h2 className="font-display text-xl tracking-tight text-foreground">Inventory</h2>
+          <h1 className="font-display text-xl tracking-tight text-foreground">Inventory</h1>
           <span className="font-mono text-xs text-muted-foreground">Updated {inv.lastUpdated}</span>
         </div>
-        <dl className="flex flex-wrap gap-x-8 gap-y-3">
-          <MhStat label="Machines" value={pad2(stats.machineCount)} />
-          <MhStat label="Installed parts" value={stats.installedComponentCount} />
-          <MhStat label="Spare parts" value={stats.spareComponentCount} />
-          <MhStat label="Devices" value={stats.deviceItemCount} />
-        </dl>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-          <TabsList>
-            <TabsTrigger value="machines">
-              <Server className="size-3.5" /> Active machines {count(pad2(stats.machineCount))}
-            </TabsTrigger>
-            <TabsTrigger value="network">
-              <Network className="size-3.5" /> Network {count(pad2(stats.networkItemCount))}
-            </TabsTrigger>
-            <TabsTrigger value="service">
-              <Settings2 className="size-3.5" /> In service {count(stats.installedComponentCount)}
-            </TabsTrigger>
-            <TabsTrigger value="devices">
-              <Layers className="size-3.5" /> Spare parts{' '}
-              {count(stats.spareComponentCount + stats.deviceItemCount)}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
@@ -133,6 +111,10 @@ export function Masthead({
           </IconBtn>
         </div>
       </div>
+
+      <SummaryBar stats={summaryStats} />
+
+      <SubTabs tabs={tabs} active={tab} onChange={(v) => setTab(v as Tab)} />
     </section>
   );
 }

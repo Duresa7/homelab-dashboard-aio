@@ -28,13 +28,15 @@ export function SubTabs({ tabs, active, onChange, actions, className }: SubTabsP
         className,
       )}
     >
-      <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+      <div role="tablist" className="flex min-w-0 items-center gap-1 overflow-x-auto">
         {tabs.map((t) => {
           const isActive = t.id === active;
           return (
             <button
               key={t.id}
               type="button"
+              role="tab"
+              aria-selected={isActive}
               onClick={() => onChange(t.id)}
               className={cn(
                 '-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors',
