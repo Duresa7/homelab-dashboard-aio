@@ -540,3 +540,25 @@
 .text-muted {
   color: var(--ink-3);
 }
+
+/* =========================================================
+   Shell polish — branded, control-room navigation chrome.
+   Unlayered so these win over Tailwind's neutral active utilities.
+   ========================================================= */
+
+/* Active primary nav item: indigo tint + accent text instead of flat grey. */
+[data-sidebar='menu-button'][data-active='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+[data-sidebar='menu-button'][data-active='true']:hover {
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+/* Active sub-page item in the expanded sidebar — accent text. */
+[data-sidebar='menu-sub-button'][data-active='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}
