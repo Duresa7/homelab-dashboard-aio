@@ -48,7 +48,7 @@ export interface CapabilityPresentation {
   enabled: boolean;
 }
 
-type PresentationMap = Record<CapabilityId, CapabilityPresentation>;
+export type PresentationMap = Record<CapabilityId, CapabilityPresentation>;
 
 export const SECTION_CAPABILITY: Partial<Record<Section, CapabilityId>> = {
   proxmox: 'datacenter',

@@ -6,33 +6,20 @@ import { OverviewPage } from './OverviewPage';
 import { makeDashboardState } from '@/test/fixtures';
 
 describe('OverviewPage', () => {
-  it('renders selected DashboardState tiles and forwards tile actions', async () => {
+  it('renders the health command center and navigates from a subsystem card', async () => {
     const data = makeDashboardState();
-    const setChartKind = vi.fn();
-    const onExpand = vi.fn();
+    const setRoute = vi.fn();
     const user = userEvent.setup();
 
-    render(
-      <OverviewPage
-        data={data}
-        layout={['cpu', 'docker', 'proxmox']}
-        chartKinds={{ cpu: 'area' }}
-        setChartKind={setChartKind}
-        onExpand={onExpand}
-      />,
-    );
+    render(<OverviewPage data={data} setRoute={setRoute} />);
 
-    expect(screen.getByText('System')).toBeInTheDocument();
-    expect(screen.getByText('Services')).toBeInTheDocument();
-    expect(screen.getByText('CPU')).toBeInTheDocument();
-    expect(screen.getByText('Containers')).toBeInTheDocument();
-    expect(screen.getByText('Data Center')).toBeInTheDocument();
-    expect(screen.getByText('AMD Ryzen 9 9950X3D')).toBeInTheDocument();
+    // Health bar + section structure.
+    expect(screen.getByText('Status')).toBeInTheDocument();
+    expect(screen.getByText('Systems')).toBeInTheDocument();
 
-    await user.click(screen.getByLabelText('Chart: bars'));
-    expect(setChartKind).toHaveBeenCalledWith('cpu', 'bars');
-
-    await user.click(screen.getAllByLabelText('Expand')[0]);
-    expect(onExpand).toHaveBeenCalledWith('cpu');
+    // Subsystem cards drill through to their dedicated pages.
+    const dataCenter = screen.getByRole('button', { name: /Data Center/i });
+    await user.click(dataCenter);
+    expect(setRoute).toHaveBeenCalledWith('proxmox');
   });
 });

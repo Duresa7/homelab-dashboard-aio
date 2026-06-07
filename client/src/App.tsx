@@ -46,12 +46,7 @@ import type { ChartKind } from './types';
 import { useThresholds } from './lib/thresholds';
 import { DEFAULT_DATETIME_PREFERENCES, type DateTimePreferences } from './lib/datetime';
 import { useConnectivity } from './lib/connectivity';
-import {
-  isSectionVisible,
-  PresentationProvider,
-  usePresentation,
-  useVisibleTiles,
-} from './lib/presentation';
+import { isSectionVisible, PresentationProvider, usePresentation } from './lib/presentation';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
 type Density = 'compact' | 'regular' | 'comfy';
@@ -211,7 +206,6 @@ function DashboardApp() {
     route.section === 'proxmox'
       ? resolveProxmoxSub(route.itemId, route.sub)
       : resolveSub(route.section, route.sub);
-  const visibleOverviewLayout = useVisibleTiles(t.overviewLayout);
 
   const backendOffline = connectivity.status === 'offline';
   const setupLoading = setupStatus.loading && connectivity.status !== 'offline';
@@ -244,15 +238,7 @@ function DashboardApp() {
     <BackendOffline reason={connectivity.reason} />
   ) : (
     <>
-      {route.section === 'overview' && (
-        <OverviewPage
-          data={data}
-          layout={visibleOverviewLayout}
-          chartKinds={chartKinds}
-          setChartKind={setChartKind}
-          onExpand={setExpanded}
-        />
-      )}
+      {route.section === 'overview' && <OverviewPage data={data} setRoute={setRoute} />}
       {route.section === 'proxmox' && (
         <ProxmoxPage
           data={data}
