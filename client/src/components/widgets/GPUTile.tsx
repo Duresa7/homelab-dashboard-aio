@@ -26,10 +26,10 @@ export function GPUTile({ data, span, chartKind, onChartKind }: Props) {
       chartKind={chartKind}
       onChartKind={onChartKind}
     >
-      <div className="metric-row">
-        <Donut value={usage} label={`${usage.toFixed(0)}%`} sub="gpu" kind={usageKind} />
-        <div className="meta flex1">
-          <div className="v">
+      <div className="flex items-center gap-4">
+        <Donut value={usage} label={`${usage.toFixed(0)}%`} sub="gpu" kind={usageKind} size={92} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="text-[15.5px] font-medium tabular-nums text-foreground">
             <b>{memUsedGB.toFixed(1)}</b>
             <span className="text-muted"> / {memTotalGB} GB VRAM</span>
           </div>

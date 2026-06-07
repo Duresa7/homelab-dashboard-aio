@@ -9,10 +9,26 @@ interface Props {
 export function Bars({ data, height = 40, max, warnAt, badAt }: Props) {
   const m = max || Math.max(...data, 1);
   return (
-    <div className="bar-strip" style={{ height }}>
+    <div className="flex w-full items-end gap-[3px]" style={{ height }}>
       {data.map((v, i) => {
-        const cls = badAt && v >= badAt ? 'bad' : warnAt && v >= warnAt ? 'warn' : '';
-        return <div key={i} className={`b ${cls}`} style={{ height: `${(v / m) * 100}%` }} />;
+        const color =
+          badAt && v >= badAt
+            ? 'var(--bad)'
+            : warnAt && v >= warnAt
+              ? 'var(--warn)'
+              : 'var(--accent)';
+        return (
+          <div
+            key={i}
+            className="min-h-0.5 flex-1 rounded-t-[2px]"
+            style={{
+              height: `${(v / m) * 100}%`,
+              background: color,
+              opacity: 0.92,
+              transition: 'height 0.4s ease',
+            }}
+          />
+        );
       })}
     </div>
   );

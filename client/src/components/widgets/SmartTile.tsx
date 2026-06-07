@@ -25,11 +25,11 @@ export function SmartTile({ data, span }: Props) {
       span={span}
       tag={{ label: tagLabel, kind: tagKind }}
     >
-      <div className="t-big">
+      <div className="flex items-baseline gap-1 text-[34px] leading-[1.05] font-semibold tracking-[-0.025em] tabular-nums text-foreground [[data-density='compact']_&]:text-[28px]">
         {healthy}
-        <small> / {total}</small>
+        <small className="text-[15px] font-medium text-muted-foreground"> / {total}</small>
       </div>
-      <div className="t-sub">
+      <div className="min-w-0 truncate text-[12.5px] font-medium tabular-nums text-muted-foreground">
         healthy · avg {avgTemp}
         {tempSuffix(unit)}
       </div>
