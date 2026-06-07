@@ -8,13 +8,11 @@ import { CapabilityTitle } from '@/lib/presentation';
 interface Props {
   data: GPUData;
   span?: number;
-  onExpand?: () => void;
   chartKind?: ChartKind;
   onChartKind?: (k: ChartKind) => void;
-  expandable?: boolean;
 }
 
-export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandable }: Props) {
+export function GPUTile({ data, span, chartKind, onChartKind }: Props) {
   const { usage, tempC, memUsedGB, memTotalGB, history, model } = data;
   const { unit } = useTempUnit();
   const tempKind = gpuTempSeverity(tempC);
@@ -24,8 +22,6 @@ export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
       title={<CapabilityTitle capability="gpu" />}
       sub={model}
       span={span}
-      onExpand={onExpand}
-      expandable={expandable}
       tag={{ label: fmtTemp(tempC, unit), kind: tempKind }}
       chartKind={chartKind}
       onChartKind={onChartKind}

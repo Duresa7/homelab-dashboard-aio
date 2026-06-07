@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Container, Cpu, HardDrive, Network as NetworkIcon, Server, Zap } from 'lucide-react';
 
-import { renderTile } from '../components/widgets';
+import { BookmarksTile } from '../components/widgets';
 import { Sparkline } from '../components/charts';
 import {
   EntityCard,
@@ -263,7 +263,7 @@ export function OverviewPage({ data, setRoute }: Props) {
       ))}
 
       <SectionLabel>Apps</SectionLabel>
-      {renderTile({ id: 'bookmarks', span: 12, data, expandable: false })}
+      <BookmarksTile span={12} />
 
       <ListCard
         span={12}

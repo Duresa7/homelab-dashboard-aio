@@ -5,8 +5,6 @@ import { AppSidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
 import { AlertBanner } from './components/layout/AlertBanner';
 import { CommandMenu } from './components/layout/CommandMenu';
-import { ExpandOverlay } from './components/tile/ExpandOverlay';
-import { ALL_TILES, type TileId } from './components/widgets';
 import { BackendOffline } from './components/common';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
@@ -42,7 +40,6 @@ import {
   type Route,
   type Section,
 } from './lib/route';
-import type { ChartKind } from './types';
 import { useThresholds } from './lib/thresholds';
 import { DEFAULT_DATETIME_PREFERENCES, type DateTimePreferences } from './lib/datetime';
 import { useConnectivity } from './lib/connectivity';
@@ -55,7 +52,6 @@ interface TweakState {
   theme: ThemeChoice;
   density: Density;
   showAlerts: boolean;
-  overviewLayout: TileId[];
   dateTime: DateTimePreferences;
   integrations: Record<IntegrationKey, boolean>;
 }
@@ -65,26 +61,6 @@ const DEFAULTS: TweakState = {
   density: 'regular',
   showAlerts: true,
   dateTime: { ...DEFAULT_DATETIME_PREFERENCES },
-  overviewLayout: [
-    'bookmarks',
-    'cpu',
-    'ram',
-    'gpu',
-    'unifi',
-    'proxmox',
-    'docker',
-    'storage',
-    'unas',
-    'network',
-    'fans',
-    'smart',
-    'ups',
-    'backups',
-    'internet',
-    'topTalkers',
-    'tempHeat',
-    'events',
-  ],
   integrations: {
     unifi: true,
     proxmox: true,
@@ -114,8 +90,6 @@ function DashboardApp() {
   const setupStatus = useSetupStatus();
   const presentation = usePresentation();
   const [route, setRouteState] = useState<Route>(() => loadRoute());
-  const [chartKinds, setChartKinds] = useState<Partial<Record<TileId, ChartKind>>>({});
-  const [expanded, setExpanded] = useState<TileId | null>(null);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<number>>(new Set());
   const [cmdOpen, setCmdOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>('preferences');
@@ -141,17 +115,7 @@ function DashboardApp() {
   }, [theme, t.density]);
 
   useEffect(() => {
-    const present = new Set(t.overviewLayout);
-    const missing = ALL_TILES.filter((tile) => !present.has(tile.id)).map((tile) => tile.id);
-    if (missing.length > 0) {
-      setTweak('overviewLayout', [...missing, ...t.overviewLayout]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
     const fn = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExpanded(null);
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setCmdOpen((o) => !o);
@@ -195,9 +159,6 @@ function DashboardApp() {
       return next;
     });
   };
-
-  const setChartKind = (id: TileId, k: ChartKind) =>
-    setChartKinds((prev) => ({ ...prev, [id]: k }));
 
   const visibleAlerts = data.alerts.filter((_, i) => !dismissedAlerts.has(i));
   const dismiss = (i: number) => setDismissedAlerts((prev) => new Set(prev).add(i));
@@ -285,7 +246,6 @@ function DashboardApp() {
             theme: t.theme,
             density: t.density,
             showAlerts: t.showAlerts,
-            overviewLayout: t.overviewLayout,
             dateTime: t.dateTime,
           }}
           tab={settingsTab}
@@ -295,7 +255,6 @@ function DashboardApp() {
             if (key === 'theme') setTweak('theme', value as ThemeChoice);
             if (key === 'density') setTweak('density', value as Density);
             if (key === 'showAlerts') setTweak('showAlerts', value as boolean);
-            if (key === 'overviewLayout') setTweak('overviewLayout', value as TileId[]);
             if (key === 'dateTime') setTweak('dateTime', value as DateTimePreferences);
           }}
         />
@@ -361,14 +320,6 @@ function DashboardApp() {
             {sectionContent}
           </div>
         </SidebarInset>
-
-        <ExpandOverlay
-          id={expanded}
-          data={data}
-          chartKind={expanded ? (chartKinds[expanded] ?? 'area') : 'area'}
-          setChartKind={(k) => expanded && setChartKind(expanded, k)}
-          onClose={() => setExpanded(null)}
-        />
 
         <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} setRoute={setRoute} />
 

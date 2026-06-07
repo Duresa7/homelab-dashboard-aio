@@ -52,12 +52,10 @@ async function loadApp({
     resolveSub: () => undefined,
     saveRoute: vi.fn(),
   }));
-  vi.doMock('./components/widgets', () => ({ ALL_TILES: [] }));
   vi.doMock('./components/layout/Sidebar', () => ({ AppSidebar: () => null }));
   vi.doMock('./components/layout/Topbar', () => ({ Topbar: () => null }));
   vi.doMock('./components/layout/AlertBanner', () => ({ AlertBanner: () => null }));
   vi.doMock('./components/layout/CommandMenu', () => ({ CommandMenu: () => null }));
-  vi.doMock('./components/tile/ExpandOverlay', () => ({ ExpandOverlay: () => null }));
   vi.doMock('./components/common', () => ({
     BackendOffline: () => <div>Backend offline</div>,
   }));

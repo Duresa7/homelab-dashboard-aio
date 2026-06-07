@@ -1178,7 +1178,7 @@ function SensorsTab({ data }: { data: DashboardState }) {
         badAt={85}
         unit={unit}
       />
-      <GPUTile data={data.gpu} span={12} chartKind="area" expandable={false} />
+      <GPUTile data={data.gpu} span={12} chartKind="area" />
       <SensorsView data={data} />
       <ComputeWakeCard />
     </>

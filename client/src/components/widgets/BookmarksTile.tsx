@@ -34,8 +34,6 @@ import { Tile } from '../tile/Tile';
 
 interface Props {
   span?: number;
-  onExpand?: () => void;
-  expandable?: boolean;
 }
 
 interface BookmarkForm {
@@ -129,7 +127,7 @@ function BookmarkIcon({ bookmark }: { bookmark: Bookmark }) {
   );
 }
 
-export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
+export function BookmarksTile({ span = 12 }: Props) {
   const [groups, setGroups] = useBookmarkGroups();
   const [bookmarks, setBookmarks] = useBookmarks();
   const [editing, setEditing] = useState(false);
@@ -368,8 +366,6 @@ export function BookmarksTile({ span = 12, onExpand, expandable }: Props) {
         title="Apps"
         sub={bookmarks.length ? `${bookmarks.length} saved` : 'No saved apps'}
         span={span}
-        onExpand={onExpand}
-        expandable={expandable}
         action={
           <div className="flex items-center gap-1">
             {editing ? (

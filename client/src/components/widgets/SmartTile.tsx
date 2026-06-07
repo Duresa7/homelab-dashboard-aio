@@ -6,11 +6,9 @@ import { CapabilityTitle } from '@/lib/presentation';
 interface Props {
   data: StorageData;
   span?: number;
-  onExpand?: () => void;
-  expandable?: boolean;
 }
 
-export function SmartTile({ data, span, onExpand, expandable }: Props) {
+export function SmartTile({ data, span }: Props) {
   const total = data.disks.length;
   const warn = data.disks.filter((d) => d.smart === 'warn').length;
   const bad = data.disks.filter((d) => d.smart === 'bad').length;
@@ -25,8 +23,6 @@ export function SmartTile({ data, span, onExpand, expandable }: Props) {
       title={<CapabilityTitle capability="nas" suffix="Disk Health" />}
       sub={`${total} drives`}
       span={span}
-      onExpand={onExpand}
-      expandable={expandable}
       tag={{ label: tagLabel, kind: tagKind }}
     >
       <div className="t-big">

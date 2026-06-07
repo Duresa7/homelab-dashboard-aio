@@ -36,7 +36,7 @@ describe('BookmarksTile', () => {
 
   it('adds a bookmark and persists it to the bookmarks store key', async () => {
     const user = userEvent.setup();
-    render(<BookmarksTile expandable={false} />);
+    render(<BookmarksTile />);
 
     await user.click(screen.getByRole('button', { name: /edit bookmarks/i }));
     await user.click(screen.getByRole('button', { name: /add/i }));
@@ -66,7 +66,7 @@ describe('BookmarksTile', () => {
       { id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'default' },
     ]);
 
-    render(<BookmarksTile expandable={false} />);
+    render(<BookmarksTile />);
     await user.click(screen.getByRole('button', { name: /edit bookmarks/i }));
     await user.click(screen.getByRole('button', { name: /delete plex/i }));
 
@@ -80,7 +80,7 @@ describe('BookmarksTile', () => {
       { id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'default' },
     ]);
 
-    render(<BookmarksTile expandable={false} />);
+    render(<BookmarksTile />);
     const link = screen.getByRole('link', { name: /plex/i });
 
     expect(fireEvent.click(link)).toBe(true);
@@ -96,7 +96,7 @@ describe('BookmarksTile', () => {
       { id: 'nas', label: 'NAS', url: 'http://nas.local/', groupId: 'default' },
     ]);
 
-    render(<BookmarksTile expandable={false} />);
+    render(<BookmarksTile />);
 
     const link = screen.getByRole('link', { name: /nas/i });
     expect(within(link).getByText('N')).toBeInTheDocument();
@@ -113,7 +113,7 @@ describe('BookmarksTile', () => {
       },
     ]);
 
-    render(<BookmarksTile expandable={false} />);
+    render(<BookmarksTile />);
 
     const link = screen.getByRole('link', { name: /missing/i });
     const svg = link.querySelector('.bm-img');
@@ -143,7 +143,7 @@ describe('BookmarksTile', () => {
       { id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'default' },
     ]);
 
-    render(<BookmarksTile expandable={false} />);
+    render(<BookmarksTile />);
 
     expect(screen.getByRole('link', { name: /plex/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Apps' })).not.toBeInTheDocument();
@@ -159,7 +159,7 @@ describe('BookmarksTile', () => {
       { id: 'plex', label: 'Plex', url: 'http://plex.local/', groupId: 'default' },
     ]);
 
-    render(<BookmarksTile expandable={false} />);
+    render(<BookmarksTile />);
     expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Media' })).toBeInTheDocument();
 

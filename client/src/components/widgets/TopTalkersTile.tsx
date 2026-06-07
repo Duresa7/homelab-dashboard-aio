@@ -5,8 +5,6 @@ import { CapabilityTitle } from '@/lib/presentation';
 interface Props {
   data: TopTalker[];
   span?: number;
-  onExpand?: () => void;
-  expandable?: boolean;
 }
 
 function formatConnectedAt(iso: string): string {
@@ -21,15 +19,13 @@ function formatConnectedAt(iso: string): string {
   return `${Math.floor(diffH / 24)}d`;
 }
 
-export function TopTalkersTile({ data, span, onExpand, expandable }: Props) {
+export function TopTalkersTile({ data, span }: Props) {
   const top = data.slice(0, 3);
   return (
     <Tile
       title={<CapabilityTitle capability="network" suffix="Connected Clients" />}
       sub="recent"
       span={span}
-      onExpand={onExpand}
-      expandable={expandable}
     >
       <div className="list">
         {top.map((t) => (
