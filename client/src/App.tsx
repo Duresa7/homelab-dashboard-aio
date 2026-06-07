@@ -247,7 +247,13 @@ function DashboardApp() {
           onSelect={(itemId, sub) => setRoute('proxmox', sub, itemId)}
         />
       )}
-      {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
+      {route.section === 'network' && (
+        <NetworkPage
+          data={data}
+          sub={activeSub ?? 'overview'}
+          onSelectSub={(s) => setRoute('network', s)}
+        />
+      )}
       {route.section === 'docker' && <DockerPage data={data} sub={activeSub ?? 'hosts'} />}
       {route.section === 'nas' && <NasPage data={data} sub={activeSub ?? 'pools'} />}
       {route.section === 'observability' && (
