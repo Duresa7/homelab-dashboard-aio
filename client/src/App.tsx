@@ -33,6 +33,7 @@ import { useSystemTheme, useTweaks } from './lib/tweaks';
 import {
   DEFAULT_SUB,
   normalizeProxmoxItemId,
+  resolveProxmoxEntityName,
   resolveProxmoxSub,
   resolveSub,
   saveRoute,
@@ -168,6 +169,11 @@ function DashboardApp() {
       ? resolveProxmoxSub(route.itemId, route.sub)
       : resolveSub(route.section, route.sub);
 
+  // When drilled into a Data Center node/guest/storage, surface its resolved
+  // name in the global Topbar breadcrumb (matches the in-page DetailHeader).
+  const breadcrumbEntity =
+    route.section === 'proxmox' ? resolveProxmoxEntityName(data, route.itemId) : null;
+
   const backendOffline = connectivity.status === 'offline';
   const setupLoading = setupStatus.loading && connectivity.status !== 'offline';
   const setupRequired =
@@ -280,6 +286,7 @@ function DashboardApp() {
           <Topbar
             section={route.section}
             activeSub={activeSub}
+            entityLabel={breadcrumbEntity}
             dateTime={t.dateTime}
             onNavigateSection={(s) => setRoute(s)}
             onOpenSearch={() => setCmdOpen(true)}

@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { RefreshCw, Search } from 'lucide-react';
 import { Clock } from './Clock';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,9 @@ import { SECTION_CAPABILITY, usePresentation } from '@/lib/presentation';
 interface Props {
   section: Section;
   activeSub?: string;
+  /** Drilled-in Data Center entity name (node/guest/storage), shown between the
+   *  section and the active sub. */
+  entityLabel?: string | null;
   dateTime: DateTimePreferences;
   onNavigateSection: (section: Section) => void;
   onOpenSearch: () => void;
@@ -51,11 +55,27 @@ function IconAction({
   );
 }
 
-export function Topbar({ section, activeSub, dateTime, onNavigateSection, onOpenSearch }: Props) {
+export function Topbar({
+  section,
+  activeSub,
+  entityLabel,
+  dateTime,
+  onNavigateSection,
+  onOpenSearch,
+}: Props) {
   const presentation = usePresentation();
   const capabilityId = SECTION_CAPABILITY[section];
   const sectionLbl = capabilityId ? presentation[capabilityId].label : SECTION_LABEL[section];
   const here = activeSub ? subLabel(section, activeSub) : null;
+
+  // Ordered breadcrumb trail: section root, optional drilled-in entity, active
+  // sub. The last crumb is the current page; earlier ones link back.
+  const trail: string[] = [
+    sectionLbl,
+    ...(entityLabel ? [entityLabel] : []),
+    ...(here ? [here] : []),
+  ];
+  const lastIndex = trail.length - 1;
 
   return (
     <header className="sticky top-0 z-30 h-14 shrink-0 border-b border-border bg-background/80 backdrop-blur-md">
@@ -65,33 +85,30 @@ export function Topbar({ section, activeSub, dateTime, onNavigateSection, onOpen
           <Separator orientation="vertical" className="mr-1 !h-5" />
           <Breadcrumb>
             <BreadcrumbList className="flex-nowrap sm:gap-1.5">
-              {here ? (
-                <>
+              {trail.map((label, i) => (
+                <Fragment key={i}>
+                  {i > 0 ? <BreadcrumbSeparator /> : null}
                   <BreadcrumbItem>
-                    <BreadcrumbLink asChild>
-                      <button
-                        type="button"
-                        onClick={() => onNavigateSection(section)}
-                        className="truncate"
-                      >
-                        {sectionLbl}
-                      </button>
-                    </BreadcrumbLink>
+                    {i === lastIndex ? (
+                      <BreadcrumbPage className="truncate text-[15px] font-semibold tracking-tight">
+                        {label}
+                      </BreadcrumbPage>
+                    ) : i === 0 ? (
+                      <BreadcrumbLink asChild>
+                        <button
+                          type="button"
+                          onClick={() => onNavigateSection(section)}
+                          className="truncate"
+                        >
+                          {label}
+                        </button>
+                      </BreadcrumbLink>
+                    ) : (
+                      <span className="truncate text-muted-foreground">{label}</span>
+                    )}
                   </BreadcrumbItem>
-                  <BreadcrumbSeparator />
-                  <BreadcrumbItem>
-                    <BreadcrumbPage className="truncate text-[15px] font-semibold tracking-tight">
-                      {here}
-                    </BreadcrumbPage>
-                  </BreadcrumbItem>
-                </>
-              ) : (
-                <BreadcrumbItem>
-                  <BreadcrumbPage className="truncate text-[15px] font-semibold tracking-tight">
-                    {sectionLbl}
-                  </BreadcrumbPage>
-                </BreadcrumbItem>
-              )}
+                </Fragment>
+              ))}
             </BreadcrumbList>
           </Breadcrumb>
         </div>
