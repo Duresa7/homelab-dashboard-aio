@@ -8,6 +8,7 @@ import { withTtlCache } from '../lib/cache.js';
 import { isDebugEndpointEnabled, isEnabled, formatUptime } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
+import type { UnifiApiResponse } from '../../../shared/wire.ts';
 
 const CACHE_TTL = Number(process.env.UNIFI_POLL_INTERVAL) || 10000;
 
@@ -117,7 +118,7 @@ function classifyDevice(d: Upstream) {
   return 'other';
 }
 
-async function fetchUnifiDataRaw() {
+async function fetchUnifiDataRaw(): Promise<UnifiApiResponse> {
   const siteId = await getSiteId();
   const prefix = `/proxy/network/integration/v1/sites/${siteId}`;
 

@@ -6,6 +6,7 @@ import { runRemote } from '../lib/remote.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isDebugEndpointEnabled, isEnabled } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
+import type { GpuApiResponse, GpuSample } from '../../../shared/wire.ts';
 
 const GPU_SSH_USER = process.env.GPU_SSH_USER || 'root';
 const GPU_SSH_PORT = Number(process.env.GPU_SSH_PORT) || 22;
@@ -56,7 +57,7 @@ function runNvidiaSmi() {
   });
 }
 
-function parseNvidiaSmiCsv(output: string) {
+function parseNvidiaSmiCsv(output: string): GpuSample[] {
   const lines = output.trim().split('\n').filter(Boolean);
   return lines.map((line) => {
     const p = line.split(',').map((s) => s.trim());
@@ -79,7 +80,7 @@ function parseNvidiaSmiCsv(output: string) {
   });
 }
 
-async function fetchGpuDataRaw() {
+async function fetchGpuDataRaw(): Promise<GpuApiResponse> {
   const output = await runNvidiaSmi();
   const gpus = parseNvidiaSmiCsv(output);
   if (gpus.length === 0) throw new Error('nvidia-smi returned no GPUs');

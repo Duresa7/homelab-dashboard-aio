@@ -3,6 +3,7 @@ import { runRemote } from '../lib/remote.js';
 import { errorMessage } from '../lib/errors.js';
 import { isDebugEndpointEnabled } from '../lib/env.js';
 import { parseSensorsJson, parseDiskInventory, type SensorTree } from './parse.js';
+import type { SensorsApiResponse } from '../../../shared/wire.ts';
 
 export interface SensorsConfig {
   enabled: boolean;
@@ -87,7 +88,8 @@ export function initSensors(app: Express, config: SensorsConfig) {
     }
     try {
       const data = await fetchSensorsData();
-      res.json({ sensors: data });
+      const payload: SensorsApiResponse = { sensors: data };
+      res.json(payload);
     } catch (err) {
       sensorsLastError = errorMessage(err);
       console.warn(

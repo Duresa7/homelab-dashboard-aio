@@ -12,8 +12,9 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src", "../shared"]
 }

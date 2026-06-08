@@ -39,6 +39,7 @@ import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '..
 import type {
   DashboardState,
   PhysicalDisk,
+  ProxmoxClusterNode,
   ProxmoxNode,
   ProxmoxStorage,
   Severity,
@@ -104,7 +105,9 @@ function tone(sev: Severity): StatTone {
   return sev === 'ok' ? 'default' : sev;
 }
 
-function nodeStatusKind(node: ProxmoxNode): 'ok' | 'bad' {
+type ProxmoxNodeSummary = ProxmoxClusterNode | ProxmoxNode;
+
+function nodeStatusKind(node: { status?: string }): 'ok' | 'bad' {
   const online = node.status ? node.status === 'online' : true;
   return online ? 'ok' : 'bad';
 }
@@ -317,7 +320,20 @@ function clusterStats(data: DashboardState): SummaryStat[] {
   ];
 }
 
-function nodeMetrics(node: ProxmoxNode): EntityMetric[] {
+function nodeStoragePct(node: ProxmoxNodeSummary): number {
+  return 'storagePct' in node ? node.storagePct : node.disk;
+}
+
+function nodeStorageUsedTB(node: ProxmoxNodeSummary): number {
+  return 'storageUsedTB' in node ? node.storageUsedTB : node.diskUsedTB;
+}
+
+function nodeStorageTotalTB(node: ProxmoxNodeSummary): number {
+  return 'storageTotalTB' in node ? node.storageTotalTB : node.diskTotalTB;
+}
+
+function nodeMetrics(node: ProxmoxNodeSummary): EntityMetric[] {
+  const storagePct = nodeStoragePct(node);
   return [
     { key: 'cpu', label: 'CPU', pct: node.cpu, tone: cpuUsageSeverity(node.cpu) },
     {
@@ -330,9 +346,9 @@ function nodeMetrics(node: ProxmoxNode): EntityMetric[] {
     {
       key: 'disk',
       label: 'Disk',
-      pct: node.storagePct,
-      tone: fillSeverity(node.storagePct),
-      value: `${node.storageUsedTB.toFixed(1)}/${node.storageTotalTB.toFixed(1)} TB`,
+      pct: storagePct,
+      tone: fillSeverity(storagePct),
+      value: `${nodeStorageUsedTB(node).toFixed(1)}/${nodeStorageTotalTB(node).toFixed(1)} TB`,
     },
   ];
 }
@@ -360,7 +376,7 @@ function NodesGrid({ data, onSelect }: { data: DashboardState; onSelect: Props['
             key={node.name}
             span={4}
             name={node.name}
-            subtitle={node.cpuModel}
+            subtitle={node.level ?? 'Proxmox node'}
             icon={<Server />}
             status={kind}
             statusLabel={node.status ?? 'online'}
@@ -368,7 +384,7 @@ function NodesGrid({ data, onSelect }: { data: DashboardState; onSelect: Props['
             meta={[
               { key: 'guests', value: `${running}/${guests.length} guests` },
               { key: 'uptime', value: `↑ ${node.uptime}` },
-              { key: 'ip', value: node.ip ?? '—' },
+              { key: 'ip', value: '—' },
             ]}
             onClick={() => onSelect(`node/${encodeURIComponent(node.name)}`, 'summary')}
           />
@@ -448,12 +464,21 @@ function NodeView({
   onSelect: Props['onSelect'];
 }) {
   const nodeName = entityName(itemId);
-  const node = data.proxmox.nodes.find((n) => n.name === nodeName) ?? data.proxmox.node;
+  const clusterNode = data.proxmox.nodes.find((n) => n.name === nodeName);
+  const node: ProxmoxNodeSummary =
+    clusterNode?.name === data.proxmox.node.name
+      ? data.proxmox.node
+      : (clusterNode ?? data.proxmox.node);
   const { detail, loading, error } = useNodeDetail(itemId);
   const nodeStorages = data.proxmox.storages.filter((s) => s.node === nodeName);
   const guests = data.proxmox.vms.filter((v) => v.node === nodeName);
   const running = guests.filter((v) => v.state === 'running').length;
   const kind = nodeStatusKind(node);
+  const cpuModel = 'cpuModel' in node ? node.cpuModel : '—';
+  const cpuCores = 'cpuCores' in node ? node.cpuCores : node.maxcpu;
+  const cpuThreads = 'cpuThreads' in node ? node.cpuThreads : node.maxcpu;
+  const nodeIp = 'ip' in node ? node.ip : null;
+  const nodeVersion = 'version' in node ? node.version : '—';
 
   return (
     <>
@@ -500,16 +525,16 @@ function NodeView({
           </SectionCard>
           <SectionCard span={4} title="Node" icon={<Server size={14} strokeWidth={1.75} />}>
             <StatList>
-              <StatRow label="CPU" value={node.cpuModel} />
-              <StatRow label="Cores / threads" value={`${node.cpuCores} / ${node.cpuThreads}`} />
+              <StatRow label="CPU" value={cpuModel} />
+              <StatRow label="Cores / threads" value={`${cpuCores} / ${cpuThreads}`} />
               <StatRow
                 label="Storage"
-                value={`${tb(node.storageUsedTB)} / ${tb(node.storageTotalTB)}`}
+                value={`${tb(nodeStorageUsedTB(node))} / ${tb(nodeStorageTotalTB(node))}`}
               />
               <StatRow label="Guests" value={`${running}/${guests.length} running`} />
-              <StatRow label="IP" value={node.ip ?? '—'} />
+              <StatRow label="IP" value={nodeIp ?? '—'} />
               <StatRow label="Uptime" value={node.uptime} />
-              <StatRow label="Version" value={node.version} />
+              <StatRow label="Version" value={nodeVersion} />
             </StatList>
           </SectionCard>
           <HistoryCard

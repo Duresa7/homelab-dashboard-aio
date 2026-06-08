@@ -7,6 +7,7 @@ import { withTtlCache } from '../lib/cache.js';
 import { isDebugEndpointEnabled, isEnabled, trimBaseUrl, formatUptime } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
+import type { DockerApiResponse } from '../../../shared/wire.ts';
 
 const PORTAINER_CACHE_TTL = Number(process.env.PORTAINER_POLL_INTERVAL) || 10000;
 
@@ -73,7 +74,7 @@ function endpointAddress(endpoint: Upstream) {
   );
 }
 
-function endpointOnline(endpoint: Upstream, dockerReachable: boolean) {
+function endpointOnline(endpoint: Upstream, dockerReachable: boolean): boolean {
   const status = endpoint.Status ?? endpoint.status;
   if (dockerReachable) return true;
   if (typeof status === 'number') return status === 1;
@@ -87,7 +88,7 @@ function containerName(container: Upstream) {
   return (names[0] || container.Name || container.Id || 'container').replace(/^\/+/, '');
 }
 
-function containerState(container: Upstream) {
+function containerState(container: Upstream): 'running' | 'stopped' | 'paused' {
   const raw = String(container.State || container.Status || '').toLowerCase();
   if (raw.includes('pause')) return 'paused';
   if (raw.includes('running') || raw === 'up') return 'running';
@@ -180,13 +181,13 @@ async function fetchEndpointDocker(endpoint: Upstream) {
       engine: version?.Version || info?.ServerVersion || '—',
       cpu: hostCpuPct,
       ram: hostRamPct,
-      status: endpointOnline(endpoint, reachable) ? 'online' : 'offline',
+      status: endpointOnline(endpoint, reachable) ? ('online' as const) : ('offline' as const),
     },
     containers: mappedContainers,
   };
 }
 
-async function fetchPortainerDockerDataRaw() {
+async function fetchPortainerDockerDataRaw(): Promise<DockerApiResponse> {
   const endpoints = await portainerFetch('/api/endpoints');
   const endpointList: Upstream[] = Array.isArray(endpoints) ? endpoints : [];
   const dockerResults = await Promise.all(endpointList.map(fetchEndpointDocker));

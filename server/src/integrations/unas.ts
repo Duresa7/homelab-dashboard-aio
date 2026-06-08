@@ -7,6 +7,7 @@ import { withTtlCache } from '../lib/cache.js';
 import { isDebugEndpointEnabled, isEnabled, trimBaseUrl } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
+import type { UnasApiResponse } from '../../../shared/wire.ts';
 
 const UNAS_CACHE_TTL = Number(process.env.UNAS_POLL_INTERVAL) || 30000;
 
@@ -78,7 +79,7 @@ function unasModelLabel(hardwareShort: Upstream) {
   );
 }
 
-function diskSmart(disk: Upstream) {
+function diskSmart(disk: Upstream): 'ok' | 'warn' | 'bad' {
   const state = String(disk.state || '').toLowerCase();
   const risks = Array.isArray(disk.riskReasons) ? disk.riskReasons.length : 0;
   const badSectors =
@@ -105,7 +106,7 @@ function formatIncompatibility(code: Upstream) {
     .replace(/_/g, ' ');
 }
 
-async function fetchUnasDataRaw() {
+async function fetchUnasDataRaw(): Promise<UnasApiResponse> {
   const [storage, fanCtl, system] = await Promise.all([
     unasFetch('/proxy/drive/api/v2/storage'),
     safeUnasFetch('/proxy/drive/api/v2/systems/fan-control', null),

@@ -8,6 +8,7 @@ import { isDebugEndpointEnabled, isEnabled, formatUptime } from '../lib/env.js';
 import { normalizeDiskParts } from '../sensors/parse.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
+import type { ProxmoxApiResponse } from '../../../shared/wire.ts';
 
 const PVE_CACHE_TTL = Number(process.env.PROXMOX_POLL_INTERVAL) || 5000;
 const GB = 1024 ** 3;
@@ -54,7 +55,7 @@ async function pveFetch(path: string): Promise<Upstream> {
 
 const safePveFetch = makeSafeFetch('Proxmox', pveFetch);
 
-function mapVmState(s: Upstream) {
+function mapVmState(s: Upstream): 'running' | 'stopped' | 'paused' {
   if (s === 'running') return 'running';
   if (s === 'paused' || s === 'suspended') return 'paused';
   return 'stopped';
@@ -114,7 +115,7 @@ async function getLxcIp(node: string, vmid: number | string) {
   return null;
 }
 
-async function fetchProxmoxDataRaw() {
+async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
   const nodes: Upstream[] = (await pveFetch('/api2/json/nodes')) || [];
   if (!Array.isArray(nodes) || nodes.length === 0) {
     throw new Error('No Proxmox nodes returned');
