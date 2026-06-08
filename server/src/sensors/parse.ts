@@ -50,8 +50,8 @@ export interface OtherReading {
 }
 
 /**
- * SensorTree — the parsed lm-sensors output. Mirrors the client's
- * DashboardState['sensors'] shape (client/src/types/index.ts).
+ * SensorTree — the parsed lm-sensors output. Aliases the shared `SensorsData`
+ * wire type (shared/wire.ts), which is also DashboardState['sensors'].
  */
 export type SensorTree = SensorsData;
 
