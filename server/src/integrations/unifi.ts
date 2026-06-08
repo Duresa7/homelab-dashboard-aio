@@ -1,13 +1,13 @@
 // UniFi Network integration. Normalizes the gateway, switches, APs, clients,
 // networks/SSIDs, firewall, VPN, and DNS into the dashboard's `unifi` slice
 // (plus a derived `network` slice).
-import type { Express, Request, Response } from 'express';
-
 import { insecureFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
-import { isDebugEndpointEnabled, isEnabled, formatUptime } from '../lib/env.js';
+import { isEnabled, formatUptime } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
+import type { UnifiApiResponse } from '../../../shared/wire.ts';
+import { selectionConfig, text, type Provider } from './provider.js';
 
 const CACHE_TTL = Number(process.env.UNIFI_POLL_INTERVAL) || 10000;
 
@@ -117,7 +117,7 @@ function classifyDevice(d: Upstream) {
   return 'other';
 }
 
-async function fetchUnifiDataRaw() {
+async function fetchUnifiDataRaw(): Promise<UnifiApiResponse> {
   const siteId = await getSiteId();
   const prefix = `/proxy/network/integration/v1/sites/${siteId}`;
 
@@ -322,32 +322,26 @@ export function probeUnifi() {
   return uniFetch('/proxy/network/integration/v1/sites');
 }
 
-export function registerUnifi(app: Express) {
-  app.get('/api/unifi', async (_req: Request, res: Response) => {
-    if (!config.enabled) {
-      return res.json({ disabled: true });
-    }
-    if (!config.baseUrl || !config.apiKey) {
-      return res.status(503).json({
-        error: 'UniFi not configured. Set base URL and API key in Setup, or UNIFI_API_KEY in env.',
-      });
-    }
-    try {
-      const data = await fetchUnifiData();
-      res.json(data);
-    } catch (err) {
-      console.error('UniFi API error:', errorMessage(err));
-      res.status(502).json({ error: errorMessage(err) });
-    }
-  });
-
-  // Development-only raw passthrough for debugging UniFi API shapes.
-  app.get('/api/debug', async (_req: Request, res: Response) => {
-    if (!isDebugEndpointEnabled()) {
-      return res.status(404).json({ error: 'Not found' });
-    }
-    if (!config.enabled) return res.status(503).json({ error: 'UniFi disabled' });
-    if (!config.baseUrl || !config.apiKey) return res.status(503).json({ error: 'No API key' });
+export const unifiProvider: Provider<UnifiApiResponse> = {
+  id: 'unifi',
+  capabilityId: 'network',
+  logName: 'UniFi',
+  status: unifiStatus,
+  notConfiguredMessage:
+    'UniFi not configured. Set base URL and API key in Setup, or UNIFI_API_KEY in env.',
+  configure(selection) {
+    const cfg = selectionConfig(selection);
+    configureUnifi({
+      enabled: !!selection?.enabled,
+      baseUrl: text(cfg.baseUrl),
+      apiKey: text(cfg.apiKey),
+      site: text(cfg.site) || 'default',
+    });
+  },
+  fetch: fetchUnifiData,
+  probe: probeUnifi,
+  debugPath: '/api/debug',
+  async debug() {
     try {
       const siteId = await getSiteId();
       const prefix = `/proxy/network/integration/v1/sites/${siteId}`;
@@ -389,7 +383,7 @@ export function registerUnifi(app: Express) {
         /* */
       }
 
-      res.json({
+      return {
         siteId,
         devices: { count: devicesRes.totalCount, items: allDevices },
         deviceDetail,
@@ -398,9 +392,9 @@ export function registerUnifi(app: Express) {
         networks,
         ssids,
         wans,
-      });
+      };
     } catch (err) {
-      res.status(502).json({ error: errorMessage(err) });
+      throw new Error(errorMessage(err), { cause: err });
     }
-  });
-}
+  },
+};

@@ -1,12 +1,11 @@
 // Portainer-backed Docker integration. Normalizes one or more Portainer
 // endpoints into the dashboard's `docker` slice (hosts + containers + counts).
-import type { Express, Request, Response } from 'express';
-
 import { insecureFetch, makeSafeFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
-import { isDebugEndpointEnabled, isEnabled, trimBaseUrl, formatUptime } from '../lib/env.js';
-import { errorMessage } from '../lib/errors.js';
+import { isEnabled, trimBaseUrl, formatUptime } from '../lib/env.js';
 import type { Upstream } from '../types.js';
+import type { DockerApiResponse } from '../../../shared/wire.ts';
+import { bool, selectionConfig, text, type Provider } from './provider.js';
 
 const PORTAINER_CACHE_TTL = Number(process.env.PORTAINER_POLL_INTERVAL) || 10000;
 
@@ -73,7 +72,7 @@ function endpointAddress(endpoint: Upstream) {
   );
 }
 
-function endpointOnline(endpoint: Upstream, dockerReachable: boolean) {
+function endpointOnline(endpoint: Upstream, dockerReachable: boolean): boolean {
   const status = endpoint.Status ?? endpoint.status;
   if (dockerReachable) return true;
   if (typeof status === 'number') return status === 1;
@@ -87,7 +86,7 @@ function containerName(container: Upstream) {
   return (names[0] || container.Name || container.Id || 'container').replace(/^\/+/, '');
 }
 
-function containerState(container: Upstream) {
+function containerState(container: Upstream): 'running' | 'stopped' | 'paused' {
   const raw = String(container.State || container.Status || '').toLowerCase();
   if (raw.includes('pause')) return 'paused';
   if (raw.includes('running') || raw === 'up') return 'running';
@@ -180,13 +179,13 @@ async function fetchEndpointDocker(endpoint: Upstream) {
       engine: version?.Version || info?.ServerVersion || '—',
       cpu: hostCpuPct,
       ram: hostRamPct,
-      status: endpointOnline(endpoint, reachable) ? 'online' : 'offline',
+      status: endpointOnline(endpoint, reachable) ? ('online' as const) : ('offline' as const),
     },
     containers: mappedContainers,
   };
 }
 
-async function fetchPortainerDockerDataRaw() {
+async function fetchPortainerDockerDataRaw(): Promise<DockerApiResponse> {
   const endpoints = await portainerFetch('/api/endpoints');
   const endpointList: Upstream[] = Array.isArray(endpoints) ? endpoints : [];
   const dockerResults = await Promise.all(endpointList.map(fetchEndpointDocker));
@@ -235,27 +234,27 @@ export function probeDocker(timeoutMs: number) {
   return portainerFetch('/api/endpoints', { timeoutMs });
 }
 
-export function registerDocker(app: Express) {
-  app.get('/api/docker', async (_req: Request, res: Response) => {
-    if (!config.enabled) return res.json({ disabled: true });
-    if (!config.baseUrl || !config.apiKey) {
-      return res.status(503).json({
-        error: 'Portainer not configured. Set base URL and API key in Setup.',
-      });
-    }
-    try {
-      res.json(await fetchPortainerDockerData());
-    } catch (err) {
-      console.error('Portainer API error:', errorMessage(err));
-      res.status(502).json({ error: errorMessage(err) });
-    }
-  });
-
-  app.get('/api/docker/debug', async (_req: Request, res: Response) => {
-    if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
-    if (!config.enabled) return res.json({ disabled: true });
+export const dockerProvider: Provider<DockerApiResponse> = {
+  id: 'docker',
+  capabilityId: 'containers',
+  healthId: 'portainer',
+  logName: 'Portainer',
+  status: dockerStatus,
+  notConfiguredMessage: 'Portainer not configured. Set base URL and API key in Setup.',
+  configure(selection) {
+    const cfg = selectionConfig(selection);
+    configureDocker({
+      enabled: !!selection?.enabled,
+      baseUrl: text(cfg.baseUrl),
+      apiKey: text(cfg.apiKey),
+      statsEnabled: bool(cfg.statsEnabled, true),
+    });
+  },
+  fetch: fetchPortainerDockerData,
+  probe: probeDocker,
+  debug() {
     const c = fetchPortainerDockerData.peek();
-    res.json({
+    return {
       config: {
         baseUrl: config.baseUrl || null,
         hasKey: !!config.apiKey,
@@ -269,6 +268,6 @@ export function registerDocker(app: Express) {
           }
         : null,
       lastError: c.lastError,
-    });
-  });
-}
+    };
+  },
+};

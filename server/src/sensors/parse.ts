@@ -17,6 +17,7 @@
    ========================================================= */
 
 import type { Upstream } from '../types.js';
+import type { SensorsData } from '../../../shared/wire.ts';
 
 export interface CoreReading {
   name: string;
@@ -49,20 +50,10 @@ export interface OtherReading {
 }
 
 /**
- * SensorTree — the parsed lm-sensors output. Mirrors the client's
- * DashboardState['sensors'] shape (client/src/types/index.ts).
+ * SensorTree — the parsed lm-sensors output. Aliases the shared `SensorsData`
+ * wire type (shared/wire.ts), which is also DashboardState['sensors'].
  */
-export interface SensorTree {
-  cpuTempC: number | null;
-  systemTempC: number | null;
-  systemTempLabel: string | null;
-  cores: CoreReading[];
-  disks: DiskReading[];
-  memory: MemReading[];
-  network: NetReading[];
-  fans: FanReading[];
-  other: OtherReading[];
-}
+export type SensorTree = SensorsData;
 
 /** DiskInfo — one physical disk derived from `lsblk -J`. */
 export interface DiskInfo {

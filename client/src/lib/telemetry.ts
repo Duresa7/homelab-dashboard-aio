@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react';
-import type { DashboardState, UnifiData, NetworkData } from '../types';
+import { getConnectivity } from './connectivity';
+import type {
+  DashboardState,
+  Disk,
+  DockerApiResponse,
+  GpuApiResponse,
+  NetworkData,
+  ProxmoxApiResponse,
+  SensorsApiResponse,
+  StoragePool,
+  UnasApiResponse,
+  UnifiApiResponse,
+  UnifiData,
+} from '../types';
 
 const N_HISTORY = 60;
 const UNIFI_POLL_MS = 2000;
@@ -8,6 +21,30 @@ const DOCKER_POLL_MS = 10000;
 const GPU_POLL_MS = 5000;
 const SENSORS_POLL_MS = 5000;
 const UNAS_POLL_MS = 30000;
+const OFFLINE_BACKOFF_MS = 15000;
+
+export type IntegrationKey = 'unifi' | 'proxmox' | 'docker' | 'gpu' | 'sensors' | 'unas';
+
+type PollerPayloads = {
+  unifi: UnifiApiResponse;
+  proxmox: ProxmoxApiResponse;
+  docker: DockerApiResponse;
+  gpu: GpuApiResponse;
+  sensors: SensorsApiResponse;
+  unas: UnasApiResponse;
+};
+
+type ApiEnvelope<T extends object> = T | { disabled: true } | { error: string };
+
+export type TelemetryStatus = 'idle' | 'ok' | 'stale' | 'error' | 'disabled';
+
+export interface TelemetryIntegrationState {
+  status: TelemetryStatus;
+  lastOkAt: number | null;
+  lastError: string | null;
+  staleReason: string | null;
+  updatedAt: number | null;
+}
 
 function zeros(): number[] {
   return Array(N_HISTORY).fill(0);
@@ -140,60 +177,162 @@ function buildInit(): DashboardState {
 
 const state: DashboardState = buildInit();
 const subs = new Set<() => void>();
+const telemetrySubs = new Set<() => void>();
+
+const initialTelemetryState: TelemetryIntegrationState = {
+  status: 'idle',
+  lastOkAt: null,
+  lastError: null,
+  staleReason: null,
+  updatedAt: null,
+};
+
+const telemetryState: Record<IntegrationKey, TelemetryIntegrationState> = {
+  unifi: { ...initialTelemetryState },
+  proxmox: { ...initialTelemetryState },
+  docker: { ...initialTelemetryState },
+  gpu: { ...initialTelemetryState },
+  sensors: { ...initialTelemetryState },
+  unas: { ...initialTelemetryState },
+};
 
 function notify(): void {
   subs.forEach((fn) => fn());
+}
+
+function notifyTelemetry(): void {
+  telemetrySubs.forEach((fn) => fn());
+}
+
+function setTelemetryState(key: IntegrationKey, next: Partial<TelemetryIntegrationState>): void {
+  telemetryState[key] = {
+    ...telemetryState[key],
+    ...next,
+    updatedAt: Date.now(),
+  };
+  notifyTelemetry();
 }
 
 function push(history: number[], value: number): number[] {
   return history.slice(1).concat(value);
 }
 
-interface PollerOptions {
+interface PollerConfig<K extends IntegrationKey> {
+  id: K;
+  capabilityId: string;
   url: string;
   intervalMs: number;
-  apply: (payload: any) => boolean;
+  apply: (payload: PollerPayloads[K]) => boolean;
+  reset?: () => void;
 }
 
-function startPoller({ url, intervalMs, apply }: PollerOptions): () => void {
-  let timer: ReturnType<typeof setInterval> | null = null;
+function isDisabledPayload<T extends object>(
+  payload: ApiEnvelope<T>,
+): payload is { disabled: true } {
+  return 'disabled' in payload && payload.disabled === true;
+}
+
+function isErrorPayload<T extends object>(payload: ApiEnvelope<T>): payload is { error: string } {
+  return 'error' in payload && typeof payload.error === 'string';
+}
+
+async function readError(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+  return typeof body?.error === 'string' ? body.error : `HTTP ${res.status}`;
+}
+
+function errorReason(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function startPoller<K extends IntegrationKey>(config: PollerConfig<K>): () => void {
+  const { id, url, intervalMs, apply } = config;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
+
+  const schedule = (delayMs: number) => {
+    if (stopped) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      void tick();
+    }, delayMs);
+  };
 
   const tick = async () => {
     if (stopped) return;
+    const connectivity = getConnectivity();
+    if (connectivity.status === 'offline') {
+      setTelemetryState(id, {
+        status: 'stale',
+        lastError: connectivity.reason,
+        staleReason: connectivity.reason ?? 'Backend offline',
+      });
+      schedule(OFFLINE_BACKOFF_MS);
+      return;
+    }
+
     try {
       const res = await fetch(url);
       if (stopped) return;
-      if (!res.ok) return;
-      const payload = await res.json();
-      if (stopped) return;
-      if (payload.disabled) {
-        if (timer) {
-          clearInterval(timer);
-          timer = null;
-        }
+      if (!res.ok) {
+        setTelemetryState(id, {
+          status: 'error',
+          lastError: await readError(res),
+          staleReason: 'Fetch failed',
+        });
+        schedule(intervalMs);
         return;
       }
-      if (payload.error) return;
+      const payload = (await res.json()) as ApiEnvelope<PollerPayloads[K]>;
+      if (stopped) return;
+      if (isDisabledPayload(payload)) {
+        setTelemetryState(id, {
+          status: 'disabled',
+          lastError: null,
+          staleReason: 'Integration disabled',
+        });
+        return;
+      }
+      if (isErrorPayload(payload)) {
+        setTelemetryState(id, {
+          status: 'error',
+          lastError: payload.error,
+          staleReason: 'Integration error',
+        });
+        schedule(intervalMs);
+        return;
+      }
       if (apply(payload)) notify();
+      setTelemetryState(id, {
+        status: 'ok',
+        lastOkAt: Date.now(),
+        lastError: null,
+        staleReason: null,
+      });
     } catch (err) {
+      setTelemetryState(id, {
+        status: 'error',
+        lastError: errorReason(err),
+        staleReason: 'Fetch failed',
+      });
       if (import.meta.env.DEV) console.warn(`[telemetry] ${url} failed:`, err);
     }
+    schedule(intervalMs);
   };
 
   tick();
-  timer = setInterval(tick, intervalMs);
 
   return () => {
     stopped = true;
     if (timer) {
-      clearInterval(timer);
+      clearTimeout(timer);
       timer = null;
     }
   };
 }
 
-function applyUnifi(payload: any): boolean {
+function applyUnifi(payload: UnifiApiResponse): boolean {
   if (payload.unifi) state.unifi = payload.unifi;
   if (payload.network) {
     const net = payload.network;
@@ -210,7 +349,7 @@ function applyUnifi(payload: any): boolean {
   return !!(payload.unifi || payload.network);
 }
 
-function applyProxmox(payload: any): boolean {
+function applyProxmox(payload: ProxmoxApiResponse): boolean {
   if (!payload.proxmox) return false;
   state.proxmox = payload.proxmox;
   const node = payload.proxmox.node;
@@ -246,13 +385,13 @@ function applyProxmox(payload: any): boolean {
   return true;
 }
 
-function applyDocker(payload: any): boolean {
+function applyDocker(payload: DockerApiResponse): boolean {
   if (!payload.docker) return false;
   state.docker = payload.docker;
   return true;
 }
 
-function applyGpu(payload: any): boolean {
+function applyGpu(payload: GpuApiResponse): boolean {
   if (!payload.gpu) return false;
   const incoming = payload.gpu;
   state.gpu = {
@@ -263,31 +402,40 @@ function applyGpu(payload: any): boolean {
   return true;
 }
 
-function applyUnas(payload: any): boolean {
+function storageStatus(status: string): StoragePool['status'] {
+  if (status === 'online' || status === 'degraded' || status === 'offline') return status;
+  return 'offline';
+}
+
+function applyUnas(payload: UnasApiResponse): boolean {
   if (!payload.unas) return false;
   state.unas = payload.unas;
   // Mirror UNAS pools/disks into generic storage so the NAS page + SmartTile populate.
   state.storage = {
-    pools: payload.unas.pools.map((p: any) => ({
-      name: p.name,
-      type: p.type,
-      totalTB: p.totalTB,
-      usedTB: p.usedTB,
-      status: p.status,
-      scrub: p.scrub?.lastRun ? p.scrub.lastRun : 'never',
-    })),
-    disks: payload.unas.disks.map((d: any) => ({
-      name: `Slot ${d.slot}`,
-      model: d.model,
-      tempC: d.tempC,
-      smart: d.smart,
-      ageHours: d.powerOnHours || 0,
-    })),
+    pools: payload.unas.pools.map(
+      (p): StoragePool => ({
+        name: p.name,
+        type: p.type,
+        totalTB: p.totalTB,
+        usedTB: p.usedTB,
+        status: storageStatus(p.status),
+        scrub: p.scrub?.lastRun ? p.scrub.lastRun : 'never',
+      }),
+    ),
+    disks: payload.unas.disks.map(
+      (d): Disk => ({
+        name: `Slot ${d.slot}`,
+        model: d.model,
+        tempC: d.tempC,
+        smart: d.smart,
+        ageHours: d.powerOnHours || 0,
+      }),
+    ),
   };
   return true;
 }
 
-function applySensors(payload: any): boolean {
+function applySensors(payload: SensorsApiResponse): boolean {
   if (!payload.sensors) return false;
   state.sensors = payload.sensors;
   if (typeof payload.sensors.cpuTempC === 'number') {
@@ -302,17 +450,10 @@ function applySensors(payload: any): boolean {
   return true;
 }
 
-export type IntegrationKey = 'unifi' | 'proxmox' | 'docker' | 'gpu' | 'sensors' | 'unas';
-
-interface PollerConfig {
-  url: string;
-  intervalMs: number;
-  apply: (payload: any) => boolean;
-  reset?: () => void;
-}
-
-const POLLERS: Record<IntegrationKey, PollerConfig> = {
+const POLLERS: { [K in IntegrationKey]: PollerConfig<K> } = {
   unifi: {
+    id: 'unifi',
+    capabilityId: 'network',
     url: '/api/unifi',
     intervalMs: UNIFI_POLL_MS,
     apply: applyUnifi,
@@ -322,6 +463,8 @@ const POLLERS: Record<IntegrationKey, PollerConfig> = {
     },
   },
   proxmox: {
+    id: 'proxmox',
+    capabilityId: 'datacenter',
     url: '/api/proxmox',
     intervalMs: PROXMOX_POLL_MS,
     apply: applyProxmox,
@@ -333,6 +476,8 @@ const POLLERS: Record<IntegrationKey, PollerConfig> = {
     },
   },
   docker: {
+    id: 'docker',
+    capabilityId: 'containers',
     url: '/api/docker',
     intervalMs: DOCKER_POLL_MS,
     apply: applyDocker,
@@ -341,6 +486,8 @@ const POLLERS: Record<IntegrationKey, PollerConfig> = {
     },
   },
   gpu: {
+    id: 'gpu',
+    capabilityId: 'gpu',
     url: '/api/gpu',
     intervalMs: GPU_POLL_MS,
     apply: applyGpu,
@@ -349,6 +496,8 @@ const POLLERS: Record<IntegrationKey, PollerConfig> = {
     },
   },
   sensors: {
+    id: 'sensors',
+    capabilityId: 'sensors',
     url: '/api/sensors',
     intervalMs: SENSORS_POLL_MS,
     apply: applySensors,
@@ -363,6 +512,8 @@ const POLLERS: Record<IntegrationKey, PollerConfig> = {
     },
   },
   unas: {
+    id: 'unas',
+    capabilityId: 'nas',
     url: '/api/unas',
     intervalMs: UNAS_POLL_MS,
     apply: applyUnas,
@@ -377,21 +528,63 @@ export const INTEGRATION_KEYS = Object.keys(POLLERS) as IntegrationKey[];
 
 const activeStops = new Map<IntegrationKey, () => void>();
 
+const POLLER_STARTERS: Record<IntegrationKey, () => () => void> = {
+  unifi: () => startPoller(POLLERS.unifi),
+  proxmox: () => startPoller(POLLERS.proxmox),
+  docker: () => startPoller(POLLERS.docker),
+  gpu: () => startPoller(POLLERS.gpu),
+  sensors: () => startPoller(POLLERS.sensors),
+  unas: () => startPoller(POLLERS.unas),
+};
+
 export function setIntegrationEnabled(key: IntegrationKey, enabled: boolean): void {
   const config = POLLERS[key];
   if (!config) return;
   const existing = activeStops.get(key);
   if (enabled) {
     if (existing) return;
-    activeStops.set(key, startPoller(config));
+    setTelemetryState(key, {
+      status: 'idle',
+      lastError: null,
+      staleReason: null,
+    });
+    activeStops.set(key, POLLER_STARTERS[key]());
   } else {
     if (existing) {
       existing();
       activeStops.delete(key);
     }
     config.reset?.();
+    setTelemetryState(key, {
+      status: 'disabled',
+      lastError: null,
+      staleReason: 'Integration disabled by user',
+    });
     notify();
   }
+}
+
+export function getTelemetryState(): Record<IntegrationKey, TelemetryIntegrationState> {
+  return {
+    unifi: { ...telemetryState.unifi },
+    proxmox: { ...telemetryState.proxmox },
+    docker: { ...telemetryState.docker },
+    gpu: { ...telemetryState.gpu },
+    sensors: { ...telemetryState.sensors },
+    unas: { ...telemetryState.unas },
+  };
+}
+
+export function useTelemetryState(): Record<IntegrationKey, TelemetryIntegrationState> {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const fn = () => force((x) => x + 1);
+    telemetrySubs.add(fn);
+    return () => {
+      telemetrySubs.delete(fn);
+    };
+  }, []);
+  return getTelemetryState();
 }
 
 export function useDashData(): DashboardState {

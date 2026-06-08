@@ -23,6 +23,9 @@ export default defineConfig(({ mode }) => {
     server: {
       port: Number(process.env.PORT) || 5173,
       host: true,
+      fs: {
+        allow: [repoRoot],
+      },
       proxy: {
         '/api': {
           // Pin to IPv4 (not `localhost`): the API server binds 0.0.0.0 (IPv4
