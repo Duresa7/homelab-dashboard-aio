@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import type { ComponentType, Inventory } from '../../lib/inventory';
 import { roleIcon } from '../../lib/inventoryIcons';
 import { Badge } from '@/components/ui/badge';
+import { SectionCard } from '@/components/common';
 
 import { ComponentTable } from './ComponentTable';
 import { ADD_ROW_BTN, EmptyState, matchComponent, pad2 } from './shared';
@@ -45,10 +46,7 @@ export function ServiceTab({
       {sections.map(({ machine, comps }) => {
         const RoleIcon = roleIcon(machine.role, machine.name);
         return (
-          <section
-            key={machine.id}
-            className="overflow-hidden rounded-xl border border-border bg-card shadow-card"
-          >
+          <SectionCard key={machine.id} flush>
             <header className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
               <span className="font-mono text-sm tabular-nums text-muted-foreground">
                 {machine.ids?.uid ?? machine.ordinal ?? '—'}
@@ -79,7 +77,7 @@ export function ServiceTab({
                 </button>
               </div>
             ) : null}
-          </section>
+          </SectionCard>
         );
       })}
     </div>

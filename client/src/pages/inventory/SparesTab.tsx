@@ -10,6 +10,7 @@ import {
 import { categoryIcon, componentIcon } from '../../lib/inventoryIcons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { SectionCard } from '@/components/common';
 import { cn } from '@/lib/utils';
 
 import { CategoryBlock } from './CategoryBlock';
@@ -128,10 +129,7 @@ export function SparesTab({
       {compGroups
         .filter((g) => showType(g.type))
         .map((g) => (
-          <section
-            key={g.type}
-            className="overflow-hidden rounded-xl border border-border bg-card shadow-card"
-          >
+          <SectionCard key={g.type} flush>
             <header className="flex items-center gap-3 border-b border-border px-4 py-3">
               {iconOf(componentIcon(COMPONENT_TYPE_LABELS[g.type]) ?? Cpu)}
               <h3 className="font-display text-base text-foreground">
@@ -148,7 +146,7 @@ export function SparesTab({
               openItemId={openItemId}
               onDelete={deleteComponent}
             />
-          </section>
+          </SectionCard>
         ))}
 
       {isEditing && filter === 'all' ? (
