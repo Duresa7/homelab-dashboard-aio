@@ -1,13 +1,11 @@
 // UniFi UNAS (drive appliance) integration. Normalizes storage pools + disks
 // (with SMART/incompatibility detail) into the dashboard's `unas` slice.
-import type { Express, Request, Response } from 'express';
-
 import { insecureFetch, makeSafeFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
-import { isDebugEndpointEnabled, isEnabled, trimBaseUrl } from '../lib/env.js';
-import { errorMessage } from '../lib/errors.js';
+import { isEnabled, trimBaseUrl } from '../lib/env.js';
 import type { Upstream } from '../types.js';
 import type { UnasApiResponse } from '../../../shared/wire.ts';
+import { selectionConfig, text, type Provider } from './provider.js';
 
 const UNAS_CACHE_TTL = Number(process.env.UNAS_POLL_INTERVAL) || 30000;
 
@@ -202,27 +200,25 @@ export function probeUnas() {
   return unasFetch('/proxy/drive/api/v2/storage');
 }
 
-export function registerUnas(app: Express) {
-  app.get('/api/unas', async (_req: Request, res: Response) => {
-    if (!config.enabled) return res.json({ disabled: true });
-    if (!config.baseUrl || !config.apiKey) {
-      return res.status(503).json({
-        error: 'UNAS not configured. Set base URL and API key in Setup.',
-      });
-    }
-    try {
-      res.json(await fetchUnasData());
-    } catch (err) {
-      console.error('UNAS API error:', errorMessage(err));
-      res.status(502).json({ error: errorMessage(err) });
-    }
-  });
-
-  app.get('/api/unas/debug', async (_req: Request, res: Response) => {
-    if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
-    if (!config.enabled) return res.json({ disabled: true });
+export const unasProvider: Provider<UnasApiResponse> = {
+  id: 'unas',
+  capabilityId: 'nas',
+  logName: 'UNAS',
+  status: unasStatus,
+  notConfiguredMessage: 'UNAS not configured. Set base URL and API key in Setup.',
+  configure(selection) {
+    const cfg = selectionConfig(selection);
+    configureUnas({
+      enabled: !!selection?.enabled,
+      baseUrl: text(cfg.baseUrl),
+      apiKey: text(cfg.apiKey),
+    });
+  },
+  fetch: fetchUnasData,
+  probe: probeUnas,
+  debug() {
     const c = fetchUnasData.peek();
-    res.json({
+    return {
       config: { baseUrl: config.baseUrl || null, hasKey: !!config.apiKey },
       cache: c.data
         ? {
@@ -232,6 +228,6 @@ export function registerUnas(app: Express) {
           }
         : null,
       lastError: c.lastError,
-    });
-  });
-}
+    };
+  },
+};

@@ -1,12 +1,10 @@
 // GPU integration. Runs `nvidia-smi` (locally or over SSH via runRemote) and
 // normalizes the CSV into the dashboard's `gpu` slice.
-import type { Express, Request, Response } from 'express';
-
 import { runRemote } from '../lib/remote.js';
 import { withTtlCache } from '../lib/cache.js';
-import { isDebugEndpointEnabled, isEnabled } from '../lib/env.js';
-import { errorMessage } from '../lib/errors.js';
+import { isEnabled } from '../lib/env.js';
 import type { GpuApiResponse, GpuSample } from '../../../shared/wire.ts';
+import { selectionConfig, text, type Provider } from './provider.js';
 
 const GPU_SSH_USER = process.env.GPU_SSH_USER || 'root';
 const GPU_SSH_PORT = Number(process.env.GPU_SSH_PORT) || 22;
@@ -136,24 +134,24 @@ export function probeGpu() {
   return runNvidiaSmi();
 }
 
-export function registerGpu(app: Express) {
-  app.get('/api/gpu', async (_req: Request, res: Response) => {
-    const mode = (config.mode || 'ssh').toLowerCase();
-    if (!config.enabled) return res.json({ disabled: true });
-    if (mode === 'ssh' && !config.sshHost) {
-      return res.status(503).json({ error: 'GPU_MODE=ssh but GPU_SSH_HOST is not configured' });
-    }
-    try {
-      res.json(await fetchGpuData());
-    } catch (err) {
-      console.warn(`GPU: nvidia-smi failed (${mode}) → ${errorMessage(err).split('\n')[0]}`);
-      res.status(502).json({ error: errorMessage(err) });
-    }
-  });
-
-  app.get('/api/gpu/debug', async (_req: Request, res: Response) => {
-    if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
-    if (!config.enabled) return res.json({ disabled: true });
+export const gpuProvider: Provider<GpuApiResponse> = {
+  id: 'gpu',
+  capabilityId: 'gpu',
+  logName: 'GPU',
+  status: gpuStatus,
+  notConfiguredMessage: 'GPU_MODE=ssh but GPU_SSH_HOST is not configured',
+  errorLogLevel: 'warn',
+  configure(selection) {
+    const cfg = selectionConfig(selection);
+    configureGpu({
+      enabled: !!selection?.enabled,
+      mode: text(cfg.mode) || 'ssh',
+      sshHost: text(cfg.sshHost) || '',
+    });
+  },
+  fetch: fetchGpuData,
+  probe: probeGpu,
+  debug() {
     const debugConfig: {
       mode: string;
       host?: string;
@@ -168,10 +166,10 @@ export function registerGpu(app: Express) {
       debugConfig.keyPath = GPU_SSH_KEY_PATH || '(default)';
     }
     const c = fetchGpuData.peek();
-    res.json({
+    return {
       config: debugConfig,
       cache: c.data ? { ageMs: Date.now() - c.ts, gpus: c.data.gpus } : null,
       lastError: c.lastError,
-    });
-  });
-}
+    };
+  },
+};

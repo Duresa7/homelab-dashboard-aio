@@ -18,22 +18,14 @@ import { resolveDbConfig } from './storage/config.js';
 import { openStores } from './storage/factory.js';
 import { isEnabled } from './lib/env.js';
 import { errorMessage } from './lib/errors.js';
-import {
-  registerDocker,
-  dockerStatus,
-  probeDocker,
-  configureDocker,
-} from './integrations/docker.js';
-import {
-  registerProxmox,
-  proxmoxStatus,
-  probeProxmox,
-  configureProxmox,
-} from './integrations/proxmox.js';
-import { registerUnas, unasStatus, probeUnas, configureUnas } from './integrations/unas.js';
-import { registerUnifi, unifiStatus, probeUnifi, configureUnifi } from './integrations/unifi.js';
-import { registerGpu, gpuStatus, probeGpu, configureGpu } from './integrations/gpu.js';
+import { dockerStatus } from './integrations/docker.js';
+import { proxmoxStatus, registerProxmoxNodeRoutes } from './integrations/proxmox.js';
+import { unasStatus } from './integrations/unas.js';
+import { unifiStatus } from './integrations/unifi.js';
+import { gpuStatus } from './integrations/gpu.js';
 import { registerWol, wolStatus } from './integrations/wol.js';
+import { integrationProviders, providerByCapabilityId } from './integrations/registry.js';
+import { registerProvider } from './integrations/provider.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -61,12 +53,6 @@ const DB_CONFIG = resolveDbConfig();
 
 function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-function bool(value: unknown, fallback: boolean): boolean {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') return isEnabled(value, fallback);
-  return fallback;
 }
 
 function number(value: unknown, fallback: number): number {
@@ -113,62 +99,21 @@ async function applyRuntimeCapability(
 ): Promise<void> {
   const enabled = !!selection?.enabled;
   const cfg = selectionConfig(selection);
-  switch (capabilityId) {
-    case 'network':
-      configureUnifi({
-        enabled,
-        baseUrl: text(cfg.baseUrl),
-        apiKey: text(cfg.apiKey),
-        site: text(cfg.site) || 'default',
-      });
-      break;
-    case 'datacenter':
-      configureProxmox({
-        enabled,
-        baseUrl: text(cfg.baseUrl),
-        tokenId: text(cfg.tokenId),
-        tokenSecret: text(cfg.tokenSecret),
-        node: text(cfg.node) || '',
-      });
-      break;
-    case 'containers':
-      configureDocker({
-        enabled,
-        baseUrl: text(cfg.baseUrl),
-        apiKey: text(cfg.apiKey),
-        statsEnabled: bool(cfg.statsEnabled, true),
-      });
-      break;
-    case 'nas':
-      configureUnas({
-        enabled,
-        baseUrl: text(cfg.baseUrl),
-        apiKey: text(cfg.apiKey),
-      });
-      break;
-    case 'gpu':
-      configureGpu({
-        enabled,
-        mode: text(cfg.mode) || 'ssh',
-        sshHost: text(cfg.sshHost) || '',
-      });
-      break;
-    case 'sensors':
-      sensorsHandle.configure({
-        enabled,
-        mode: text(cfg.mode) || 'ssh',
-        sshHost: text(cfg.sshHost) || gpuStatus.host,
-        sshUser: SENSORS_SSH_USER,
-        sshPort: SENSORS_SSH_PORT,
-        sshKeyPath: SENSORS_SSH_KEY_PATH,
-        cacheTtl: SENSORS_CACHE_TTL,
-      });
-      break;
-    case 'logs':
-      await siemHandle.configure(siemConfigFromSelection(selection, true));
-      break;
-    default:
-      break;
+  const provider = providerByCapabilityId.get(capabilityId);
+  if (provider) {
+    await provider.configure(selection);
+  } else if (capabilityId === 'sensors') {
+    sensorsHandle.configure({
+      enabled,
+      mode: text(cfg.mode) || 'ssh',
+      sshHost: text(cfg.sshHost) || gpuStatus.host,
+      sshUser: SENSORS_SSH_USER,
+      sshPort: SENSORS_SSH_PORT,
+      sshKeyPath: SENSORS_SSH_KEY_PATH,
+      cacheTtl: SENSORS_CACHE_TTL,
+    });
+  } else if (capabilityId === 'logs') {
+    await siemHandle.configure(siemConfigFromSelection(selection, true));
   }
   liveHealthCache = { data: null, ts: 0 };
 }
@@ -300,15 +245,13 @@ async function runProbe(
 
 async function computeLiveHealth(): Promise<LiveHealth> {
   const probes = await Promise.all([
-    runProbe('unifi', unifiStatus.enabled && !!unifiStatus.baseUrl && unifiStatus.configured, () =>
-      probeUnifi(),
+    ...integrationProviders.map((provider) =>
+      runProbe(
+        provider.healthId ?? provider.id,
+        provider.status.enabled && provider.status.configured,
+        () => provider.probe?.(LIVE_HEALTH_PROBE_TIMEOUT_MS),
+      ),
     ),
-    runProbe('portainer', dockerStatus.enabled && dockerStatus.configured, () =>
-      probeDocker(LIVE_HEALTH_PROBE_TIMEOUT_MS),
-    ),
-    runProbe('proxmox', proxmoxStatus.enabled && proxmoxStatus.configured, () => probeProxmox()),
-    runProbe('unas', unasStatus.enabled && unasStatus.configured, () => probeUnas()),
-    runProbe('gpu', gpuStatus.enabled && gpuStatus.configured, () => probeGpu()),
     runProbe('sensors', sensorsHandle.status().enabled && sensorsHandle.status().configured, () =>
       sensorsHandle.runSensors(),
     ),
@@ -375,12 +318,9 @@ app.get('/api/health/live', async (req, res) => {
   });
 });
 
-registerUnifi(app);
-registerDocker(app);
-
-registerProxmox(app);
+for (const provider of integrationProviders) registerProvider(app, provider);
+registerProxmoxNodeRoutes(app);
 const proxmoxHistoryHandle = initProxmoxHistory(app);
-registerGpu(app);
 registerWol(app);
 
 // Sensors share the GPU SSH config by default — both usually target the same host.
@@ -402,8 +342,6 @@ const sensorsHandle = initSensors(app, {
   sshKeyPath: SENSORS_SSH_KEY_PATH,
   cacheTtl: SENSORS_CACHE_TTL,
 });
-
-registerUnas(app);
 
 // Open both stores for the resolved backend (SQLite at today's paths by
 // default). DB selection is read from env/file at boot since the app config

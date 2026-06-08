@@ -4,11 +4,12 @@ import type { Express, Request, Response } from 'express';
 
 import { insecureFetch, makeSafeFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
-import { isDebugEndpointEnabled, isEnabled, formatUptime } from '../lib/env.js';
+import { isEnabled, formatUptime } from '../lib/env.js';
 import { normalizeDiskParts } from '../sensors/parse.js';
 import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
 import type { ProxmoxApiResponse } from '../../../shared/wire.ts';
+import { selectionConfig, text, type Provider } from './provider.js';
 
 const PVE_CACHE_TTL = Number(process.env.PROXMOX_POLL_INTERVAL) || 5000;
 const GB = 1024 ** 3;
@@ -401,13 +402,26 @@ export function probeProxmox() {
   return pveFetch('/api2/json/version');
 }
 
-export function registerProxmox(app: Express) {
-  app.get('/api/proxmox/debug', async (_req: Request, res: Response) => {
-    if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
-    if (!config.enabled) return res.status(503).json({ error: 'Proxmox disabled' });
-    if (!config.baseUrl || !config.tokenId || !config.tokenSecret) {
-      return res.status(503).json({ error: 'Proxmox not configured' });
-    }
+export const proxmoxProvider: Provider<ProxmoxApiResponse> = {
+  id: 'proxmox',
+  capabilityId: 'datacenter',
+  logName: 'Proxmox',
+  status: proxmoxStatus,
+  notConfiguredMessage:
+    'Proxmox not configured. Set base URL, token ID, and token secret in Setup.',
+  configure(selection) {
+    const cfg = selectionConfig(selection);
+    configureProxmox({
+      enabled: !!selection?.enabled,
+      baseUrl: text(cfg.baseUrl),
+      tokenId: text(cfg.tokenId),
+      tokenSecret: text(cfg.tokenSecret),
+      node: text(cfg.node) || '',
+    });
+  },
+  fetch: fetchProxmoxData,
+  probe: probeProxmox,
+  async debug() {
     const out: Record<string, Upstream> = {};
     try {
       out.nodes = await pveFetch('/api2/json/nodes');
@@ -427,27 +441,11 @@ export function registerProxmox(app: Express) {
     } catch (e) {
       out.clusterResourcesError = errorMessage(e);
     }
-    res.json(out);
-  });
+    return out;
+  },
+};
 
-  app.get('/api/proxmox', async (_req: Request, res: Response) => {
-    if (!config.enabled) {
-      return res.json({ disabled: true });
-    }
-    if (!config.baseUrl || !config.tokenId || !config.tokenSecret) {
-      return res.status(503).json({
-        error: 'Proxmox not configured. Set base URL, token ID, and token secret in Setup.',
-      });
-    }
-    try {
-      const data = await fetchProxmoxData();
-      res.json(data);
-    } catch (err) {
-      console.error('Proxmox API error:', errorMessage(err));
-      res.status(502).json({ error: errorMessage(err) });
-    }
-  });
-
+export function registerProxmoxNodeRoutes(app: Express) {
   app.get('/api/proxmox/node/:node', async (req: Request, res: Response) => {
     if (!config.enabled) return res.status(503).json({ error: 'Proxmox disabled' });
     if (!config.baseUrl || !config.tokenId || !config.tokenSecret) {
