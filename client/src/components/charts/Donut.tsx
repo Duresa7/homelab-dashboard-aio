@@ -28,13 +28,16 @@ export function Donut({
   const stroke = kind ? severityColor[kind] : (color ?? 'var(--accent)');
   const labelFill = kind ? severityColor[kind] : 'var(--ink)';
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="donut" style={{ width: size, height: size }}>
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      className="block shrink-0"
+      style={{ width: size, height: size }}
+    >
       <circle
         cx={size / 2}
         cy={size / 2}
         r={r}
         fill="none"
-        className="track"
         strokeWidth={thickness}
         style={{ stroke: 'var(--bg-3)' }}
       />
@@ -43,10 +46,9 @@ export function Donut({
         cy={size / 2}
         r={r}
         fill="none"
-        className="arc"
         strokeWidth={thickness}
         strokeLinecap="round"
-        style={{ stroke }}
+        style={{ stroke, transition: 'stroke-dasharray 0.4s ease' }}
         strokeDasharray={`${(c * pct).toFixed(2)} ${c.toFixed(2)}`}
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
       />

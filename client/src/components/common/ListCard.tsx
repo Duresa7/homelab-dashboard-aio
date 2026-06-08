@@ -71,7 +71,8 @@ export function ListRow({ dot, name, meta, value, onClick, className }: ListRowP
       {...(interactive ? { type: 'button' as const, onClick } : {})}
       className={cn(
         'flex items-center gap-2.5 border-b border-border/60 py-2 text-left last:border-0',
-        interactive && 'cursor-pointer rounded-md transition-colors hover:bg-muted/50',
+        interactive &&
+          'cursor-pointer rounded-md transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent)]',
         className,
       )}
     >

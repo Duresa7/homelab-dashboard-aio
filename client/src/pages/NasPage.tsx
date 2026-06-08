@@ -82,7 +82,7 @@ function Disks({ data }: { data: DashboardState }) {
   const disks = data.storage.disks;
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
-      <SmartTile data={data.storage} span={12} expandable={false} />
+      <SmartTile data={data.storage} span={12} />
       <DataTableCard
         span={12}
         title="All Disks"

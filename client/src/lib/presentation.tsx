@@ -13,7 +13,6 @@ import {
   createContext,
   useContext,
   useEffect,
-  useMemo,
   useState,
   type ComponentProps,
   type ReactNode,
@@ -28,7 +27,6 @@ import {
   type RedactedConfig,
 } from './setup';
 import type { Section } from './route';
-import type { TileId } from '@/components/widgets';
 
 export type CapabilityId =
   | 'datacenter'
@@ -57,23 +55,6 @@ export const SECTION_CAPABILITY: Partial<Record<Section, CapabilityId>> = {
   nas: 'nas',
   // Observability stays always-visible; the SIEM tab self-gates on the `logs`
   // capability inside ObservabilityPage.
-};
-
-export const TILE_CAPABILITY: Partial<Record<TileId, CapabilityId>> = {
-  gpu: 'gpu',
-  storage: 'nas',
-  network: 'network',
-  unifi: 'network',
-  docker: 'containers',
-  proxmox: 'datacenter',
-  unas: 'nas',
-  fans: 'sensors',
-  smart: 'nas',
-  backups: 'nas',
-  internet: 'network',
-  topTalkers: 'network',
-  tempHeat: 'sensors',
-  events: 'logs',
 };
 
 const FALLBACK_CAPABILITIES: Capability[] = [
@@ -316,43 +297,9 @@ export function useSectionLabel(section: Section): string {
   return capabilityId ? presentation[capabilityId].label : '';
 }
 
-export function useVisibleTiles(layout: TileId[]): TileId[] {
-  const presentation = usePresentation();
-  return useMemo(
-    () =>
-      layout.filter((id) => {
-        const capabilityId = TILE_CAPABILITY[id];
-        return !capabilityId || presentation[capabilityId].enabled;
-      }),
-    [layout, presentation],
-  );
-}
-
 export function isSectionVisible(section: Section, presentation: PresentationMap): boolean {
   const capabilityId = SECTION_CAPABILITY[section];
   return !capabilityId || presentation[capabilityId].enabled;
-}
-
-const TILE_SUFFIX: Partial<Record<TileId, string>> = {
-  storage: 'Pools',
-  smart: 'Disk Health',
-  backups: 'Backups',
-  internet: 'Internet',
-  topTalkers: 'Connected Clients',
-  tempHeat: 'Temp Heatmap',
-  fans: 'Fans',
-};
-
-export function tilePresentationLabel(
-  id: TileId,
-  fallback: string,
-  presentation: PresentationMap,
-): string {
-  const capabilityId = TILE_CAPABILITY[id];
-  if (!capabilityId) return fallback;
-  const capability = presentation[capabilityId];
-  const suffix = TILE_SUFFIX[id];
-  return suffix ? `${capability.label} ${suffix}` : capability.label;
 }
 
 type IconProps = {

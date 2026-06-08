@@ -16,14 +16,13 @@
    sourced from `--sh-accent` instead, leaving our brand `--accent` = indigo.
    ========================================================= */
 
-/* Declare `legacy` first so it sits BELOW Tailwind's utilities layer — the
-   existing components.css is imported into it, so Tailwind utilities always
-   win over any same-named legacy class (e.g. `.grid`) during the migration. */
-@layer legacy;
-
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import './components.css' layer(legacy);
+/* Slimmed component CSS — the old `@layer legacy` block was retired once the
+   redesign moved every page onto the shared card kit. Only a few uniquely-named
+   component-scoped rules remain (no Tailwind-utility name clashes), so this is
+   imported unlayered. */
+@import './components.css';
 
 /* Bridge shadcn's `dark:` variant to our existing [data-theme="dark"] hook. */
 @custom-variant dark (&:is([data-theme='dark'] *));
@@ -128,13 +127,13 @@
   --ink: #f6f8fc; /* primary */
   --ink-2: #dde3ee; /* body */
   --ink-3: #97a2b6; /* muted */
-  --ink-4: #6b7587; /* deemphasized */
+  --ink-4: #7a8498; /* deemphasized — lifted to clear WCAG AA (4.75:1 on surface) */
 
   /* Crisper hairlines for panel definition */
   --line: #242834;
   --line-2: #313747;
   --line-strong: #404758;
-  --panel-line: #2a2f3d;
+  --panel-line: #313747; /* card outline — a touch crisper so panels read off the near-black canvas */
 
   --sh-accent: #1c2030;
   --sh-accent-foreground: #dde3ee;

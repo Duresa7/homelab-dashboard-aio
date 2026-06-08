@@ -1,3 +1,5 @@
+import type { DashboardState } from '../types';
+
 export type Section =
   | 'overview'
   | 'proxmox'
@@ -103,6 +105,37 @@ export function proxmoxEntityType(itemId?: string): 'datacenter' | 'node' | 'gue
   if (itemId.startsWith('guest/')) return 'guest';
   if (itemId.startsWith('storage/')) return 'storage';
   return 'datacenter';
+}
+
+/** The bare entity name encoded in a proxmox itemId, e.g. `node/pve1` → `pve1`. */
+export function entityName(itemId?: string): string {
+  return itemId && itemId.includes('/')
+    ? decodeURIComponent(itemId.split('/').slice(1).join('/'))
+    : 'datacenter';
+}
+
+/**
+ * Resolve the *display* name for a drilled-in proxmox itemId, mirroring the
+ * lookups in the Data Center detail views so the global Topbar breadcrumb
+ * matches the in-page DetailHeader title. Returns null at datacenter level.
+ */
+export function resolveProxmoxEntityName(data: DashboardState, itemId?: string): string | null {
+  const key = entityName(itemId);
+  switch (proxmoxEntityType(itemId)) {
+    case 'node':
+      return (data.proxmox.nodes.find((n) => n.name === key) ?? data.proxmox.node)?.name ?? key;
+    case 'guest':
+      return data.proxmox.vms.find((v) => String(v.id) === key)?.name ?? key;
+    case 'storage':
+      return (
+        (
+          data.proxmox.storages.find((s) => (s.shared ? s.name : `${s.node}:${s.name}`) === key) ??
+          data.proxmox.storages.find((s) => s.name === key)
+        )?.name ?? key
+      );
+    default:
+      return null;
+  }
 }
 
 export function normalizeProxmoxItemId(itemId?: string): string {

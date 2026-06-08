@@ -1,4 +1,4 @@
-import { Cpu, Plus, Trash2, X } from 'lucide-react';
+import { ChevronRight, Cpu, Plus, Trash2, X } from 'lucide-react';
 
 import {
   componentTitle,
@@ -9,10 +9,14 @@ import {
   type Machine,
 } from '../../lib/inventory';
 import { BrandGlyph, componentIcon, roleIcon } from '../../lib/inventoryIcons';
+import { ListRow, SectionCard } from '@/components/common';
 import { cn } from '@/lib/utils';
 
 import { Editable } from './Editable';
-import { ADD_ROW_BTN, EmptyState, GHOST_ICON_BTN, matchMachine } from './shared';
+import { ADD_ROW_BTN, EmptyState, GHOST_ICON_BTN, matchMachine, statusKind } from './shared';
+
+/** Responsive 4-of-12 span, matching EntityCard layouts elsewhere. */
+const CARD_SPAN = 'col-span-12 sm:col-span-6 lg:col-span-4';
 
 interface MachinesTabProps {
   inv: Inventory;
@@ -46,25 +50,40 @@ export function MachinesTab({
     );
   }
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-      {machines.map((m) => (
-        <MachineCard
-          key={m.id}
-          machine={m}
-          components={inv.components.filter((c) => c.assignment === m.id)}
-          isEditing={isEditing}
-          onChange={(mut) => updateMachine(m.id, mut)}
-          onDelete={() => deleteMachine(m.id)}
-          onAddComponent={() => addComponent('other', m.id)}
-          onOpen={() => onOpenItem(m.id)}
-          onOpenComponent={onOpenItem}
-          isOpen={openItemId === m.id}
-        />
-      ))}
+    <div className="grid grid-cols-12 gap-4">
+      {machines.map((m) => {
+        const comps = inv.components.filter((c) => c.assignment === m.id);
+        return isEditing ? (
+          <MachineCard
+            key={m.id}
+            machine={m}
+            components={comps}
+            isEditing
+            onChange={(mut) => updateMachine(m.id, mut)}
+            onDelete={() => deleteMachine(m.id)}
+            onAddComponent={() => addComponent('other', m.id)}
+            onOpen={() => onOpenItem(m.id)}
+            onOpenComponent={onOpenItem}
+            isOpen={openItemId === m.id}
+          />
+        ) : (
+          <MachineBrowseCard
+            key={m.id}
+            machine={m}
+            components={comps}
+            onOpen={() => onOpenItem(m.id)}
+            onOpenComponent={onOpenItem}
+            isOpen={openItemId === m.id}
+          />
+        );
+      })}
       {isEditing ? (
         <button
           type="button"
-          className="flex min-h-[160px] flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-card/50 text-muted-foreground transition-colors hover:border-brand hover:text-brand"
+          className={cn(
+            CARD_SPAN,
+            'flex min-h-[160px] flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-card/50 text-muted-foreground transition-colors hover:border-brand hover:text-brand',
+          )}
           onClick={addMachine}
         >
           <Plus className="size-5" strokeWidth={1.75} />
@@ -72,6 +91,97 @@ export function MachinesTab({
         </button>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Read-only browse rendering of a Machine: a SectionCard (a div, so component
+ * rows can stay individually clickable) with a clickable header that opens the
+ * Machine, and ListRow component rows that open each Component. See ADR 0003.
+ */
+function MachineBrowseCard({
+  machine,
+  components,
+  onOpen,
+  onOpenComponent,
+  isOpen,
+}: {
+  machine: Machine;
+  components: Component[];
+  onOpen: () => void;
+  onOpenComponent: (id: string) => void;
+  isOpen: boolean;
+}) {
+  const m = machine;
+  const RoleIcon = roleIcon(m.role, m.name);
+  return (
+    <SectionCard flush span={4} className={cn(isOpen && 'ring-2 ring-brand/50')}>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Open ${m.name} details`}
+        className="group flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent)]"
+      >
+        <div className="flex shrink-0 flex-col items-start leading-none">
+          <span className="font-display text-2xl font-semibold tabular-nums text-brand">
+            {m.ordinal ?? '—'}
+          </span>
+          <span className="text-[10px] tracking-wide text-muted-foreground uppercase">
+            {m.ids?.uid ?? 'machine'}
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={{ background: `var(--${statusKind(m.status ?? 'working')})` }}
+              aria-hidden
+            />
+            <span className="truncate font-display text-base font-semibold text-foreground">
+              {m.name}
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <RoleIcon size={12} strokeWidth={1.75} className="shrink-0" />
+            <span className="truncate">{m.role}</span>
+          </div>
+        </div>
+        <ChevronRight className="mt-1 size-4 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+      </button>
+
+      {m.meta.length > 0 ? (
+        <dl className="flex flex-col gap-1 border-t border-border/60 px-4 py-3">
+          {m.meta.map((row) => (
+            <div className="grid grid-cols-[110px_1fr] items-center gap-2" key={row.id}>
+              <dt className="text-xs text-muted-foreground">{row.label}</dt>
+              <dd className="min-w-0 truncate font-mono text-sm text-foreground">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+
+      <div className="flex flex-col border-t border-border/60 px-4 py-3">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <Cpu size={12} strokeWidth={1.75} />
+          <span>Components</span>
+          <span className="ml-auto font-mono tabular-nums">{components.length}</span>
+        </div>
+        {components.length === 0 ? (
+          <p className="py-1.5 text-sm text-muted-foreground">No components assigned.</p>
+        ) : (
+          components.map((c) => (
+            <ListRow
+              key={c.id}
+              dot={statusKind(c.status ?? 'working')}
+              name={c.label}
+              meta={componentTitle(c)}
+              value={<span className="font-mono text-[var(--ink-4)]">{c.ids?.uid ?? '—'}</span>}
+              onClick={() => onOpenComponent(c.id)}
+            />
+          ))
+        )}
+      </div>
+    </SectionCard>
   );
 }
 
@@ -138,6 +248,7 @@ function MachineCard({
   return (
     <article
       className={cn(
+        CARD_SPAN,
         'group flex cursor-pointer flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-card transition-shadow hover:shadow-card-hover',
         isOpen && 'ring-2 ring-brand/50',
       )}

@@ -33,6 +33,7 @@ import {
 } from '@/components/common';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { entityName } from '../lib/route';
 import { cpuUsageSeverity, fillSeverity, ramUsageSeverity } from '../lib/severity';
 import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '../lib/units';
 import type {
@@ -88,12 +89,6 @@ function entityKind(itemId: string): 'datacenter' | 'node' | 'guest' | 'storage'
   if (itemId.startsWith('guest/')) return 'guest';
   if (itemId.startsWith('storage/')) return 'storage';
   return 'datacenter';
-}
-
-function entityName(itemId: string): string {
-  return itemId.includes('/')
-    ? decodeURIComponent(itemId.split('/').slice(1).join('/'))
-    : 'datacenter';
 }
 
 function pct(value: number): string {
@@ -1178,7 +1173,7 @@ function SensorsTab({ data }: { data: DashboardState }) {
         badAt={85}
         unit={unit}
       />
-      <GPUTile data={data.gpu} span={12} chartKind="area" expandable={false} />
+      <GPUTile data={data.gpu} span={12} chartKind="area" />
       <SensorsView data={data} />
       <ComputeWakeCard />
     </>

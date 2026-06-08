@@ -283,7 +283,7 @@ function Clients({ data }: { data: DashboardState }) {
   const u = data.unifi;
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
-      <TopTalkersTile data={u.topTalkers} span={12} expandable={false} />
+      <TopTalkersTile data={u.topTalkers} span={12} />
     </div>
   );
 }

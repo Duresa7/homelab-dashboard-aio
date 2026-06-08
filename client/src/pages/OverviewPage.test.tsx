@@ -20,6 +20,11 @@ describe('OverviewPage', () => {
     // Subsystem cards drill through to their dedicated pages.
     const dataCenter = screen.getByRole('button', { name: /Data Center/i });
     await user.click(dataCenter);
-    expect(setRoute).toHaveBeenCalledWith('proxmox');
+    expect(setRoute).toHaveBeenCalledWith('proxmox', undefined);
+
+    // GPU/Power cards drill into the Sensors sub-tab specifically.
+    const gpu = screen.getByRole('button', { name: /GPU/i });
+    await user.click(gpu);
+    expect(setRoute).toHaveBeenCalledWith('proxmox', 'sensors');
   });
 });

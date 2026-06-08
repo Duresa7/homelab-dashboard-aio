@@ -44,7 +44,6 @@ import {
   type RedactedCapabilityConfig,
   type RedactedConfig,
 } from '@/lib/setup';
-import { type TileId } from '../components/widgets';
 import { ConfigFieldsForm } from './onboarding/steps/ConfigFieldsForm';
 import { DatabaseStep } from './onboarding/steps/DatabaseStep';
 import {
@@ -88,7 +87,6 @@ export interface SettingsPreferences {
   theme: ThemeChoice;
   density: Density;
   showAlerts: boolean;
-  overviewLayout: TileId[];
   dateTime: DateTimePreferences;
 }
 
