@@ -266,7 +266,7 @@ function applyGpu(payload: any): boolean {
 function applyUnas(payload: any): boolean {
   if (!payload.unas) return false;
   state.unas = payload.unas;
-  // Mirror UNAS pools/disks into generic storage so StorageTile/SmartTile populate.
+  // Mirror UNAS pools/disks into generic storage so the NAS page + SmartTile populate.
   state.storage = {
     pools: payload.unas.pools.map((p: any) => ({
       name: p.name,

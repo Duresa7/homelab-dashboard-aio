@@ -1,22 +1,78 @@
-import { HardDrive, ShieldCheck } from 'lucide-react';
-import { SmartTile, StorageTile, UnasTile } from '../components/widgets';
-import { DataTableCard, StatusBadge } from '@/components/common';
+import { Database, HardDrive, ShieldCheck } from 'lucide-react';
+import { SmartTile } from '../components/widgets';
+import { DataTableCard, EntityCard, SectionCard, StatusBadge, SubTabs } from '@/components/common';
 import { TableCell, TableHead } from '@/components/ui/table';
 import { TableRow } from '@/components/ui/table';
-import type { DashboardState } from '../types';
+import { fillSeverity } from '../lib/severity';
+import type { DashboardState, UnasPool } from '../types';
 import { fmtTemp, useTempUnit } from '../lib/units';
 import { formatPowerOnTime } from '../lib/format';
 
 interface Props {
   data: DashboardState;
   sub: string;
+  onSelectSub: (sub: string) => void;
+}
+
+const NAS_TABS = [
+  { id: 'pools', label: 'Pools' },
+  { id: 'disks', label: 'Disks' },
+];
+
+function poolStatus(status: string): 'ok' | 'warn' | 'bad' {
+  if (/degraded|offline|error|fault/i.test(status)) return 'bad';
+  if (/resilver|scrub|rebuild|warn/i.test(status)) return 'warn';
+  return 'ok';
 }
 
 function Pools({ data }: { data: DashboardState }) {
+  const { unit } = useTempUnit();
+  const nas = data.unas;
+  const pools = nas.pools;
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
-      <StorageTile data={data.storage} span={6} expandable={false} />
-      <UnasTile data={data.unas} span={6} expandable={false} />
+      <div className="col-span-12 -mb-1 flex items-center gap-2 text-[12px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+        <Database className="size-3.5" />
+        {nas.model && nas.model !== '—' ? nas.model : 'NAS'} · {pools.length} pool
+        {pools.length === 1 ? '' : 's'}
+        {nas.tempC > 0 ? ` · ${fmtTemp(nas.tempC, unit)}` : ''}
+      </div>
+      {pools.length === 0 ? (
+        <SectionCard span={12} bodyClassName="py-8 text-center text-sm text-muted-foreground">
+          No storage pools reported
+        </SectionCard>
+      ) : (
+        pools.map((p: UnasPool) => {
+          const fill = p.totalTB > 0 ? (p.usedTB / p.totalTB) * 100 : 0;
+          const status = poolStatus(p.status);
+          return (
+            <EntityCard
+              key={p.name}
+              span={6}
+              name={p.name}
+              subtitle={p.type}
+              icon={<Database />}
+              status={status}
+              statusLabel={p.status || 'unknown'}
+              metrics={[
+                {
+                  key: 'fill',
+                  label: 'Used',
+                  pct: fill,
+                  tone: fillSeverity(fill),
+                  value: `${p.usedTB.toFixed(1)}/${p.totalTB.toFixed(1)} TB`,
+                },
+              ]}
+              meta={[
+                { key: 'scrub', value: p.scrub?.status ? `scrub: ${p.scrub.status}` : 'no scrub' },
+                ...(p.incompatibilities.length
+                  ? [{ key: 'incompat', value: `${p.incompatibilities.length} warnings` }]
+                  : []),
+              ]}
+            />
+          );
+        })
+      )}
     </div>
   );
 }
@@ -26,7 +82,7 @@ function Disks({ data }: { data: DashboardState }) {
   const disks = data.storage.disks;
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
-      <SmartTile data={data.storage} span={12} expandable={false} />
+      <SmartTile data={data.storage} span={12} />
       <DataTableCard
         span={12}
         title="All Disks"
@@ -75,7 +131,11 @@ function Disks({ data }: { data: DashboardState }) {
   );
 }
 
-export function NasPage({ data, sub }: Props) {
-  if (sub === 'disks') return <Disks data={data} />;
-  return <Pools data={data} />;
+export function NasPage({ data, sub, onSelectSub }: Props) {
+  return (
+    <div className="flex flex-col gap-[var(--gap)]">
+      <SubTabs tabs={NAS_TABS} active={sub} onChange={onSelectSub} />
+      {sub === 'disks' ? <Disks data={data} /> : <Pools data={data} />}
+    </div>
+  );
 }

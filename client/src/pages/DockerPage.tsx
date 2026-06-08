@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Play, Square, Server, Layers } from 'lucide-react';
+import { Play, Square, Server, Layers, Container as ContainerIcon } from 'lucide-react';
 import {
+  EntityCard,
   SectionCard,
   StatCard,
-  StatList,
-  StatRow,
   StatusBadge,
   Segmented,
+  SubTabs,
 } from '@/components/common';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { cn } from '@/lib/utils';
@@ -16,7 +16,13 @@ import { PresentationIcon, useCapabilityPresentation } from '@/lib/presentation'
 interface Props {
   data: DashboardState;
   sub: string;
+  onSelectSub: (sub: string) => void;
 }
+
+const DOCKER_TABS = [
+  { id: 'hosts', label: 'Hosts' },
+  { id: 'containers', label: 'Containers' },
+];
 
 function ContainersBrandIcon({ size = 18 }: { size?: number }) {
   const containers = useCapabilityPresentation('containers');
@@ -62,44 +68,39 @@ function Hosts({ data }: { data: DashboardState }) {
         value={stacks.length}
       />
 
-      <SectionCard
-        span={12}
-        title="Container hosts"
-        icon={<ContainersBrandIcon />}
-        bodyClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-      >
-        {hosts.map((h) => {
+      <div className="col-span-12 -mb-1 flex items-center gap-2 text-[12px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+        <ContainersBrandIcon size={14} /> Container hosts · {hosts.length}
+      </div>
+      {hosts.length === 0 ? (
+        <SectionCard span={12} bodyClassName="py-8 text-center text-sm text-muted-foreground">
+          No Docker hosts detected
+        </SectionCard>
+      ) : (
+        hosts.map((h) => {
           const list = c.filter((x) => x.host === h.id);
           const up = list.filter((x) => x.state === 'running').length;
           const hostOk = h.status === 'online';
           return (
-            <div
+            <EntityCard
               key={h.id}
-              className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-4"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2 text-[15px] font-semibold text-foreground">
-                  <span
-                    className={cn('size-2 shrink-0 rounded-full', hostOk ? 'bg-ok' : 'bg-bad')}
-                  />
-                  <span className="truncate">{h.name}</span>
-                </div>
-                <StatusBadge kind={hostOk ? 'ok' : 'bad'}>
-                  {hostOk ? 'online' : 'offline'}
-                </StatusBadge>
-              </div>
-              <div className="truncate text-xs text-muted-foreground">
-                {h.addr} · {h.os} · engine {h.engine}
-              </div>
-              <StatList>
-                <StatRow label="Containers" value={`${up}/${list.length}`} />
-                <StatRow label="CPU" value={`${h.cpu}%`} />
-                <StatRow label="RAM" value={`${h.ram}%`} />
-              </StatList>
-            </div>
+              span={4}
+              name={h.name}
+              subtitle={`${h.os} · engine ${h.engine}`}
+              icon={<ContainerIcon />}
+              status={hostOk ? 'ok' : 'bad'}
+              statusLabel={hostOk ? 'online' : 'offline'}
+              metrics={[
+                { key: 'cpu', label: 'CPU', pct: h.cpu },
+                { key: 'ram', label: 'RAM', pct: h.ram },
+              ]}
+              meta={[
+                { key: 'containers', value: `${up}/${list.length} containers` },
+                { key: 'addr', value: h.addr },
+              ]}
+            />
           );
-        })}
-      </SectionCard>
+        })
+      )}
     </div>
   );
 }
@@ -240,7 +241,11 @@ function Containers({ data }: { data: DashboardState }) {
   );
 }
 
-export function DockerPage({ data, sub }: Props) {
-  if (sub === 'containers') return <Containers data={data} />;
-  return <Hosts data={data} />;
+export function DockerPage({ data, sub, onSelectSub }: Props) {
+  return (
+    <div className="flex flex-col gap-[var(--gap)]">
+      <SubTabs tabs={DOCKER_TABS} active={sub} onChange={onSelectSub} />
+      {sub === 'containers' ? <Containers data={data} /> : <Hosts data={data} />}
+    </div>
+  );
 }

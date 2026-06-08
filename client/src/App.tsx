@@ -5,8 +5,6 @@ import { AppSidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
 import { AlertBanner } from './components/layout/AlertBanner';
 import { CommandMenu } from './components/layout/CommandMenu';
-import { ExpandOverlay } from './components/tile/ExpandOverlay';
-import { ALL_TILES, type TileId } from './components/widgets';
 import { BackendOffline } from './components/common';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
@@ -20,11 +18,8 @@ import { ProxmoxPage } from './pages/ProxmoxPage';
 import { NetworkPage } from './pages/NetworkPage';
 import { DockerPage } from './pages/DockerPage';
 import { NasPage } from './pages/NasPage';
-import { EventsPage } from './pages/EventsPage';
-import { AlertsPage } from './pages/AlertsPage';
+import { ObservabilityPage } from './pages/ObservabilityPage';
 import { SettingsPage, type SettingsTabId } from './pages/SettingsPage';
-import { HealthPage } from './pages/HealthPage';
-import { SiemPage } from './pages/SiemPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
 
@@ -38,6 +33,7 @@ import { useSystemTheme, useTweaks } from './lib/tweaks';
 import {
   DEFAULT_SUB,
   normalizeProxmoxItemId,
+  resolveProxmoxEntityName,
   resolveProxmoxSub,
   resolveSub,
   saveRoute,
@@ -45,16 +41,10 @@ import {
   type Route,
   type Section,
 } from './lib/route';
-import type { ChartKind } from './types';
 import { useThresholds } from './lib/thresholds';
 import { DEFAULT_DATETIME_PREFERENCES, type DateTimePreferences } from './lib/datetime';
 import { useConnectivity } from './lib/connectivity';
-import {
-  isSectionVisible,
-  PresentationProvider,
-  usePresentation,
-  useVisibleTiles,
-} from './lib/presentation';
+import { isSectionVisible, PresentationProvider, usePresentation } from './lib/presentation';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
 type Density = 'compact' | 'regular' | 'comfy';
@@ -63,7 +53,6 @@ interface TweakState {
   theme: ThemeChoice;
   density: Density;
   showAlerts: boolean;
-  overviewLayout: TileId[];
   dateTime: DateTimePreferences;
   integrations: Record<IntegrationKey, boolean>;
 }
@@ -73,26 +62,6 @@ const DEFAULTS: TweakState = {
   density: 'regular',
   showAlerts: true,
   dateTime: { ...DEFAULT_DATETIME_PREFERENCES },
-  overviewLayout: [
-    'bookmarks',
-    'cpu',
-    'ram',
-    'gpu',
-    'unifi',
-    'proxmox',
-    'docker',
-    'storage',
-    'unas',
-    'network',
-    'fans',
-    'smart',
-    'ups',
-    'backups',
-    'internet',
-    'topTalkers',
-    'tempHeat',
-    'events',
-  ],
   integrations: {
     unifi: true,
     proxmox: true,
@@ -109,10 +78,7 @@ const BACKEND_BACKED_SECTIONS = new Set<Section>([
   'network',
   'docker',
   'nas',
-  'events',
-  'alerts',
-  'health',
-  'siem',
+  'observability',
   'inventory',
   'playground',
 ]);
@@ -125,8 +91,6 @@ function DashboardApp() {
   const setupStatus = useSetupStatus();
   const presentation = usePresentation();
   const [route, setRouteState] = useState<Route>(() => loadRoute());
-  const [chartKinds, setChartKinds] = useState<Partial<Record<TileId, ChartKind>>>({});
-  const [expanded, setExpanded] = useState<TileId | null>(null);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<number>>(new Set());
   const [cmdOpen, setCmdOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>('preferences');
@@ -152,17 +116,7 @@ function DashboardApp() {
   }, [theme, t.density]);
 
   useEffect(() => {
-    const present = new Set(t.overviewLayout);
-    const missing = ALL_TILES.filter((tile) => !present.has(tile.id)).map((tile) => tile.id);
-    if (missing.length > 0) {
-      setTweak('overviewLayout', [...missing, ...t.overviewLayout]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
     const fn = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExpanded(null);
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setCmdOpen((o) => !o);
@@ -207,9 +161,6 @@ function DashboardApp() {
     });
   };
 
-  const setChartKind = (id: TileId, k: ChartKind) =>
-    setChartKinds((prev) => ({ ...prev, [id]: k }));
-
   const visibleAlerts = data.alerts.filter((_, i) => !dismissedAlerts.has(i));
   const dismiss = (i: number) => setDismissedAlerts((prev) => new Set(prev).add(i));
 
@@ -217,7 +168,11 @@ function DashboardApp() {
     route.section === 'proxmox'
       ? resolveProxmoxSub(route.itemId, route.sub)
       : resolveSub(route.section, route.sub);
-  const visibleOverviewLayout = useVisibleTiles(t.overviewLayout);
+
+  // When drilled into a Data Center node/guest/storage, surface its resolved
+  // name in the global Topbar breadcrumb (matches the in-page DetailHeader).
+  const breadcrumbEntity =
+    route.section === 'proxmox' ? resolveProxmoxEntityName(data, route.itemId) : null;
 
   const backendOffline = connectivity.status === 'offline';
   const setupLoading = setupStatus.loading && connectivity.status !== 'offline';
@@ -250,15 +205,7 @@ function DashboardApp() {
     <BackendOffline reason={connectivity.reason} />
   ) : (
     <>
-      {route.section === 'overview' && (
-        <OverviewPage
-          data={data}
-          layout={visibleOverviewLayout}
-          chartKinds={chartKinds}
-          setChartKind={setChartKind}
-          onExpand={setExpanded}
-        />
-      )}
+      {route.section === 'overview' && <OverviewPage data={data} setRoute={setRoute} />}
       {route.section === 'proxmox' && (
         <ProxmoxPage
           data={data}
@@ -267,13 +214,33 @@ function DashboardApp() {
           onSelect={(itemId, sub) => setRoute('proxmox', sub, itemId)}
         />
       )}
-      {route.section === 'network' && <NetworkPage data={data} sub={activeSub ?? 'overview'} />}
-      {route.section === 'docker' && <DockerPage data={data} sub={activeSub ?? 'hosts'} />}
-      {route.section === 'nas' && <NasPage data={data} sub={activeSub ?? 'pools'} />}
-      {route.section === 'events' && <EventsPage data={data} />}
-      {route.section === 'alerts' && <AlertsPage alerts={visibleAlerts} onDismiss={dismiss} />}
-      {route.section === 'health' && <HealthPage integrations={integrations} />}
-      {route.section === 'siem' && <SiemPage />}
+      {route.section === 'network' && (
+        <NetworkPage
+          data={data}
+          sub={activeSub ?? 'overview'}
+          onSelectSub={(s) => setRoute('network', s)}
+        />
+      )}
+      {route.section === 'docker' && (
+        <DockerPage
+          data={data}
+          sub={activeSub ?? 'hosts'}
+          onSelectSub={(s) => setRoute('docker', s)}
+        />
+      )}
+      {route.section === 'nas' && (
+        <NasPage data={data} sub={activeSub ?? 'pools'} onSelectSub={(s) => setRoute('nas', s)} />
+      )}
+      {route.section === 'observability' && (
+        <ObservabilityPage
+          data={data}
+          integrations={integrations}
+          alerts={visibleAlerts}
+          onDismissAlert={dismiss}
+          sub={activeSub ?? 'alerts'}
+          onSelectSub={(s) => setRoute('observability', s)}
+        />
+      )}
       {route.section === 'inventory' && (
         <InventoryPage selectedItemId={route.itemId} onSelectItem={setInventoryItemId} />
       )}
@@ -285,7 +252,6 @@ function DashboardApp() {
             theme: t.theme,
             density: t.density,
             showAlerts: t.showAlerts,
-            overviewLayout: t.overviewLayout,
             dateTime: t.dateTime,
           }}
           tab={settingsTab}
@@ -295,7 +261,6 @@ function DashboardApp() {
             if (key === 'theme') setTweak('theme', value as ThemeChoice);
             if (key === 'density') setTweak('density', value as Density);
             if (key === 'showAlerts') setTweak('showAlerts', value as boolean);
-            if (key === 'overviewLayout') setTweak('overviewLayout', value as TileId[]);
             if (key === 'dateTime') setTweak('dateTime', value as DateTimePreferences);
           }}
         />
@@ -321,6 +286,7 @@ function DashboardApp() {
           <Topbar
             section={route.section}
             activeSub={activeSub}
+            entityLabel={breadcrumbEntity}
             dateTime={t.dateTime}
             onNavigateSection={(s) => setRoute(s)}
             onOpenSearch={() => setCmdOpen(true)}
@@ -361,14 +327,6 @@ function DashboardApp() {
             {sectionContent}
           </div>
         </SidebarInset>
-
-        <ExpandOverlay
-          id={expanded}
-          data={data}
-          chartKind={expanded ? (chartKinds[expanded] ?? 'area') : 'area'}
-          setChartKind={(k) => expanded && setChartKind(expanded, k)}
-          onClose={() => setExpanded(null)}
-        />
 
         <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} setRoute={setRoute} />
 

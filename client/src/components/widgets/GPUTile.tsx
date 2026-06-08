@@ -8,13 +8,11 @@ import { CapabilityTitle } from '@/lib/presentation';
 interface Props {
   data: GPUData;
   span?: number;
-  onExpand?: () => void;
   chartKind?: ChartKind;
   onChartKind?: (k: ChartKind) => void;
-  expandable?: boolean;
 }
 
-export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandable }: Props) {
+export function GPUTile({ data, span, chartKind, onChartKind }: Props) {
   const { usage, tempC, memUsedGB, memTotalGB, history, model } = data;
   const { unit } = useTempUnit();
   const tempKind = gpuTempSeverity(tempC);
@@ -24,16 +22,14 @@ export function GPUTile({ data, span, onExpand, chartKind, onChartKind, expandab
       title={<CapabilityTitle capability="gpu" />}
       sub={model}
       span={span}
-      onExpand={onExpand}
-      expandable={expandable}
       tag={{ label: fmtTemp(tempC, unit), kind: tempKind }}
       chartKind={chartKind}
       onChartKind={onChartKind}
     >
-      <div className="metric-row">
-        <Donut value={usage} label={`${usage.toFixed(0)}%`} sub="gpu" kind={usageKind} />
-        <div className="meta flex1">
-          <div className="v">
+      <div className="flex items-center gap-4">
+        <Donut value={usage} label={`${usage.toFixed(0)}%`} sub="gpu" kind={usageKind} size={92} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="text-[15.5px] font-medium tabular-nums text-foreground">
             <b>{memUsedGB.toFixed(1)}</b>
             <span className="text-muted"> / {memTotalGB} GB VRAM</span>
           </div>

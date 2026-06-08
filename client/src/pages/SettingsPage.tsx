@@ -7,7 +7,6 @@ import {
   Gauge,
   Globe2,
   KeyRound,
-  LayoutGrid,
   Minus,
   MonitorCog,
   PlugZap,
@@ -19,7 +18,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -46,7 +44,6 @@ import {
   type RedactedCapabilityConfig,
   type RedactedConfig,
 } from '@/lib/setup';
-import { ALL_TILES, type TileId } from '../components/widgets';
 import { ConfigFieldsForm } from './onboarding/steps/ConfigFieldsForm';
 import { DatabaseStep } from './onboarding/steps/DatabaseStep';
 import {
@@ -58,7 +55,6 @@ import {
   type DbStepStatus,
 } from './onboarding/db-state';
 import { INTEGRATIONS, type HealthInfo, type HealthResponse } from '../lib/integrations';
-import { tilePresentationLabel, usePresentation } from '@/lib/presentation';
 import type { IntegrationKey } from '../lib/telemetry';
 import { convertTemp, fToC, useTempUnit, type TempUnit } from '../lib/units';
 import {
@@ -91,7 +87,6 @@ export interface SettingsPreferences {
   theme: ThemeChoice;
   density: Density;
   showAlerts: boolean;
-  overviewLayout: TileId[];
   dateTime: DateTimePreferences;
 }
 
@@ -387,7 +382,6 @@ function PreferencesTab({
   onPreferenceChange: Props['onPreferenceChange'];
 }) {
   const { unit, setUnit } = useTempUnit();
-  const presentation = usePresentation();
   const siteName = useSiteNameRaw();
   const previewDate = new Date();
   const setDateTime = <K extends keyof DateTimePreferences>(
@@ -499,42 +493,6 @@ function PreferencesTab({
           />
         </div>
       </PreferenceCard>
-
-      <div className="rounded-xl border border-border bg-card p-4 shadow-card lg:col-span-2">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="grid size-8 shrink-0 place-items-center rounded-md border border-border bg-muted text-muted-foreground">
-            <LayoutGrid className="size-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-foreground">Overview tiles</div>
-            <div className="text-xs tabular-nums text-muted-foreground">
-              {preferences.overviewLayout.length} / {ALL_TILES.length} visible
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
-          {ALL_TILES.map((tile) => {
-            const checked = preferences.overviewLayout.includes(tile.id);
-            return (
-              <label
-                key={tile.id}
-                className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-md px-2 text-sm text-foreground transition-colors hover:bg-accent"
-              >
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={(next) => {
-                    const cur = preferences.overviewLayout.filter((id) => id !== tile.id);
-                    onPreferenceChange('overviewLayout', next === true ? [...cur, tile.id] : cur);
-                  }}
-                />
-                <span className="truncate">
-                  {tilePresentationLabel(tile.id, tile.label, presentation)}
-                </span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
@@ -1134,7 +1092,6 @@ export function SettingsPage({
   onPreferenceChange,
 }: Props) {
   const enabledCount = INTEGRATIONS.reduce((n, def) => n + (integrations[def.key] ? 1 : 0), 0);
-  const visibleTiles = preferences.overviewLayout.length;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-[var(--page-gap)]">
@@ -1142,8 +1099,6 @@ export function SettingsPage({
         <div>
           <h1 className="font-display text-xl tracking-tight text-foreground">Settings</h1>
           <div className="mt-1 flex flex-wrap gap-2 text-sm text-muted-foreground">
-            <span>{visibleTiles} overview tiles</span>
-            <span>·</span>
             <span>{enabledCount} integrations active</span>
           </div>
         </div>

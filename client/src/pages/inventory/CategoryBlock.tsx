@@ -11,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { SectionCard } from '@/components/common';
 import { cn } from '@/lib/utils';
 
 import { Editable } from './Editable';
@@ -92,7 +93,7 @@ export function CategoryBlock({
   const colSpan = category.columns.length + 1 + (hasName ? 1 : 0) + (isEditing ? 1 : 0);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+    <SectionCard flush>
       <header className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
         <span className="shrink-0 text-muted-foreground [&_svg]:size-4">
           <CatIcon size={16} strokeWidth={1.75} />
@@ -247,6 +248,6 @@ export function CategoryBlock({
           </button>
         </div>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }

@@ -25,8 +25,7 @@ import {
   type SlotEntry,
   type SlotId,
 } from '../lib/playground';
-import { PageHeader } from '@/components/common';
-import { Progress } from '@/components/ui/progress';
+import { MetricBar, PageHeader, StatusBadge } from '@/components/common';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -346,6 +345,13 @@ function BuildCard({
   const status = useMemo(() => computeBuildStatus(build), [build]);
 
   const powerBarColor = status.powerPct > 85 ? 'bad' : status.powerPct > 70 ? 'warn' : 'ok';
+  const overBudget = status.psuRating > 0 && !status.powerOk;
+  const buildKind = overBudget ? 'bad' : status.missing.length > 0 ? 'warn' : 'ok';
+  const buildLabel = overBudget
+    ? 'over budget'
+    : status.missing.length > 0
+      ? `${status.missing.length} missing`
+      : 'ready';
 
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-card">
@@ -356,6 +362,7 @@ function BuildCard({
           onChange={(e) => onChangeName(e.target.value)}
           placeholder="Build name"
         />
+        <StatusBadge kind={buildKind}>{buildLabel}</StatusBadge>
         <div className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">
           created {build.createdAt} · updated {build.updatedAt}
         </div>
@@ -423,23 +430,14 @@ function BuildCard({
               Set a PSU rating to estimate the power budget
             </span>
           ) : (
-            <>
-              <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                {status.powerDraw} / {status.psuRating} W ({Math.round(status.powerPct)}%)
-                {status.powerOk ? ' ✓' : ' — over budget'}
-              </span>
-              <Progress
-                value={Math.min(100, status.powerPct)}
-                className={cn(
-                  'h-2 w-40 bg-muted',
-                  powerBarColor === 'bad'
-                    ? '[&>[data-slot=progress-indicator]]:bg-bad'
-                    : powerBarColor === 'warn'
-                      ? '[&>[data-slot=progress-indicator]]:bg-warn'
-                      : '[&>[data-slot=progress-indicator]]:bg-ok',
-                )}
+            <div className="w-60">
+              <MetricBar
+                label="PSU"
+                pct={Math.min(100, status.powerPct)}
+                tone={powerBarColor}
+                value={`${status.powerDraw}/${status.psuRating} W`}
               />
-            </>
+            </div>
           )}
         </div>
       </footer>

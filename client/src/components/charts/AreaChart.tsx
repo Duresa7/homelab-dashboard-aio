@@ -19,11 +19,11 @@ export function AreaChart({ data, height = 56, color, kind }: Props) {
     <svg
       viewBox={`0 0 ${w} ${h}`}
       preserveAspectRatio="none"
-      className="chart-area"
+      className="block w-full"
       style={{ height: h }}
     >
-      <path d={fill} className="fill" style={{ fill: stroke, opacity: 0.1 }} />
-      <path d={path} className="line" style={{ stroke }} />
+      <path d={fill} style={{ fill: stroke, opacity: 0.1 }} />
+      <path d={path} style={{ fill: 'none', stroke, strokeWidth: 1.5 }} />
     </svg>
   );
 }

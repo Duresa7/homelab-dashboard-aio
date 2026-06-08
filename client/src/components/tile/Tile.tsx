@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { Maximize2 } from 'lucide-react';
 import { Icon } from '../icons/Icon';
 import { cn } from '@/lib/utils';
 import type { ChartKind, Severity } from '../../types';
@@ -18,8 +17,6 @@ export interface TileProps {
   children?: ReactNode;
   chartKind?: ChartKind;
   onChartKind?: (k: ChartKind) => void;
-  onExpand?: () => void;
-  expandable?: boolean;
   id?: string;
 }
 
@@ -49,14 +46,12 @@ export function Tile({
   children,
   chartKind,
   onChartKind,
-  onExpand,
-  expandable = true,
   id,
 }: TileProps) {
   return (
     <div
       className={cn(
-        'group/tile relative flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card p-[var(--pad)] shadow-card transition-shadow duration-200 hover:shadow-card-hover',
+        'relative flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card p-[var(--pad)] shadow-card transition-shadow duration-200 hover:shadow-card-hover',
         SPAN_CLASS[span] ?? 'col-span-12 sm:col-span-6 lg:col-span-4',
       )}
       data-tile={id}
@@ -103,16 +98,6 @@ export function Tile({
             </div>
           ) : null}
           {action ?? null}
-          {expandable && onExpand ? (
-            <button
-              className="grid size-6 place-items-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/tile:opacity-100"
-              onClick={onExpand}
-              title="Expand"
-              aria-label="Expand"
-            >
-              <Maximize2 className="size-3.5" />
-            </button>
-          ) : null}
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-2">{children}</div>

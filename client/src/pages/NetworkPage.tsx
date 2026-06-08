@@ -1,9 +1,19 @@
 import type { ReactNode } from 'react';
-import { AreaChart } from '../components/charts';
-import { Activity, Wifi, Cable, Globe, Shield, Lock, Router } from 'lucide-react';
-import { InternetTile, NetworkTile, TopTalkersTile } from '../components/widgets';
+import { AreaChart, Sparkline } from '../components/charts';
+import {
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  Wifi,
+  Cable,
+  Globe,
+  Shield,
+  Lock,
+  Router,
+} from 'lucide-react';
+import { TopTalkersTile } from '../components/widgets';
 import { BrandIcon, vpnBrand } from '../components/icons/BrandIcon';
-import { SectionCard, StatList, StatRow } from '@/components/common';
+import { SectionCard, StatList, StatRow, SubTabs } from '@/components/common';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
@@ -13,7 +23,15 @@ import { PresentationIcon, useCapabilityPresentation } from '@/lib/presentation'
 interface Props {
   data: DashboardState;
   sub: string;
+  onSelectSub: (sub: string) => void;
 }
+
+const NET_TABS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'devices', label: 'Devices' },
+  { id: 'clients', label: 'Clients' },
+  { id: 'config', label: 'Config' },
+];
 
 function NetworkBrandIcon({ size = 18 }: { size?: number }) {
   const network = useCapabilityPresentation('network');
@@ -68,10 +86,44 @@ function emptyRow(text: string) {
   return <div className="py-6 text-center text-sm text-muted-foreground">{text}</div>;
 }
 
+/** A throughput readout: arrow + big value + unit, with a sparkline of history. */
+function RateStat({
+  dir,
+  value,
+  history,
+  color,
+}: {
+  dir: 'down' | 'up';
+  value: number;
+  history: number[];
+  color: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <span className="flex items-center gap-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+        {dir === 'down' ? <ArrowDown className="size-3.5" /> : <ArrowUp className="size-3.5" />}
+        {dir === 'down' ? 'Download' : 'Upload'}
+      </span>
+      <span className="flex items-baseline gap-1">
+        <span className="font-display text-3xl leading-none font-semibold tabular-nums text-foreground">
+          {value.toFixed(0)}
+        </span>
+        <span className="text-sm font-medium text-muted-foreground">Mbps</span>
+      </span>
+      <div className="mt-1">
+        <Sparkline data={history} height={28} color={color} />
+      </div>
+    </div>
+  );
+}
+
 function Overview({ data }: { data: DashboardState }) {
   const u = data.unifi;
+  const net = data.network;
   const { unit } = useTempUnit();
-  const lh = data.network.latencyHistory;
+  const lh = net.latencyHistory;
+  const cpuPct = u.gateway.cpu;
+  const ramPct = u.gateway.ram;
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
       <SectionCard
@@ -84,32 +136,57 @@ function Overview({ data }: { data: DashboardState }) {
           </span>
         }
       >
-        <div className="mb-3 text-2xl font-semibold text-foreground">{u.gateway.model}</div>
+        <div className="mb-3 text-xl font-semibold tracking-tight text-foreground">
+          {u.gateway.model}
+        </div>
         <StatList>
           <StatRow label="Firmware" value={u.gateway.fwVersion} />
           <StatRow label="Uptime" value={u.gateway.uptime} />
-          <StatRow label="CPU" value={`${u.gateway.cpu.toFixed(0)}%`} />
-          <StatRow label="RAM" value={`${u.gateway.ram.toFixed(0)}%`} />
+          <StatRow label="CPU" value={`${cpuPct.toFixed(0)}%`} />
+          <StatRow label="RAM" value={`${ramPct.toFixed(0)}%`} />
           <StatRow label="Temp" value={fmtTemp(u.gateway.tempC, unit)} />
           <StatRow label="Public IP" value={u.wan.public} />
           {u.appVersion ? <StatRow label="App Version" value={u.appVersion} /> : null}
         </StatList>
       </SectionCard>
 
-      <NetworkTile data={data.network} span={8} chartKind="area" expandable={false} />
-      <InternetTile data={data.network} span={6} expandable={false} />
+      <SectionCard
+        span={8}
+        title="WAN Throughput"
+        icon={<Activity size={14} strokeWidth={1.75} />}
+        sub={`${u.clients} clients`}
+      >
+        <div className="flex flex-wrap gap-8">
+          <RateStat dir="down" value={u.wan.down} history={net.downHistory} color="var(--info)" />
+          <RateStat dir="up" value={u.wan.up} history={net.upHistory} color="var(--accent)" />
+        </div>
+      </SectionCard>
+
+      <SectionCard span={4} title="Internet" icon={<Globe size={14} strokeWidth={1.75} />}>
+        <StatList>
+          <StatRow label="Speedtest ↓" value={`${net.speedtest.down.toFixed(0)} Mbps`} />
+          <StatRow label="Speedtest ↑" value={`${net.speedtest.up.toFixed(0)} Mbps`} />
+          <StatRow label="Ping" value={`${net.speedtest.ping.toFixed(0)} ms`} />
+          <StatRow label="30-day uptime" value={`${net.uptime30d.toFixed(2)}%`} />
+          <StatRow label="Last run" value={net.speedtest.when} />
+        </StatList>
+      </SectionCard>
 
       <SectionCard
-        span={6}
+        span={8}
         title="Latency · last 60 ticks"
         icon={<Activity size={14} strokeWidth={1.75} />}
+        actions={
+          <span className="text-sm font-medium tabular-nums text-foreground">
+            {net.latencyMs.toFixed(1)} ms
+          </span>
+        }
       >
         <AreaChart data={lh} height={120} />
-        <StatList className="mt-2">
-          <StatRow label="Current" value={`${data.network.latencyMs.toFixed(1)} ms`} />
-          <StatRow label="Min" value={`${lh.length ? Math.min(...lh).toFixed(1) : '—'} ms`} />
-          <StatRow label="Max" value={`${lh.length ? Math.max(...lh).toFixed(1) : '—'} ms`} />
-        </StatList>
+        <div className="mt-2 flex gap-6 text-xs text-muted-foreground tabular-nums">
+          <span>min {lh.length ? Math.min(...lh).toFixed(1) : '—'} ms</span>
+          <span>max {lh.length ? Math.max(...lh).toFixed(1) : '—'} ms</span>
+        </div>
       </SectionCard>
     </div>
   );
@@ -206,7 +283,7 @@ function Clients({ data }: { data: DashboardState }) {
   const u = data.unifi;
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
-      <TopTalkersTile data={u.topTalkers} span={12} expandable={false} />
+      <TopTalkersTile data={u.topTalkers} span={12} />
     </div>
   );
 }
@@ -326,9 +403,19 @@ function Config({ data }: { data: DashboardState }) {
   );
 }
 
-export function NetworkPage({ data, sub }: Props) {
-  if (sub === 'devices') return <Devices data={data} />;
-  if (sub === 'clients') return <Clients data={data} />;
-  if (sub === 'config') return <Config data={data} />;
-  return <Overview data={data} />;
+export function NetworkPage({ data, sub, onSelectSub }: Props) {
+  return (
+    <div className="flex flex-col gap-[var(--gap)]">
+      <SubTabs tabs={NET_TABS} active={sub} onChange={onSelectSub} />
+      {sub === 'devices' ? (
+        <Devices data={data} />
+      ) : sub === 'clients' ? (
+        <Clients data={data} />
+      ) : sub === 'config' ? (
+        <Config data={data} />
+      ) : (
+        <Overview data={data} />
+      )}
+    </div>
+  );
 }

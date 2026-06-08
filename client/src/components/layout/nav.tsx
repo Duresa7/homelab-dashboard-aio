@@ -1,14 +1,11 @@
 import {
   Activity,
-  Bell,
   Boxes,
   Container,
   FlaskConical,
   HardDrive,
-  HeartPulse,
   LayoutDashboard,
   Network,
-  ScrollText,
   Server,
   Settings,
   type LucideIcon,
@@ -41,12 +38,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
   },
   {
     label: 'Observability',
-    items: [
-      { section: 'events', icon: Activity },
-      { section: 'alerts', icon: Bell },
-      { section: 'health', icon: HeartPulse },
-      { section: 'siem', icon: ScrollText },
-    ],
+    items: [{ section: 'observability', icon: Activity, hasSubs: true }],
   },
   {
     label: 'Reference',

@@ -23,19 +23,17 @@ export function Gauge({ value, max = 100, label, sub, color = 'var(--accent)' }:
   const fx = cx + r * Math.cos(end);
   const fy = cy + r * Math.sin(end);
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="gauge" style={{ width: '100%', height: h }}>
+    <svg viewBox={`0 0 ${w} ${h}`} className="block w-full" style={{ width: '100%', height: h }}>
       <path
         d={`M ${sx} ${sy} A ${r} ${r} 0 0 1 ${fx} ${fy}`}
         fill="none"
         strokeWidth={10}
-        className="arc-bg"
         style={{ stroke: 'var(--bg-3)' }}
       />
       <path
         d={`M ${sx} ${sy} A ${r} ${r} 0 0 1 ${ex} ${ey}`}
         fill="none"
         strokeWidth={10}
-        className="arc-fg"
         strokeLinecap="round"
         style={{ stroke: color }}
       />
