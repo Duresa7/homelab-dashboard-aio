@@ -394,7 +394,7 @@ export const unifiProvider: Provider<UnifiApiResponse> = {
         wans,
       };
     } catch (err) {
-      throw new Error(errorMessage(err));
+      throw new Error(errorMessage(err), { cause: err });
     }
   },
 };
