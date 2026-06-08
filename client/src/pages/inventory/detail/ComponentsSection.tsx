@@ -3,7 +3,7 @@ import { Boxes, Cpu } from 'lucide-react';
 import { componentTitle, type Component, type Machine } from '../../../lib/inventory';
 import { BrandGlyph, componentIcon } from '../../../lib/inventoryIcons';
 
-import { Section } from './primitives';
+import { Section, STATUS_KIND } from './primitives';
 
 export function ComponentsSection({
   machine,
@@ -24,6 +24,12 @@ export function ComponentsSection({
               className="flex items-start gap-2 rounded-md border border-border/60 bg-card px-2.5 py-2"
             >
               <span className="flex w-24 shrink-0 items-center gap-1.5 pt-0.5 text-xs font-medium text-muted-foreground">
+                <span
+                  className="size-1.5 shrink-0 rounded-full"
+                  style={{ background: `var(--${STATUS_KIND[c.status ?? 'working']})` }}
+                  title={c.status ?? 'working'}
+                  aria-hidden
+                />
                 <CompIcon size={12} strokeWidth={1.75} />
                 <span className="truncate">{c.label}</span>
               </span>
