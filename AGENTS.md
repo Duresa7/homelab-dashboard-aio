@@ -14,6 +14,10 @@ Default five-label vocabulary (needs-triage, needs-info, ready-for-agent, ready-
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+## Run & verify
+
+Use the repo run and verification contract in `docs/agents/run-and-verify.md`.
+
 ## Commit conventions
 
 Do **not** add `Co-Authored-By` trailers (or any other attribution) crediting AI agents — Claude, Copilot, Cursor, etc. — to commits, PRs, or any contribution. No AI co-authorship attribution anywhere.

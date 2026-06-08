@@ -1,93 +1,41 @@
 # Homelab Dashboard
 
-A centralized dashboard for monitoring a homelab — UniFi network, Proxmox VMs, Docker containers, UNAS storage, GPU/CPU telemetry, alerts, and events.
+Homelab Dashboard is a single place to see what is happening across a home lab.
+It brings together live telemetry from UniFi networking, Proxmox compute, Docker
+containers, UNAS storage, GPU and host sensors, syslog/SIEM events, and the
+physical hardware inventory behind those systems.
 
-## Stack
-
-- **Frontend:** Vite + React 18 + TypeScript — fast HMR, type-safe components, single-bundle SPA
-- **Backend:** Express proxy server — authenticates with the UniFi Integration API and serves normalized telemetry to the frontend
-- **Styling:** Pure CSS with custom properties (no Tailwind / no UI framework). Themes & aesthetics swap via `data-*` attributes on `<html>`
-
-## Setup
-
-```bash
-cp .env.example .env
-# Edit .env with your UniFi controller URL and API key
-npm install
-```
+The app is meant for daily operations: check whether core services are healthy,
+spot noisy network clients, wake compute hosts, review recent events, and keep
+track of the machines, parts, and service relationships that make up the lab.
+When live integrations are unavailable, the dashboard can still run against
+fixtures and disabled integration states so UI and workflow changes remain
+testable away from the LAN.
 
 ## Development
 
-The repo has one mechanical Prettier formatting commit recorded in
-`.git-blame-ignore-revs`. After cloning, configure Git blame to skip it:
+Install dependencies from the repo root:
 
 ```bash
-git config blame.ignoreRevsFile .git-blame-ignore-revs
+npm install
 ```
 
-## Run (development)
+Run the API server and Vite client together:
 
 ```bash
-# Terminal 1 — backend proxy
+npm run dev:all
+```
+
+Or run them in separate terminals:
+
+```bash
 npm run server
-
-# Terminal 2 — frontend dev server
-npm run dev          # http://localhost:5173
+npm run dev
 ```
 
-## Run (Docker)
+The client dev server runs at `http://localhost:5173` and proxies `/api/*` to
+the Express server on port `3001`. In production, the Express server also serves
+the built client.
 
-The repo ships a single-image Docker Compose setup designed for an
-unprivileged Proxmox LXC that needs LAN access. See
-[`docs/documentation v2/deployment.md`](docs/documentation%20v2/deployment.md)
-for the full guide.
-
-```bash
-cp .env.example .env  # then edit
-docker compose up -d  # http://<host-ip>:3001
-```
-
-## Folder Structure
-
-```
-├── client/                    React + TypeScript SPA (Vite)
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── charts/        SVG primitives (Sparkline, AreaChart, Donut, Gauge)
-│   │   │   ├── icons/         Inline stroke icons
-│   │   │   ├── layout/        Sidebar, Topbar, Clock, AlertBanner
-│   │   │   ├── tile/          Tile chrome + ExpandOverlay focus modal
-│   │   │   └── widgets/       One file per dashboard tile + tile registry
-│   │   ├── lib/
-│   │   │   ├── telemetry.ts   Live data fetcher + useDashData hook
-│   │   │   └── tweaks.tsx     useTweaks + floating TweaksPanel + form controls
-│   │   ├── pages/             Overview, Proxmox, Network, Docker, Storage, Events, Alerts
-│   │   ├── styles/            globals.css (tokens, themes) + components.css
-│   │   ├── types/             Shared TypeScript interfaces
-│   │   ├── App.tsx            Shell: sidebar + topbar + routing + tweaks panel
-│   │   └── main.tsx           Entry point
-│   ├── index.html             Vite HTML entry
-│   ├── vite.config.ts         Vite config (proxies /api to backend, reads .env from repo root)
-│   ├── tsconfig.json
-│   └── tsconfig.node.json
-│
-├── server/                    Express API server
-│   └── src/
-│       └── index.js           UniFi API proxy with caching + normalization
-│
-├── docs/                      Reference documentation (UniFi API docs, screenshots)
-│
-├── package.json               Single root package — scripts orchestrate both sides
-├── .env.example               Required environment variables template
-└── .gitignore
-```
-
-## Features
-
-- **Aesthetics:** Refined Minimal, Terminal, Editorial, Neon
-- **Theme:** Light / Dark / Auto (matches system)
-- **Density:** Compact / Regular / Comfy
-- **Per-tile chart picker:** Area / Sparkline / Bars
-- **Expandable tiles:** Focus overlay (Esc to close)
-- **Configurable overview:** Pick which tiles appear via the Tweaks panel
-- **Live UniFi telemetry:** Gateway stats, switches, APs, clients, WAN throughput, firewall, VPN, DNS
+For the full run and verification contract used by agents and contributors, see
+[AGENTS.md](AGENTS.md) and [docs/agents/run-and-verify.md](docs/agents/run-and-verify.md).
