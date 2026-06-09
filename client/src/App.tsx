@@ -3,6 +3,7 @@ import { CloudOff } from 'lucide-react';
 
 import { AppSidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
+import { TopNav } from './components/layout/TopNav';
 import { AlertBanner } from './components/layout/AlertBanner';
 import { CommandMenu } from './components/layout/CommandMenu';
 import { BackendOffline } from './components/common';
@@ -45,6 +46,7 @@ import {
 import { useThresholds } from './lib/thresholds';
 import { DEFAULT_DATETIME_PREFERENCES, type DateTimePreferences } from './lib/datetime';
 import { useConnectivity } from './lib/connectivity';
+import { useNavLayout } from './lib/nav-layout';
 import { isSectionVisible, PresentationProvider, usePresentation } from './lib/presentation';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
@@ -92,6 +94,7 @@ function DashboardApp() {
   const connectivity = useConnectivity();
   const setupStatus = useSetupStatus();
   const presentation = usePresentation();
+  const navLayout = useNavLayout();
   const [route, setRouteState] = useState<Route>(() => loadRoute());
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<number>>(new Set());
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -287,7 +290,9 @@ function DashboardApp() {
           } as CSSProperties
         }
       >
-        <AppSidebar route={route} setRoute={setRoute} alerts={visibleAlerts} />
+        {navLayout === 'sidebar' ? (
+          <AppSidebar route={route} setRoute={setRoute} alerts={visibleAlerts} />
+        ) : null}
 
         <SidebarInset>
           <Topbar
@@ -295,9 +300,13 @@ function DashboardApp() {
             activeSub={activeSub}
             entityLabel={breadcrumbEntity}
             dateTime={t.dateTime}
+            showSidebarTrigger={navLayout === 'sidebar'}
             onNavigateSection={(s) => setRoute(s)}
             onOpenSearch={() => setCmdOpen(true)}
           />
+          {navLayout === 'topbar' ? (
+            <TopNav route={route} setRoute={setRoute} alerts={visibleAlerts} />
+          ) : null}
 
           <div className="w-full max-w-[var(--content-max)] flex-1 px-[var(--page-pad)] pt-[var(--page-pad)] pb-24">
             {backendOffline ? (

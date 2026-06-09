@@ -24,6 +24,8 @@ interface Props {
    *  section and the active sub. */
   entityLabel?: string | null;
   dateTime: DateTimePreferences;
+  /** Hidden in top-bar navigation mode, where there is no sidebar to toggle. */
+  showSidebarTrigger?: boolean;
   onNavigateSection: (section: Section) => void;
   onOpenSearch: () => void;
 }
@@ -60,6 +62,7 @@ export function Topbar({
   activeSub,
   entityLabel,
   dateTime,
+  showSidebarTrigger = true,
   onNavigateSection,
   onOpenSearch,
 }: Props) {
@@ -81,8 +84,12 @@ export function Topbar({
     <header className="sticky top-0 z-30 h-14 shrink-0 border-b border-border bg-background/80 backdrop-blur-md">
       <div className="flex h-full w-full max-w-[var(--content-max)] items-center justify-between gap-4 px-[var(--page-pad)]">
         <div className="flex min-w-0 items-center gap-1.5">
-          <SidebarTrigger className="-ml-1.5 size-8 text-muted-foreground hover:text-foreground" />
-          <Separator orientation="vertical" className="mr-1 !h-5" />
+          {showSidebarTrigger ? (
+            <>
+              <SidebarTrigger className="-ml-1.5 size-8 text-muted-foreground hover:text-foreground" />
+              <Separator orientation="vertical" className="mr-1 !h-5" />
+            </>
+          ) : null}
           <Breadcrumb>
             <BreadcrumbList className="flex-nowrap sm:gap-1.5">
               {trail.map((label, i) => (

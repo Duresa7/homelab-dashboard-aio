@@ -9,6 +9,7 @@ import {
   KeyRound,
   Minus,
   MonitorCog,
+  PanelLeft,
   PlugZap,
   Plus,
   RotateCcw,
@@ -67,6 +68,7 @@ import {
   useRefreshRate,
   type RefreshRate,
 } from '../lib/refresh-rate';
+import { NAV_LAYOUT_OPTIONS, setNavLayout, useNavLayout, type NavLayout } from '../lib/nav-layout';
 import {
   DATE_FORMAT_OPTIONS,
   TIME_FORMAT_OPTIONS,
@@ -394,6 +396,7 @@ function PreferencesTab({
   const { unit, setUnit } = useTempUnit();
   const listRows = useListRows();
   const refreshRate = useRefreshRate();
+  const navLayout = useNavLayout();
   const siteName = useSiteNameRaw();
   const previewDate = new Date();
   const setDateTime = <K extends keyof DateTimePreferences>(
@@ -430,6 +433,18 @@ function PreferencesTab({
             { value: 'system', label: 'Auto' },
           ]}
           onChange={(v) => onPreferenceChange('theme', v)}
+        />
+      </PreferenceCard>
+
+      <PreferenceCard
+        icon={PanelLeft}
+        title="Navigation"
+        meta={navLayout === 'topbar' ? 'Traditional top bar' : 'Collapsible sidebar'}
+      >
+        <SegmentedChoice<NavLayout>
+          value={navLayout}
+          options={NAV_LAYOUT_OPTIONS}
+          onChange={setNavLayout}
         />
       </PreferenceCard>
 
