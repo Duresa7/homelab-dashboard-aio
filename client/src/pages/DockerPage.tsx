@@ -20,6 +20,7 @@ interface Props {
 }
 
 const DOCKER_TABS = [
+  { id: 'overview', label: 'Overview' },
   { id: 'hosts', label: 'Hosts' },
   { id: 'containers', label: 'Containers' },
 ];
@@ -60,12 +61,13 @@ function DataSourceNotice() {
   );
 }
 
-function Hosts({ data }: { data: DashboardState }) {
+function Overview({ data }: { data: DashboardState }) {
   const c = data.docker.containers;
   const hosts = data.docker.hosts;
   const stacks = [...new Set(c.map((x) => x.stack))];
   const running = c.filter((x) => x.state === 'running').length;
   const stopped = c.length - running;
+  const hostsOffline = hosts.filter((h) => h.status !== 'online').length;
 
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
@@ -84,7 +86,14 @@ function Hosts({ data }: { data: DashboardState }) {
         label="Stopped"
         value={stopped}
       />
-      <StatCard span={3} icon={<Server strokeWidth={1.75} />} label="Hosts" value={hosts.length} />
+      <StatCard
+        span={3}
+        tone={hostsOffline > 0 ? 'bad' : 'default'}
+        icon={<Server strokeWidth={1.75} />}
+        label="Hosts"
+        value={hosts.length}
+        hint={hostsOffline > 0 ? `${hostsOffline} offline` : 'all online'}
+      />
       <StatCard
         span={3}
         icon={<Layers strokeWidth={1.75} />}
@@ -92,6 +101,51 @@ function Hosts({ data }: { data: DashboardState }) {
         value={stacks.length}
       />
 
+      <SectionCard
+        span={12}
+        title="Host status"
+        sub={hosts.length}
+        icon={<ContainersBrandIcon size={16} />}
+        bodyClassName="flex flex-col gap-2"
+      >
+        {hosts.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            No Docker hosts detected
+          </div>
+        ) : (
+          hosts.map((h) => {
+            const list = c.filter((x) => x.host === h.id);
+            const up = list.filter((x) => x.state === 'running').length;
+            const hostOk = h.status === 'online';
+            return (
+              <div
+                key={h.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+              >
+                <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                  <StatusBadge kind={hostOk ? 'ok' : 'bad'}>
+                    {hostOk ? 'online' : 'offline'}
+                  </StatusBadge>
+                  <span className="truncate">{h.name}</span>
+                </div>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {up}/{list.length} containers · cpu {h.cpu.toFixed(0)}% · ram {h.ram.toFixed(0)}%
+                </span>
+              </div>
+            );
+          })
+        )}
+      </SectionCard>
+    </div>
+  );
+}
+
+function Hosts({ data }: { data: DashboardState }) {
+  const c = data.docker.containers;
+  const hosts = data.docker.hosts;
+
+  return (
+    <div className="grid grid-cols-12 gap-[var(--gap)]">
       <div className="col-span-12 -mb-1 flex items-center gap-2 text-[12px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
         <ContainersBrandIcon size={14} /> Container hosts · {hosts.length}
       </div>
@@ -270,7 +324,13 @@ export function DockerPage({ data, sub, onSelectSub }: Props) {
     <div className="flex flex-col gap-[var(--gap)]">
       <SubTabs tabs={DOCKER_TABS} active={sub} onChange={onSelectSub} />
       <DataSourceNotice />
-      {sub === 'containers' ? <Containers data={data} /> : <Hosts data={data} />}
+      {sub === 'containers' ? (
+        <Containers data={data} />
+      ) : sub === 'hosts' ? (
+        <Hosts data={data} />
+      ) : (
+        <Overview data={data} />
+      )}
     </div>
   );
 }

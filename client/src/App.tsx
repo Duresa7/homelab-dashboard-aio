@@ -226,12 +226,16 @@ function DashboardApp() {
       {route.section === 'docker' && (
         <DockerPage
           data={data}
-          sub={activeSub ?? 'hosts'}
+          sub={activeSub ?? 'overview'}
           onSelectSub={(s) => setRoute('docker', s)}
         />
       )}
       {route.section === 'nas' && (
-        <NasPage data={data} sub={activeSub ?? 'pools'} onSelectSub={(s) => setRoute('nas', s)} />
+        <NasPage
+          data={data}
+          sub={activeSub ?? 'overview'}
+          onSelectSub={(s) => setRoute('nas', s)}
+        />
       )}
       {route.section === 'observability' && (
         <ObservabilityPage

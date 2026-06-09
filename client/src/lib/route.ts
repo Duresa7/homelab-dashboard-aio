@@ -53,10 +53,12 @@ export const SUBS: Partial<Record<Section, SubDef[]>> = {
     { id: 'config', label: 'Config' },
   ],
   docker: [
+    { id: 'overview', label: 'Overview' },
     { id: 'hosts', label: 'Hosts' },
     { id: 'containers', label: 'Containers' },
   ],
   nas: [
+    { id: 'overview', label: 'Overview' },
     { id: 'pools', label: 'Pools' },
     { id: 'disks', label: 'Disks' },
   ],
@@ -72,8 +74,8 @@ export const DEFAULT_SUB: Record<Section, string | undefined> = {
   overview: undefined,
   proxmox: 'summary',
   network: 'overview',
-  docker: 'hosts',
-  nas: 'pools',
+  docker: 'overview',
+  nas: 'overview',
   observability: 'alerts',
   inventory: undefined,
   tools: undefined,
