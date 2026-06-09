@@ -131,6 +131,65 @@ describe('Wake-on-LAN integration', () => {
     expect(dgramMock.createSocket).not.toHaveBeenCalled();
   });
 
+  it('returns 500 and closes the socket when the UDP send fails', async () => {
+    const api = makeApp();
+    dgramMock.socket.send.mockImplementationOnce(
+      (_packet: Buffer, _port: number, _broadcast: string, cb: (err?: Error) => void) =>
+        cb(new Error('network unreachable')),
+    );
+
+    const res = await api.post('/api/wol/wake').send({ mac: 'AA:BB:CC:DD:EE:FF' }).expect(500);
+
+    expect(res.body.error).toMatch(/network unreachable/i);
+    expect(dgramMock.socket.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 500 and closes the socket when the socket throws synchronously', async () => {
+    const api = makeApp();
+    dgramMock.socket.setBroadcast.mockImplementationOnce(() => {
+      throw new Error('EACCES: broadcast not permitted');
+    });
+
+    const res = await api.post('/api/wol/wake').send({ mac: 'AA:BB:CC:DD:EE:FF' }).expect(500);
+
+    expect(res.body.error).toMatch(/EACCES/i);
+    expect(dgramMock.socket.send).not.toHaveBeenCalled();
+    expect(dgramMock.socket.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 503 from the wake route when Wake-on-LAN is disabled', async () => {
+    const ctx = await loadServerApp({ WOL_ENABLED: 'off' });
+    try {
+      const res = await request(ctx.app)
+        .post('/api/wol/wake')
+        .send({ mac: 'AA:BB:CC:DD:EE:FF' })
+        .expect(503);
+      expect(res.body).toEqual({ error: 'Wake-on-LAN is disabled' });
+      expect(dgramMock.createSocket).not.toHaveBeenCalled();
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
+  it('honors a custom WOL_ALLOWED_PORTS allowlist', async () => {
+    const ctx = await loadServerApp({ WOL_ENABLED: 'true', WOL_ALLOWED_PORTS: '7,9,4000' });
+    try {
+      const ok = await request(ctx.app)
+        .post('/api/wol/wake')
+        .send({ mac: 'AA:BB:CC:DD:EE:FF', port: 4000 })
+        .expect(200);
+      expect(ok.body).toMatchObject({ ok: true, port: 4000 });
+
+      const rejected = await request(ctx.app)
+        .post('/api/wol/wake')
+        .send({ mac: 'AA:BB:CC:DD:EE:FF', port: 8080 })
+        .expect(400);
+      expect(rejected.body.error).toMatch(/port must be one of:.*4000/);
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
   it('reports disabled health status only for explicit false/0/off values', async () => {
     const ctx = await loadServerApp({ WOL_ENABLED: 'off' });
     try {
@@ -149,5 +208,47 @@ describe('Wake-on-LAN integration', () => {
     } finally {
       await ctx.cleanup();
     }
+  });
+});
+
+describe('Wake-on-LAN validation helpers', () => {
+  it('rejects non-string and malformed MAC addresses', () => {
+    expect(() => normalizeMac(42)).toThrow(/mac must be a string/i);
+    expect(() => normalizeMac('')).toThrow(/invalid MAC/i);
+    expect(() => normalizeMac('AA:BB:CC:DD:EE:FF:00')).toThrow(/invalid MAC/i); // 7 groups
+    expect(() => normalizeMac('aabbccddee')).toThrow(/invalid MAC/i); // 10 hex digits
+    expect(normalizeMac('  aabbccddeeff  ')).toBe('AA:BB:CC:DD:EE:FF'); // trims surrounding space
+  });
+
+  it('repeats the MAC sixteen times after the 0xff header', () => {
+    const packet = buildMagicPacket('01:23:45:67:89:AB');
+    const mac = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab];
+    expect([...packet.subarray(0, 6)]).toEqual([0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
+    for (let i = 0; i < 16; i += 1) {
+      const offset = 6 + i * 6;
+      expect([...packet.subarray(offset, offset + 6)]).toEqual(mac);
+    }
+  });
+
+  it('defaults, normalizes, and rejects broadcast addresses', () => {
+    expect(normalizeBroadcast(undefined)).toBe('255.255.255.255');
+    expect(normalizeBroadcast(null)).toBe('255.255.255.255');
+    expect(normalizeBroadcast('')).toBe('255.255.255.255');
+    expect(normalizeBroadcast('  192.168.1.255  ')).toBe('192.168.1.255'); // trims
+    expect(() => normalizeBroadcast(123)).toThrow(/broadcast must be a string/i);
+    expect(() => normalizeBroadcast('192.168.1.0')).toThrow(/subnet broadcast/i); // not .255
+    expect(() => normalizeBroadcast('::1')).toThrow(/IPv4/i); // IPv6 rejected
+    expect(() => normalizeBroadcast('not-an-ip')).toThrow(/IPv4/i);
+  });
+
+  it('defaults, validates, and rejects ports', () => {
+    expect(normalizeWolPort(undefined)).toBe(9);
+    expect(normalizeWolPort(null)).toBe(9);
+    expect(normalizeWolPort('')).toBe(9);
+    expect(normalizeWolPort('7')).toBe(7); // numeric string coerces
+    expect(() => normalizeWolPort(9.5)).toThrow(/integer from 1 to 65535/i); // non-integer
+    expect(() => normalizeWolPort(0)).toThrow(/integer from 1 to 65535/i);
+    expect(() => normalizeWolPort(70000)).toThrow(/integer from 1 to 65535/i);
+    expect(() => normalizeWolPort(8080)).toThrow(/one of/i); // in range, not allowlisted
   });
 });
