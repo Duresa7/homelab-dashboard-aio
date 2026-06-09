@@ -299,10 +299,31 @@ export interface ClientBreakdown {
   vpn: number;
 }
 
+export interface UnifiFirewallZone {
+  id: string;
+  name: string;
+  /** Number of networks attached to the zone. */
+  networkCount: number;
+}
+
+export interface UnifiFirewallPolicy {
+  id: string;
+  name: string;
+  enabled: boolean;
+  action: string;
+  /** Resolved zone names (falls back to the raw zone id). */
+  sourceZone: string;
+  destinationZone: string;
+  index: number | null;
+  predefined: boolean;
+}
+
 export interface UnifiFirewallSummary {
   zones: number;
   policies: number;
   policiesEnabled: number;
+  zoneList: UnifiFirewallZone[];
+  policyList: UnifiFirewallPolicy[];
 }
 
 export interface UnifiVPNServer {

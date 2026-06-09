@@ -62,7 +62,7 @@ function emptyUnifi(): UnifiData {
     wan: { down: 0, up: 0, downMax: 1, upMax: 1, public: '—' },
     networks: [],
     ssids: [],
-    firewall: { zones: 0, policies: 0, policiesEnabled: 0 },
+    firewall: { zones: 0, policies: 0, policiesEnabled: 0, zoneList: [], policyList: [] },
     vpnServers: [],
     dnsRecords: [],
     appVersion: null,

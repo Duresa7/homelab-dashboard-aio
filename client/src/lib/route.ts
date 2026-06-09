@@ -51,6 +51,7 @@ export const SUBS: Partial<Record<Section, SubDef[]>> = {
     { id: 'devices', label: 'Devices' },
     { id: 'clients', label: 'Clients' },
     { id: 'config', label: 'Config' },
+    { id: 'firewall', label: 'Firewall' },
   ],
   docker: [
     { id: 'overview', label: 'Overview' },

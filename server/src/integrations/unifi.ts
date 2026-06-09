@@ -264,11 +264,32 @@ async function fetchUnifiDataRaw(): Promise<UnifiApiResponse> {
         security: s.securityConfiguration?.type || 'unknown',
         broadcastingFrequencies: s.broadcastingFrequenciesGhz || s.broadcastingFrequenciesGHz || [],
       })),
-      firewall: {
-        zones: fwZones.length,
-        policies: fwPolicies.length,
-        policiesEnabled: fwPolicies.filter((p: Upstream) => p.enabled).length,
-      },
+      firewall: (() => {
+        const zoneNameById: Record<string, string> = {};
+        for (const z of fwZones) zoneNameById[z.id] = z.name || z.id;
+        const zoneName = (zoneId: unknown) =>
+          (typeof zoneId === 'string' && (zoneNameById[zoneId] || zoneId)) || '—';
+        return {
+          zones: fwZones.length,
+          policies: fwPolicies.length,
+          policiesEnabled: fwPolicies.filter((p: Upstream) => p.enabled).length,
+          zoneList: fwZones.map((z: Upstream, i: number) => ({
+            id: z.id || z.name || `zone-${i}`,
+            name: z.name || 'Zone',
+            networkCount: Array.isArray(z.networkIds) ? z.networkIds.length : 0,
+          })),
+          policyList: fwPolicies.map((p: Upstream, i: number) => ({
+            id: p.id || p.name || `policy-${i}`,
+            name: p.name || 'Policy',
+            enabled: p.enabled ?? true,
+            action: p.action || 'UNKNOWN',
+            sourceZone: zoneName(p.source?.zoneId),
+            destinationZone: zoneName(p.destination?.zoneId),
+            index: typeof p.index === 'number' ? p.index : null,
+            predefined: p.predefined ?? false,
+          })),
+        };
+      })(),
       vpnServers: vpnServers.map((v: Upstream) => ({
         id: v.id,
         name: v.name || 'VPN Server',
