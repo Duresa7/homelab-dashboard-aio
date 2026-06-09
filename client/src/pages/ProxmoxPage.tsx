@@ -720,9 +720,19 @@ function useTableView(key: string): [TableView, (v: TableView) => void] {
 }
 
 const VIEW_OPTIONS = [
-  { value: 'combined', label: 'combined' },
-  { value: 'per-node', label: 'per node' },
+  { value: 'combined', label: 'single table' },
+  { value: 'per-node', label: 'table per node' },
 ];
+
+/** Slim right-aligned layout switch shown above cluster tables. */
+function TableLayoutBar({ view, onChange }: { view: TableView; onChange: (v: TableView) => void }) {
+  return (
+    <div className="col-span-12 -mb-1 flex items-center justify-end gap-2">
+      <span className="text-xs text-muted-foreground">Layout</span>
+      <Segmented value={view} onChange={(v) => onChange(v as TableView)} options={VIEW_OPTIONS} />
+    </div>
+  );
+}
 
 function GuestsView({ vms }: { vms: VM[] }) {
   const [query, setQuery] = useState('');
@@ -753,18 +763,16 @@ function GuestsView({ vms }: { vms: VM[] }) {
   return (
     <>
       <SectionCard span={12} title="Filter" sub={`${filtered.length} of ${vms.length} guests`}>
-        <div className="flex flex-wrap items-end gap-6">
-          <div className="flex w-56 flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">search</span>
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="name, ID, node or IP"
-            />
-          </div>
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+          <Input
+            className="h-8 w-64"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search name, ID, node or IP…"
+          />
           {multiNode && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs text-muted-foreground">node</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Node</span>
               <Segmented
                 value={nodeFilter}
                 onChange={setNodeFilter}
@@ -775,8 +783,8 @@ function GuestsView({ vms }: { vms: VM[] }) {
               />
             </div>
           )}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">state</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">State</span>
             <Segmented
               value={stateFilter}
               onChange={setStateFilter}
@@ -787,18 +795,10 @@ function GuestsView({ vms }: { vms: VM[] }) {
               ]}
             />
           </div>
-          {multiNode && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs text-muted-foreground">view</span>
-              <Segmented
-                value={view}
-                onChange={(v) => setView(v as TableView)}
-                options={VIEW_OPTIONS}
-              />
-            </div>
-          )}
         </div>
       </SectionCard>
+
+      {multiNode && <TableLayoutBar view={view} onChange={setView} />}
 
       {perNode ? (
         visibleNodes.map((n) => (
@@ -828,18 +828,7 @@ function StorageTables({ storages }: { storages: ProxmoxStorage[] }) {
 
   return (
     <>
-      {multiNode && (
-        <SectionCard span={12} title="View" sub={`${storages.length} storages`}>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">view</span>
-            <Segmented
-              value={view}
-              onChange={(v) => setView(v as TableView)}
-              options={VIEW_OPTIONS}
-            />
-          </div>
-        </SectionCard>
-      )}
+      {multiNode && <TableLayoutBar view={view} onChange={setView} />}
       {multiNode && view === 'per-node' ? (
         groups.map((g) => (
           <StorageTable
@@ -849,7 +838,7 @@ function StorageTables({ storages }: { storages: ProxmoxStorage[] }) {
           />
         ))
       ) : (
-        <StorageTable storages={storages} />
+        <StorageTable storages={storages} showNode={multiNode} />
       )}
     </>
   );
@@ -905,9 +894,11 @@ function GuestsTable({
 function StorageTable({
   storages,
   title = 'Storage',
+  showNode,
 }: {
   storages: ProxmoxStorage[];
   title?: string;
+  showNode?: boolean;
 }) {
   return (
     <DataTableCard
@@ -919,7 +910,7 @@ function StorageTable({
       head={
         <>
           <TableHead>Name</TableHead>
-          <TableHead>Node</TableHead>
+          {showNode ? <TableHead>Node</TableHead> : null}
           <TableHead>Type</TableHead>
           <TableHead>Content</TableHead>
           <TableHead>Shared</TableHead>
@@ -931,7 +922,7 @@ function StorageTable({
       {storages.map((s) => (
         <TableRow key={`${s.node}-${s.name}`}>
           <TableCell className="font-mono">{s.name}</TableCell>
-          <TableCell>{s.node}</TableCell>
+          {showNode ? <TableCell>{s.node}</TableCell> : null}
           <TableCell>{s.type}</TableCell>
           <TableCell>{s.content || '—'}</TableCell>
           <TableCell>{s.shared ? 'yes' : 'no'}</TableCell>
@@ -1031,18 +1022,7 @@ function DisksView({ disks }: { disks: PhysicalDisk[] }) {
 
   return (
     <>
-      {multiNode && (
-        <SectionCard span={12} title="View" sub={`${disks.length} drives`}>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">view</span>
-            <Segmented
-              value={view}
-              onChange={(v) => setView(v as TableView)}
-              options={VIEW_OPTIONS}
-            />
-          </div>
-        </SectionCard>
-      )}
+      {multiNode && <TableLayoutBar view={view} onChange={setView} />}
       {multiNode && view === 'per-node' ? (
         nodes.map((n) => (
           <ClusterDisksTable

@@ -97,10 +97,10 @@ export function AreaChart({ data, height = 56, color, kind, formatValue, showBou
 
       {showBounds && data.length > 0 ? (
         <>
-          <span className="pointer-events-none absolute top-0 left-1 text-[10px] leading-none tabular-nums text-muted-foreground/70">
+          <span className="pointer-events-none absolute top-1 left-1 rounded bg-card/75 px-1 text-[10px] leading-none tabular-nums text-muted-foreground">
             {fmt(max)}
           </span>
-          <span className="pointer-events-none absolute bottom-0 left-1 text-[10px] leading-none tabular-nums text-muted-foreground/70">
+          <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-card/75 px-1 text-[10px] leading-none tabular-nums text-muted-foreground">
             {fmt(min)}
           </span>
         </>
