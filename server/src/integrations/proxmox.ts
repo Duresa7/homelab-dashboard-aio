@@ -204,17 +204,29 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
     }
     displayStorages.push(s);
   }
+  // Field names differ by source: cluster/resources rows carry
+  // disk/maxdisk/plugintype/status, the per-node /storage fallback carries
+  // used/total/type/enabled/active. Normalize before any math.
+  const storUsed = (s: Upstream) => Number(s.used ?? s.disk) || 0;
+  const storTotal = (s: Upstream) => Number(s.total ?? s.maxdisk) || 0;
+  const storType = (s: Upstream) =>
+    String(s.plugintype || (s.type !== 'storage' ? s.type : '') || '');
+  const storActive = (s: Upstream) =>
+    s.active != null || s.enabled != null
+      ? !!s.active && (s.enabled ?? true) !== false
+      : String(s.status ?? 'available') === 'available';
+
   const seenStorage = new Set<string>();
   let storageUsed = 0;
   let storageTotal = 0;
   if (Array.isArray(clusterStorages)) {
     for (const s of clusterStorages) {
-      if (!s.enabled || !s.active || !s.total) continue;
+      if (!storActive(s) || !storTotal(s)) continue;
       const key = s.shared ? String(s.storage) : `${s.node || primary.node}:${s.storage}`;
       if (seenStorage.has(key)) continue;
       seenStorage.add(key);
-      storageUsed += s.used || 0;
-      storageTotal += s.total || 0;
+      storageUsed += storUsed(s);
+      storageTotal += storTotal(s);
     }
   }
 
@@ -340,11 +352,11 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
         return {
           name: s.storage || '',
           node: s.node || primary.node,
-          type: s.type || '',
+          type: storType(s),
           content: s.content || '',
-          usedTB: (s.used || 0) / TB,
-          totalTB: (s.total || 0) / TB,
-          active: !!s.active,
+          usedTB: storUsed(s) / TB,
+          totalTB: storTotal(s) / TB,
+          active: storActive(s),
           shared: !!s.shared,
           zfsHealth:
             zfsHealthByName.get(zfsKey) || zfsHealthByName.get(String(s.storage || '')) || null,
