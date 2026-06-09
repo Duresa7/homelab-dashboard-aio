@@ -36,6 +36,30 @@ function ContainersBrandIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+/**
+ * Tells the user which integration the container data flows through, so a
+ * Portainer-backed view is never mistaken for native Docker/Kubernetes data.
+ */
+function DataSourceNotice() {
+  const containers = useCapabilityPresentation('containers');
+  const viaPortainer = containers.providerId === 'portainer';
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+      <ContainersBrandIcon size={14} />
+      <span>
+        Data source: <span className="font-medium text-foreground">{containers.vendorLabel}</span>
+        {viaPortainer ? (
+          <>
+            {' '}
+            — container data is fetched through the Portainer API, a third-party application. Native
+            Docker and Kubernetes support is planned.
+          </>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
 function Hosts({ data }: { data: DashboardState }) {
   const c = data.docker.containers;
   const hosts = data.docker.hosts;
@@ -245,6 +269,7 @@ export function DockerPage({ data, sub, onSelectSub }: Props) {
   return (
     <div className="flex flex-col gap-[var(--gap)]">
       <SubTabs tabs={DOCKER_TABS} active={sub} onChange={onSelectSub} />
+      <DataSourceNotice />
       {sub === 'containers' ? <Containers data={data} /> : <Hosts data={data} />}
     </div>
   );

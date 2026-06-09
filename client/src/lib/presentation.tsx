@@ -42,6 +42,8 @@ export interface CapabilityPresentation {
   label: string;
   genericLabel: string;
   vendorLabel?: string;
+  /** Selected provider id (e.g. `portainer`), so pages can explain the data source. */
+  providerId?: string;
   icon: string;
   enabled: boolean;
 }
@@ -110,7 +112,7 @@ const FALLBACK_CAPABILITIES: Capability[] = [
     providers: [
       {
         id: 'portainer',
-        label: 'Docker',
+        label: 'Docker (Portainer)',
         icon: 'docker',
         adapter: 'docker',
         status: 'available',
@@ -244,6 +246,7 @@ function buildPresentation(
       label: labelFor(capability, selectedVendor),
       genericLabel: capability.label,
       vendorLabel: provider?.label,
+      providerId: selectedVendor,
       icon: provider?.icon ?? capability.id,
       enabled: enabledIds ? enabledIds.has(capability.id) : true,
     };
