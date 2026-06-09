@@ -1359,7 +1359,13 @@ export function NodeHardwareCard({
             <StatRow
               key={g.index}
               label={`GPU ${g.index}`}
-              value={`${g.model} · ${Math.round(g.usage)}% · ${fmtTemp(g.tempC, unit)}`}
+              value={
+                g.metricsAvailable === false
+                  ? `${g.model}${g.integrated ? ' · iGPU' : ''}${
+                      g.gpuClockMHz ? ` · ${g.gpuClockMHz} MHz` : ''
+                    }`
+                  : `${g.model} · ${Math.round(g.usage)}% · ${fmtTemp(g.tempC, unit)}`
+              }
             />
           ))
         ) : (

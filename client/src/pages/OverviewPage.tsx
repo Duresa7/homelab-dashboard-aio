@@ -458,10 +458,11 @@ function NodeCard({
   ];
 
   const primaryGpu = gpus[0];
+  const more = gpus.length > 1 ? ` (+${gpus.length - 1})` : '';
   const gpuMeta = primaryGpu
-    ? `GPU ${Math.round(primaryGpu.usage)}% · ${Math.round(primaryGpu.tempC)}°C${
-        gpus.length > 1 ? ` (+${gpus.length - 1})` : ''
-      }`
+    ? primaryGpu.metricsAvailable === false
+      ? `${primaryGpu.model}${primaryGpu.integrated ? ' (iGPU)' : ''}${more}`
+      : `GPU ${Math.round(primaryGpu.usage)}% · ${Math.round(primaryGpu.tempC)}°C${more}`
     : 'No GPU';
   const tempMeta =
     sensors && typeof sensors.cpuTempC === 'number'

@@ -27,6 +27,9 @@ export interface RAMData {
   history: number[];
 }
 
+/** GPU silicon vendor, from nvidia-smi or the PCI vendor id (lspci). */
+export type GpuVendor = 'nvidia' | 'amd' | 'intel' | 'unknown';
+
 export interface GPUData {
   model: string;
   usage: number;
@@ -40,6 +43,15 @@ export interface GPUData {
   gpuClockMHz: number;
   memClockMHz: number;
   history: number[];
+  /** Detected vendor; absent on payloads from older servers. */
+  vendor?: GpuVendor;
+  /** True for integrated graphics (iGPU) rather than a discrete card. */
+  integrated?: boolean;
+  /**
+   * False when the GPU was detected (via PCI scan) but full utilization
+   * metrics aren't readable — e.g. Intel iGPUs without igt-gpu-tools.
+   */
+  metricsAvailable?: boolean;
 }
 
 export type GpuWireData = Omit<GPUData, 'history'>;

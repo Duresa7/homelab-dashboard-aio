@@ -9,6 +9,25 @@ vi.mock('../lib/remote.js', () => ({ runRemote: remoteMock.runRemote }));
 const GPU_A_CSV = 'Example GPU A, 0, 6461, 11264, 31, 12.44, 275.00, 0, 139, 405';
 const GPU_B_CSV = 'Example GPU B, 5, 1000, 24576, 40, 100, 350, 30, 1500, 9000';
 
+// Full three-section detection outputs, captured from real hardware.
+const SEC = '__GPU_SECTION__';
+const NVIDIA_NODE_OUT =
+  `NVIDIA GeForce GTX 1080 Ti, 0, 6461, 11264, 31, 12.54, 275.00, 0, 139, 405\n` +
+  `${SEC}\n` +
+  `2b:00.0 VGA compatible controller [0300]: NVIDIA Corporation GP102 [GeForce GTX 1080 Ti] [10de:1b06] (rev a1)\n` +
+  `${SEC}\n` +
+  `card0|0x10de||||||\n`;
+const INTEL_IGPU_OUT =
+  `${SEC}\n` +
+  `00:02.0 VGA compatible controller [0300]: Intel Corporation CoffeeLake-S GT2 [UHD Graphics 630] [8086:3e92]\n` +
+  `${SEC}\n` +
+  `card1|0x8086|350|1100||||\n`;
+const AMD_DGPU_OUT =
+  `${SEC}\n` +
+  `03:00.0 VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Navi 23 [Radeon RX 6600] [1002:73ff] (rev c1)\n` +
+  `${SEC}\n` +
+  `card0|0x1002|||37|2147483648|8589934592|56000\n`;
+
 const ENV_KEYS = [
   'GPU_ENABLED',
   'GPU_MODE',
@@ -101,6 +120,69 @@ describe('GPU per-node collection', () => {
     expect(res.gpus).toHaveLength(2);
     expect(res.gpus.map((g) => g.index)).toEqual([0, 1]);
     expect(res.gpus.every((g) => g.node === 'gpubox')).toBe(true);
+  });
+
+  it('detects NVIDIA via nvidia-smi and an Intel iGPU via the PCI scan', async () => {
+    const { gpuProvider } = await loadGpu({
+      GPU_ENABLED: 'true',
+      GPU_MODE: 'ssh',
+      GPU_SSH_HOST: '192.0.2.10',
+      PROXMOX_NODE: 'node-a',
+      PROXMOX_NODE_TARGETS: JSON.stringify({
+        'node-a': { host: '192.0.2.10' },
+        'node-b': { host: '192.0.2.11', jumpHost: '192.0.2.10' },
+      }),
+    });
+    remoteMock.runRemote.mockImplementation(async (opts: { host?: string }) =>
+      opts.host === '192.0.2.10' ? NVIDIA_NODE_OUT : INTEL_IGPU_OUT,
+    );
+
+    const res = await gpuProvider.fetch();
+
+    expect(res.gpus).toHaveLength(2);
+    expect(res.gpus[0]).toMatchObject({
+      node: 'node-a',
+      model: 'NVIDIA GeForce GTX 1080 Ti',
+      vendor: 'nvidia',
+      integrated: false,
+      metricsAvailable: true,
+      tempC: 31,
+    });
+    // The NVIDIA lspci line must not duplicate the nvidia-smi entry.
+    expect(res.gpus.filter((g) => g.node === 'node-a')).toHaveLength(1);
+    expect(res.gpus[1]).toMatchObject({
+      node: 'node-b',
+      model: 'UHD Graphics 630',
+      vendor: 'intel',
+      integrated: true,
+      metricsAvailable: false, // no utilization without igt-gpu-tools
+      gpuClockMHz: 350, // i915 current frequency from sysfs
+      usage: 0,
+    });
+  });
+
+  it('maps amdgpu sysfs metrics onto a detected AMD card', async () => {
+    const { gpuProvider } = await loadGpu({
+      GPU_ENABLED: 'true',
+      GPU_MODE: 'ssh',
+      GPU_SSH_HOST: '192.0.2.10',
+      PROXMOX_NODE: 'node-a',
+    });
+    remoteMock.runRemote.mockResolvedValue(AMD_DGPU_OUT);
+
+    const res = await gpuProvider.fetch();
+
+    expect(res.gpus).toHaveLength(1);
+    expect(res.gpus[0]).toMatchObject({
+      model: 'Radeon RX 6600',
+      vendor: 'amd',
+      integrated: false,
+      metricsAvailable: true,
+      usage: 37, // gpu_busy_percent
+      memUsedGB: 2, // 2147483648 B
+      memTotalGB: 8,
+      tempC: 56, // 56000 m°C
+    });
   });
 
   it('throws (→ 502) when no node responds at all', async () => {

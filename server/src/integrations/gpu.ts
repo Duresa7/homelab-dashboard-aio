@@ -1,9 +1,18 @@
-// GPU integration. Runs `nvidia-smi` (locally or over SSH via runRemote) and
-// normalizes the CSV into the dashboard's `gpu` slice.
+// GPU integration. Per node it runs one detection script (over SSH, or
+// locally) that combines `nvidia-smi` (full NVIDIA metrics), an `lspci` scan
+// (vendor/model detection for AMD / Intel / anything without nvidia-smi), and
+// a DRM sysfs sweep (best-effort clocks for i915, utilization/VRAM/temp for
+// amdgpu), then normalizes everything into the dashboard's `gpu` slice.
 import { runRemote } from '../lib/remote.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isEnabled } from '../lib/env.js';
-import type { GpuApiResponse, GpuSample, GpuWireData, NodeGpu } from '../../../shared/wire.ts';
+import type {
+  GpuApiResponse,
+  GpuSample,
+  GpuVendor,
+  GpuWireData,
+  NodeGpu,
+} from '../../../shared/wire.ts';
 import { selectionConfig, text, type Provider } from './provider.js';
 import { collectPerNode, resolveNodeTargets, type NodeTarget } from './node-targets.js';
 
@@ -55,9 +64,30 @@ function gpuTargets(): NodeTarget[] {
   });
 }
 
-function runNvidiaSmi(target: NodeTarget) {
-  const queryArg = `--query-gpu=${NVIDIA_SMI_FIELDS}`;
-  const formatArg = '--format=csv,noheader,nounits';
+/** Separator between the nvidia-smi / lspci / DRM-sysfs script sections. */
+const SECTION = '__GPU_SECTION__';
+
+const QUERY_ARG = `--query-gpu=${NVIDIA_SMI_FIELDS}`;
+const FORMAT_ARG = '--format=csv,noheader,nounits';
+
+// Three sections: NVIDIA metrics CSV, PCI display controllers, DRM sysfs rows
+// (card|vendor|i915 act/max MHz|amdgpu busy%|vram used/total bytes|temp m°C).
+// Ends in `true` so "no GPU anywhere" is exit 0, not a grep failure.
+const DETECTION_SCRIPT =
+  `nvidia-smi ${QUERY_ARG} ${FORMAT_ARG} 2>/dev/null; ` +
+  `echo ${SECTION}; ` +
+  `lspci -nn 2>/dev/null | grep -Ei 'vga compatible controller|3d controller|display controller'; ` +
+  `echo ${SECTION}; ` +
+  `for c in /sys/class/drm/card[0-9]*; do [ -e "$c/device/vendor" ] || continue; ` +
+  `echo "$(basename $c)|$(cat $c/device/vendor 2>/dev/null)` +
+  `|$(cat $c/gt_act_freq_mhz 2>/dev/null)|$(cat $c/gt_max_freq_mhz 2>/dev/null)` +
+  `|$(cat $c/device/gpu_busy_percent 2>/dev/null)` +
+  `|$(cat $c/device/mem_info_vram_used 2>/dev/null)|$(cat $c/device/mem_info_vram_total 2>/dev/null)` +
+  `|$(cat $c/device/hwmon/hwmon*/temp1_input 2>/dev/null | head -n1)"; done; true`;
+
+// Local mode keeps the plain nvidia-smi invocation (no shell, and the lspci /
+// sysfs scan is Linux-specific) — local installs stay NVIDIA-only.
+function runDetection(target: NodeTarget) {
   return runRemote({
     mode: target.mode,
     host: target.host,
@@ -68,9 +98,114 @@ function runNvidiaSmi(target: NodeTarget) {
     jumpUser: target.jumpUser,
     jumpPort: target.jumpPort,
     localCmd: 'nvidia-smi',
-    localArgs: [queryArg, formatArg],
-    remoteCmd: `nvidia-smi ${queryArg} ${formatArg}`,
+    localArgs: [QUERY_ARG, FORMAT_ARG],
+    remoteCmd: DETECTION_SCRIPT,
   });
+}
+
+function vendorFromId(hex: string): GpuVendor {
+  const id = hex.replace(/^0x/i, '').toLowerCase();
+  if (id === '10de') return 'nvidia';
+  if (id === '1002' || id === '1022') return 'amd';
+  if (id === '8086') return 'intel';
+  return 'unknown';
+}
+
+interface PciDisplay {
+  vendor: GpuVendor;
+  model: string;
+}
+
+/**
+ * Parse `lspci -nn` display-controller lines, e.g.
+ * `00:02.0 VGA compatible controller [0300]: Intel Corporation CoffeeLake-S GT2 [UHD Graphics 630] [8086:3e92]`.
+ * Model prefers the marketing name in the trailing brackets when present.
+ */
+function parseLspciDisplays(output: string): PciDisplay[] {
+  const displays: PciDisplay[] = [];
+  for (const line of output.split('\n')) {
+    const m = line.match(/\[[0-9a-f]{4}\]:\s*(.+?)\s*\[([0-9a-f]{4}):([0-9a-f]{4})\]/i);
+    if (!m) continue;
+    const desc = m[1];
+    const marketing = desc.match(/\[([^\]]+)\]\s*$/);
+    const model = marketing
+      ? marketing[1]
+      : desc.replace(/^.*?(?:Corporation|Corp\.|Inc\.|\[AMD\/ATI\])\s+/i, '').trim() || desc;
+    displays.push({ vendor: vendorFromId(m[2]), model });
+  }
+  return displays;
+}
+
+// Heuristic: Intel display controllers are iGPUs unless they're Arc/DG
+// discrete cards; AMD iGPUs carry APU family or "Graphics" marketing names.
+function isIntegrated(vendor: GpuVendor, model: string): boolean {
+  if (vendor === 'intel') return !/\b(arc|dg1|dg2|battlemage)\b/i.test(model);
+  if (vendor === 'amd') {
+    return /\b(vega\s*\d+|graphics|raphael|renoir|cezanne|picasso|rembrandt|phoenix|barcelo|lucienne|van gogh)\b/i.test(
+      model,
+    );
+  }
+  return false;
+}
+
+interface DrmCard {
+  vendor: GpuVendor;
+  actMHz: number | null;
+  busyPct: number | null;
+  vramUsedB: number | null;
+  vramTotalB: number | null;
+  tempC: number | null;
+}
+
+/** Parse the DRM sysfs sweep rows emitted by DETECTION_SCRIPT. */
+function parseDrmCards(output: string): DrmCard[] {
+  const cards: DrmCard[] = [];
+  for (const line of output.split('\n')) {
+    const parts = line.trim().split('|');
+    if (parts.length < 8) continue;
+    const opt = (s: string): number | null => {
+      const v = Number(s);
+      return s.trim() !== '' && Number.isFinite(v) ? v : null;
+    };
+    const tempMilliC = opt(parts[7]);
+    cards.push({
+      vendor: vendorFromId(parts[1]),
+      actMHz: opt(parts[2]),
+      busyPct: opt(parts[4]),
+      vramUsedB: opt(parts[5]),
+      vramTotalB: opt(parts[6]),
+      tempC: tempMilliC != null ? tempMilliC / 1000 : null,
+    });
+  }
+  return cards;
+}
+
+/** A GPU found by PCI scan (AMD/Intel/unknown), with best-effort sysfs metrics. */
+function toDetectedGpu(
+  node: string,
+  index: number,
+  display: PciDisplay,
+  drm: DrmCard | undefined,
+): NodeGpu {
+  const GB = 1024 ** 3;
+  return {
+    node,
+    index,
+    model: display.model,
+    vendor: display.vendor,
+    integrated: isIntegrated(display.vendor, display.model),
+    metricsAvailable: drm?.busyPct != null,
+    usage: drm?.busyPct ?? 0,
+    target: drm?.busyPct ?? 0,
+    memUsedGB: drm?.vramUsedB != null ? drm.vramUsedB / GB : 0,
+    memTotalGB: drm?.vramTotalB != null ? Math.round((drm.vramTotalB / GB) * 10) / 10 : 0,
+    tempC: drm?.tempC ?? 0,
+    powerW: 0,
+    powerMaxW: 0,
+    fanPct: 0,
+    gpuClockMHz: drm?.actMHz ?? 0,
+    memClockMHz: 0,
+  };
 }
 
 function parseNvidiaSmiCsv(output: string): GpuSample[] {
@@ -115,6 +250,9 @@ function toNodeGpu(node: string, index: number, s: GpuSample): NodeGpu {
     node,
     index,
     model: s.name,
+    vendor: 'nvidia',
+    integrated: false,
+    metricsAvailable: true,
     usage: s.usage,
     target: s.usage,
     memUsedGB: s.memUsedMB / 1024,
@@ -151,12 +289,34 @@ function isNoGpuError(err: unknown): boolean {
 async function fetchNodeGpus(target: NodeTarget): Promise<NodeGpu[]> {
   let output: string;
   try {
-    output = await runNvidiaSmi(target);
+    output = await runDetection(target);
   } catch (err) {
-    if (isNoGpuError(err)) return []; // reachable, just no NVIDIA GPU
+    if (isNoGpuError(err)) return []; // reachable, just no NVIDIA GPU (local mode)
     throw err; // genuine failure → recorded as unavailable
   }
-  return parseNvidiaSmiCsv(output).map((sample, index) => toNodeGpu(target.node, index, sample));
+
+  const [nvidiaCsv = '', lspciOut = '', drmOut = ''] = output.split(SECTION);
+  const nvidia = parseNvidiaSmiCsv(nvidiaCsv).map((sample, index) =>
+    toNodeGpu(target.node, index, sample),
+  );
+
+  // NVIDIA cards are already covered (with full metrics) by nvidia-smi; the
+  // PCI scan contributes everything else. Best-effort sysfs metrics are
+  // matched to PCI devices by vendor (per-card PCI addresses would be exact,
+  // but vendor is enough for the common one-iGPU / one-dGPU layouts).
+  const others = parseLspciDisplays(lspciOut).filter((d) => d.vendor !== 'nvidia');
+  const drmQueues = new Map<GpuVendor, DrmCard[]>();
+  for (const card of parseDrmCards(drmOut)) {
+    if (card.vendor === 'nvidia') continue;
+    const queue = drmQueues.get(card.vendor) ?? [];
+    queue.push(card);
+    drmQueues.set(card.vendor, queue);
+  }
+  const detected = others.map((display, i) =>
+    toDetectedGpu(target.node, nvidia.length + i, display, drmQueues.get(display.vendor)?.shift()),
+  );
+
+  return [...nvidia, ...detected];
 }
 
 async function fetchGpuDataRaw(): Promise<GpuApiResponse> {
@@ -209,7 +369,7 @@ export function configureGpu(next: GpuRuntimeConfig): void {
 export function probeGpu() {
   const target = gpuTargets()[0];
   if (!target) return Promise.reject(new Error('GPU not configured'));
-  return runNvidiaSmi(target);
+  return runDetection(target);
 }
 
 export const gpuProvider: Provider<GpuApiResponse> = {
