@@ -1,6 +1,7 @@
 import { Tile } from '../tile/Tile';
 import type { TopTalker } from '../../types';
 import { CapabilityTitle } from '@/lib/presentation';
+import { capList, useListRows } from '@/lib/list-rows';
 
 interface Props {
   data: TopTalker[];
@@ -20,11 +21,12 @@ function formatConnectedAt(iso: string): string {
 }
 
 export function TopTalkersTile({ data, span }: Props) {
-  const top = data.slice(0, 3);
+  const rows = useListRows();
+  const top = capList(data, rows);
   return (
     <Tile
       title={<CapabilityTitle capability="network" suffix="Connected Clients" />}
-      sub="recent"
+      sub={top.length < data.length ? `${top.length} of ${data.length}` : 'recent'}
       span={span}
     >
       <div className="flex flex-col">

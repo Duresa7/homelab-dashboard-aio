@@ -12,6 +12,7 @@ import {
   PlugZap,
   Plus,
   RotateCcw,
+  Rows3,
   SlidersHorizontal,
   TestTube2,
   Thermometer,
@@ -57,6 +58,7 @@ import {
 import { INTEGRATIONS, type HealthInfo, type HealthResponse } from '../lib/integrations';
 import type { IntegrationKey } from '../lib/telemetry';
 import { convertTemp, fToC, useTempUnit, type TempUnit } from '../lib/units';
+import { LIST_ROWS_OPTIONS, setListRows, useListRows } from '../lib/list-rows';
 import {
   DATE_FORMAT_OPTIONS,
   TIME_FORMAT_OPTIONS,
@@ -382,6 +384,7 @@ function PreferencesTab({
   onPreferenceChange: Props['onPreferenceChange'];
 }) {
   const { unit, setUnit } = useTempUnit();
+  const listRows = useListRows();
   const siteName = useSiteNameRaw();
   const previewDate = new Date();
   const setDateTime = <K extends keyof DateTimePreferences>(
@@ -430,6 +433,21 @@ function PreferencesTab({
             { value: 'comfy', label: 'Comfy' },
           ]}
           onChange={(v) => onPreferenceChange('density', v)}
+        />
+      </PreferenceCard>
+
+      <PreferenceCard
+        icon={Rows3}
+        title="List rows"
+        meta={listRows === 0 ? 'Show all rows' : `Up to ${listRows} rows per card`}
+      >
+        <PreferenceSelect<string>
+          value={String(listRows)}
+          options={LIST_ROWS_OPTIONS.map((n) => ({
+            value: String(n),
+            label: n === 0 ? 'Show all' : `${n} rows`,
+          }))}
+          onChange={(v) => setListRows(Number(v))}
         />
       </PreferenceCard>
 

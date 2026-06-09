@@ -27,6 +27,7 @@ import {
 } from '@/components/common';
 import { batterySeverity, cpuUsageSeverity, fillSeverity, ramUsageSeverity } from '../lib/severity';
 import { usePresentation, type PresentationMap } from '@/lib/presentation';
+import { capList, useListRows } from '@/lib/list-rows';
 import type { Section } from '../lib/route';
 import type { DashboardState, ProxmoxClusterNode } from '../types';
 
@@ -229,6 +230,7 @@ const HEALTH_TONE: Record<Health, StatTone> = {
 
 export function OverviewPage({ data, setRoute }: Props) {
   const presentation = usePresentation();
+  const listRows = useListRows();
   const subsystems = buildSubsystems(data, presentation);
 
   // Per-node selection (persisted). A single-node cluster has nothing to pick,
@@ -300,7 +302,7 @@ export function OverviewPage({ data, setRoute }: Props) {
       })),
   ];
 
-  const recent = data.events.slice(0, 8);
+  const recent = capList(data.events, listRows);
 
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
