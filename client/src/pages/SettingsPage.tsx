@@ -16,6 +16,7 @@ import {
   SlidersHorizontal,
   TestTube2,
   Thermometer,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -59,6 +60,13 @@ import { INTEGRATIONS, type HealthInfo, type HealthResponse } from '../lib/integ
 import type { IntegrationKey } from '../lib/telemetry';
 import { convertTemp, fToC, useTempUnit, type TempUnit } from '../lib/units';
 import { LIST_ROWS_OPTIONS, setListRows, useListRows } from '../lib/list-rows';
+import {
+  REFRESH_RATE_OPTIONS,
+  refreshRateDescription,
+  setRefreshRate,
+  useRefreshRate,
+  type RefreshRate,
+} from '../lib/refresh-rate';
 import {
   DATE_FORMAT_OPTIONS,
   TIME_FORMAT_OPTIONS,
@@ -385,6 +393,7 @@ function PreferencesTab({
 }) {
   const { unit, setUnit } = useTempUnit();
   const listRows = useListRows();
+  const refreshRate = useRefreshRate();
   const siteName = useSiteNameRaw();
   const previewDate = new Date();
   const setDateTime = <K extends keyof DateTimePreferences>(
@@ -433,6 +442,14 @@ function PreferencesTab({
             { value: 'comfy', label: 'Comfy' },
           ]}
           onChange={(v) => onPreferenceChange('density', v)}
+        />
+      </PreferenceCard>
+
+      <PreferenceCard icon={Zap} title="Refresh rate" meta={refreshRateDescription(refreshRate)}>
+        <SegmentedChoice<RefreshRate>
+          value={refreshRate}
+          options={REFRESH_RATE_OPTIONS}
+          onChange={setRefreshRate}
         />
       </PreferenceCard>
 

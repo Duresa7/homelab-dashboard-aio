@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getConnectivity } from './connectivity';
+import { effectiveIntervalMs } from './refresh-rate';
 import type {
   DashboardState,
   Disk,
@@ -285,7 +286,7 @@ function startPoller<K extends IntegrationKey>(config: PollerConfig<K>): () => v
           lastError: await readError(res),
           staleReason: 'Fetch failed',
         });
-        schedule(intervalMs);
+        schedule(effectiveIntervalMs(intervalMs));
         return;
       }
       const payload = (await res.json()) as ApiEnvelope<PollerPayloads[K]>;
@@ -304,7 +305,7 @@ function startPoller<K extends IntegrationKey>(config: PollerConfig<K>): () => v
           lastError: payload.error,
           staleReason: 'Integration error',
         });
-        schedule(intervalMs);
+        schedule(effectiveIntervalMs(intervalMs));
         return;
       }
       if (apply(payload)) notify();
@@ -322,7 +323,7 @@ function startPoller<K extends IntegrationKey>(config: PollerConfig<K>): () => v
       });
       if (import.meta.env.DEV) console.warn(`[telemetry] ${url} failed:`, err);
     }
-    schedule(intervalMs);
+    schedule(effectiveIntervalMs(intervalMs));
   };
 
   tick();
