@@ -198,7 +198,7 @@ function HistoryCard({
   const data = useHistory(entity, metric, windowId);
   return (
     <ChartCard title={title} span={6} height={120} isEmpty={data.length === 0}>
-      <AreaChart data={data} height={120} color={color} />
+      <AreaChart data={data} height={120} color={color} showBounds />
     </ChartCard>
   );
 }

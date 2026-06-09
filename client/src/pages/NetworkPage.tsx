@@ -154,7 +154,7 @@ function Overview({ data }: { data: DashboardState }) {
           </span>
         }
       >
-        <AreaChart data={lh} height={120} />
+        <AreaChart data={lh} height={120} formatValue={(v) => `${v.toFixed(1)} ms`} showBounds />
         <div className="mt-2 flex gap-6 text-xs text-muted-foreground tabular-nums">
           <span>min {lh.length ? Math.min(...lh).toFixed(1) : '—'} ms</span>
           <span>max {lh.length ? Math.max(...lh).toFixed(1) : '—'} ms</span>
