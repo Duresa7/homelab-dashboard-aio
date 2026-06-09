@@ -39,3 +39,34 @@ the built client.
 
 For the full run and verification contract used by agents and contributors, see
 [AGENTS.md](AGENTS.md) and [docs/agents/run-and-verify.md](docs/agents/run-and-verify.md).
+
+## Running the published image
+
+CI publishes a multi-stage Docker image to the GitHub Container Registry on every
+push to `main`:
+
+- `ghcr.io/duresa7/homelab-dashboard:latest` — moves with `main` (bleeding edge).
+- `ghcr.io/duresa7/homelab-dashboard:sha-<short>` — immutable, one per commit.
+
+Pin a `sha-` tag for a stable deployment, or track `:latest` if you want each
+merge. Provide a `.env` (see the variables the app reads) and an SSH key mount
+for GPU/sensor access, then:
+
+```bash
+docker compose -f docker-compose.deploy.yml pull
+docker compose -f docker-compose.deploy.yml up -d
+```
+
+`docker-compose.deploy.yml` pulls the published image and runs an optional,
+label-scoped [Watchtower](https://containrrr.dev/watchtower/) that auto-updates
+**only** this container when a new `:latest` is published. To deploy by hand
+instead, drop the `watchtower` service and re-run `pull` + `up -d` when you
+choose. To roll back, set `dashboard.image` to a known-good `sha-<short>` tag and
+`up -d` again.
+
+To build locally instead of pulling, use the default
+[docker-compose.yml](docker-compose.yml) (`docker compose up -d --build`).
+
+The deployment rationale (pull-based because the cloud runner can't reach the
+LAN) is recorded in
+[docs/adr/0005-cd-via-ghcr-watchtower.md](docs/adr/0005-cd-via-ghcr-watchtower.md).

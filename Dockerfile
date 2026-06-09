@@ -12,6 +12,9 @@ RUN npm ci
 
 COPY client ./client
 COPY server ./server
+# shared/wire.ts holds the client<->server wire types; both `npm run build`
+# (client) and the server import it, so it must be in the build context.
+COPY shared ./shared
 RUN npm run build
 
 # Clean production-only install (the toolchain here compiles better-sqlite3) so
@@ -35,6 +38,9 @@ COPY package.json package-lock.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
+# The server runs via tsx and references shared/wire.ts (type-only today, but
+# copy it so the runtime tree mirrors the source layout).
+COPY --from=builder /app/shared ./shared
 
 RUN mkdir -p /app/data /home/node/.ssh \
   && chown -R node:node /app /home/node/.ssh \

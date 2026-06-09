@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # npm dependencies (root manifest + lockfile). Each PR runs through CI
+  # (verify + the PR Docker build) before it can be merged.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Collapse the noisy, low-risk bumps into single PRs.
+      dev-dependencies:
+        dependency-type: development
+      production-dependencies:
+        dependency-type: production
+
+  # Keep the SHA-pinned GitHub Actions current — Dependabot bumps the pin and
+  # updates the trailing version comment in lock-step.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
