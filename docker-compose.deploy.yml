@@ -1,0 +1,47 @@
+# Deploy compose for the homelab box: PULL the published GHCR image instead of
+# building locally (docker-compose.yml is for local/dev builds).
+#
+#   docker compose -f docker-compose.deploy.yml pull
+#   docker compose -f docker-compose.deploy.yml up -d
+#
+# Standalone on purpose: a `-f base -f override` merge would keep `build:` from
+# the base file and rebuild on the box instead of pulling. Watchtower is opt-in
+# and label-scoped, so only the dashboard container auto-updates.
+services:
+  dashboard:
+    # Pin to :latest for hands-off CD, or to a :sha-<short> tag to freeze a build
+    # (rollback = set this to a known-good sha tag and `up -d`).
+    image: ghcr.io/duresa7/homelab-dashboard:latest
+    container_name: homelab-dashboard
+    restart: unless-stopped
+    # Host networking keeps real syslog source IPs (instead of the docker
+    # bridge gateway) and removes the unprivileged-LXC UDP/514 binding issue.
+    network_mode: host
+    env_file: .env
+    environment:
+      NODE_ENV: production
+    volumes:
+      - ./data:/app/data
+      # Mount an SSH key the container can use for GPU/sensors over SSH.
+      # The host file must be 0600 and owned by UID 1000.
+      - ${HOME}/.ssh/id_homelab:/home/node/.ssh/id_homelab:ro
+    ulimits:
+      nofile: 65536
+    labels:
+      # Only containers with this label are watched (see WATCHTOWER_LABEL_ENABLE).
+      com.centurylinklabs.watchtower.enable: 'true'
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: homelab-watchtower
+    restart: unless-stopped
+    environment:
+      # Watch only labelled containers — never touch anything else on this host.
+      WATCHTOWER_LABEL_ENABLE: 'true'
+      # Poll GHCR every 5 minutes; remove the old image after updating.
+      WATCHTOWER_POLL_INTERVAL: '300'
+      WATCHTOWER_CLEANUP: 'true'
+    volumes:
+      # Read-only socket: Watchtower needs to inspect/pull/recreate, but mounting
+      # ro limits the blast radius of a compromised image.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
