@@ -41,7 +41,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
     items: [{ section: 'observability', icon: Activity, hasSubs: true }],
   },
   {
-    label: 'Reference',
+    label: 'Utilities',
     items: [
       { section: 'inventory', icon: Boxes },
       { section: 'playground', icon: FlaskConical },
