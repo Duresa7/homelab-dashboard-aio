@@ -134,7 +134,7 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
     },
     unifi: {
       gateway: {
-        model: 'UCG-Fiber',
+        model: 'UCG-X',
         cpu: 12,
         ram: 34,
         tempC: 42,

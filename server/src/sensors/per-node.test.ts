@@ -52,7 +52,7 @@ const CONFIG = {
   cacheTtl: 0, // disable caching so each test sees a fresh fetch
 };
 
-const GREY_SENSORS = {
+const NODE_A_SENSORS = {
   cpuTempC: 45,
   systemTempC: null,
   systemTempLabel: null,
@@ -89,7 +89,7 @@ afterEach(() => {
 
 describe('sensors per-node collection', () => {
   it('attributes readings per node; an empty `sensors -j` is a reachable no-data node', async () => {
-    parseMock.parseSensorsJson.mockReturnValue(GREY_SENSORS);
+    parseMock.parseSensorsJson.mockReturnValue(NODE_A_SENSORS);
     remoteMock.runRemote.mockImplementation(async (opts: { host?: string; remoteCmd?: string }) => {
       if (opts.remoteCmd?.startsWith('sensors')) return opts.host === '10' ? '{"chip":{}}' : '';
       return '{}'; // lsblk
@@ -99,22 +99,22 @@ describe('sensors per-node collection', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.nodes).toHaveLength(2);
-    const grey = res.body.nodes!.find((n) => n.node === 'node-a') as typeof GREY_SENSORS & {
+    const nodeA = res.body.nodes!.find((n) => n.node === 'node-a') as typeof NODE_A_SENSORS & {
       node: string;
     };
-    const blue = res.body.nodes!.find((n) => n.node === 'node-c') as typeof GREY_SENSORS & {
+    const nodeC = res.body.nodes!.find((n) => n.node === 'node-c') as typeof NODE_A_SENSORS & {
       node: string;
     };
-    expect(grey.cpuTempC).toBe(45);
-    expect(blue.cores).toEqual([]); // empty output → all-empty reading, NOT unavailable
-    expect(blue.cpuTempC).toBeNull();
+    expect(nodeA.cpuTempC).toBe(45);
+    expect(nodeC.cores).toEqual([]); // empty output → all-empty reading, NOT unavailable
+    expect(nodeC.cpuTempC).toBeNull();
     expect(res.body.unavailable).toBeUndefined();
-    // legacy single-host field mirrors the primary node (grey)
-    expect((res.body.sensors as typeof GREY_SENSORS).cpuTempC).toBe(45);
+    // legacy single-host field mirrors the primary node (nodeA)
+    expect((res.body.sensors as typeof NODE_A_SENSORS).cpuTempC).toBe(45);
   });
 
   it('treats a missing `sensors` command as no-data, not unavailable', async () => {
-    parseMock.parseSensorsJson.mockReturnValue(GREY_SENSORS);
+    parseMock.parseSensorsJson.mockReturnValue(NODE_A_SENSORS);
     remoteMock.runRemote.mockImplementation(async (opts: { host?: string; remoteCmd?: string }) => {
       if (opts.remoteCmd?.startsWith('sensors')) {
         if (opts.host === '10') return '{"chip":{}}';
@@ -130,7 +130,7 @@ describe('sensors per-node collection', () => {
   });
 
   it('records an unreachable node under unavailable', async () => {
-    parseMock.parseSensorsJson.mockReturnValue(GREY_SENSORS);
+    parseMock.parseSensorsJson.mockReturnValue(NODE_A_SENSORS);
     remoteMock.runRemote.mockImplementation(async (opts: { host?: string; remoteCmd?: string }) => {
       if (opts.remoteCmd?.startsWith('sensors')) {
         if (opts.host === '10') return '{"chip":{}}';

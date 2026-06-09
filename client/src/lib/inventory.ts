@@ -799,15 +799,15 @@ function stripModel(model: string): string {
 
 /** Identical multi-unit gear (qty>1) → one friendly name per physical unit. */
 const NETWORK_SPLIT: Record<string, string[]> = {
-  'USW-Flex-2.5G-5': ['Access Switch 1', 'Access Switch 2'],
+  'USW-FX-X': ['Access Switch 1', 'Access Switch 2'],
 };
 
 /** Known UniFi gear → friendly name (used when migrating existing saved data). */
 const NETWORK_NAMES: Record<string, string> = {
-  'UCG-Fiber': 'Gateway',
-  'USW-Pro-Max-16-PoE': 'PoE Switch',
-  'U7-Pro-XG': 'Access Point',
-  'UVC-G6-Bullet': 'Camera 1',
+  'UCG-X': 'Gateway',
+  'USW-PM-X': 'PoE Switch',
+  'U7-X': 'Access Point',
+  'UVC-X': 'Camera 1',
 };
 
 function allDeviceUids(devices: DeviceCategory[]): Array<string | undefined> {

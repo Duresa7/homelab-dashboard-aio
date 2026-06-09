@@ -77,7 +77,7 @@ function v6Fixture() {
             values: {
               role: 'Gateway',
               brand: 'Ubiquiti',
-              model: 'UCG-Fiber (UniFi Cloud Gateway Fiber)',
+              model: 'UCG-X (Example Gateway)',
             },
           },
           {
@@ -85,7 +85,7 @@ function v6Fixture() {
             values: {
               role: 'Switch',
               brand: 'Ubiquiti',
-              model: 'USW-Flex-2.5G-5 (Flex 2.5G 5-port)',
+              model: 'USW-FX-X (Flex 2.5G 5-port)',
               qty: '2',
             },
           },
@@ -94,7 +94,7 @@ function v6Fixture() {
             values: {
               role: 'Camera',
               brand: 'Ubiquiti',
-              model: 'UVC-G6-Bullet (Protect G6 Bullet)',
+              model: 'UVC-X (Protect G6 Bullet)',
             },
           },
         ],
@@ -229,7 +229,7 @@ describe('migrateInventory (v6 → v7)', () => {
     expect(net?.deviceType).toBe('network');
     expect(net?.prefix).toBe('04');
     expect(net?.name).not.toMatch(/unifi/i);
-    const ucg = net?.items.find((it) => /UCG-Fiber/.test(it.values.model));
+    const ucg = net?.items.find((it) => /UCG-X/.test(it.values.model));
     expect(ucg?.name).toBe('Gateway');
     expect(ucg?.deployment).toBe('in-service');
     expect(ucg?.ids?.uid?.startsWith('04')).toBe(true);
@@ -257,16 +257,16 @@ describe('migrateInventory (v6 → v7)', () => {
     expect(networking?.items[0].values).toEqual({ brand: 'Netgear', model: 'GS308' });
   });
 
-  it('splits the qty-2 USW-Flex into two separately-named switches', () => {
+  it('splits the qty-2 USW-FX into two separately-named switches', () => {
     const net = inv.devices.find((c) => c.name === 'Network')!;
-    const flex = net.items.filter((it) => /USW-Flex/.test(it.values.model));
+    const flex = net.items.filter((it) => /USW-FX/.test(it.values.model));
     expect(flex).toHaveLength(2);
     expect(flex.map((it) => it.name).sort()).toEqual(['Access Switch 1', 'Access Switch 2']);
     expect(flex.every((it) => it.values.qty === '1')).toBe(true);
     expect(new Set(flex.map((it) => it.ids?.uid)).size).toBe(2);
   });
 
-  it('repairs already-v7 inventories that still have a qty-2 USW-Flex row', () => {
+  it('repairs already-v7 inventories that still have a qty-2 USW-FX row', () => {
     const inv7 = {
       lastUpdated: '2026-06-01',
       machines: [],
@@ -285,20 +285,20 @@ describe('migrateInventory (v6 → v7)', () => {
             {
               id: 's_ucg',
               deployment: 'in-service' as const,
-              values: { model: 'UCG-Fiber (UniFi Cloud Gateway Fiber)', qty: '1' },
+              values: { model: 'UCG-X (Example Gateway)', qty: '1' },
               name: 'Gateway',
               ids: { uid: '0401' },
             },
             {
               id: 's_flex',
               deployment: 'in-service' as const,
-              values: { model: 'USW-Flex-2.5G-5 (Flex 2.5G 5-port)', qty: '2' },
+              values: { model: 'USW-FX-X (Flex 2.5G 5-port)', qty: '2' },
               ids: { uid: '0402' },
             },
             {
               id: 's_core_switch',
               deployment: 'in-service' as const,
-              values: { model: 'USW-Pro-Max-16-PoE (Pro Max 16 PoE)', qty: '1' },
+              values: { model: 'USW-PM-X (Pro Max 16 PoE)', qty: '1' },
               name: 'PoE Switch',
               ids: { uid: '0403' },
             },
@@ -309,7 +309,7 @@ describe('migrateInventory (v6 → v7)', () => {
 
     const repaired = migrateInventory(inv7);
     const net = repaired.devices[0];
-    const flex = net.items.filter((it) => /USW-Flex/.test(it.values.model));
+    const flex = net.items.filter((it) => /USW-FX/.test(it.values.model));
     expect(flex).toHaveLength(2);
     expect(flex.map((it) => it.name)).toEqual(['Access Switch 1', 'Access Switch 2']);
     expect(flex.map((it) => it.values.qty)).toEqual(['1', '1']);
@@ -350,7 +350,7 @@ describe('migrateInventory (spares → devices)', () => {
               id: 'dev_gateway',
               name: 'Gateway',
               deployment: 'in-service' as const,
-              values: { model: 'UCG-Fiber' },
+              values: { model: 'UCG-X' },
               ids: { uid: '0401' },
               status: 'working' as const,
             },
@@ -368,7 +368,7 @@ describe('migrateInventory (spares → devices)', () => {
       id: 'dev_gateway',
       name: 'Gateway',
       deployment: 'in-service',
-      values: { model: 'UCG-Fiber' },
+      values: { model: 'UCG-X' },
       ids: { uid: '0401' },
       status: 'working',
     });

@@ -48,7 +48,7 @@ describe('state DB schema migrations', () => {
             {
               id: 's_ucg',
               deployment: 'in-service',
-              values: { model: 'UCG-Fiber (UniFi Cloud Gateway Fiber)' },
+              values: { model: 'UCG-X (Example Gateway)' },
               ids: { uid: '0401' },
             },
           ],

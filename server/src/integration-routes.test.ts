@@ -192,7 +192,7 @@ describe('Integration route contracts', () => {
             {
               id: 'gw',
               name: 'Gateway',
-              model: 'UCG-Fiber',
+              model: 'UCG-X',
               firmwareVersion: '9.0.1',
               features: ['gateway'],
               ipAddress: '198.51.100.10',
@@ -268,7 +268,7 @@ describe('Integration route contracts', () => {
           { UNIFI_ENABLED: 'true', UNIFI_BASE_URL: baseUrl, UNIFI_API_KEY: 'key' },
           async (api) => {
             const res = await api.get('/api/unifi').expect(200);
-            expect(res.body.unifi.gateway.model).toBe('UCG-Fiber');
+            expect(res.body.unifi.gateway.model).toBe('UCG-X');
             expect(res.body.unifi.clients).toBe(2);
             expect(res.body.unifi.clientBreakdown).toEqual({ wired: 1, wireless: 1, vpn: 0 });
             expect(res.body.unifi.switches[0]).toMatchObject({

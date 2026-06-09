@@ -6,14 +6,14 @@ import { parseCef, parseRfc3164, parseSyslog } from './parser.js';
 describe('SIEM parser', () => {
   it('parses RFC 3164 syslog envelopes', () => {
     const parsed = parseRfc3164(
-      '<134>Jun  1 12:34:56 UCG-Fiber kernel: [WAN_IN-3003-A] DROP SRC=1.2.3.4',
+      '<134>Jun  1 12:34:56 UCG-X kernel: [WAN_IN-3003-A] DROP SRC=1.2.3.4',
     );
 
     expect(parsed).toMatchObject({
       format: 'rfc3164',
       facility: 16,
       severity: 6,
-      hostname: 'UCG-Fiber',
+      hostname: 'UCG-X',
       tag: 'kernel',
       message: '[WAN_IN-3003-A] DROP SRC=1.2.3.4',
     });
@@ -22,7 +22,7 @@ describe('SIEM parser', () => {
 
   it('parses CEF headers and escaped extension values', () => {
     const parsed = parseCef(
-      String.raw`CEF:0|Ubiquiti|UniFi|9.3|admin-login|Admin\|Login|8|UNIFIhost=UCG-Fiber msg=Admin login duser=alice\=ops`,
+      String.raw`CEF:0|Ubiquiti|UniFi|9.3|admin-login|Admin\|Login|8|UNIFIhost=UCG-X msg=Admin login duser=alice\=ops`,
     );
 
     expect(parsed).toMatchObject({
@@ -34,7 +34,7 @@ describe('SIEM parser', () => {
       cefSeverity: 8,
     });
     expect(parsed?.fields).toMatchObject({
-      UNIFIhost: 'UCG-Fiber',
+      UNIFIhost: 'UCG-X',
       msg: 'Admin login',
       duser: 'alice=ops',
     });
@@ -42,7 +42,7 @@ describe('SIEM parser', () => {
 
   it('layers CEF over an RFC 3164 envelope and maps severity', () => {
     const parsed = parseSyslog(
-      String.raw`<13>Jun  1 12:34:56 UNVR app: CEF:0|Ubiquiti|UniFi|9.3|ids|Threat detected|9|UNIFIhost=UCG-Fiber UNIFIcategory=threat`,
+      String.raw`<13>Jun  1 12:34:56 UNVR app: CEF:0|Ubiquiti|UniFi|9.3|ids|Threat detected|9|UNIFIhost=UCG-X UNIFIcategory=threat`,
     );
 
     expect(parsed).toMatchObject({
@@ -66,7 +66,7 @@ describe('SIEM parser', () => {
 describe('SIEM classifier', () => {
   it('classifies UniFi gateway firewall messages', () => {
     const parsed = parseSyslog(
-      '<134>Jun  1 12:34:56 UCG-Fiber kernel: [WAN_IN-3003-A] DROP SRC=1.2.3.4',
+      '<134>Jun  1 12:34:56 UCG-X kernel: [WAN_IN-3003-A] DROP SRC=1.2.3.4',
     );
     expect(classifySyslog(parsed!, '198.51.100.1')).toEqual({
       device_kind: 'gateway',

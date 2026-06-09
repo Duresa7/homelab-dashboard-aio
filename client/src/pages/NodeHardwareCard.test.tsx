@@ -12,10 +12,10 @@ vi.mock('@/lib/store', () => ({
   subscribe: vi.fn(() => () => {}),
 }));
 
-const GREY_GPU: NodeGpu = {
+const NODE_A_GPU: NodeGpu = {
   node: 'node-a',
   index: 0,
-  model: 'NVIDIA GeForce GTX 1080 Ti',
+  model: 'Example GPU A',
   usage: 0,
   target: 0,
   memUsedGB: 6.3,
@@ -28,7 +28,7 @@ const GREY_GPU: NodeGpu = {
   memClockMHz: 405,
 };
 
-const GREY_SENSORS: NodeSensors = {
+const NODE_A_SENSORS: NodeSensors = {
   node: 'node-a',
   cpuTempC: 42,
   systemTempC: 35,
@@ -44,13 +44,13 @@ const GREY_SENSORS: NodeSensors = {
 describe('NodeHardwareCard', () => {
   it('attributes a GPU + sensors to the node', () => {
     const data = makeDashboardState();
-    data.gpus = [GREY_GPU];
-    data.sensorNodes = [GREY_SENSORS];
+    data.gpus = [NODE_A_GPU];
+    data.sensorNodes = [NODE_A_SENSORS];
 
     render(<NodeHardwareCard data={data} nodeName="node-a" />);
 
     expect(screen.getByText('node-a')).toBeInTheDocument();
-    expect(screen.getByText(/NVIDIA GeForce GTX 1080 Ti/)).toBeInTheDocument();
+    expect(screen.getByText(/Example GPU A/)).toBeInTheDocument();
     expect(screen.queryByText('No GPU')).not.toBeInTheDocument();
     expect(screen.queryByText('No sensors')).not.toBeInTheDocument();
   });

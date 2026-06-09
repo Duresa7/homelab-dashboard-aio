@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const remoteMock = vi.hoisted(() => ({ runRemote: vi.fn() }));
 vi.mock('../lib/remote.js', () => ({ runRemote: remoteMock.runRemote }));
 
-// Real nvidia-smi CSV line (1080 Ti) — field order matches gpu.ts.
-const GREY_CSV = 'NVIDIA GeForce GTX 1080 Ti, 0, 6461, 11264, 31, 12.44, 275.00, 0, 139, 405';
-const RTX_CSV = 'NVIDIA GeForce RTX 3090, 5, 1000, 24576, 40, 100, 350, 30, 1500, 9000';
+// Real nvidia-smi CSV line (sample GPU) — field order matches gpu.ts.
+const GPU_A_CSV = 'Example GPU A, 0, 6461, 11264, 31, 12.44, 275.00, 0, 139, 405';
+const GPU_B_CSV = 'Example GPU B, 5, 1000, 24576, 40, 100, 350, 30, 1500, 9000';
 
 const ENV_KEYS = [
   'GPU_ENABLED',
@@ -45,8 +45,8 @@ describe('GPU per-node collection', () => {
       }),
     });
     remoteMock.runRemote.mockImplementation(async (opts: { host?: string }) => {
-      if (opts.host === '192.0.2.10') return `${GREY_CSV}\n`;
-      throw new Error('bash: nvidia-smi: command not found'); // blue: Intel box, no nvidia-smi
+      if (opts.host === '192.0.2.10') return `${GPU_A_CSV}\n`;
+      throw new Error('bash: nvidia-smi: command not found'); // nodeC: Intel box, no nvidia-smi
     });
 
     const res = await gpuProvider.fetch();
@@ -55,11 +55,11 @@ describe('GPU per-node collection', () => {
     expect(res.gpus[0]).toMatchObject({
       node: 'node-a',
       index: 0,
-      model: 'NVIDIA GeForce GTX 1080 Ti',
+      model: 'Example GPU A',
       memTotalGB: 11, // 11264 MB → 11 GB
       tempC: 31,
     });
-    expect(res.gpu.model).toBe('NVIDIA GeForce GTX 1080 Ti'); // legacy primary = grey
+    expect(res.gpu.model).toBe('Example GPU A'); // legacy primary = nodeA
     expect(res.unavailable).toBeUndefined(); // GPU-less node is normal, not an outage
   });
 
@@ -75,7 +75,7 @@ describe('GPU per-node collection', () => {
       }),
     });
     remoteMock.runRemote.mockImplementation(async (opts: { host?: string }) => {
-      if (opts.host === '192.0.2.10') return `${GREY_CSV}\n`;
+      if (opts.host === '192.0.2.10') return `${GPU_A_CSV}\n`;
       throw new Error('ssh: connect to host 192.0.2.11 port 22: Connection timed out');
     });
 
@@ -94,7 +94,7 @@ describe('GPU per-node collection', () => {
       GPU_SSH_HOST: 'h',
       PROXMOX_NODE: 'gpubox',
     });
-    remoteMock.runRemote.mockResolvedValue(`${GREY_CSV}\n${RTX_CSV}\n`);
+    remoteMock.runRemote.mockResolvedValue(`${GPU_A_CSV}\n${GPU_B_CSV}\n`);
 
     const res = await gpuProvider.fetch();
 

@@ -194,7 +194,7 @@ NVIDIA, sensors, syslog) and feeds a Capability.
 
 ## Example dialogue
 
-> **Dev:** The Yoda NAS is in the network rack — is it a Device?
+> **Dev:** The NAS is in the network rack — is it a Device?
 > **Owner:** No, it's a Machine — I track its disks as Components and swap them.
 > **Dev:** And its disks show up under the NAS telemetry too?
 > **Owner:** Right — same physical drives. Inventory is the asset record; the NAS page is
@@ -202,5 +202,5 @@ NVIDIA, sensors, syslog) and feeds a Capability.
 > **Dev:** If I pull a drive and shelve it?
 > **Owner:** Its Assignment flips to SPARE. Same UID, still `working` Status — just not in
 > service. It never leaves the Component pool.
-> **Dev:** The gateway's nickname is "Ahsoka Gateway" — is that its identity?
+> **Dev:** The gateway's nickname is "Front Gateway" — is that its identity?
 > **Owner:** No, that's cosmetic. Identity is the model/IP. The nickname's just the label I see.

@@ -73,10 +73,10 @@ function sensors(name: string, cpuTempC: number | null): NodeSensors {
   };
 }
 
-const GREY_GPU: NodeGpu = {
+const NODE_A_GPU: NodeGpu = {
   node: 'node-a',
   index: 0,
-  model: 'NVIDIA GeForce GTX 1080 Ti',
+  model: 'Example GPU A',
   usage: 0,
   target: 0,
   memUsedGB: 6.3,
@@ -92,7 +92,7 @@ const GREY_GPU: NodeGpu = {
 function clusterState(): DashboardState {
   const data = makeDashboardState();
   data.proxmox.nodes = [node('node-a'), node('node-c', { maxcpu: 4 })];
-  data.gpus = [GREY_GPU]; // only grey has a GPU
+  data.gpus = [NODE_A_GPU]; // only nodeA has a GPU
   data.sensorNodes = [sensors('node-a', 42), sensors('node-c', 38)];
   return data;
 }
@@ -124,8 +124,8 @@ describe('OverviewPage', () => {
     render(<OverviewPage data={clusterState()} setRoute={vi.fn()} />);
 
     expect(screen.getByText('Nodes')).toBeInTheDocument();
-    // grey is GPU-labeled; blue explicitly has no GPU — no ambiguity.
-    expect(screen.getByText('NVIDIA GeForce GTX 1080 Ti')).toBeInTheDocument();
+    // nodeA is GPU-labeled; nodeC explicitly has no GPU — no ambiguity.
+    expect(screen.getByText('Example GPU A')).toBeInTheDocument();
     expect(screen.getByText('No GPU')).toBeInTheDocument();
     // temps attributed per node
     expect(screen.getByText(/GPU 0%.*31°C/)).toBeInTheDocument();
@@ -137,14 +137,14 @@ describe('OverviewPage', () => {
     const user = userEvent.setup();
     render(<OverviewPage data={clusterState()} setRoute={vi.fn()} />);
 
-    expect(screen.getByText('No GPU')).toBeInTheDocument(); // blue visible
+    expect(screen.getByText('No GPU')).toBeInTheDocument(); // nodeC visible
 
     // The selector chip's accessible name is exactly the node name (exact match
     // avoids colliding with the node card whose name embeds extra metrics).
     await user.click(screen.getByRole('button', { name: 'node-c' }));
 
     expect(storeMock.setState).toHaveBeenCalledWith('overviewSelectedNodes', ['node-a']);
-    expect(screen.queryByText('No GPU')).not.toBeInTheDocument(); // blue's tile gone
-    expect(screen.getByText('NVIDIA GeForce GTX 1080 Ti')).toBeInTheDocument(); // grey remains
+    expect(screen.queryByText('No GPU')).not.toBeInTheDocument(); // nodeC's tile gone
+    expect(screen.getByText('Example GPU A')).toBeInTheDocument(); // nodeA remains
   });
 });
