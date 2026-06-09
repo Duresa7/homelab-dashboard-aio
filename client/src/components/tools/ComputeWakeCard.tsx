@@ -250,7 +250,7 @@ export function ComputeWakeCard() {
   return (
     <SectionCard
       span={12}
-      title="Compute"
+      title="Wake-on-LAN"
       sub={`${hosts.length} ${hosts.length === 1 ? 'host' : 'hosts'}`}
       icon={<Power size={14} strokeWidth={1.75} />}
       actions={<StatusBadge kind={status.kind}>{status.label}</StatusBadge>}

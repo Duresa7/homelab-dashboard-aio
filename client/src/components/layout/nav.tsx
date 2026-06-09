@@ -8,6 +8,7 @@ import {
   Network,
   Server,
   Settings,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import type { Section } from '@/lib/route';
@@ -44,6 +45,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
     label: 'Utilities',
     items: [
       { section: 'inventory', icon: Boxes },
+      { section: 'tools', icon: Wrench },
       { section: 'playground', icon: FlaskConical },
     ],
   },

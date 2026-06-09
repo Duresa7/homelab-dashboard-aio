@@ -15,7 +15,6 @@ import {
 
 import { AreaChart } from '../components/charts';
 import { GPUTile } from '../components/widgets';
-import { ComputeWakeCard } from '@/components/proxmox/ComputeWakeCard';
 import {
   ChartCard,
   DataTableCard,
@@ -1282,7 +1281,6 @@ function SensorsTab({ data }: { data: DashboardState }) {
       <GPUTile data={data.gpu} span={12} chartKind="area" />
       <PerNodeHardware data={data} />
       <SensorsView data={data} />
-      <ComputeWakeCard />
     </>
   );
 }

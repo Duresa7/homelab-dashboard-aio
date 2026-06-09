@@ -8,6 +8,7 @@ export type Section =
   | 'nas'
   | 'observability'
   | 'inventory'
+  | 'tools'
   | 'playground'
   | 'settings';
 
@@ -75,6 +76,7 @@ export const DEFAULT_SUB: Record<Section, string | undefined> = {
   nas: 'pools',
   observability: 'alerts',
   inventory: undefined,
+  tools: undefined,
   playground: undefined,
   settings: undefined,
 };
@@ -87,6 +89,7 @@ export const SECTION_LABEL: Record<Section, string> = {
   nas: 'NAS',
   observability: 'Observability',
   inventory: 'Inventory',
+  tools: 'Tools',
   playground: 'Playground',
   settings: 'Settings',
 };

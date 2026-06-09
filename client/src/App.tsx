@@ -21,6 +21,7 @@ import { NasPage } from './pages/NasPage';
 import { ObservabilityPage } from './pages/ObservabilityPage';
 import { SettingsPage, type SettingsTabId } from './pages/SettingsPage';
 import { InventoryPage } from './pages/InventoryPage';
+import { ToolsPage } from './pages/ToolsPage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
 
 import {
@@ -80,6 +81,7 @@ const BACKEND_BACKED_SECTIONS = new Set<Section>([
   'nas',
   'observability',
   'inventory',
+  'tools',
   'playground',
 ]);
 
@@ -244,6 +246,7 @@ function DashboardApp() {
       {route.section === 'inventory' && (
         <InventoryPage selectedItemId={route.itemId} onSelectItem={setInventoryItemId} />
       )}
+      {route.section === 'tools' && <ToolsPage />}
       {route.section === 'playground' && <PlaygroundPage />}
       {route.section === 'settings' && (
         <SettingsPage
