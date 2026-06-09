@@ -196,6 +196,8 @@ export interface ProxmoxClusterNode {
 }
 
 export interface PhysicalDisk {
+  /** Proxmox node the disk is attached to. */
+  node: string;
   devpath: string;
   model: string;
   vendor: string;

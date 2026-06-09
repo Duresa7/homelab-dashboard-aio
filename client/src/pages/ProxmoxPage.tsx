@@ -425,7 +425,7 @@ function DatacenterView({
       />
       {sub === 'guests' && <GuestsView vms={p.vms} />}
       {sub === 'storage' && <StorageTables storages={p.storages} />}
-      {sub === 'disks' && <ClusterDisksTable disks={p.disks} />}
+      {sub === 'disks' && <DisksView disks={p.disks} />}
       {sub === 'sensors' && <SensorsTab data={data} />}
       {sub === 'summary' && (
         <>
@@ -959,12 +959,27 @@ function str(v: unknown, fallback = '—'): string {
   return String(v);
 }
 
+function diskHealthKind(health: string | null): 'ok' | 'warn' | 'bad' | 'idle' {
+  if (!health) return 'idle';
+  if (/fail|bad|crit/i.test(health)) return 'bad';
+  if (/unknown|warn/i.test(health)) return 'warn';
+  return 'ok';
+}
+
 /** Cluster-wide physical disks from the live state (no per-node fetch). */
-function ClusterDisksTable({ disks }: { disks: PhysicalDisk[] }) {
+function ClusterDisksTable({
+  disks,
+  title = 'Physical Disks',
+  showNode,
+}: {
+  disks: PhysicalDisk[];
+  title?: string;
+  showNode?: boolean;
+}) {
   return (
     <DataTableCard
       span={12}
-      title="Physical Disks"
+      title={title}
       sub={`${disks.length} drives`}
       icon={<HardDrive size={14} strokeWidth={1.75} />}
       isEmpty={disks.length === 0}
@@ -972,6 +987,7 @@ function ClusterDisksTable({ disks }: { disks: PhysicalDisk[] }) {
       head={
         <>
           <TableHead>Device</TableHead>
+          {showNode ? <TableHead>Node</TableHead> : null}
           <TableHead>Model</TableHead>
           <TableHead>Type</TableHead>
           <TableHead className="text-right">Size</TableHead>
@@ -981,20 +997,64 @@ function ClusterDisksTable({ disks }: { disks: PhysicalDisk[] }) {
       }
     >
       {disks.map((d, i) => (
-        <TableRow key={d.devpath || String(i)}>
+        <TableRow key={`${d.node}:${d.devpath || i}`}>
           <TableCell className="font-mono">{d.devpath || '—'}</TableCell>
+          {showNode ? <TableCell className="text-muted-foreground">{d.node}</TableCell> : null}
           <TableCell>{d.model || '—'}</TableCell>
           <TableCell className="text-muted-foreground">
             {(d.type || '').toUpperCase() || '—'}
           </TableCell>
           <TableCell className="text-right tabular-nums">{fmtBytes(d.sizeBytes)}</TableCell>
-          <TableCell>{d.health ?? '—'}</TableCell>
+          <TableCell>
+            {d.health ? (
+              <StatusBadge kind={diskHealthKind(d.health)} dot={false}>
+                {d.health}
+              </StatusBadge>
+            ) : (
+              '—'
+            )}
+          </TableCell>
           <TableCell className="text-right tabular-nums">
             {typeof d.wearout === 'number' ? `${d.wearout}%` : '—'}
           </TableCell>
         </TableRow>
       ))}
     </DataTableCard>
+  );
+}
+
+/** Disks tab: combined cluster table or one table per node (TODO #9). */
+function DisksView({ disks }: { disks: PhysicalDisk[] }) {
+  const [view, setView] = useTableView('disksTableView');
+  const nodes = [...new Set(disks.map((d) => d.node))];
+  const multiNode = nodes.length > 1;
+
+  return (
+    <>
+      {multiNode && (
+        <SectionCard span={12} title="View" sub={`${disks.length} drives`}>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground">view</span>
+            <Segmented
+              value={view}
+              onChange={(v) => setView(v as TableView)}
+              options={VIEW_OPTIONS}
+            />
+          </div>
+        </SectionCard>
+      )}
+      {multiNode && view === 'per-node' ? (
+        nodes.map((n) => (
+          <ClusterDisksTable
+            key={n}
+            title={`Physical Disks · ${n}`}
+            disks={disks.filter((d) => d.node === n)}
+          />
+        ))
+      ) : (
+        <ClusterDisksTable disks={disks} showNode={multiNode} />
+      )}
+    </>
   );
 }
 

@@ -430,6 +430,13 @@ describe('Integration route contracts', () => {
               state: 'running',
             });
             expect(res.body.proxmox.storages[0].zfsHealth).toBe('ONLINE');
+            // Physical disks are fetched per node and carry node attribution.
+            expect(res.body.proxmox.disks[0]).toMatchObject({
+              node: 'node-a',
+              model: '990 PRO', // normalizeDiskParts splits the vendor off
+              vendor: 'Samsung',
+              health: 'PASSED',
+            });
           },
         );
       },

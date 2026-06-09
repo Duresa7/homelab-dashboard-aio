@@ -127,22 +127,37 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
     nodes.find((n: Upstream) => n.status === 'online') ||
     nodes[0];
 
+  // Physical disks and ZFS pools are node-local resources; query every online
+  // node (the API proxies to peers) so cluster setups see all hardware, not
+  // just the primary's. An offline node simply contributes nothing.
+  const diskNodes = nodes.filter((n: Upstream) => n.status === 'online' && n.node);
+
   const [
     nodeStatus,
     vmResources,
     storageResources,
     storageList,
     networks,
-    physicalDisks,
-    zfsPools,
+    perNodeDisks,
+    perNodeZfs,
   ] = await Promise.all([
     safePveFetch(`/api2/json/nodes/${primary.node}/status`),
     safePveFetch('/api2/json/cluster/resources?type=vm'),
     safePveFetch('/api2/json/cluster/resources?type=storage'),
     safePveFetch(`/api2/json/nodes/${primary.node}/storage`),
     safePveFetch(`/api2/json/nodes/${primary.node}/network`),
-    safePveFetch(`/api2/json/nodes/${primary.node}/disks/list`),
-    safePveFetch(`/api2/json/nodes/${primary.node}/disks/zfs`),
+    Promise.all(
+      diskNodes.map(async (n: Upstream) => ({
+        node: String(n.node),
+        disks: await safePveFetch(`/api2/json/nodes/${n.node}/disks/list`),
+      })),
+    ),
+    Promise.all(
+      diskNodes.map(async (n: Upstream) => ({
+        node: String(n.node),
+        pools: await safePveFetch(`/api2/json/nodes/${n.node}/disks/zfs`),
+      })),
+    ),
   ]);
 
   const vms: Upstream[] = Array.isArray(vmResources) ? vmResources : [];
@@ -204,8 +219,9 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
   }
 
   const zfsHealthByName = new Map<string, Upstream>();
-  if (Array.isArray(zfsPools)) {
-    for (const z of zfsPools) {
+  for (const entry of perNodeZfs) {
+    if (!Array.isArray(entry.pools)) continue;
+    for (const z of entry.pools) {
       if (z?.name) zfsHealthByName.set(String(z.name), z.health || null);
     }
   }
@@ -301,21 +317,24 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
         node: v.node || primary.node,
         ip: vmIps[v.vmid] || null,
       })),
-      disks: (Array.isArray(physicalDisks) ? physicalDisks : []).map((d: Upstream) => {
-        const friendly = normalizeDiskParts(d);
-        return {
-          devpath: d.devpath || '',
-          model: friendly.model,
-          vendor: friendly.vendor,
-          serial: d.serial || null,
-          sizeBytes: Number(d.size) || 0,
-          type: (d.type || 'unknown').toLowerCase(), // nvme | ssd | hdd | usb
-          used: d.used || null, // "LVM", "ZFS", "partitions", null
-          health: d.health || null, // "PASSED", "FAILED", "UNKNOWN"
-          wearout: typeof d.wearout === 'number' ? d.wearout : null,
-          rpm: Number(d.rpm) || 0,
-        };
-      }),
+      disks: perNodeDisks.flatMap((entry) =>
+        (Array.isArray(entry.disks) ? entry.disks : []).map((d: Upstream) => {
+          const friendly = normalizeDiskParts(d);
+          return {
+            node: entry.node,
+            devpath: d.devpath || '',
+            model: friendly.model,
+            vendor: friendly.vendor,
+            serial: d.serial || null,
+            sizeBytes: Number(d.size) || 0,
+            type: (d.type || 'unknown').toLowerCase(), // nvme | ssd | hdd | usb
+            used: d.used || null, // "LVM", "ZFS", "partitions", null
+            health: d.health || null, // "PASSED", "FAILED", "UNKNOWN"
+            wearout: typeof d.wearout === 'number' ? d.wearout : null,
+            rpm: Number(d.rpm) || 0,
+          };
+        }),
+      ),
       storages: displayStorages.map((s: Upstream) => {
         const zfsKey = String(s.pool || s.storage || '');
         return {
