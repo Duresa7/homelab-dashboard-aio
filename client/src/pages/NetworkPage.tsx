@@ -13,7 +13,15 @@ import {
 } from 'lucide-react';
 import { TopTalkersTile } from '../components/widgets';
 import { BrandIcon, vpnBrand } from '../components/icons/BrandIcon';
-import { SectionCard, StatList, StatRow, SubTabs } from '@/components/common';
+import {
+  DataTableCard,
+  SectionCard,
+  StatList,
+  StatRow,
+  StatusBadge,
+  SubTabs,
+} from '@/components/common';
+import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
@@ -46,45 +54,6 @@ function NetworkBrandIcon({ size = 18 }: { size?: number }) {
 }
 
 type DotKind = 'ok' | 'bad' | 'idle';
-
-/** One row in a config/device list — dot · name · meta · value. */
-function ListRow({
-  dot,
-  name,
-  meta,
-  val,
-}: {
-  dot: DotKind;
-  name: ReactNode;
-  meta?: ReactNode;
-  val?: ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-3 border-b border-border/60 py-2 last:border-0">
-      <span
-        className={cn(
-          'size-2 shrink-0 rounded-full',
-          dot === 'ok' ? 'bg-ok' : dot === 'bad' ? 'bg-bad' : 'bg-idle',
-        )}
-      />
-      <span className="shrink-0 text-sm font-medium text-foreground">{name}</span>
-      {meta != null ? (
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-xs text-muted-foreground">
-          {meta}
-        </span>
-      ) : (
-        <span className="flex-1" />
-      )}
-      {val != null ? (
-        <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{val}</span>
-      ) : null}
-    </div>
-  );
-}
-
-function emptyRow(text: string) {
-  return <div className="py-6 text-center text-sm text-muted-foreground">{text}</div>;
-}
 
 /** A throughput readout: arrow + big value + unit, with a sparkline of history. */
 function RateStat({
@@ -196,7 +165,7 @@ function Devices({ data }: { data: DashboardState }) {
   const u = data.unifi;
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
-      <SectionCard
+      <DataTableCard
         span={6}
         sub={u.aps.length}
         title="Wi-Fi Access Points"
@@ -206,25 +175,37 @@ function Devices({ data }: { data: DashboardState }) {
             <Wifi size={14} strokeWidth={1.75} />
           </span>
         }
+        isEmpty={u.aps.length === 0}
+        empty="No APs detected"
+        head={
+          <>
+            <TableHead>Access Point</TableHead>
+            <TableHead>Model</TableHead>
+            <TableHead>Channel</TableHead>
+            <TableHead className="text-right">Clients</TableHead>
+          </>
+        }
       >
-        {u.aps.length === 0
-          ? emptyRow('No APs detected')
-          : u.aps.map((ap) => (
-              <ListRow
-                key={ap.name}
-                dot={ap.state === 'ONLINE' ? 'ok' : 'bad'}
-                name={ap.name}
-                meta={
-                  <>
-                    {ap.model}
-                    {ap.channel !== 'n/a' && ` · ch${ap.channel}`}
-                    {ap.frequency ? ` · ${ap.frequency}GHz` : ''}
-                  </>
-                }
-                val={`${ap.clients} clients`}
-              />
-            ))}
-      </SectionCard>
+        {u.aps.map((ap) => (
+          <TableRow key={ap.name}>
+            <TableCell>
+              <NameCell dot={ap.state === 'ONLINE' ? 'ok' : 'bad'}>{ap.name}</NameCell>
+            </TableCell>
+            <TableCell className="text-muted-foreground">{ap.model}</TableCell>
+            <TableCell className="tabular-nums text-muted-foreground">
+              {ap.channel !== 'n/a' ? (
+                <>
+                  ch{ap.channel}
+                  {ap.frequency ? ` · ${ap.frequency}GHz` : ''}
+                </>
+              ) : (
+                '—'
+              )}
+            </TableCell>
+            <TableCell className="text-right tabular-nums">{ap.clients}</TableCell>
+          </TableRow>
+        ))}
+      </DataTableCard>
 
       <SectionCard
         span={6}
@@ -238,42 +219,41 @@ function Devices({ data }: { data: DashboardState }) {
         }
         bodyClassName="flex flex-col gap-3"
       >
-        {u.switches.length === 0
-          ? emptyRow('No switches detected')
-          : u.switches.map((s) => {
-              const pct = s.poeMaxW ? (s.poeUsedW / s.poeMaxW) * 100 : 0;
-              return (
-                <div
-                  key={s.name}
-                  className="flex flex-col gap-2 rounded-lg border border-border p-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                      <span
-                        className={cn(
-                          'size-2 shrink-0 rounded-full',
-                          s.state === 'ONLINE' ? 'bg-ok' : 'bg-bad',
-                        )}
-                      />
-                      <span className="truncate">{s.name}</span>
-                    </div>
-                    <span className="shrink-0 text-xs text-muted-foreground">{s.model}</span>
+        {u.switches.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">No switches detected</div>
+        ) : (
+          u.switches.map((s) => {
+            const pct = s.poeMaxW ? (s.poeUsedW / s.poeMaxW) * 100 : 0;
+            return (
+              <div key={s.name} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                    <span
+                      className={cn(
+                        'size-2 shrink-0 rounded-full',
+                        s.state === 'ONLINE' ? 'bg-ok' : 'bg-bad',
+                      )}
+                    />
+                    <span className="truncate">{s.name}</span>
                   </div>
-                  {s.poeMaxW > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="w-9 shrink-0">PoE</span>
-                      <Progress value={pct} className="h-1.5 flex-1 bg-muted" />
-                      <span className="shrink-0 tabular-nums">
-                        {s.poeUsedW}/{s.poeMaxW} W
-                      </span>
-                    </div>
-                  )}
-                  <div className="text-xs tabular-nums text-muted-foreground">
-                    {s.portsUp}/{s.ports} ports up · {s.portsActive} clients
-                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">{s.model}</span>
                 </div>
-              );
-            })}
+                {s.poeMaxW > 0 && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="w-9 shrink-0">PoE</span>
+                    <Progress value={pct} className="h-1.5 flex-1 bg-muted" />
+                    <span className="shrink-0 tabular-nums">
+                      {s.poeUsedW}/{s.poeMaxW} W
+                    </span>
+                  </div>
+                )}
+                <div className="text-xs tabular-nums text-muted-foreground">
+                  {s.portsUp}/{s.ports} ports up · {s.portsActive} clients
+                </div>
+              </div>
+            );
+          })
+        )}
       </SectionCard>
     </div>
   );
@@ -288,53 +268,99 @@ function Clients({ data }: { data: DashboardState }) {
   );
 }
 
+/** Status dot + primary name, used as the first cell of config tables. */
+function NameCell({ dot, children }: { dot: DotKind; children: ReactNode }) {
+  return (
+    <span className="flex items-center gap-2">
+      <span
+        className={cn(
+          'size-2 shrink-0 rounded-full',
+          dot === 'ok' ? 'bg-ok' : dot === 'bad' ? 'bg-bad' : 'bg-idle',
+        )}
+      />
+      <span className="truncate text-sm font-medium text-foreground">{children}</span>
+    </span>
+  );
+}
+
 function Config({ data }: { data: DashboardState }) {
   const u = data.unifi;
   return (
     <div className="grid grid-cols-12 gap-[var(--gap)]">
-      <SectionCard
+      <DataTableCard
         span={6}
         sub={u.networks.length}
         title="Networks & VLANs"
         icon={<NetworkBrandIcon />}
+        isEmpty={u.networks.length === 0}
+        empty="No networks data"
+        head={
+          <>
+            <TableHead>Network</TableHead>
+            <TableHead>VLAN</TableHead>
+            <TableHead>Management</TableHead>
+            <TableHead className="text-right">Status</TableHead>
+          </>
+        }
       >
-        {u.networks.length === 0
-          ? emptyRow('No networks data')
-          : u.networks.map((n) => (
-              <ListRow
-                key={n.id}
-                dot={n.enabled ? 'ok' : 'idle'}
-                name={n.name}
-                meta={
-                  <>
-                    {n.vlanId !== null ? `VLAN ${n.vlanId}` : 'Default'}
-                    {n.isDefault ? ' · default' : ''}
-                  </>
-                }
-                val={n.management}
-              />
-            ))}
-      </SectionCard>
+        {u.networks.map((n) => (
+          <TableRow key={n.id}>
+            <TableCell>
+              <NameCell dot={n.enabled ? 'ok' : 'idle'}>
+                {n.name}
+                {n.isDefault ? (
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">default</span>
+                ) : null}
+              </NameCell>
+            </TableCell>
+            <TableCell className="tabular-nums text-muted-foreground">
+              {n.vlanId !== null ? n.vlanId : 'untagged'}
+            </TableCell>
+            <TableCell className="text-muted-foreground">{n.management}</TableCell>
+            <TableCell className="text-right">
+              <StatusBadge kind={n.enabled ? 'ok' : 'idle'}>
+                {n.enabled ? 'enabled' : 'disabled'}
+              </StatusBadge>
+            </TableCell>
+          </TableRow>
+        ))}
+      </DataTableCard>
 
-      <SectionCard span={6} sub={u.ssids.length} title="Wi-Fi SSIDs" icon={<NetworkBrandIcon />}>
-        {u.ssids.length === 0
-          ? emptyRow('No SSID data')
-          : u.ssids.map((s) => (
-              <ListRow
-                key={s.id}
-                dot={s.enabled ? 'ok' : 'idle'}
-                name={s.name}
-                meta={
-                  <>
-                    {s.security}
-                    {s.broadcastingFrequencies.length > 0 &&
-                      ` · ${s.broadcastingFrequencies.map((f) => `${f}GHz`).join(', ')}`}
-                  </>
-                }
-                val={s.enabled ? 'active' : 'disabled'}
-              />
-            ))}
-      </SectionCard>
+      <DataTableCard
+        span={6}
+        sub={u.ssids.length}
+        title="Wi-Fi SSIDs"
+        icon={<NetworkBrandIcon />}
+        isEmpty={u.ssids.length === 0}
+        empty="No SSID data"
+        head={
+          <>
+            <TableHead>SSID</TableHead>
+            <TableHead>Security</TableHead>
+            <TableHead>Bands</TableHead>
+            <TableHead className="text-right">Status</TableHead>
+          </>
+        }
+      >
+        {u.ssids.map((s) => (
+          <TableRow key={s.id}>
+            <TableCell>
+              <NameCell dot={s.enabled ? 'ok' : 'idle'}>{s.name}</NameCell>
+            </TableCell>
+            <TableCell className="text-muted-foreground">{s.security}</TableCell>
+            <TableCell className="tabular-nums text-muted-foreground">
+              {s.broadcastingFrequencies.length > 0
+                ? s.broadcastingFrequencies.map((f) => `${f}GHz`).join(', ')
+                : '—'}
+            </TableCell>
+            <TableCell className="text-right">
+              <StatusBadge kind={s.enabled ? 'ok' : 'idle'}>
+                {s.enabled ? 'active' : 'disabled'}
+              </StatusBadge>
+            </TableCell>
+          </TableRow>
+        ))}
+      </DataTableCard>
 
       <SectionCard
         span={4}
@@ -355,34 +381,45 @@ function Config({ data }: { data: DashboardState }) {
         </StatList>
       </SectionCard>
 
-      <SectionCard
+      <DataTableCard
         span={4}
         sub={u.vpnServers.length}
         title="VPN Servers"
         icon={<Lock size={14} strokeWidth={1.75} />}
+        isEmpty={u.vpnServers.length === 0}
+        empty="No VPN servers"
+        head={
+          <>
+            <TableHead>Server</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead className="text-right">Status</TableHead>
+          </>
+        }
       >
-        {u.vpnServers.length === 0
-          ? emptyRow('No VPN servers')
-          : u.vpnServers.map((v) => {
-              const brand = vpnBrand(v.type);
-              return (
-                <ListRow
-                  key={v.id}
-                  dot={v.enabled ? 'ok' : 'idle'}
-                  name={v.name}
-                  meta={
-                    <>
-                      {brand ? <BrandIcon name={brand} size={14} alt={v.type} /> : null}
-                      {v.type}
-                    </>
-                  }
-                  val={v.enabled ? 'active' : 'disabled'}
-                />
-              );
-            })}
-      </SectionCard>
+        {u.vpnServers.map((v) => {
+          const brand = vpnBrand(v.type);
+          return (
+            <TableRow key={v.id}>
+              <TableCell>
+                <NameCell dot={v.enabled ? 'ok' : 'idle'}>{v.name}</NameCell>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  {brand ? <BrandIcon name={brand} size={14} alt={v.type} /> : null}
+                  {v.type}
+                </span>
+              </TableCell>
+              <TableCell className="text-right">
+                <StatusBadge kind={v.enabled ? 'ok' : 'idle'}>
+                  {v.enabled ? 'active' : 'disabled'}
+                </StatusBadge>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </DataTableCard>
 
-      <SectionCard
+      <DataTableCard
         span={4}
         sub={u.dnsRecords.length}
         title="DNS Records"
@@ -392,13 +429,24 @@ function Config({ data }: { data: DashboardState }) {
             <Globe size={14} strokeWidth={1.75} />
           </span>
         }
+        isEmpty={u.dnsRecords.length === 0}
+        empty="No local DNS records"
+        head={
+          <>
+            <TableHead>Domain</TableHead>
+            <TableHead className="text-right">Type</TableHead>
+          </>
+        }
       >
-        {u.dnsRecords.length === 0
-          ? emptyRow('No local DNS records')
-          : u.dnsRecords.map((r) => (
-              <ListRow key={r.id} dot={r.enabled ? 'ok' : 'idle'} name={r.domain} val={r.type} />
-            ))}
-      </SectionCard>
+        {u.dnsRecords.map((r) => (
+          <TableRow key={r.id}>
+            <TableCell>
+              <NameCell dot={r.enabled ? 'ok' : 'idle'}>{r.domain}</NameCell>
+            </TableCell>
+            <TableCell className="text-right text-muted-foreground">{r.type}</TableCell>
+          </TableRow>
+        ))}
+      </DataTableCard>
     </div>
   );
 }
