@@ -21,6 +21,7 @@ import {
   EntityCard,
   MiniGauge,
   SectionCard,
+  Segmented,
   StatList,
   StatRow,
   StatusBadge,
@@ -32,7 +33,9 @@ import {
 } from '@/components/common';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { entityName } from '../lib/route';
+import { getState, setState } from '../lib/store';
 import { cpuUsageSeverity, fillSeverity, ramUsageSeverity } from '../lib/severity';
 import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '../lib/units';
 import type {
@@ -420,8 +423,8 @@ function DatacenterView({
         onChange={(id) => onSelect('datacenter', id)}
         actions={showWindow ? <WindowPicker value={windowId} onChange={setWindowId} /> : undefined}
       />
-      {sub === 'guests' && <GuestsTable vms={p.vms} showNode />}
-      {sub === 'storage' && <StorageTable storages={p.storages} />}
+      {sub === 'guests' && <GuestsView vms={p.vms} />}
+      {sub === 'storage' && <StorageTables storages={p.storages} />}
       {sub === 'disks' && <ClusterDisksTable disks={p.disks} />}
       {sub === 'sensors' && <SensorsTab data={data} />}
       {sub === 'summary' && (
@@ -699,17 +702,177 @@ function StorageView({
 }
 
 // ---------------------------------------------------------------------------
-// Tables (unchanged)
+// Tables
 // ---------------------------------------------------------------------------
 
-function GuestsTable({ vms, showNode }: { vms: VM[]; showNode?: boolean }) {
+type TableView = 'combined' | 'per-node';
+
+/** Combined-vs-per-node table preference, persisted per table via /api/state. */
+function useTableView(key: string): [TableView, (v: TableView) => void] {
+  const [view, setView] = useState<TableView>(() =>
+    getState<TableView>(key, 'combined') === 'per-node' ? 'per-node' : 'combined',
+  );
+  const set = (v: TableView) => {
+    setView(v);
+    setState<TableView>(key, v);
+  };
+  return [view, set];
+}
+
+const VIEW_OPTIONS = [
+  { value: 'combined', label: 'combined' },
+  { value: 'per-node', label: 'per node' },
+];
+
+function GuestsView({ vms }: { vms: VM[] }) {
+  const [query, setQuery] = useState('');
+  const [nodeFilter, setNodeFilter] = useState('all');
+  const [stateFilter, setStateFilter] = useState('all');
+  const [view, setView] = useTableView('guestsTableView');
+
+  const nodes = [...new Set(vms.map((v) => v.node))];
+  const multiNode = nodes.length > 1;
+
+  const q = query.trim().toLowerCase();
+  let filtered = vms;
+  if (q) {
+    filtered = filtered.filter(
+      (v) =>
+        v.name.toLowerCase().includes(q) ||
+        String(v.id).includes(q) ||
+        (v.ip ?? '').toLowerCase().includes(q) ||
+        v.node.toLowerCase().includes(q),
+    );
+  }
+  if (nodeFilter !== 'all') filtered = filtered.filter((v) => v.node === nodeFilter);
+  if (stateFilter !== 'all') filtered = filtered.filter((v) => v.state === stateFilter);
+
+  const perNode = multiNode && view === 'per-node';
+  const visibleNodes = nodes.filter((n) => nodeFilter === 'all' || n === nodeFilter);
+
+  return (
+    <>
+      <SectionCard span={12} title="Filter" sub={`${filtered.length} of ${vms.length} guests`}>
+        <div className="flex flex-wrap items-end gap-6">
+          <div className="flex w-56 flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground">search</span>
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="name, ID, node or IP"
+            />
+          </div>
+          {multiNode && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-muted-foreground">node</span>
+              <Segmented
+                value={nodeFilter}
+                onChange={setNodeFilter}
+                options={[
+                  { value: 'all', label: 'all' },
+                  ...nodes.map((n) => ({ value: n, label: n })),
+                ]}
+              />
+            </div>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground">state</span>
+            <Segmented
+              value={stateFilter}
+              onChange={setStateFilter}
+              options={[
+                { value: 'all', label: 'all' },
+                { value: 'running', label: 'running' },
+                { value: 'stopped', label: 'stopped' },
+              ]}
+            />
+          </div>
+          {multiNode && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-muted-foreground">view</span>
+              <Segmented
+                value={view}
+                onChange={(v) => setView(v as TableView)}
+                options={VIEW_OPTIONS}
+              />
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
+      {perNode ? (
+        visibleNodes.map((n) => (
+          <GuestsTable
+            key={n}
+            vms={filtered.filter((v) => v.node === n)}
+            title={`Guests · ${n}`}
+            empty="No guests match the current filters"
+          />
+        ))
+      ) : (
+        <GuestsTable
+          vms={filtered}
+          showNode
+          empty={vms.length === 0 ? undefined : 'No guests match the current filters'}
+        />
+      )}
+    </>
+  );
+}
+
+function StorageTables({ storages }: { storages: ProxmoxStorage[] }) {
+  const [view, setView] = useTableView('storageTableView');
+  // Shared storages are cluster-wide, so the per-node view groups them apart.
+  const groups = [...new Set(storages.map((s) => (s.shared ? 'Shared' : s.node)))];
+  const multiNode = groups.length > 1;
+
+  return (
+    <>
+      {multiNode && (
+        <SectionCard span={12} title="View" sub={`${storages.length} storages`}>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground">view</span>
+            <Segmented
+              value={view}
+              onChange={(v) => setView(v as TableView)}
+              options={VIEW_OPTIONS}
+            />
+          </div>
+        </SectionCard>
+      )}
+      {multiNode && view === 'per-node' ? (
+        groups.map((g) => (
+          <StorageTable
+            key={g}
+            title={g === 'Shared' ? 'Storage · shared' : `Storage · ${g}`}
+            storages={storages.filter((s) => (s.shared ? 'Shared' : s.node) === g)}
+          />
+        ))
+      ) : (
+        <StorageTable storages={storages} />
+      )}
+    </>
+  );
+}
+
+function GuestsTable({
+  vms,
+  showNode,
+  title = 'Guests',
+  empty = 'No virtual machines or containers detected',
+}: {
+  vms: VM[];
+  showNode?: boolean;
+  title?: string;
+  empty?: string;
+}) {
   return (
     <DataTableCard
       span={12}
-      title="Guests"
+      title={title}
       sub={`${vms.filter((v) => v.state === 'running').length}/${vms.length} running`}
       isEmpty={vms.length === 0}
-      empty="No virtual machines or containers detected"
+      empty={empty}
       head={
         <>
           <TableHead>State</TableHead>
