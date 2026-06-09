@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
 import {
+  Check,
   CircleSlash,
   Container,
   Cpu,
@@ -9,6 +10,8 @@ import {
   Zap,
 } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+import { getState, setState, subscribe as subscribeState } from '@/lib/store';
 import { BookmarksTile } from '../components/widgets';
 import { Sparkline } from '../components/charts';
 import {
@@ -25,7 +28,7 @@ import {
 import { batterySeverity, cpuUsageSeverity, fillSeverity, ramUsageSeverity } from '../lib/severity';
 import { usePresentation, type PresentationMap } from '@/lib/presentation';
 import type { Section } from '../lib/route';
-import type { DashboardState } from '../types';
+import type { DashboardState, ProxmoxClusterNode } from '../types';
 
 interface Props {
   data: DashboardState;
@@ -228,6 +231,27 @@ export function OverviewPage({ data, setRoute }: Props) {
   const presentation = usePresentation();
   const subsystems = buildSubsystems(data, presentation);
 
+  // Per-node selection (persisted). A single-node cluster has nothing to pick,
+  // so the Nodes section only appears for real multi-node clusters.
+  const allNodes = data.proxmox.nodes.map((n) => n.name);
+  const storedSelection = useStoreValue<string[] | null>(SELECTED_NODES_KEY, null);
+  const selectedNames =
+    storedSelection == null ? allNodes : allNodes.filter((n) => storedSelection.includes(n));
+  const selectedSet = new Set(selectedNames);
+  const showNodes = allNodes.length > 1;
+  const visibleNodes = data.proxmox.nodes.filter((n) => selectedSet.has(n.name));
+  const toggleNode = (name: string) => {
+    const base =
+      storedSelection == null ? allNodes : allNodes.filter((n) => storedSelection.includes(n));
+    const next = new Set(base);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    setState(
+      SELECTED_NODES_KEY,
+      allNodes.filter((n) => next.has(n)),
+    );
+  };
+
   const alerts = data.alerts;
   const alertTone: StatTone = alerts.some((a) => a.kind === 'bad')
     ? 'bad'
@@ -300,6 +324,27 @@ export function OverviewPage({ data, setRoute }: Props) {
         </EntityCard>
       ))}
 
+      {showNodes ? (
+        <>
+          <SectionLabel>Nodes</SectionLabel>
+          <NodeSelector nodes={allNodes} selected={selectedSet} onToggle={toggleNode} />
+          {visibleNodes.length === 0 ? (
+            <div className="col-span-12 rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+              No nodes selected.
+            </div>
+          ) : (
+            visibleNodes.map((node) => (
+              <NodeCard
+                key={node.name}
+                node={node}
+                data={data}
+                onClick={() => setRoute('proxmox')}
+              />
+            ))
+          )}
+        </>
+      ) : null}
+
       <SectionLabel>Apps</SectionLabel>
       <BookmarksTile span={12} />
 
@@ -339,5 +384,104 @@ function SectionLabel({ children }: { children: ReactNode }) {
     <div className="col-span-12 -mb-1 mt-2 flex items-center gap-2 text-[12px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
       {children}
     </div>
+  );
+}
+
+const SELECTED_NODES_KEY = 'overviewSelectedNodes';
+
+function useStoreValue<T>(key: string, fallback: T): T {
+  return useSyncExternalStore(
+    (fn) => subscribeState(key, fn),
+    () => getState<T>(key, fallback),
+    () => getState<T>(key, fallback),
+  );
+}
+
+/** Toggle chips for choosing which nodes the Nodes section renders. */
+function NodeSelector({
+  nodes,
+  selected,
+  onToggle,
+}: {
+  nodes: string[];
+  selected: Set<string>;
+  onToggle: (name: string) => void;
+}) {
+  return (
+    <div className="col-span-12 -mt-1 flex flex-wrap gap-2">
+      {nodes.map((name) => {
+        const on = selected.has(name);
+        return (
+          <Button
+            key={name}
+            type="button"
+            size="sm"
+            variant={on ? 'default' : 'outline'}
+            aria-pressed={on}
+            onClick={() => onToggle(name)}
+          >
+            {on ? <Check className="size-3.5" /> : null}
+            {name}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A per-node summary tile — CPU/RAM/disk plus node-attributed GPU + temps. */
+function NodeCard({
+  node,
+  data,
+  onClick,
+}: {
+  node: ProxmoxClusterNode;
+  data: DashboardState;
+  onClick: () => void;
+}) {
+  const gpus = data.gpus.filter((g) => g.node === node.name);
+  const sensors = data.sensorNodes.find((s) => s.node === node.name);
+  const unreachable =
+    data.gpuUnavailable.some((u) => u.node === node.name) ||
+    data.sensorsUnavailable.some((u) => u.node === node.name);
+
+  const online = node.status ? node.status === 'online' : true;
+  const status: Health = !online ? 'bad' : unreachable ? 'warn' : 'ok';
+  const statusLabel = !online ? node.status || 'offline' : unreachable ? 'partial' : 'online';
+
+  const metrics: EntityMetric[] = [
+    { key: 'cpu', label: 'CPU', pct: node.cpu, tone: cpuUsageSeverity(node.cpu) },
+    { key: 'ram', label: 'RAM', pct: node.ram, tone: ramUsageSeverity(node.ram) },
+    { key: 'disk', label: 'Disk', pct: node.disk, tone: fillSeverity(node.disk) },
+  ];
+
+  const primaryGpu = gpus[0];
+  const gpuMeta = primaryGpu
+    ? `GPU ${Math.round(primaryGpu.usage)}% · ${Math.round(primaryGpu.tempC)}°C${
+        gpus.length > 1 ? ` (+${gpus.length - 1})` : ''
+      }`
+    : 'No GPU';
+  const tempMeta =
+    sensors && typeof sensors.cpuTempC === 'number'
+      ? `CPU ${Math.round(sensors.cpuTempC)}°C`
+      : sensors
+        ? 'No CPU temp'
+        : 'No sensors';
+
+  return (
+    <EntityCard
+      span={4}
+      name={node.name}
+      subtitle={primaryGpu ? primaryGpu.model : undefined}
+      icon={<Server />}
+      status={status}
+      statusLabel={statusLabel}
+      metrics={metrics}
+      meta={[
+        { key: 'gpu', value: gpuMeta },
+        { key: 'temp', value: tempMeta },
+      ]}
+      onClick={onClick}
+    />
   );
 }

@@ -57,6 +57,19 @@ export interface GpuSample {
   memClockMHz: number;
 }
 
+/** A GPU attributed to a specific Proxmox node (by canonical node name). */
+export interface NodeGpu extends GpuWireData {
+  node: string;
+  /** GPU index within that node (0-based; a node may expose more than one). */
+  index: number;
+}
+
+/** A node that was queried for per-node metrics but could not be read. */
+export interface NodeUnavailable {
+  node: string;
+  reason: string;
+}
+
 export interface Fan {
   name: string;
   rpm: number;
@@ -441,6 +454,11 @@ export interface SensorsData {
   other: SensorOther[];
 }
 
+/** Sensor readings attributed to a specific Proxmox node. */
+export interface NodeSensors extends SensorsData {
+  node: string;
+}
+
 // SIEM - syslog events received from UniFi gear over UDP/514.
 // Severity uses standard syslog codes (0=emerg .. 7=debug). The dashboard
 // collapses 0-3 to 'bad', 4 to 'warn', 5-7 to 'info' for the chip UI.
@@ -507,6 +525,10 @@ export interface DashboardState {
   cpu: CPUData;
   ram: RAMData;
   gpu: GPUData;
+  /** Every GPU across the cluster, node-attributed (empty if none/disabled). */
+  gpus: NodeGpu[];
+  /** Nodes that GPU collection could not reach. */
+  gpuUnavailable: NodeUnavailable[];
   fans: Fan[];
   storage: StorageData;
   docker: DockerData;
@@ -519,6 +541,10 @@ export interface DashboardState {
   events: EventEntry[];
   alerts: AlertEntry[];
   sensors: SensorsData;
+  /** Per-node sensor readings (empty until the node-aware backend responds). */
+  sensorNodes: NodeSensors[];
+  /** Nodes that sensor collection could not reach. */
+  sensorsUnavailable: NodeUnavailable[];
 }
 
 export interface UnifiApiResponse {
@@ -535,8 +561,12 @@ export interface DockerApiResponse {
 }
 
 export interface GpuApiResponse {
+  /** Legacy "primary" GPU — kept for the single GPU tile until it migrates. */
   gpu: GpuWireData;
-  gpus: GpuSample[];
+  /** Every GPU across the cluster, each tagged with its node + local index. */
+  gpus: NodeGpu[];
+  /** Nodes configured for GPU collection that could not be read. */
+  unavailable?: NodeUnavailable[];
 }
 
 export interface UnasApiResponse {
@@ -544,5 +574,10 @@ export interface UnasApiResponse {
 }
 
 export interface SensorsApiResponse {
+  /** Legacy single-host sensors — kept until the UI is fully node-aware. */
   sensors: SensorsData;
+  /** Per-node sensor readings (one entry per successfully-read node). */
+  nodes?: NodeSensors[];
+  /** Nodes configured for sensor collection that could not be read. */
+  unavailable?: NodeUnavailable[];
 }

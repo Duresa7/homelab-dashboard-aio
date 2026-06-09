@@ -158,4 +158,102 @@ describe('ComputeWakeCard', () => {
     expect(screen.getByText('Wake-on-LAN is disabled on the server.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Wake' })).toBeDisabled();
   });
+
+  it('edits an existing host and updates the store in place', async () => {
+    const user = userEvent.setup();
+    storeMock.values.set('computeHosts', [
+      { id: 'host-1', name: 'Old Name', mac: 'AA:BB:CC:DD:EE:FF' },
+    ]);
+    renderCard();
+
+    await user.click(screen.getByRole('button', { name: 'Edit Old Name' }));
+    const nameInput = screen.getByLabelText('Name');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'New Name');
+    await user.click(screen.getByRole('button', { name: 'Save host' }));
+
+    expect(storeMock.setState).toHaveBeenCalledWith('computeHosts', [
+      expect.objectContaining({ id: 'host-1', name: 'New Name', mac: 'AA:BB:CC:DD:EE:FF' }),
+    ]);
+    expect(toastMock.success).toHaveBeenCalledWith('Updated New Name');
+  });
+
+  it('deletes a host from the store', async () => {
+    const user = userEvent.setup();
+    storeMock.values.set('computeHosts', [
+      { id: 'host-1', name: 'Doomed Host', mac: 'AA:BB:CC:DD:EE:FF' },
+    ]);
+    renderCard();
+
+    await user.click(screen.getByRole('button', { name: 'Delete Doomed Host' }));
+
+    expect(storeMock.setState).toHaveBeenCalledWith('computeHosts', []);
+    expect(toastMock.success).toHaveBeenCalledWith('Deleted Doomed Host');
+  });
+
+  it('shows an error toast when the wake request returns a non-ok status', async () => {
+    const user = userEvent.setup();
+    storeMock.values.set('computeHosts', [
+      { id: 'host-1', name: 'Flaky Host', mac: 'AA:BB:CC:DD:EE:FF' },
+    ]);
+    const fetchMock = vi.fn((url: RequestInfo | URL) => {
+      if (String(url) === '/api/health') {
+        return Promise.resolve(jsonResponse({ wol: { enabled: true, configured: true } }));
+      }
+      return Promise.resolve(jsonResponse({ error: 'boom' }, { status: 500 }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderCard();
+    await screen.findByText('ready');
+    await user.click(screen.getByRole('button', { name: 'Wake' }));
+
+    await waitFor(() =>
+      expect(toastMock.error).toHaveBeenCalledWith(
+        'Wake failed for Flaky Host',
+        expect.objectContaining({ description: 'HTTP 500' }),
+      ),
+    );
+  });
+
+  it('filters out corrupted host entries from the store', () => {
+    storeMock.values.set('computeHosts', [
+      { id: 'good', name: 'Good Host', mac: 'AA:BB:CC:DD:EE:FF' },
+      { id: 'bad', name: 'Missing MAC' }, // no mac → rejected by isComputeHost
+      'totally-not-a-host',
+    ]);
+    renderCard();
+
+    expect(screen.getByText('Good Host')).toBeInTheDocument();
+    expect(screen.queryByText('Missing MAC')).not.toBeInTheDocument();
+  });
+
+  it('rejects a non-numeric port before saving', async () => {
+    const user = userEvent.setup();
+    renderCard();
+
+    await user.type(screen.getByLabelText('Name'), 'Example Host');
+    await user.type(screen.getByLabelText('MAC address'), 'AA:BB:CC:DD:EE:FF');
+    await user.click(screen.getByRole('checkbox', { name: 'Advanced' }));
+    await user.type(screen.getByLabelText('Port'), 'abc');
+    await user.click(screen.getByRole('button', { name: 'Add host' }));
+
+    expect(screen.getByText('Port must be a number from 1 to 65535.')).toBeInTheDocument();
+    expect(storeMock.setState).not.toHaveBeenCalled();
+  });
+
+  it('reports unknown health but keeps waking enabled when /api/health fails', async () => {
+    storeMock.values.set('computeHosts', [
+      { id: 'host-1', name: 'Resilient Host', mac: 'AA:BB:CC:DD:EE:FF' },
+    ]);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse({}, { status: 500 }))),
+    );
+
+    renderCard();
+
+    expect(await screen.findByText('health unknown')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Wake' })).toBeEnabled();
+  });
 });

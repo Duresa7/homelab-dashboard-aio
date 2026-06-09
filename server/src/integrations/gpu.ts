@@ -3,8 +3,9 @@
 import { runRemote } from '../lib/remote.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isEnabled } from '../lib/env.js';
-import type { GpuApiResponse, GpuSample } from '../../../shared/wire.ts';
+import type { GpuApiResponse, GpuSample, GpuWireData, NodeGpu } from '../../../shared/wire.ts';
 import { selectionConfig, text, type Provider } from './provider.js';
+import { collectPerNode, resolveNodeTargets, type NodeTarget } from './node-targets.js';
 
 const GPU_SSH_USER = process.env.GPU_SSH_USER || 'root';
 const GPU_SSH_PORT = Number(process.env.GPU_SSH_PORT) || 22;
@@ -40,15 +41,32 @@ const NVIDIA_SMI_FIELDS = [
   'clocks.current.memory',
 ].join(',');
 
-function runNvidiaSmi() {
+function gpuTargets(): NodeTarget[] {
+  return resolveNodeTargets({
+    targetsJson: process.env.PROXMOX_NODE_TARGETS,
+    primaryNode: process.env.PROXMOX_NODE,
+    defaults: {
+      mode: (config.mode || 'ssh').toLowerCase(),
+      host: config.sshHost || '',
+      user: GPU_SSH_USER,
+      port: GPU_SSH_PORT,
+      keyPath: GPU_SSH_KEY_PATH,
+    },
+  });
+}
+
+function runNvidiaSmi(target: NodeTarget) {
   const queryArg = `--query-gpu=${NVIDIA_SMI_FIELDS}`;
   const formatArg = '--format=csv,noheader,nounits';
   return runRemote({
-    mode: (config.mode || 'ssh').toLowerCase(),
-    host: config.sshHost || '',
-    user: GPU_SSH_USER,
-    port: GPU_SSH_PORT,
-    keyPath: GPU_SSH_KEY_PATH,
+    mode: target.mode,
+    host: target.host,
+    user: target.user,
+    port: target.port,
+    keyPath: target.keyPath,
+    jumpHost: target.jumpHost,
+    jumpUser: target.jumpUser,
+    jumpPort: target.jumpPort,
     localCmd: 'nvidia-smi',
     localArgs: [queryArg, formatArg],
     remoteCmd: `nvidia-smi ${queryArg} ${formatArg}`,
@@ -78,27 +96,85 @@ function parseNvidiaSmiCsv(output: string): GpuSample[] {
   });
 }
 
-async function fetchGpuDataRaw(): Promise<GpuApiResponse> {
-  const output = await runNvidiaSmi();
-  const gpus = parseNvidiaSmiCsv(output);
-  if (gpus.length === 0) throw new Error('nvidia-smi returned no GPUs');
+const EMPTY_GPU: GpuWireData = {
+  model: '—',
+  usage: 0,
+  target: 0,
+  memUsedGB: 0,
+  memTotalGB: 0,
+  tempC: 0,
+  powerW: 0,
+  powerMaxW: 0,
+  fanPct: 0,
+  gpuClockMHz: 0,
+  memClockMHz: 0,
+};
 
-  const primary = gpus[0];
+function toNodeGpu(node: string, index: number, s: GpuSample): NodeGpu {
   return {
-    gpu: {
-      model: primary.name,
-      usage: primary.usage,
-      target: primary.usage,
-      memUsedGB: primary.memUsedMB / 1024,
-      memTotalGB: Math.round((primary.memTotalMB / 1024) * 10) / 10,
-      tempC: primary.tempC,
-      powerW: primary.powerW,
-      powerMaxW: primary.powerMaxW,
-      fanPct: primary.fanPct,
-      gpuClockMHz: primary.gpuClockMHz,
-      memClockMHz: primary.memClockMHz,
-    },
+    node,
+    index,
+    model: s.name,
+    usage: s.usage,
+    target: s.usage,
+    memUsedGB: s.memUsedMB / 1024,
+    memTotalGB: Math.round((s.memTotalMB / 1024) * 10) / 10,
+    tempC: s.tempC,
+    powerW: s.powerW,
+    powerMaxW: s.powerMaxW,
+    fanPct: s.fanPct,
+    gpuClockMHz: s.gpuClockMHz,
+    memClockMHz: s.memClockMHz,
+  };
+}
+
+function stripNode(gpu: NodeGpu): GpuWireData {
+  const rest: Partial<NodeGpu> = { ...gpu };
+  delete rest.node;
+  delete rest.index;
+  return rest as GpuWireData;
+}
+
+// nvidia-smi being absent (Intel/AMD node) or finding no device is a normal
+// "no GPU" outcome, not an outage — distinguish it from genuine connection
+// failures so a GPU-less node contributes nothing rather than going `unavailable`.
+function isNoGpuError(err: unknown): boolean {
+  const e = err as { message?: unknown; stderr?: unknown };
+  const text = `${typeof e?.message === 'string' ? e.message : String(err)} ${
+    typeof e?.stderr === 'string' ? e.stderr : ''
+  }`;
+  return /command not found|not found|no devices were found|nvidia-smi has failed|couldn'?t communicate|failed to initialize nvml/i.test(
+    text,
+  );
+}
+
+async function fetchNodeGpus(target: NodeTarget): Promise<NodeGpu[]> {
+  let output: string;
+  try {
+    output = await runNvidiaSmi(target);
+  } catch (err) {
+    if (isNoGpuError(err)) return []; // reachable, just no NVIDIA GPU
+    throw err; // genuine failure → recorded as unavailable
+  }
+  return parseNvidiaSmiCsv(output).map((sample, index) => toNodeGpu(target.node, index, sample));
+}
+
+async function fetchGpuDataRaw(): Promise<GpuApiResponse> {
+  const targets = gpuTargets();
+  const { results, unavailable } = await collectPerNode(targets, fetchNodeGpus);
+  if (results.length === 0) {
+    // Nothing responded at all — surface it (preserves single-host 502 behavior).
+    throw new Error(
+      unavailable.map((u) => `${u.node}: ${u.reason}`).join('; ') || 'no GPU targets configured',
+    );
+  }
+  const gpus = results.flatMap((r) => r.data);
+  const primaryNode = targets[0]?.node;
+  const primary = gpus.find((g) => g.node === primaryNode) ?? gpus[0];
+  return {
+    gpu: primary ? stripNode(primary) : EMPTY_GPU,
     gpus,
+    ...(unavailable.length ? { unavailable } : {}),
   };
 }
 
@@ -129,9 +205,11 @@ export function configureGpu(next: GpuRuntimeConfig): void {
   gpuStatus.host = config.sshHost || '';
 }
 
-/** Liveness probe used by /api/health/live. */
+/** Liveness probe used by /api/health/live. Probes the primary node only. */
 export function probeGpu() {
-  return runNvidiaSmi();
+  const target = gpuTargets()[0];
+  if (!target) return Promise.reject(new Error('GPU not configured'));
+  return runNvidiaSmi(target);
 }
 
 export const gpuProvider: Provider<GpuApiResponse> = {
@@ -168,6 +246,12 @@ export const gpuProvider: Provider<GpuApiResponse> = {
     const c = fetchGpuData.peek();
     return {
       config: debugConfig,
+      targets: gpuTargets().map((t) => ({
+        node: t.node,
+        mode: t.mode,
+        host: t.host,
+        jumpHost: t.jumpHost ?? null,
+      })),
       cache: c.data ? { ageMs: Date.now() - c.ts, gpus: c.data.gpus } : null,
       lastError: c.lastError,
     };

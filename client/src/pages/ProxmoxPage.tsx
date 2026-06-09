@@ -479,6 +479,11 @@ function NodeView({
   const cpuThreads = 'cpuThreads' in node ? node.cpuThreads : node.maxcpu;
   const nodeIp = 'ip' in node ? node.ip : null;
   const nodeVersion = 'version' in node ? node.version : '—';
+  const nodeHasHardware =
+    data.gpus.some((g) => g.node === nodeName) ||
+    data.sensorNodes.some((s) => s.node === nodeName) ||
+    data.gpuUnavailable.some((u) => u.node === nodeName) ||
+    data.sensorsUnavailable.some((u) => u.node === nodeName);
 
   return (
     <>
@@ -550,6 +555,7 @@ function NodeView({
             windowId={windowId}
             color="var(--warn)"
           />
+          {nodeHasHardware ? <NodeHardwareCard data={data} nodeName={node.name} span={12} /> : null}
         </>
       )}
     </>
@@ -1153,6 +1159,81 @@ function SensorsView({ data }: { data: DashboardState }) {
   );
 }
 
+/**
+ * Per-node hardware summary — one node's GPU(s) and CPU/system temps, clearly
+ * attributed to that node. Used by the Sensors tab's per-node breakdown and by
+ * a single node's detail view, so GPU/temps are never ambiguous across nodes.
+ */
+export function NodeHardwareCard({
+  data,
+  nodeName,
+  span = 4,
+}: {
+  data: DashboardState;
+  nodeName: string;
+  span?: number;
+}) {
+  const { unit } = useTempUnit();
+  const gpus = data.gpus.filter((g) => g.node === nodeName);
+  const sensors = data.sensorNodes.find((s) => s.node === nodeName) ?? null;
+  const unavailable =
+    data.gpuUnavailable.find((u) => u.node === nodeName) ??
+    data.sensorsUnavailable.find((u) => u.node === nodeName) ??
+    null;
+  return (
+    <SectionCard
+      span={span}
+      title={
+        <span className="flex items-center gap-1.5">
+          <Server size={14} strokeWidth={1.75} />
+          {nodeName}
+        </span>
+      }
+      actions={unavailable ? <StatusBadge kind="warn">unavailable</StatusBadge> : undefined}
+    >
+      <StatList>
+        {gpus.length ? (
+          gpus.map((g) => (
+            <StatRow
+              key={g.index}
+              label={`GPU ${g.index}`}
+              value={`${g.model} · ${Math.round(g.usage)}% · ${fmtTemp(g.tempC, unit)}`}
+            />
+          ))
+        ) : (
+          <StatRow label="GPU" value="No GPU" />
+        )}
+        <StatRow
+          label="CPU temp"
+          value={
+            sensors && sensors.cpuTempC != null
+              ? fmtTemp(sensors.cpuTempC, unit)
+              : sensors
+                ? '—'
+                : 'No sensors'
+          }
+        />
+        <StatRow
+          label="System temp"
+          value={sensors && sensors.systemTempC != null ? fmtTemp(sensors.systemTempC, unit) : '—'}
+        />
+      </StatList>
+    </SectionCard>
+  );
+}
+
+/** The Sensors-tab per-node breakdown — only shown for multi-node clusters. */
+function PerNodeHardware({ data }: { data: DashboardState }) {
+  if (data.proxmox.nodes.length <= 1) return null;
+  return (
+    <>
+      {data.proxmox.nodes.map((n) => (
+        <NodeHardwareCard key={n.name} data={data} nodeName={n.name} />
+      ))}
+    </>
+  );
+}
+
 function SensorsTab({ data }: { data: DashboardState }) {
   const { unit } = useTempUnit();
   return (
@@ -1199,6 +1280,7 @@ function SensorsTab({ data }: { data: DashboardState }) {
         unit={unit}
       />
       <GPUTile data={data.gpu} span={12} chartKind="area" />
+      <PerNodeHardware data={data} />
       <SensorsView data={data} />
       <ComputeWakeCard />
     </>
