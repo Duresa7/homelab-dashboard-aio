@@ -40,7 +40,6 @@ Thumbs.db
 !.vscode/extensions.json
 .idea
 *.local
-TODO.md
 
 # Secrets, keys, certs (defense-in-depth — this app uses SSH keys)
 *.pem
