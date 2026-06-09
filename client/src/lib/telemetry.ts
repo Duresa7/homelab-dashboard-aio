@@ -111,6 +111,8 @@ function buildInit(): DashboardState {
       memClockMHz: 0,
       history: zeros(),
     },
+    gpus: [],
+    gpuUnavailable: [],
     fans: [],
     storage: { pools: [], disks: [] },
     docker: { running: 0, stopped: 0, total: 0, updates: 0, hosts: [], containers: [] },
@@ -172,6 +174,8 @@ function buildInit(): DashboardState {
       fans: [],
       other: [],
     },
+    sensorNodes: [],
+    sensorsUnavailable: [],
   };
 }
 
@@ -399,6 +403,8 @@ function applyGpu(payload: GpuApiResponse): boolean {
     ...incoming,
     history: push(state.gpu.history, incoming.usage || 0),
   };
+  state.gpus = payload.gpus ?? [];
+  state.gpuUnavailable = payload.unavailable ?? [];
   return true;
 }
 
@@ -438,6 +444,8 @@ function applyUnas(payload: UnasApiResponse): boolean {
 function applySensors(payload: SensorsApiResponse): boolean {
   if (!payload.sensors) return false;
   state.sensors = payload.sensors;
+  state.sensorNodes = payload.nodes ?? [];
+  state.sensorsUnavailable = payload.unavailable ?? [];
   if (typeof payload.sensors.cpuTempC === 'number') {
     const t = payload.sensors.cpuTempC;
     state.cpu = {
@@ -492,7 +500,10 @@ const POLLERS: { [K in IntegrationKey]: PollerConfig<K> } = {
     intervalMs: GPU_POLL_MS,
     apply: applyGpu,
     reset: () => {
-      state.gpu = buildInit().gpu;
+      const init = buildInit();
+      state.gpu = init.gpu;
+      state.gpus = init.gpus;
+      state.gpuUnavailable = init.gpuUnavailable;
     },
   },
   sensors: {
@@ -502,7 +513,10 @@ const POLLERS: { [K in IntegrationKey]: PollerConfig<K> } = {
     intervalMs: SENSORS_POLL_MS,
     apply: applySensors,
     reset: () => {
-      state.sensors = buildInit().sensors;
+      const init = buildInit();
+      state.sensors = init.sensors;
+      state.sensorNodes = init.sensorNodes;
+      state.sensorsUnavailable = init.sensorsUnavailable;
       state.cpu = {
         ...state.cpu,
         tempC: 0,

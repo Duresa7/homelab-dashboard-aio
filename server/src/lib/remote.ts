@@ -10,6 +10,14 @@ export interface RunRemoteOpts {
   user?: string;
   port?: number | string;
   keyPath?: string;
+  /**
+   * Optional SSH ProxyJump (`-J`). Used to reach nodes that are firewalled
+   * from the dashboard host but reachable from a peer (e.g. Proxmox cluster
+   * members). The same key (`keyPath`) is used for both hops.
+   */
+  jumpHost?: string;
+  jumpUser?: string;
+  jumpPort?: number | string;
   localCmd: string;
   localArgs?: string[];
   remoteCmd: string;
@@ -29,6 +37,9 @@ export async function runRemote({
   user,
   port,
   keyPath,
+  jumpHost,
+  jumpUser,
+  jumpPort,
   localCmd,
   localArgs,
   remoteCmd,
@@ -49,6 +60,11 @@ export async function runRemote({
     String(port),
   ];
   if (keyPath) sshArgs.push('-i', keyPath);
+  if (jumpHost) {
+    const jUser = jumpUser || user;
+    const jPort = jumpPort != null && jumpPort !== '' ? `:${jumpPort}` : '';
+    sshArgs.push('-J', `${jUser}@${jumpHost}${jPort}`);
+  }
   sshArgs.push(`${user}@${host}`, remoteCmd);
   const { stdout } = await execFileP('ssh', sshArgs, { timeout: timeoutMs });
   return stdout;

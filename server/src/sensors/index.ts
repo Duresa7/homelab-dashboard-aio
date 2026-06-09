@@ -3,7 +3,31 @@ import { runRemote } from '../lib/remote.js';
 import { errorMessage } from '../lib/errors.js';
 import { isDebugEndpointEnabled } from '../lib/env.js';
 import { parseSensorsJson, parseDiskInventory, type SensorTree } from './parse.js';
-import type { SensorsApiResponse } from '../../../shared/wire.ts';
+import type { NodeSensors, SensorsApiResponse } from '../../../shared/wire.ts';
+import {
+  collectPerNode,
+  resolveNodeTargets,
+  type NodeTarget,
+} from '../integrations/node-targets.js';
+
+/** An all-empty reading — a node that is reachable but exposes no sensor data. */
+const EMPTY_SENSORS: SensorTree = {
+  cpuTempC: null,
+  systemTempC: null,
+  systemTempLabel: null,
+  cores: [],
+  disks: [],
+  memory: [],
+  network: [],
+  fans: [],
+  other: [],
+};
+
+function stripNodeName(reading: NodeSensors): SensorTree {
+  const rest: Partial<NodeSensors> = { ...reading };
+  delete rest.node;
+  return rest as SensorTree;
+}
 
 export interface SensorsConfig {
   enabled: boolean;
@@ -30,66 +54,140 @@ export interface SensorsConfig {
 export function initSensors(app: Express, config: SensorsConfig) {
   let current = { ...config };
 
-  let sensorsCache: { data: SensorTree | null; ts: number } = { data: null, ts: 0 };
+  let aggregateCache: { data: SensorsApiResponse; ts: number } | null = null;
   let sensorsLastError: string | null = null;
 
-  function runSensorsRemote(localCmd: string, localArgs: string[], remoteCmd: string) {
+  // One target per Proxmox node (config map), or the single-host fallback.
+  function sensorTargets(): NodeTarget[] {
+    return resolveNodeTargets({
+      targetsJson: process.env.PROXMOX_NODE_TARGETS,
+      primaryNode: process.env.PROXMOX_NODE,
+      defaults: {
+        mode: current.mode,
+        host: current.sshHost,
+        user: current.sshUser,
+        port: current.sshPort,
+        keyPath: current.sshKeyPath,
+      },
+    });
+  }
+
+  function runRemoteOn(
+    target: NodeTarget,
+    localCmd: string,
+    localArgs: string[],
+    remoteCmd: string,
+  ) {
     return runRemote({
-      mode: current.mode,
-      host: current.sshHost,
-      user: current.sshUser,
-      port: current.sshPort,
-      keyPath: current.sshKeyPath,
+      mode: target.mode,
+      host: target.host,
+      user: target.user,
+      port: target.port,
+      keyPath: target.keyPath,
+      jumpHost: target.jumpHost,
+      jumpUser: target.jumpUser,
+      jumpPort: target.jumpPort,
       localCmd,
       localArgs,
       remoteCmd,
     });
   }
 
-  function runSensors() {
-    return runSensorsRemote('sensors', ['-j'], 'sensors -j');
+  function runSensorsOn(target: NodeTarget) {
+    return runRemoteOn(target, 'sensors', ['-j'], 'sensors -j');
   }
 
-  function runLsblk() {
+  function runLsblkOn(target: NodeTarget) {
     const cols = 'NAME,PATH,MODEL,VENDOR,SERIAL,TRAN,TYPE';
-    return runSensorsRemote('lsblk', ['-J', '-o', cols], `lsblk -J -o ${cols}`);
+    return runRemoteOn(target, 'lsblk', ['-J', '-o', cols], `lsblk -J -o ${cols}`);
   }
 
   // lsblk failure degrades to an empty inventory: temperatures still render,
-  // disks just fall back to generic "NVMe 1" / "SATA 1" labels. The pure
-  // parser throws on bad input; owning that fallback is the edge's job.
-  async function fetchSensorDiskInventory() {
+  // disks just fall back to generic "NVMe 1" / "SATA 1" labels.
+  async function fetchDiskInventoryOn(target: NodeTarget) {
     try {
-      const raw = await runLsblk();
-      return parseDiskInventory(raw);
+      return parseDiskInventory(await runLsblkOn(target));
     } catch {
       return [];
     }
   }
 
-  async function fetchSensorsData(): Promise<SensorTree> {
+  // `sensors` missing or no exposed chips is a normal "no sensors" outcome
+  // (reachable, just nothing to read) — distinct from an unreachable node.
+  function isNoSensorsError(err: unknown): boolean {
+    const e = err as { message?: unknown; stderr?: unknown };
+    const text = `${typeof e?.message === 'string' ? e.message : String(err)} ${
+      typeof e?.stderr === 'string' ? e.stderr : ''
+    }`;
+    return /command not found|not found|no sensors found|specified sensor/i.test(text);
+  }
+
+  async function fetchNodeSensors(target: NodeTarget): Promise<SensorTree> {
+    const [raw, diskInventory] = await Promise.all([
+      runSensorsOn(target).catch((err: unknown) => {
+        if (isNoSensorsError(err)) return ''; // reachable, lm-sensors absent / no chips
+        throw err; // genuine failure → recorded as unavailable
+      }),
+      fetchDiskInventoryOn(target),
+    ]);
+    if (!raw || !raw.trim()) return EMPTY_SENSORS; // reachable but no sensor data
+    return parseSensorsJson(raw, diskInventory);
+  }
+
+  // Probe + debug operate on the primary node (the single-host fallback target).
+  function runSensors() {
+    const target = sensorTargets()[0];
+    if (!target) throw new Error('sensors not configured');
+    return runSensorsOn(target);
+  }
+
+  async function fetchSensorDiskInventory() {
+    const target = sensorTargets()[0];
+    if (!target) return [];
+    return fetchDiskInventoryOn(target);
+  }
+
+  async function fetchPerNodeSensors(): Promise<SensorsApiResponse> {
     const now = Date.now();
-    if (sensorsCache.data && now - sensorsCache.ts < current.cacheTtl) return sensorsCache.data;
+    if (aggregateCache && now - aggregateCache.ts < current.cacheTtl) return aggregateCache.data;
 
-    const [output, diskInventory] = await Promise.all([runSensors(), fetchSensorDiskInventory()]);
-    const parsed = parseSensorsJson(output, diskInventory);
+    const targets = sensorTargets();
+    const { results, unavailable } = await collectPerNode(targets, fetchNodeSensors);
+    if (results.length === 0) {
+      // Nothing responded — surface it (preserves single-host 502 behavior).
+      throw new Error(
+        unavailable.map((u) => `${u.node}: ${u.reason}`).join('; ') ||
+          'no sensor targets configured',
+      );
+    }
 
-    sensorsCache = { data: parsed, ts: now };
+    const nodes: NodeSensors[] = results.map((r) => ({ node: r.node, ...r.data }));
+    const primaryNode = targets[0]?.node;
+    const primary = nodes.find((n) => n.node === primaryNode) ?? nodes[0];
+    const data: SensorsApiResponse = {
+      sensors: primary ? stripNodeName(primary) : EMPTY_SENSORS,
+      nodes,
+      ...(unavailable.length ? { unavailable } : {}),
+    };
+    aggregateCache = { data, ts: now };
     sensorsLastError = null;
-    return parsed;
+    return data;
+  }
+
+  // Back-compat: the handle's single-host fetch now resolves to the primary node.
+  async function fetchSensorsData(): Promise<SensorTree> {
+    return (await fetchPerNodeSensors()).sensors;
   }
 
   app.get('/api/sensors', async (_req: Request, res: Response) => {
     if (!current.enabled) return res.json({ disabled: true });
-    if (current.mode === 'ssh' && !current.sshHost) {
+    if (sensorTargets().length === 0) {
       return res.status(503).json({
         error: 'SENSORS_MODE=ssh but no host configured (set SENSORS_SSH_HOST or GPU_SSH_HOST)',
       });
     }
     try {
-      const data = await fetchSensorsData();
-      const payload: SensorsApiResponse = { sensors: data };
-      res.json(payload);
+      res.json(await fetchPerNodeSensors());
     } catch (err) {
       sensorsLastError = errorMessage(err);
       console.warn(
@@ -115,6 +213,12 @@ export function initSensors(app: Express, config: SensorsConfig) {
       const [raw, diskInventory] = await Promise.all([runSensors(), fetchSensorDiskInventory()]);
       res.json({
         config: cfg,
+        targets: sensorTargets().map((t) => ({
+          node: t.node,
+          mode: t.mode,
+          host: t.host,
+          jumpHost: t.jumpHost ?? null,
+        })),
         diskInventory,
         raw: JSON.parse(raw),
         parsed: parseSensorsJson(raw, diskInventory),
@@ -127,7 +231,7 @@ export function initSensors(app: Express, config: SensorsConfig) {
 
   function configure(next: SensorsConfig): void {
     current = { ...next };
-    sensorsCache = { data: null, ts: 0 };
+    aggregateCache = null;
     sensorsLastError = null;
   }
 

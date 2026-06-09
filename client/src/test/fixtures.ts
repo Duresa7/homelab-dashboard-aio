@@ -36,6 +36,8 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
       memClockMHz: 1400,
       history: [10, 25, 30],
     },
+    gpus: [],
+    gpuUnavailable: [],
     fans: [{ name: 'Case fan', rpm: 1200, target: 1500, max: 2000 }],
     storage: {
       pools: [
@@ -202,6 +204,8 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
       fans: [],
       other: [],
     },
+    sensorNodes: [],
+    sensorsUnavailable: [],
   };
 
   return { ...state, ...overrides };
