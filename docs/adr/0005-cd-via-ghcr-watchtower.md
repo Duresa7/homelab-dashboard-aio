@@ -12,7 +12,7 @@ Registry; the box **pulls**. The cloud never initiates a connection to the LAN.
 - On every push to `main`, the `docker` job in
   [.github/workflows/ci.yml](../../.github/workflows/ci.yml) builds the image
   (gated on `verify` passing) and pushes two tags to
-  `ghcr.io/duresa7/homelab-dashboard`: `latest` (moves with `main`) and
+  `ghcr.io/duresa7/homelab-dashboard-aio`: `latest` (moves with `main`) and
   `sha-<short>` (immutable, one per commit). Auth uses the built-in
   `GITHUB_TOKEN` with `packages: write` — no PAT.
 - Pull requests build the image with `push: false`. This proves the `Dockerfile`

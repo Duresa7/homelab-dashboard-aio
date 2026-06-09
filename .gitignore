@@ -41,3 +41,29 @@ Thumbs.db
 .idea
 *.local
 TODO.md
+
+# Secrets, keys, certs (defense-in-depth — this app uses SSH keys)
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+id_homelab*
+*.ppk
+secrets/
+*.secret
+
+# Local-only compose/config overrides (often hold real hosts/paths)
+docker-compose.override.yml
+docker-compose.*.local.yml
+
+# Backups / swap / temp
+*.bak
+*.backup
+*.orig
+*~
+*.swp
+*.tmp

@@ -45,8 +45,8 @@ For the full run and verification contract used by agents and contributors, see
 CI publishes a multi-stage Docker image to the GitHub Container Registry on every
 push to `main`:
 
-- `ghcr.io/duresa7/homelab-dashboard:latest` — moves with `main` (bleeding edge).
-- `ghcr.io/duresa7/homelab-dashboard:sha-<short>` — immutable, one per commit.
+- `ghcr.io/duresa7/homelab-dashboard-aio:latest` — moves with `main` (bleeding edge).
+- `ghcr.io/duresa7/homelab-dashboard-aio:sha-<short>` — immutable, one per commit.
 
 Pin a `sha-` tag for a stable deployment, or track `:latest` if you want each
 merge. Provide a `.env` (see the variables the app reads) and an SSH key mount

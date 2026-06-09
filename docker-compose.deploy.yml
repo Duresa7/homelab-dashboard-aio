@@ -11,7 +11,7 @@ services:
   dashboard:
     # Pin to :latest for hands-off CD, or to a :sha-<short> tag to freeze a build
     # (rollback = set this to a known-good sha tag and `up -d`).
-    image: ghcr.io/duresa7/homelab-dashboard:latest
+    image: ghcr.io/duresa7/homelab-dashboard-aio:latest
     container_name: homelab-dashboard
     restart: unless-stopped
     # Host networking keeps real syslog source IPs (instead of the docker
