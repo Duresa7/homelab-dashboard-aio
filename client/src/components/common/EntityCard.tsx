@@ -10,7 +10,7 @@ export interface EntityMetric extends MetricBarProps {
 }
 
 export interface EntityMeta {
-  /** Short caption, e.g. an icon-less fact like "↑ 41d" or "10.0.0.5". */
+  /** Short caption, e.g. an icon-less fact like "↑ 41d" or "192.0.2.5". */
   label?: ReactNode;
   value: ReactNode;
   key: string;

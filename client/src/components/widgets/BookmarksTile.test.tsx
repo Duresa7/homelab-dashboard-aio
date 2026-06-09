@@ -41,22 +41,24 @@ describe('BookmarksTile', () => {
     await user.click(screen.getByRole('button', { name: /edit bookmarks/i }));
     await user.click(screen.getByRole('button', { name: /add/i }));
     await user.type(screen.getByLabelText(/name/i), 'Plex');
-    await user.type(screen.getByLabelText(/^url$/i), 'http://192.168.1.10:32400');
+    await user.type(screen.getByLabelText(/^url$/i), 'http://198.51.100.10:32400');
     await user.tab();
-    expect(screen.getByLabelText(/icon url/i)).toHaveValue('http://192.168.1.10:32400/favicon.ico');
+    expect(screen.getByLabelText(/icon url/i)).toHaveValue(
+      'http://198.51.100.10:32400/favicon.ico',
+    );
     await user.click(screen.getByRole('button', { name: /add bookmark/i }));
 
     const saved = store.get('bookmarks') as Bookmark[];
     expect(saved).toHaveLength(1);
     expect(saved[0]).toMatchObject({
       label: 'Plex',
-      url: 'http://192.168.1.10:32400/',
-      icon: 'http://192.168.1.10:32400/favicon.ico',
+      url: 'http://198.51.100.10:32400/',
+      icon: 'http://198.51.100.10:32400/favicon.ico',
       groupId: 'default',
     });
     expect(screen.getByRole('link', { name: /plex/i })).toHaveAttribute(
       'href',
-      'http://192.168.1.10:32400/',
+      'http://198.51.100.10:32400/',
     );
   });
 

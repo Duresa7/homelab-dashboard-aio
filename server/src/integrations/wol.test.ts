@@ -234,9 +234,9 @@ describe('Wake-on-LAN validation helpers', () => {
     expect(normalizeBroadcast(undefined)).toBe('255.255.255.255');
     expect(normalizeBroadcast(null)).toBe('255.255.255.255');
     expect(normalizeBroadcast('')).toBe('255.255.255.255');
-    expect(normalizeBroadcast('  192.168.1.255  ')).toBe('192.168.1.255'); // trims
+    expect(normalizeBroadcast('  198.51.100.255  ')).toBe('198.51.100.255'); // trims
     expect(() => normalizeBroadcast(123)).toThrow(/broadcast must be a string/i);
-    expect(() => normalizeBroadcast('192.168.1.0')).toThrow(/subnet broadcast/i); // not .255
+    expect(() => normalizeBroadcast('198.51.100.0')).toThrow(/subnet broadcast/i); // not .255
     expect(() => normalizeBroadcast('::1')).toThrow(/IPv4/i); // IPv6 rejected
     expect(() => normalizeBroadcast('not-an-ip')).toThrow(/IPv4/i);
   });

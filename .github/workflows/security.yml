@@ -1,0 +1,39 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: these jobs only read the repo.
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    name: Secret & PII scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      # gitleaks: generic secret rules + a private-IPv4 (RFC1918) rule.
+      # Pinned by digest for reproducibility. Fails the job on any finding.
+      - name: gitleaks (secrets + private-IP/PII)
+        run: |
+          docker run --rm -v "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            detect --source /repo --no-git --config /repo/.gitleaks.toml --redact --verbose
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    # Dependency Review only works on pull requests (it diffs the dependency graph).
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4
+        with:
+          # Block PRs that introduce a High+ severity advisory in a new/updated dep.
+          fail-on-severity: high

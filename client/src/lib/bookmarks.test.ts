@@ -124,7 +124,7 @@ describe('bookmark drag math', () => {
 
 describe('bookmark URLs and icons', () => {
   it('accepts permissive homelab URLs and rejects clearly invalid input', () => {
-    expect(validateBookmarkUrl('http://192.168.1.10:9000')).toBe('http://192.168.1.10:9000/');
+    expect(validateBookmarkUrl('http://198.51.100.10:9000')).toBe('http://198.51.100.10:9000/');
     expect(validateBookmarkUrl('https://nas.local/path')).toBe('https://nas.local/path');
     expect(validateBookmarkUrl('nota url')).toBeNull();
     expect(validateBookmarkUrl('ftp://nas.local')).toBeNull();
@@ -143,8 +143,8 @@ describe('bookmark URLs and icons', () => {
   });
 
   it('suggests favicon.ico for LAN hosts while preserving custom ports', () => {
-    expect(suggestBookmarkIcon('http://192.168.1.10:9000/dashboard')).toBe(
-      'http://192.168.1.10:9000/favicon.ico',
+    expect(suggestBookmarkIcon('http://198.51.100.10:9000/dashboard')).toBe(
+      'http://198.51.100.10:9000/favicon.ico',
     );
     expect(suggestBookmarkIcon('https://nas.local:8443')).toBe(
       'https://nas.local:8443/favicon.ico',

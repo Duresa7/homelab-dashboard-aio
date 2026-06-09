@@ -1,0 +1,33 @@
+# gitleaks configuration — generic secret + PII/network-leak scanning.
+# Rules are intentionally general (no project-specific values) so they protect
+# every contributor: any real secret, key, or private/home IP is flagged.
+title = "homelab-dashboard secret & PII scan"
+
+[extend]
+useDefault = true # include gitleaks' full built-in secret ruleset
+
+[[rules]]
+id = "private-ipv4"
+description = "RFC1918 private IPv4 address — likely a leaked home/LAN address in a public repo. Use RFC5737 docs ranges (192.0.2.x / 198.51.100.x / 203.0.113.x) in examples instead."
+regex = '''\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b'''
+tags = ["pii", "network"]
+
+  [rules.allowlist]
+  # The Bookmarks tile shows a realistic LAN URL as placeholder text — intentional UX, not a leak.
+  paths = ['''client/src/components/widgets/BookmarksTile\.tsx''']
+
+# Lockfiles / vendored deps / this config: never scanned.
+[[allowlists]]
+description = "lockfiles and vendored code"
+paths = [
+  '''package-lock\.json''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.gitleaks\.toml$''',
+]
+
+# .env.example is a template of blank placeholders by design — exempt it from the
+# generic secret rule ONLY (the private-ipv4 rule still applies to it).
+[[allowlists]]
+description = "env template has only blank/placeholder values"
+targetRules = ["generic-api-key"]
+paths = ['''(^|/)\.env\.example$''']

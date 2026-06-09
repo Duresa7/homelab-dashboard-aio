@@ -61,7 +61,7 @@ describe('resolveNodeTargets', () => {
 
   it('skips a map entry that resolves to no host, but keeps others', () => {
     const targets = resolveNodeTargets({
-      targetsJson: JSON.stringify({ ghost: { user: 'a' }, real: { host: '10.0.0.5' } }),
+      targetsJson: JSON.stringify({ ghost: { user: 'a' }, real: { host: '192.0.2.5' } }),
       defaults: { ...DEFAULTS, host: '' }, // no default host → ghost has nowhere to point
     });
     expect(targets.map((t) => t.node)).toEqual(['real']);
