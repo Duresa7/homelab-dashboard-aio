@@ -50,7 +50,7 @@ export function SubTabs({ tabs, active, onChange, actions, className }: SubTabsP
     >
       <div
         role="tablist"
-        className="flex min-w-0 items-center gap-1 overflow-x-auto"
+        className="scrollbar-none flex min-w-0 items-center gap-1 overflow-x-auto"
         onKeyDown={onKeyDown}
       >
         {tabs.map((t, i) => {
