@@ -134,7 +134,14 @@ A pool integrity/maintenance pass over a UNAS Pool.
 ### Sensors
 
 **Sensor**:
-A single hardware reading from the host — a temperature probe, fan RPM, etc.
+A single hardware reading from a node — a temperature probe, fan RPM, etc. On a multi-node
+cluster, GPU and sensor readings are collected per node and **attributed by Proxmox node
+name** (see ADR 0004), so a reading is never ambiguous about which node produced it.
+
+**Node target**:
+An entry in the `PROXMOX_NODE_TARGETS` map telling the backend how to reach one node's
+`nvidia-smi` / `sensors` (SSH host, optional jump host through a reachable peer). Without a
+map, the single GPU/sensor host is used and attributed to the primary node.
 
 **Core**:
 One CPU core's utilization within the CPU telemetry.
