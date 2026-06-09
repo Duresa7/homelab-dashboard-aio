@@ -533,8 +533,11 @@ function Firewall({ data }: { data: DashboardState }) {
               </NameCell>
             </TableCell>
             <TableCell>
-              <StatusBadge kind={/block|deny|reject/i.test(p.action) ? 'bad' : 'ok'} dot={false}>
-                {p.action.toLowerCase()}
+              <StatusBadge
+                kind={/block|deny|reject/i.test(String(p.action)) ? 'bad' : 'ok'}
+                dot={false}
+              >
+                {String(p.action || 'unknown').toLowerCase()}
               </StatusBadge>
             </TableCell>
             <TableCell className="text-muted-foreground">

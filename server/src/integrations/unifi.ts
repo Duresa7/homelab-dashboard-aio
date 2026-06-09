@@ -282,7 +282,8 @@ async function fetchUnifiDataRaw(): Promise<UnifiApiResponse> {
             id: p.id || p.name || `policy-${i}`,
             name: p.name || 'Policy',
             enabled: p.enabled ?? true,
-            action: p.action || 'UNKNOWN',
+            // v2 API ships action as an object: { type: 'ALLOW'|'BLOCK', ... }
+            action: typeof p.action === 'string' ? p.action : String(p.action?.type || 'UNKNOWN'),
             sourceZone: zoneName(p.source?.zoneId),
             destinationZone: zoneName(p.destination?.zoneId),
             index: typeof p.index === 'number' ? p.index : null,

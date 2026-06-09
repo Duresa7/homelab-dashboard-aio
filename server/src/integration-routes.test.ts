@@ -226,9 +226,23 @@ describe('Integration route contracts', () => {
           data: [{ id: 'ssid', name: 'Home', enabled: true, broadcastingFrequenciesGhz: [5] }],
         },
         '/proxy/network/integration/v1/sites/site-1/wans': { data: [] },
-        '/proxy/network/integration/v1/sites/site-1/firewall/zones': { data: [{}] },
+        '/proxy/network/integration/v1/sites/site-1/firewall/zones': {
+          data: [{ id: 'z1', name: 'Internal', networkIds: ['lan'] }],
+        },
         '/proxy/network/integration/v1/sites/site-1/firewall/policies': {
-          data: [{ enabled: true }, { enabled: false }],
+          // Real v2 shape: action is an object, not a string.
+          data: [
+            {
+              id: 'p1',
+              name: 'Allow LAN',
+              enabled: true,
+              action: { type: 'ALLOW', allowReturnTraffic: true },
+              source: { zoneId: 'z1' },
+              destination: { zoneId: 'z1' },
+              index: 10001,
+            },
+            { enabled: false, action: { type: 'BLOCK' } },
+          ],
         },
         '/proxy/network/integration/v1/sites/site-1/vpn/servers': {
           data: [{ id: 'vpn', name: 'WireGuard', type: 'wireguard', enabled: true }],
@@ -277,6 +291,15 @@ describe('Integration route contracts', () => {
               portsUp: 1,
             });
             expect(res.body.network.publicIp).toBe('198.51.100.20');
+            // Object-shaped action must normalize to its type string, and
+            // zone ids must resolve to zone names.
+            expect(res.body.unifi.firewall.policyList[0]).toMatchObject({
+              name: 'Allow LAN',
+              action: 'ALLOW',
+              sourceZone: 'Internal',
+              destinationZone: 'Internal',
+            });
+            expect(res.body.unifi.firewall.policyList[1].action).toBe('BLOCK');
           },
         );
       },

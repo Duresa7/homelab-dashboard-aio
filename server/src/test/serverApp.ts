@@ -1,3 +1,13 @@
+// The server entry point side-effect-imports dotenv/config, which runs once
+// per worker process and back-fills any env key that is currently unset from
+// the developer's real .env. If that one-shot fill fires inside a
+// loadServerApp() import — i.e. after the ENV_KEYS scrub — real homelab
+// config leaks into a supposedly-unconfigured test app (order-dependent,
+// since only the first index.js import in a worker pays it). Importing it
+// here detonates the fill at harness load, before any scrub, making every
+// subsequent app boot deterministic.
+import 'dotenv/config';
+
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -38,6 +48,7 @@ const ENV_KEYS = [
   'PROXMOX_TOKEN_ID',
   'PROXMOX_TOKEN_SECRET',
   'PROXMOX_NODE',
+  'PROXMOX_NODE_TARGETS',
   'PROXMOX_HISTORY_DB_PATH',
   'PROXMOX_HISTORY_ENABLED',
   'UNAS_ENABLED',
