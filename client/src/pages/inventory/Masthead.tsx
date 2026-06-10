@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Download, ListOrdered, Pencil, RefreshCw, Search, Upload } from 'lucide-react';
 
 import { summarize, type Inventory } from '../../lib/inventory';
+import { canEdit, useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -48,6 +49,9 @@ export function Masthead({
   onUidMap,
 }: MastheadProps) {
   const isEditing = mode === 'edit';
+  // Viewers browse read-only: editing, importing, and resetting are member+
+  // actions (the server rejects the writes regardless).
+  const editor = canEdit(useAuth().user);
 
   const summaryStats: SummaryStat[] = [
     { key: 'machines', label: 'Machines', value: pad2(stats.machineCount) },
@@ -88,27 +92,37 @@ export function Masthead({
               className="h-8 w-52 pl-8"
             />
           </div>
-          <Button
-            variant={isEditing ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setMode(isEditing ? 'browse' : 'edit')}
-            title={isEditing ? 'Finish editing' : 'Enable inline editing'}
-          >
-            <Pencil className="size-3.5" />
-            {isEditing ? 'Done editing' : 'Edit'}
-          </Button>
+          {editor ? (
+            <Button
+              variant={isEditing ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setMode(isEditing ? 'browse' : 'edit')}
+              title={isEditing ? 'Finish editing' : 'Enable inline editing'}
+            >
+              <Pencil className="size-3.5" />
+              {isEditing ? 'Done editing' : 'Edit'}
+            </Button>
+          ) : null}
           <IconBtn label="Export JSON" onClick={onExport}>
             <Download className="size-3.5" />
           </IconBtn>
-          <IconBtn label="Import JSON" onClick={onImport}>
-            <Upload className="size-3.5" />
-          </IconBtn>
-          <IconBtn label="Download old → new UID map" onClick={onUidMap}>
-            <ListOrdered className="size-3.5" />
-          </IconBtn>
-          <IconBtn label="Reset to defaults" onClick={onReset}>
-            <RefreshCw className="size-3.5" />
-          </IconBtn>
+          {editor ? (
+            <>
+              <IconBtn label="Import JSON" onClick={onImport}>
+                <Upload className="size-3.5" />
+              </IconBtn>
+              <IconBtn label="Download old → new UID map" onClick={onUidMap}>
+                <ListOrdered className="size-3.5" />
+              </IconBtn>
+              <IconBtn label="Reset to defaults" onClick={onReset}>
+                <RefreshCw className="size-3.5" />
+              </IconBtn>
+            </>
+          ) : (
+            <IconBtn label="Download old → new UID map" onClick={onUidMap}>
+              <ListOrdered className="size-3.5" />
+            </IconBtn>
+          )}
         </div>
       </div>
 

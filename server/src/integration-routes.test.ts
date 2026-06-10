@@ -1,15 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import request from 'supertest';
 
+import { bootstrapAdmin, type AuthedAgent } from './test/auth.js';
 import { loadServerApp, withJsonUpstream } from './test/serverApp.js';
 
-async function usingApp(
-  env: Record<string, string>,
-  fn: (api: ReturnType<typeof request>) => Promise<unknown>,
-) {
+async function usingApp(env: Record<string, string>, fn: (api: AuthedAgent) => Promise<unknown>) {
   const ctx = await loadServerApp(env);
   try {
-    return await fn(request(ctx.app));
+    const api = await bootstrapAdmin(ctx.app);
+    return await fn(api);
   } finally {
     await ctx.cleanup();
   }

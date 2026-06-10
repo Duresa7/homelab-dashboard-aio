@@ -53,6 +53,10 @@ export default defineConfig(({ mode }) => {
             if (!id.includes('node_modules')) return;
             if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id))
               return 'react-vendor';
+            // The zxcvbn word lists (~800KB) are dynamic-imported by the
+            // password strength meter; keep them out of the eager vendor
+            // chunk so they only load on auth/account screens.
+            if (/[\\/]node_modules[\\/]@zxcvbn-ts[\\/]/.test(id)) return 'zxcvbn';
             return 'vendor';
           },
         },

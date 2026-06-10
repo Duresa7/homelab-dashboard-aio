@@ -2,9 +2,9 @@
 // Postgres, and MySQL; dialect differences (column types, upsert syntax) are
 // the only branches. Exposes the async StateStore contract.
 import { stat } from 'node:fs/promises';
-import type { Kysely } from 'kysely';
+import type { Generated, Kysely } from 'kysely';
 
-import { columnTypes } from '../storage/columns.js';
+import { autoIdColumn, columnTypes } from '../storage/columns.js';
 import type { DbDriver } from '../storage/config.js';
 import {
   countApplied,
@@ -21,8 +21,37 @@ interface AppStateTable {
   updated_at: number;
 }
 
+interface UsersTable {
+  id: Generated<number>;
+  username: string;
+  display_name: string;
+  email: string | null;
+  password_hash: string;
+  role: string;
+  totp_secret: string | null;
+  totp_enabled: number;
+  recovery_codes: string;
+  created_at: number;
+  updated_at: number;
+  password_changed_at: number;
+}
+
+interface SessionsTable {
+  id: string;
+  token_hash: string;
+  user_id: number;
+  created_at: number;
+  last_used_at: number;
+  expires_at: number;
+  remember: number;
+  ip: string | null;
+  user_agent: string | null;
+}
+
 export interface StateDatabase extends WithMigrations {
   app_state: AppStateTable;
+  users: UsersTable;
+  sessions: SessionsTable;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -145,6 +174,59 @@ export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
         .updateTable('app_state')
         .set({ value: JSON.stringify(renamed.value) })
         .where('key', '=', 'inventory')
+        .execute();
+    },
+  },
+  {
+    name: '004_users',
+    up: async (db, { driver }) => {
+      const t = columnTypes(driver);
+      await db.schema
+        .createTable('users')
+        .ifNotExists()
+        .addColumn('id', t.id, autoIdColumn(driver))
+        .addColumn('username', t.shortText, (c) => c.notNull().unique())
+        .addColumn('display_name', t.text, (c) => c.notNull())
+        .addColumn('email', t.text)
+        .addColumn('password_hash', t.text, (c) => c.notNull())
+        .addColumn('role', t.shortText, (c) => c.notNull())
+        .addColumn('totp_secret', t.text)
+        .addColumn('totp_enabled', t.int, (c) => c.notNull().defaultTo(0))
+        .addColumn('recovery_codes', t.text, (c) => c.notNull().defaultTo('[]'))
+        .addColumn('created_at', t.bigint, (c) => c.notNull())
+        .addColumn('updated_at', t.bigint, (c) => c.notNull())
+        .addColumn('password_changed_at', t.bigint, (c) => c.notNull())
+        .execute();
+    },
+  },
+  {
+    name: '005_sessions',
+    up: async (db, { driver }) => {
+      const t = columnTypes(driver);
+      await db.schema
+        .createTable('sessions')
+        .ifNotExists()
+        .addColumn('id', t.shortText, (c) => c.primaryKey())
+        .addColumn('token_hash', t.shortText, (c) => c.notNull().unique())
+        .addColumn('user_id', t.int, (c) => c.notNull())
+        .addColumn('created_at', t.bigint, (c) => c.notNull())
+        .addColumn('last_used_at', t.bigint, (c) => c.notNull())
+        .addColumn('expires_at', t.bigint, (c) => c.notNull())
+        .addColumn('remember', t.int, (c) => c.notNull().defaultTo(0))
+        .addColumn('ip', t.shortText)
+        .addColumn('user_agent', t.text)
+        .execute();
+      await db.schema
+        .createIndex('sessions_user_id_idx')
+        .ifNotExists()
+        .on('sessions')
+        .column('user_id')
+        .execute();
+      await db.schema
+        .createIndex('sessions_expires_at_idx')
+        .ifNotExists()
+        .on('sessions')
+        .column('expires_at')
         .execute();
     },
   },

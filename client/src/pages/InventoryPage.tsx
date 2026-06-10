@@ -25,6 +25,7 @@ import {
   type DeviceColumn,
   type Device,
 } from '../lib/inventory';
+import { canEdit, useAuth } from '../lib/auth';
 import { getState, subscribe } from '../lib/store';
 import { InventoryDetailPanel } from './InventoryDetailPanel';
 import { toast } from 'sonner';
@@ -102,7 +103,10 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   }, [selectedItemId]);
 
   const stats = useMemo(() => summarize(inv), [inv]);
-  const isEditing = mode === 'edit';
+  // Edit mode is member+; viewers stay in browse even if state says otherwise
+  // (the server rejects their writes regardless).
+  const editor = canEdit(useAuth().user);
+  const isEditing = mode === 'edit' && editor;
   const q = query.trim().toLowerCase();
 
   const patch = useCallback((mut: (draft: Inventory) => Inventory) => {

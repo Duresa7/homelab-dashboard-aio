@@ -1,6 +1,7 @@
 // Async storage contracts for the pluggable database backend. Both stores
 // expose Promise-returning methods so a SQLite, Postgres, or MySQL adapter can
 // satisfy the same interface; consumers depend only on the contracts.
+import type { AuthStore } from '../auth/types.js';
 import type { InsertEventInput, QueryEventsOpts, StoredEvent, SyslogEvent } from '../siem/types.js';
 import type { ResolvedDbConfig } from './config.js';
 
@@ -63,6 +64,7 @@ export interface SiemStore {
 export interface Stores {
   state: StateStore;
   siem: SiemStore;
+  auth: AuthStore;
 }
 
 /**
