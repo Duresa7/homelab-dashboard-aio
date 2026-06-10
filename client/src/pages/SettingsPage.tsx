@@ -17,6 +17,8 @@ import {
   SlidersHorizontal,
   TestTube2,
   Thermometer,
+  UserRound,
+  UsersRound,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -33,7 +35,10 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/common';
+import { isAdmin, useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+import { AccountTab } from './settings/AccountTab';
+import { UsersTab } from './settings/UsersTab';
 import { DEFAULT_SITE_NAME, setSiteName, useSiteNameRaw } from '@/lib/site-name';
 import {
   getConfig,
@@ -93,7 +98,13 @@ import { toast } from 'sonner';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
 type Density = 'compact' | 'regular' | 'comfy';
-export type SettingsTabId = 'preferences' | 'integrations' | 'setup' | 'severity';
+export type SettingsTabId =
+  | 'preferences'
+  | 'integrations'
+  | 'setup'
+  | 'severity'
+  | 'account'
+  | 'users';
 
 export interface SettingsPreferences {
   theme: ThemeChoice;
@@ -1142,6 +1153,11 @@ export function SettingsPage({
   onPreferenceChange,
 }: Props) {
   const enabledCount = INTEGRATIONS.reduce((n, def) => n + (integrations[def.key] ? 1 : 0), 0);
+  // Setup (integration credentials) and user management are admin-only; the
+  // server enforces the same matrix — hiding the tabs is UX, not security.
+  const admin = isAdmin(useAuth().user);
+  const activeTab: SettingsTabId =
+    !admin && (tab === 'setup' || tab === 'users') ? 'preferences' : tab;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-[var(--page-gap)]">
@@ -1155,7 +1171,7 @@ export function SettingsPage({
       </header>
 
       <Tabs
-        value={tab}
+        value={activeTab}
         onValueChange={(value) => onTabChange(value as SettingsTabId)}
         className="gap-4"
       >
@@ -1166,29 +1182,49 @@ export function SettingsPage({
           <TabsTrigger value="preferences">
             <SlidersHorizontal className="size-4" /> Preferences
           </TabsTrigger>
+          <TabsTrigger value="account">
+            <UserRound className="size-4" /> Account
+          </TabsTrigger>
           <TabsTrigger value="integrations">
             <PlugZap className="size-4" /> Integrations
           </TabsTrigger>
-          <TabsTrigger value="setup">
-            <KeyRound className="size-4" /> Setup
-          </TabsTrigger>
+          {admin ? (
+            <TabsTrigger value="setup">
+              <KeyRound className="size-4" /> Setup
+            </TabsTrigger>
+          ) : null}
           <TabsTrigger value="severity">
             <Gauge className="size-4" /> Severity
           </TabsTrigger>
+          {admin ? (
+            <TabsTrigger value="users">
+              <UsersRound className="size-4" /> Users
+            </TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="preferences">
           <PreferencesTab preferences={preferences} onPreferenceChange={onPreferenceChange} />
         </TabsContent>
+        <TabsContent value="account">
+          <AccountTab />
+        </TabsContent>
         <TabsContent value="integrations">
           <IntegrationsTab integrations={integrations} onChange={onIntegrationChange} />
         </TabsContent>
-        <TabsContent value="setup">
-          <SetupTab />
-        </TabsContent>
+        {admin ? (
+          <TabsContent value="setup">
+            <SetupTab />
+          </TabsContent>
+        ) : null}
         <TabsContent value="severity">
           <SeverityTab />
         </TabsContent>
+        {admin ? (
+          <TabsContent value="users">
+            <UsersTab />
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   );

@@ -9,26 +9,32 @@ import '@fontsource-variable/jetbrains-mono';
 // globals.css imports components.css into a low-priority `legacy` cascade layer.
 import './styles/globals.css';
 import { App } from './App';
+import { AuthBoot } from './pages/auth/AuthBoot';
+import { installAuthExpiryInterceptor } from './lib/auth';
 import { onReconnect, startHeartbeat } from './lib/connectivity';
 import { TempUnitProvider } from './lib/units';
-import { hydrateStore, rehydrate } from './lib/store';
+import { rehydrate } from './lib/store';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('#root element not found');
+
+// Any /api 401 mid-session flips the auth state to logged-out, which swaps
+// the login screen back in. Install before anything fetches.
+installAuthExpiryInterceptor();
 
 onReconnect(() => {
   void rehydrate();
 });
 startHeartbeat();
 
-// Pull persistent state from the server before first render so route, theme,
-// inventory, etc. are all in-memory and synchronously readable from components.
-void hydrateStore().then(() => {
-  createRoot(rootEl).render(
-    <StrictMode>
+// AuthBoot fetches the auth status, walks create-admin/login when needed, and
+// hydrates the persistent store after login — /api/state requires a session.
+createRoot(rootEl).render(
+  <StrictMode>
+    <AuthBoot>
       <TempUnitProvider>
         <App />
       </TempUnitProvider>
-    </StrictMode>,
-  );
-});
+    </AuthBoot>
+  </StrictMode>,
+);

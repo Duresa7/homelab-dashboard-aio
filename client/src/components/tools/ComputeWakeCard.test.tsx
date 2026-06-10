@@ -47,6 +47,26 @@ vi.mock('@/lib/store', () => ({
   subscribe: storeMock.subscribe,
 }));
 
+// The card hides editing affordances for viewers; these tests exercise the
+// member+ behavior, so render as an authenticated admin.
+vi.mock('@/lib/auth', () => ({
+  useAuth: () => ({
+    usersExist: true,
+    user: {
+      id: 1,
+      username: 'admin',
+      displayName: 'Admin',
+      email: null,
+      role: 'admin',
+      totpEnabled: false,
+      createdAt: 0,
+      passwordChangedAt: 0,
+    },
+    via: 'session',
+  }),
+  canEdit: (user: { role?: string } | null) => user?.role === 'admin' || user?.role === 'member',
+}));
+
 vi.mock('sonner', () => ({
   toast: toastMock,
 }));

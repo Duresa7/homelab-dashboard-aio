@@ -29,6 +29,7 @@ import {
   normalizeWolPort,
   registerWol,
 } from './wol.js';
+import { bootstrapAdmin } from '../test/auth.js';
 import { loadServerApp } from '../test/serverApp.js';
 
 function makeApp() {
@@ -160,10 +161,8 @@ describe('Wake-on-LAN integration', () => {
   it('returns 503 from the wake route when Wake-on-LAN is disabled', async () => {
     const ctx = await loadServerApp({ WOL_ENABLED: 'off' });
     try {
-      const res = await request(ctx.app)
-        .post('/api/wol/wake')
-        .send({ mac: 'AA:BB:CC:DD:EE:FF' })
-        .expect(503);
+      const api = await bootstrapAdmin(ctx.app);
+      const res = await api.post('/api/wol/wake').send({ mac: 'AA:BB:CC:DD:EE:FF' }).expect(503);
       expect(res.body).toEqual({ error: 'Wake-on-LAN is disabled' });
       expect(dgramMock.createSocket).not.toHaveBeenCalled();
     } finally {
@@ -174,13 +173,14 @@ describe('Wake-on-LAN integration', () => {
   it('honors a custom WOL_ALLOWED_PORTS allowlist', async () => {
     const ctx = await loadServerApp({ WOL_ENABLED: 'true', WOL_ALLOWED_PORTS: '7,9,4000' });
     try {
-      const ok = await request(ctx.app)
+      const api = await bootstrapAdmin(ctx.app);
+      const ok = await api
         .post('/api/wol/wake')
         .send({ mac: 'AA:BB:CC:DD:EE:FF', port: 4000 })
         .expect(200);
       expect(ok.body).toMatchObject({ ok: true, port: 4000 });
 
-      const rejected = await request(ctx.app)
+      const rejected = await api
         .post('/api/wol/wake')
         .send({ mac: 'AA:BB:CC:DD:EE:FF', port: 8080 })
         .expect(400);
@@ -193,7 +193,8 @@ describe('Wake-on-LAN integration', () => {
   it('reports disabled health status only for explicit false/0/off values', async () => {
     const ctx = await loadServerApp({ WOL_ENABLED: 'off' });
     try {
-      const res = await request(ctx.app).get('/api/health').expect(200);
+      const api = await bootstrapAdmin(ctx.app);
+      const res = await api.get('/api/health').expect(200);
       expect(res.body.wol).toEqual({ enabled: false, configured: false });
     } finally {
       await ctx.cleanup();
@@ -203,7 +204,8 @@ describe('Wake-on-LAN integration', () => {
   it('keeps Wake-on-LAN enabled for other WOL_ENABLED values', async () => {
     const ctx = await loadServerApp({ WOL_ENABLED: 'disabled' });
     try {
-      const res = await request(ctx.app).get('/api/health').expect(200);
+      const api = await bootstrapAdmin(ctx.app);
+      const res = await api.get('/api/health').expect(200);
       expect(res.body.wol).toEqual({ enabled: true, configured: true });
     } finally {
       await ctx.cleanup();

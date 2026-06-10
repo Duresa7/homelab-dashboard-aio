@@ -1,8 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
+import helmet from 'helmet';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { initAuth, type AuthHandle } from './auth/index.js';
+import { createUnavailableGate } from './auth/middleware.js';
 import { initSiem, type SiemRuntimeConfig } from './siem/index.js';
 import { initProxmoxHistory } from './proxmox-history/index.js';
 import { initState } from './state/index.js';
@@ -50,6 +53,50 @@ const SIEM_MAX_PER_QUERY = Number(process.env.SIEM_MAX_PER_QUERY) || 1000;
 // or data/database.json selects otherwise). Used for both the store factory and
 // the startup log.
 const DB_CONFIG = resolveDbConfig();
+
+// Behind a reverse proxy, req.ip / req.secure must come from X-Forwarded-*
+// headers; TRUST_PROXY takes Express's `trust proxy` values (true, 1, an IP…).
+const TRUST_PROXY = process.env.TRUST_PROXY;
+if (TRUST_PROXY) {
+  app.set('trust proxy', TRUST_PROXY === 'true' ? 1 : TRUST_PROXY);
+}
+
+// Open both stores for the resolved backend before any route registration —
+// the auth gate needs the user/session store, and it must precede every route.
+const stores = await openStores(DB_CONFIG).catch((err) => {
+  console.error(`Database: failed to open stores - ${errorMessage(err)}`);
+  return null;
+});
+
+// Security headers. img-src stays open because bookmark tiles load favicons
+// from arbitrary user-added hosts and brand icons come from icon CDNs; the
+// load-bearing directives are script/connect/object-src.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ['*', 'data:', 'blob:'],
+        fontSrc: ["'self'"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'self'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'same-origin' },
+  }),
+);
+
+// Auth gate + /api/auth routes. Fails closed (503 for /api) when the DB is
+// unavailable, since nobody could be authenticated anyway.
+const authHandle: AuthHandle | null = stores ? initAuth(app, { auth: stores.auth }) : null;
+if (!stores) app.use(createUnavailableGate());
 
 function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -131,7 +178,12 @@ async function applyRuntimeConfig(
   }
 }
 
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', (req, res) => {
+  // Unauthenticated callers (the client's connectivity heartbeat before login)
+  // get a bare liveness flag — the integration inventory is not public.
+  if (!req.auth) {
+    return res.json({ ok: true });
+  }
   res.json({
     ok: true,
     unifi: {
@@ -343,14 +395,6 @@ const sensorsHandle = initSensors(app, {
   cacheTtl: SENSORS_CACHE_TTL,
 });
 
-// Open both stores for the resolved backend (SQLite at today's paths by
-// default). DB selection is read from env/file at boot since the app config
-// store lives inside the chosen DB.
-const stores = await openStores(DB_CONFIG).catch((err) => {
-  console.error(`Database: failed to open stores - ${errorMessage(err)}`);
-  return null;
-});
-
 // Persistent app-state DB (inventory, thresholds, tweaks, etc.). Core, always on.
 const stateHandle = stores
   ? await initState(app, { store: stores.state }).catch((err) => {
@@ -378,6 +422,7 @@ const hasRuntimeConfig = Object.keys(runtimeConfig).length > 0;
 if (process.env.NODE_ENV !== 'test') {
   process.on('SIGINT', () => {
     try {
+      authHandle?.shutdown();
       stateHandle.shutdown();
     } catch {
       /* ignore */
@@ -385,6 +430,7 @@ if (process.env.NODE_ENV !== 'test') {
   });
   process.on('SIGTERM', () => {
     try {
+      authHandle?.shutdown();
       stateHandle.shutdown();
     } catch {
       /* ignore */
