@@ -375,6 +375,51 @@ describe('migrateInventory (spares → devices)', () => {
   });
 });
 
+describe('migrateInventory (v9 → v10 images)', () => {
+  it('defaults images to [] on every item type and preserves existing refs', () => {
+    const v9 = {
+      lastUpdated: '2026-06-09',
+      machines: [
+        { id: 'm1', name: 'Tower', role: 'compute', deployment: 'in-service' as const, meta: [] },
+      ],
+      components: [
+        {
+          id: 'c1',
+          type: 'gpu' as const,
+          label: 'GPU',
+          fields: [],
+          assignment: 'm1',
+          images: [{ id: 'aaaaaaaaaaaaaaaa', w: 320, h: 200 }],
+        },
+      ],
+      devices: [
+        {
+          id: 'cat_net',
+          name: 'Network',
+          deviceType: 'network' as const,
+          prefix: '04',
+          columns: [],
+          items: [
+            {
+              id: 'd1',
+              name: 'Gateway',
+              deployment: 'in-service' as const,
+              values: {},
+              ids: { uid: '0401' },
+            },
+          ],
+        },
+      ],
+    };
+
+    const migrated = migrateInventory(v9 as never);
+    expect(migrated.machines[0].images).toEqual([]);
+    expect(migrated.devices[0].items[0].images).toEqual([]);
+    // Existing refs survive untouched.
+    expect(migrated.components[0].images).toEqual([{ id: 'aaaaaaaaaaaaaaaa', w: 320, h: 200 }]);
+  });
+});
+
 describe('empty inventory defaults', () => {
   it('resets to an empty inventory shape', () => {
     const fresh = resetInventory();

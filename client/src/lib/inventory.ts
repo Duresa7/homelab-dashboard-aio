@@ -51,11 +51,25 @@ export interface ProblemLogEntry {
   note: string;
 }
 
+/** A photo attached to an item. The id addresses /api/images/:id (full) and
+ * /api/images/:id/thumb; w/h are the stored full-variant dimensions. */
+export interface ItemImage {
+  id: string;
+  w: number;
+  h: number;
+}
+
+/** Most photos one item can carry (enforced in the editor UI; the server only
+ * caps per-upload size since refs live inside the inventory blob). */
+export const MAX_IMAGES_PER_ITEM = 6;
+
 export interface ItemDetail {
   status?: ItemStatus;
   purchase?: PurchaseInfo;
   ids?: ItemIds;
   problemLog?: ProblemLogEntry[];
+  /** Photos; the first one is the card thumbnail. */
+  images?: ItemImage[];
 }
 
 /* ---------- components ---------- */
@@ -525,7 +539,8 @@ export function emptyInventory(): Inventory {
 /* ---------- storage ---------- */
 
 const STORAGE_KEY = 'inventory';
-const SCHEMA_VERSION = 9;
+// v10: ItemDetail gains optional `images` (photo refs served by /api/images).
+const SCHEMA_VERSION = 10;
 
 interface Persisted {
   v: number;
@@ -544,6 +559,7 @@ function ensureDetail<T extends ItemDetail>(item: T): void {
   if (!item.purchase) item.purchase = {};
   if (!item.ids) item.ids = {};
   if (!item.problemLog) item.problemLog = [];
+  if (!Array.isArray(item.images)) item.images = [];
 }
 
 /** old → new UID mapping recorded during the last v6→v7 migration (for relabeling). */

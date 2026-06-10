@@ -43,6 +43,16 @@ Useful knobs:
 The full design and security-audit notes live in
 [docs/adr/0006-authentication-and-security-hardening.md](docs/adr/0006-authentication-and-security-hardening.md).
 
+## Inventory photos
+
+Machines, components, and devices can each carry up to 6 photos (Inventory →
+open an item → Photos, in edit mode). Uploads are re-encoded to WebP with EXIF
+stripped and stored on the app host under `data/images/` next to the SQLite
+state — **even when the state DB is Postgres or MySQL**, image files stay on
+local disk, so back up `data/images/` together with the database. Orphaned
+files (e.g. after an item is deleted) are swept on boot and via
+`POST /api/images/gc` (admin).
+
 ## Development
 
 Install dependencies from the repo root:
