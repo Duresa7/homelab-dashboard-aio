@@ -86,6 +86,13 @@ export function requiredRoleFor(method: string, path: string): UserRole {
 
   if (path === '/api/wol/wake') return 'member';
 
+  // Inventory images: anyone authenticated can view; uploading/deleting edits
+  // the inventory (member+); the orphan GC sweep is operational (admin).
+  if (path === '/api/images/gc') return 'admin';
+  if (path === '/api/images' || path.startsWith('/api/images/')) {
+    return m === 'GET' ? 'viewer' : 'member';
+  }
+
   // Everything else (providers, sensors, siem, history, auth self-service) is
   // available to any authenticated user; mutating auth/user actions do their
   // own ownership checks in the handlers.

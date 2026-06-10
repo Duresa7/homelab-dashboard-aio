@@ -27,6 +27,7 @@ import { ComponentHeader, DeviceHeader, MachineHeader } from './inventory/detail
 import { ComponentSpecsSection, DeviceSpecsSection } from './inventory/detail/specs';
 import { AssignmentSection, DeviceSection } from './inventory/detail/assignment';
 import { ComponentsSection } from './inventory/detail/ComponentsSection';
+import { ImagesSection } from './inventory/detail/ImagesSection';
 import { ProblemLogSection } from './inventory/detail/ProblemLogSection';
 import { ProvenanceSection } from './inventory/detail/ProvenanceSection';
 import { IdentifiersSection } from './inventory/detail/IdentifiersSection';
@@ -107,7 +108,16 @@ export function InventoryDetailPanel({
   const purchase = detail.purchase ?? {};
   const ids = detail.ids ?? {};
   const log = detail.problemLog ?? [];
+  const images = detail.images ?? [];
   const kindClass = STATUS_KIND[status];
+  const itemLabel =
+    found.kind === 'machine'
+      ? found.machine.name
+      : found.kind === 'spare'
+        ? found.item.name || 'Device'
+        : found.component.label;
+
+  const setImages = (next: typeof images) => mutDetail((cur) => ({ ...cur, images: next }));
 
   const header =
     found.kind === 'machine' ? (
@@ -212,6 +222,13 @@ export function InventoryDetailPanel({
           {found.kind === 'machine' ? (
             <ComponentsSection machine={found.machine} components={components} />
           ) : null}
+
+          <ImagesSection
+            images={images}
+            isEditing={isEditing}
+            label={itemLabel}
+            onChange={setImages}
+          />
 
           <ProblemLogSection
             log={log}

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { initAuth, type AuthHandle } from './auth/index.js';
 import { createUnavailableGate } from './auth/middleware.js';
+import { initImages } from './images/index.js';
 import { initSiem, type SiemRuntimeConfig } from './siem/index.js';
 import { initProxmoxHistory } from './proxmox-history/index.js';
 import { initState } from './state/index.js';
@@ -402,6 +403,15 @@ const stateHandle = stores
       return { shutdown() {} };
     })
   : { shutdown() {} };
+
+// Inventory photo storage — files live next to the SQLite state regardless of
+// the configured DB backend (refs travel in the inventory blob, bytes stay
+// on the app host; back up data/images/ together with the DB).
+const IMAGES_DIR =
+  process.env.IMAGES_DIR || path.join(path.dirname(DB_CONFIG.sqlite.statePath), 'images');
+if (stores) {
+  initImages(app, { dir: IMAGES_DIR, store: stores.state });
+}
 
 // One-time, idempotent: seed the runtime config store from env-configured
 // integrations so existing installs skip onboarding (a fresh install stays empty
