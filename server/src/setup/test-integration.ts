@@ -11,7 +11,11 @@ function str(value: unknown): string {
 }
 
 function trimSlash(url: string): string {
-  return url.replace(/\/+$/, '');
+  // Strip trailing slashes with a plain scan rather than /\/+$/, which
+  // backtracks quadratically on long slash runs (CodeQL js/polynomial-redos).
+  let end = url.length;
+  while (end > 0 && url[end - 1] === '/') end--;
+  return url.slice(0, end);
 }
 
 export function normalizeTestBaseUrl(value: unknown): string {
