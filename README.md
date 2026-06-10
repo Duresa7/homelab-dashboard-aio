@@ -81,6 +81,11 @@ the built client.
 For the full run and verification contract used by agents and contributors, see
 [AGENTS.md](AGENTS.md) and [docs/agents/run-and-verify.md](docs/agents/run-and-verify.md).
 
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the
+branch model (feature → `Dev` → `main`) and pull request process.
+
 ## Running the published image
 
 CI publishes a multi-stage Docker image to the GitHub Container Registry on every
