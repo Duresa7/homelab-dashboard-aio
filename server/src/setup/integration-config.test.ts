@@ -181,7 +181,7 @@ describe('upsertSelection', () => {
       upsertSelection(store, {
         capability: 'gpu',
         vendor: 'nvidia',
-        config: { mode: 'ssh', sshHost: '10.0.0.5 -oProxyCommand=evil' },
+        config: { mode: 'ssh', sshHost: '203.0.113.5 -oProxyCommand=evil' },
       }),
     ).rejects.toThrow(/invalid host/);
   });
