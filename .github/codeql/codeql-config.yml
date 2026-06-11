@@ -12,7 +12,7 @@
 # presence guard, js/clear-text-logging for the one-time admin password printed
 # by the operator CLI) are dismissed individually in the Security tab rather
 # than suppressed repo-wide, so those queries still catch genuine new issues.
-name: "homelab-dashboard CodeQL"
+name: 'homelab-dashboard CodeQL'
 
 queries:
   - uses: security-and-quality
