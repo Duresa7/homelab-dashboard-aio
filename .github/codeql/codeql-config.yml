@@ -1,0 +1,24 @@
+# CodeQL tuning for this repo.
+#
+# We keep the full security-and-quality suite, but drop two query families that
+# this project's security standard explicitly does NOT treat as vulnerabilities,
+# so the code-scanning gate reflects only actionable findings:
+#   - js/missing-rate-limiting → DoS / rate-limiting is out of scope (and the
+#     auth login path is in fact throttled by server/src/auth/rate-limit.ts).
+#   - js/log-injection         → writing unsanitised input to logs is not
+#     treated as a vulnerability here.
+#
+# Case-specific false positives (e.g. js/user-controlled-bypass on an input
+# presence guard, js/clear-text-logging for the one-time admin password printed
+# by the operator CLI) are dismissed individually in the Security tab rather
+# than suppressed repo-wide, so those queries still catch genuine new issues.
+name: 'homelab-dashboard CodeQL'
+
+queries:
+  - uses: security-and-quality
+
+query-filters:
+  - exclude:
+      id:
+        - js/missing-rate-limiting
+        - js/log-injection
