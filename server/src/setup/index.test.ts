@@ -63,6 +63,14 @@ describe('keepDbSecrets', () => {
     expect(out.mysql?.password).toBeUndefined();
   });
 
+  it('does not inherit the password when the host changes', () => {
+    const out = keepDbSecrets(
+      { driver: 'postgres', postgres: { host: 'attacker.example', database: 'd', user: 'u' } },
+      current,
+    );
+    expect(out.postgres?.password).toBeUndefined();
+  });
+
   it('is a no-op for sqlite (no secret)', () => {
     const file = { driver: 'sqlite' as const, sqlite: { statePath: 'data/x.sqlite' } };
     expect(keepDbSecrets(file, current)).toBe(file);
