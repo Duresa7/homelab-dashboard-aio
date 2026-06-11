@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 import {
   CAPABILITIES,
   getCapability,
@@ -5,6 +7,8 @@ import {
   type ConfigField,
 } from '../capabilities/registry.js';
 import { isEnabled } from '../lib/env.js';
+import { errorMessage } from '../lib/errors.js';
+import { assertAllowedHost, BlockedHostError, hostFromInput } from '../lib/net-guard.js';
 import type { StateStore } from '../storage/types.js';
 
 export const CONFIG_KEY = 'setup.integrationConfig';
@@ -42,6 +46,33 @@ function coerceField(field: ConfigField, raw: unknown): unknown {
     return Number.isFinite(n) ? n : undefined;
   }
   return typeof raw === 'string' ? raw : String(raw);
+}
+
+/** Reject host values that carry whitespace, an `@`, slashes, or a leading `-`
+ * (which `ssh` would read as an option). Defense-in-depth on top of the
+ * shell-free execFile in runRemote. */
+function isSafeHostname(value: string): boolean {
+  const v = value.trim();
+  if (!v || v.length > 253) return false;
+  if (/[\s@/\\]/.test(v) || v.startsWith('-')) return false;
+  return isIP(v) !== 0 || /^[A-Za-z0-9._-]+$/.test(v);
+}
+
+/** Enforce the schema's own constraints that the registry declares but
+ * coerceField doesn't apply: select option allowlists and hostname fields. */
+function validateFieldValue(field: ConfigField, value: unknown): void {
+  if (value === undefined || value === '') return;
+  if (field.type === 'select' && field.options) {
+    const allowed = field.options.map((o) => o.value);
+    if (typeof value !== 'string' || !allowed.includes(value)) {
+      throw new ConfigError(
+        `invalid value for ${field.name}: expected one of ${allowed.join(', ')}`,
+      );
+    }
+  }
+  if (field.format === 'hostname' && typeof value === 'string' && !isSafeHostname(value)) {
+    throw new ConfigError(`invalid host for ${field.name}`);
+  }
 }
 
 async function readConfig(store: StateStore): Promise<IntegrationConfig> {
@@ -174,17 +205,47 @@ export async function upsertSelection(store: StateStore, input: SelectionInput):
   const config = await readConfig(store);
   const existing = config[capabilityId]?.config ?? {};
 
+  // If the caller points this integration at a different host than the stored
+  // one, any secret it omits must be re-supplied. Otherwise a stored secret
+  // would be inherited and sent to the new (attacker-chosen) destination on the
+  // next fetch. A missing stored baseUrl counts as "changed".
+  const existingHost = typeof existing.baseUrl === 'string' ? hostFromInput(existing.baseUrl) : '';
+  const incomingHost =
+    'baseUrl' in incoming && typeof incoming.baseUrl === 'string'
+      ? hostFromInput(incoming.baseUrl)
+      : '';
+  const hostChanged =
+    incomingHost !== '' && incomingHost.toLowerCase() !== existingHost.toLowerCase();
+
   const merged: Record<string, unknown> = {};
   for (const field of provider.configSchema) {
     let value: unknown;
     if (field.name in incoming) value = coerceField(field, incoming[field.name]);
-    else if (field.name in existing) value = existing[field.name];
+    else if (field.secret && hostChanged && field.name in existing) {
+      throw new ConfigError(`secret fields are required when changing the base URL: ${field.name}`);
+    } else if (field.name in existing) value = existing[field.name];
     else if (field.default !== undefined) value = field.default;
+
+    validateFieldValue(field, value);
 
     if (enabled && field.required && (value === undefined || value === '')) {
       throw new ConfigError(`missing required field: ${field.name}`);
     }
     if (value !== undefined) merged[field.name] = value;
+  }
+
+  // Defense-in-depth SSRF guard: never persist a base URL that points at the
+  // dashboard's own loopback or the link-local/metadata range.
+  for (const field of provider.configSchema) {
+    if (field.type !== 'url') continue;
+    const value = merged[field.name];
+    if (typeof value !== 'string' || !value) continue;
+    try {
+      await assertAllowedHost(value);
+    } catch (err) {
+      if (err instanceof BlockedHostError) throw new ConfigError(errorMessage(err));
+      throw err;
+    }
   }
 
   config[capabilityId] = { enabled, vendor, config: merged };

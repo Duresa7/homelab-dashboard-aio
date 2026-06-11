@@ -1,5 +1,6 @@
 import { errorMessage } from '../lib/errors.js';
 import { insecureFetch } from '../lib/http.js';
+import { assertAllowedHost } from '../lib/net-guard.js';
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : value == null ? '' : String(value);
@@ -75,6 +76,9 @@ export async function testIntegration(
   let baseUrl: string;
   try {
     baseUrl = normalizeTestBaseUrl(config.baseUrl);
+    // SSRF guard: never let a connection test probe the dashboard's own
+    // loopback services or the link-local/metadata range.
+    await assertAllowedHost(baseUrl);
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

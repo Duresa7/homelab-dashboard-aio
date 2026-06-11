@@ -19,6 +19,10 @@ export interface ConfigField {
   help?: string;
   default?: string | number | boolean;
 
+  /** Extra server-side validation applied to request input. `hostname` rejects
+   * values carrying whitespace, `@`, slashes, or a leading `-`. */
+  format?: 'hostname';
+
   options?: { value: string; label: string }[];
 
   env?: string;
@@ -272,6 +276,7 @@ export const CAPABILITIES: Capability[] = [
             label: 'SSH host',
             type: 'text',
             required: false,
+            format: 'hostname',
             help: 'Required when source is SSH',
             env: 'GPU_SSH_HOST',
           },
@@ -309,6 +314,7 @@ export const CAPABILITIES: Capability[] = [
             label: 'SSH host',
             type: 'text',
             required: false,
+            format: 'hostname',
             help: 'Required when source is SSH',
             env: 'SENSORS_SSH_HOST',
           },

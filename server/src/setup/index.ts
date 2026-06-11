@@ -15,6 +15,7 @@ import {
   type SqlServerSettings,
 } from '../storage/config.js';
 import { testDbConnection } from '../storage/factory.js';
+import { assertAllowedHost } from '../lib/net-guard.js';
 import { makeSameOriginGuard } from '../state/index.js';
 import type { StateStore } from '../storage/types.js';
 import {
@@ -99,7 +100,19 @@ export function keepDbSecrets(file: DbConfigFile, current: ResolvedDbConfig): Db
   if (incoming?.password) return file;
   const prior = file.driver === 'postgres' ? current.postgres : current.mysql;
   if (!prior?.password) return file;
+  // Only inherit the saved password when re-saving the SAME host — never carry
+  // a stored credential over to a newly-specified destination.
+  if (incoming?.host !== prior.host) return file;
   return { ...file, [file.driver]: { ...(incoming ?? {}), password: prior.password } };
+}
+
+/** Reject a DB host in the link-local/metadata range (never a valid backend).
+ * Loopback and private/public hosts are allowed — a database is commonly
+ * co-located on localhost or reached as a managed cloud instance. */
+async function assertDbHostAllowed(file: DbConfigFile): Promise<void> {
+  const server =
+    file.driver === 'postgres' ? file.postgres : file.driver === 'mysql' ? file.mysql : undefined;
+  if (server?.host) await assertAllowedHost(server.host);
 }
 
 export function redactDbConfig(config: ResolvedDbConfig): Record<string, unknown> {
@@ -159,7 +172,10 @@ export function initSetup(
   ): Record<string, unknown> {
     const storedBaseUrl = baseUrlOf(stored);
     const incomingBaseUrl = baseUrlOf(incoming);
-    if (storedBaseUrl && incomingBaseUrl && storedBaseUrl !== incomingBaseUrl) {
+    // Require secrets whenever the incoming base URL differs from the stored
+    // one — including when there is no usable stored base URL to anchor to.
+    // Inheriting a stored secret is only safe when re-testing the same target.
+    if (incomingBaseUrl && incomingBaseUrl !== storedBaseUrl) {
       const missing = secretFieldsFor(capability).filter(
         (field) => typeof incoming[field] !== 'string' || !String(incoming[field]).trim(),
       );
@@ -189,6 +205,11 @@ export function initSetup(
     }
     file = keepDbSecrets(file, resolveDbConfig({ env: {}, configPath: configFilePath() }));
     try {
+      await assertDbHostAllowed(file);
+    } catch (err) {
+      return res.status(400).json({ ok: false, error: errorMessage(err) });
+    }
+    try {
       await testDbConnection(resolveDbConfig({ env: {}, file }));
       res.json({ ok: true });
     } catch (err) {
@@ -204,6 +225,11 @@ export function initSetup(
       return res.status(400).json({ ok: false, error: errorMessage(err) });
     }
     file = keepDbSecrets(file, resolveDbConfig({ env: {}, configPath: configFilePath() }));
+    try {
+      await assertDbHostAllowed(file);
+    } catch (err) {
+      return res.status(400).json({ ok: false, error: errorMessage(err) });
+    }
     try {
       await testDbConnection(resolveDbConfig({ env: {}, file }));
     } catch (err) {
