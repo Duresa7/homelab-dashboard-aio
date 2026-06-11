@@ -55,6 +55,11 @@ id_homelab*
 secrets/
 *.secret
 
+# Security scan / audit reports — these enumerate open vulnerabilities; never
+# commit them to a public repo.
+security-audit/
+*-security-audit.md
+
 # Local-only compose/config overrides (often hold real hosts/paths)
 docker-compose.override.yml
 docker-compose.*.local.yml
