@@ -16,7 +16,6 @@ export function AuthBoot({ children }: { children: ReactNode }) {
     void fetchAuthStatus().catch(() => setStatusFailed(true));
   }, []);
 
-  // Hydrate the persistent store once per login (user id) — it 401s before.
   const userId = auth.user?.id ?? null;
   useEffect(() => {
     if (userId === null || hydratedFor === userId || hydrating.current) return;

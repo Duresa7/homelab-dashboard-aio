@@ -42,7 +42,7 @@ export interface CapabilityPresentation {
   label: string;
   genericLabel: string;
   vendorLabel?: string;
-  /** Selected provider id (e.g. `portainer`), so pages can explain the data source. */
+
   providerId?: string;
   icon: string;
   enabled: boolean;
@@ -55,8 +55,6 @@ export const SECTION_CAPABILITY: Partial<Record<Section, CapabilityId>> = {
   network: 'network',
   docker: 'containers',
   nas: 'nas',
-  // Observability stays always-visible; the SIEM tab self-gates on the `logs`
-  // capability inside ObservabilityPage.
 };
 
 const FALLBACK_CAPABILITIES: Capability[] = [

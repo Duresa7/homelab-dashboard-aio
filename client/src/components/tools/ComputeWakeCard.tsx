@@ -179,8 +179,6 @@ export function ComputeWakeCard() {
     return { kind: 'ok' as const, label: 'ready' };
   }, [health, healthError]);
 
-  // Viewers get a read-only card: waking machines and editing the host list
-  // are member+ actions (the server enforces the same matrix).
   const editor = canEdit(useAuth().user);
   const wakeDisabled = health?.enabled === false || !editor;
   const editing = form.id != null;

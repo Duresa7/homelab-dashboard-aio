@@ -10,19 +10,15 @@ import type { StoredEvent } from './types.js';
 import { createSseBus } from './sse.js';
 
 const RETENTION_SWEEP_INTERVAL_MS = 6 * 60 * 60_000;
-// Cap a single UDP datagram so a misbehaving sender can't fill the DB or
-// fan out 64KB JSON over SSE. RFC 5424 recommends ≥2048; we allow 8KB.
+
 const MAX_PACKET_BYTES = 8 * 1024;
-// Per-source rate limit. Each source IP gets a token bucket replenished at
-// `RATE_PPS` packets/sec with a burst capacity of `RATE_BURST`. Above the
-// rate we drop the packet and bump a counter for /api/siem/status.
+
 const RATE_PPS = 200;
 const RATE_BURST = 1000;
 const GLOBAL_RATE_PPS = Number(process.env.SIEM_GLOBAL_RATE_PPS) || 1000;
 const GLOBAL_RATE_BURST = Number(process.env.SIEM_GLOBAL_RATE_BURST) || 5000;
-const RATE_BUCKETS_MAX = 4096; // cap distinct sources tracked
-// Chunked retention sweep: each tick deletes one batch then yields to the
-// event loop so HTTP/SSE/UDP handlers keep flowing.
+const RATE_BUCKETS_MAX = 4096;
+
 const RETENTION_CHUNK_ROWS = 1000;
 
 export interface SiemOptions {
@@ -56,7 +52,7 @@ function bestLanIp(): string {
       candidates.push(iface.address);
     }
   }
-  // Skip docker/vEthernet IPs by preferring RFC1918 ranges.
+
   const priv = candidates.find(isPrivateIpv4);
   return priv || candidates[0] || '127.0.0.1';
 }
@@ -117,7 +113,6 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     };
   }
 
-  // Optional source-IP allowlist (comma-separated env var). Empty = allow all.
   const allowedSources = String(process.env.SIEM_ALLOWED_SOURCES || '')
     .split(',')
     .map((s) => s.trim())
@@ -140,13 +135,11 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     return true;
   }
 
-  // Per-source token bucket. Map<ip, {tokens, lastRefillMs}>.
   const rateBuckets = new Map<string, { tokens: number; lastRefillMs: number }>();
   function admit(ip: string): boolean {
     const now = Date.now();
     let b = rateBuckets.get(ip);
     if (!b) {
-      // Evict oldest if we're tracking too many sources (limits memory).
       if (rateBuckets.size >= RATE_BUCKETS_MAX) {
         const firstKey = rateBuckets.keys().next().value;
         if (firstKey !== undefined) rateBuckets.delete(firstKey);
@@ -190,8 +183,6 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     const cutoff = Date.now() - config.retentionDays * 86400_000;
     let total = 0;
     try {
-      // Loop until a chunk returns 0; yield to the event loop between
-      // chunks so UDP, HTTP, and SSE handlers stay responsive.
       while (true) {
         const removed = await db.purgeOlderThanChunk(cutoff, RETENTION_CHUNK_ROWS);
         total += removed;
@@ -214,24 +205,21 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     stats.packetsReceived += 1;
     stats.bytesReceived += buf.length;
 
-    // Source allowlist check (env-configurable).
     if (sourceAllowSet && !sourceAllowSet.has(rinfo.address)) {
       stats.packetsRateLimited += 1;
       return;
     }
-    // Global rate limiting caps aggregate ingest even when sources rotate.
+
     if (!admitGlobal()) {
       stats.packetsRateLimited += 1;
       return;
     }
-    // Per-source rate limiting.
+
     if (!admit(rinfo.address)) {
       stats.packetsRateLimited += 1;
       return;
     }
 
-    // Truncate oversized packets so a single hostile sender can't fan out
-    // 64KB SSE messages or fill the DB with megabyte rows.
     let safeBuf = buf;
     if (buf.length > MAX_PACKET_BYTES) {
       safeBuf = buf.subarray(0, MAX_PACKET_BYTES);
@@ -326,7 +314,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
       try {
         nextSock.close();
       } catch {
-        /* ignore */
+        void 0;
       }
       return;
     }
@@ -349,15 +337,13 @@ export async function initSiem(app: Express, opts: SiemOptions) {
       try {
         oldSock.close();
       } catch {
-        /* ignore */
+        void 0;
       }
     }
     sse.shutdown();
     stats.boundAt = null;
   }
 
-  // The store is async; Express 4 doesn't catch rejected handler promises, so
-  // each handler maps a store failure to a 500 itself.
   const dbError = (res: Response, err: unknown) =>
     res.status(500).json({ error: err instanceof Error ? err.message : 'siem store error' });
 
@@ -444,7 +430,9 @@ export async function initSiem(app: Express, opts: SiemOptions) {
   function shutdown() {
     closed = true;
     stop();
-    void db.close().catch(() => {});
+    void db.close().catch(() => {
+      void 0;
+    });
   }
 
   async function configure(next: SiemRuntimeConfig) {

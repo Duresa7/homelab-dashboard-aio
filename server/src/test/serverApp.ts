@@ -1,11 +1,3 @@
-// The server entry point side-effect-imports dotenv/config, which runs once
-// per worker process and back-fills any env key that is currently unset from
-// the developer's real .env. If that one-shot fill fires inside a
-// loadServerApp() import — i.e. after the ENV_KEYS scrub — real homelab
-// config leaks into a supposedly-unconfigured test app (order-dependent,
-// since only the first index.js import in a worker pays it). Importing it
-// here detonates the fill at harness load, before any scrub, making every
-// subsequent app boot deterministic.
 import 'dotenv/config';
 
 import http from 'node:http';
@@ -17,13 +9,7 @@ import { vi } from 'vitest';
 
 import { errorMessage } from '../lib/errors.js';
 
-// A test upstream route is either a static JSON body or a function that
-// computes one from the incoming request. Bodies are intentionally loose
-// (`any`) — they stand in for arbitrary upstream payloads.
-type UpstreamRoute =
-  | ((ctx: { req: http.IncomingMessage; url: URL }) => unknown)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  | any;
+type UpstreamRoute = ((ctx: { req: http.IncomingMessage; url: URL }) => unknown) | any;
 
 const ENV_KEYS = [
   'NODE_ENV',
@@ -128,7 +114,6 @@ export async function withJsonUpstream<T>(
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const body: any = typeof route === 'function' ? route({ req, url }) : route;
       const status = body?.statusCode ?? 200;
       const payload = body && 'body' in body ? body.body : body;

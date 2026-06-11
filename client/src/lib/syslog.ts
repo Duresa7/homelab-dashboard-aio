@@ -21,7 +21,6 @@ export function severityName(sev: SyslogSeverity): string {
   return SEVERITY_NAMES[sev] ?? `lvl${sev}`;
 }
 
-// Collapse 8 syslog levels onto the dashboard's 4-color pill scheme.
 export function severityToUi(sev: SyslogSeverity): Severity {
   if (sev <= 3) return 'bad';
   if (sev === 4) return 'warn';
@@ -57,7 +56,6 @@ export function categoryLabel(cat: SyslogCategory): string {
   return CATEGORY_LABELS[cat] ?? cat;
 }
 
-// Prefer CEF name (most readable), fall back to tag, then hostname.
 export function componentLabel(evt: SyslogEvent): string {
   const cefName = evt.extra?.name;
   if (cefName) return String(cefName);
@@ -66,7 +64,6 @@ export function componentLabel(evt: SyslogEvent): string {
   return evt.deviceKind;
 }
 
-// CEF puts useful context in extension fields rather than the message — pick the common UniFi ones.
 export function summary(evt: SyslogEvent): string {
   const e = evt.extra || {};
   const ctx: string[] = [];

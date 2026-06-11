@@ -1,8 +1,3 @@
-// SIEM event shapes shared by the store, the ingest path, and the SSE bus.
-// Kept separate from db.ts so the storage contracts can reference them without
-// importing the adapter implementation.
-
-/** Input accepted by insertEvent() (camelCase, pre-DB shape). */
 export interface InsertEventInput {
   receivedAt: number;
   logTime?: number | null;
@@ -19,7 +14,6 @@ export interface InsertEventInput {
   extra?: unknown;
 }
 
-/** A row as stored in syslog_events (snake_case). */
 export interface SyslogRow {
   id: number;
   received_at: number;
@@ -37,10 +31,8 @@ export interface SyslogRow {
   extra: string | null;
 }
 
-/** What insertEvent() returns: the stored row plus its new id. */
 export type StoredEvent = SyslogRow;
 
-/** Normalized (camelCase) event shape returned to API/SSE consumers. */
 export interface SyslogEvent {
   id: number;
   receivedAt: number;

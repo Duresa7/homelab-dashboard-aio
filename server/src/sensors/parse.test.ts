@@ -20,9 +20,6 @@ import {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string) => readFileSync(path.join(here, '__fixtures__', name), 'utf8');
 
-// NOTE: fixtures under __fixtures__/ are PROVISIONAL — synthesized from the
-// family tables, not yet real captures. See __fixtures__/README.md.
-
 describe('detect* — vendor family tables (token in → {vendor, model})', () => {
   it('Seagate: capacity GB + 2-letter family code', () => {
     expect(detectSeagate('ST4000VN0082DR166')).toEqual({
@@ -34,10 +31,6 @@ describe('detect* — vendor family tables (token in → {vendor, model})', () =
   });
 
   it('Seagate: unknown family code still yields capacity', () => {
-    // ZZ is not in SEAGATE_FAMILY → family null. Quirk (preserved verbatim):
-    // [null, '6TB'].filter(Boolean).join(' ') === '6TB' is truthy, so the
-    // `Seagate <cap>` fallback never fires — model is bare '6TB'. diskDisplayName
-    // then re-prefixes the vendor for display → "Seagate 6TB".
     expect(detectSeagate('ST6000ZZ001')).toEqual({ vendor: 'Seagate', model: '6TB' });
     expect(diskDisplayName({ model: 'ST6000ZZ001', vendor: '' })).toBe('Seagate 6TB');
   });
@@ -62,7 +55,6 @@ describe('detect* — vendor family tables (token in → {vendor, model})', () =
   });
 
   it('Western Digital: unknown suffix falls back to EF/EZ/FZ/PUR prefix heuristic', () => {
-    // "EFQQ" not a known 4-letter code, but ^EF → Red
     expect(detectWesternDigital('WD20EFQQ')).toEqual({
       vendor: 'Western Digital',
       model: 'Red 2TB',
@@ -82,7 +74,6 @@ describe('detect* — vendor family tables (token in → {vendor, model})', () =
   });
 
   it('Crucial: longest family code wins (P3P over P3, MX500 over MX)', () => {
-    // Regex is ordered longest-first; P3P must not be read as P3 + leftover.
     expect(detectCrucial('CT4000T700SSD5')?.model).toContain('T700');
   });
 
@@ -129,11 +120,10 @@ describe('normalizeDiskParts + diskDisplayName', () => {
   });
 
   it('diskDisplayName prefixes vendor only when not already in the model', () => {
-    // Seagate detection → model has no "Seagate" → prefixed
     expect(diskDisplayName({ model: 'ST4000VN008-2DR166', vendor: 'ATA' })).toBe(
       'Seagate IronWolf 4TB',
     );
-    // Unknown brand with vendor not in model → prefixed
+
     expect(diskDisplayName({ model: 'WEIRD BRAND X1', vendor: 'ACME' })).toBe(
       'ACME WEIRD BRAND X1',
     );
@@ -144,7 +134,7 @@ describe('parseDiskInventory (lsblk -J → DiskInfo[])', () => {
   const inv = parseDiskInventory(fixture('lsblk-mixed.json'));
 
   it('filters out non-disk block devices (partitions)', () => {
-    expect(inv).toHaveLength(3); // nvme0n1, sda, sdb — sda1 (part) excluded
+    expect(inv).toHaveLength(3);
   });
 
   it('derives friendly display names and kind', () => {

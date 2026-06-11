@@ -1,8 +1,3 @@
-// GPU integration. Per node it runs one detection script (over SSH, or
-// locally) that combines `nvidia-smi` (full NVIDIA metrics), an `lspci` scan
-// (vendor/model detection for AMD / Intel / anything without nvidia-smi), and
-// a DRM sysfs sweep (best-effort clocks for i915, utilization/VRAM/temp for
-// amdgpu), then normalizes everything into the dashboard's `gpu` slice.
 import { runRemote } from '../lib/remote.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isEnabled } from '../lib/env.js';
@@ -64,15 +59,11 @@ function gpuTargets(): NodeTarget[] {
   });
 }
 
-/** Separator between the nvidia-smi / lspci / DRM-sysfs script sections. */
 const SECTION = '__GPU_SECTION__';
 
 const QUERY_ARG = `--query-gpu=${NVIDIA_SMI_FIELDS}`;
 const FORMAT_ARG = '--format=csv,noheader,nounits';
 
-// Three sections: NVIDIA metrics CSV, PCI display controllers, DRM sysfs rows
-// (card|vendor|i915 act/max MHz|amdgpu busy%|vram used/total bytes|temp m°C).
-// Ends in `true` so "no GPU anywhere" is exit 0, not a grep failure.
 const DETECTION_SCRIPT =
   `nvidia-smi ${QUERY_ARG} ${FORMAT_ARG} 2>/dev/null; ` +
   `echo ${SECTION}; ` +
@@ -85,8 +76,6 @@ const DETECTION_SCRIPT =
   `|$(cat $c/device/mem_info_vram_used 2>/dev/null)|$(cat $c/device/mem_info_vram_total 2>/dev/null)` +
   `|$(cat $c/device/hwmon/hwmon*/temp1_input 2>/dev/null | head -n1)"; done; true`;
 
-// Local mode keeps the plain nvidia-smi invocation (no shell, and the lspci /
-// sysfs scan is Linux-specific) — local installs stay NVIDIA-only.
 function runDetection(target: NodeTarget) {
   return runRemote({
     mode: target.mode,
@@ -116,11 +105,6 @@ interface PciDisplay {
   model: string;
 }
 
-/**
- * Parse `lspci -nn` display-controller lines, e.g.
- * `00:02.0 VGA compatible controller [0300]: Intel Corporation CoffeeLake-S GT2 [UHD Graphics 630] [8086:3e92]`.
- * Model prefers the marketing name in the trailing brackets when present.
- */
 function parseLspciDisplays(output: string): PciDisplay[] {
   const displays: PciDisplay[] = [];
   for (const line of output.split('\n')) {
@@ -136,8 +120,6 @@ function parseLspciDisplays(output: string): PciDisplay[] {
   return displays;
 }
 
-// Heuristic: Intel display controllers are iGPUs unless they're Arc/DG
-// discrete cards; AMD iGPUs carry APU family or "Graphics" marketing names.
 function isIntegrated(vendor: GpuVendor, model: string): boolean {
   if (vendor === 'intel') return !/\b(arc|dg1|dg2|battlemage)\b/i.test(model);
   if (vendor === 'amd') {
@@ -157,7 +139,6 @@ interface DrmCard {
   tempC: number | null;
 }
 
-/** Parse the DRM sysfs sweep rows emitted by DETECTION_SCRIPT. */
 function parseDrmCards(output: string): DrmCard[] {
   const cards: DrmCard[] = [];
   for (const line of output.split('\n')) {
@@ -180,7 +161,6 @@ function parseDrmCards(output: string): DrmCard[] {
   return cards;
 }
 
-/** A GPU found by PCI scan (AMD/Intel/unknown), with best-effort sysfs metrics. */
 function toDetectedGpu(
   node: string,
   index: number,
@@ -273,9 +253,6 @@ function stripNode(gpu: NodeGpu): GpuWireData {
   return rest as GpuWireData;
 }
 
-// nvidia-smi being absent (Intel/AMD node) or finding no device is a normal
-// "no GPU" outcome, not an outage — distinguish it from genuine connection
-// failures so a GPU-less node contributes nothing rather than going `unavailable`.
 function isNoGpuError(err: unknown): boolean {
   const e = err as { message?: unknown; stderr?: unknown };
   const text = `${typeof e?.message === 'string' ? e.message : String(err)} ${
@@ -291,8 +268,8 @@ async function fetchNodeGpus(target: NodeTarget): Promise<NodeGpu[]> {
   try {
     output = await runDetection(target);
   } catch (err) {
-    if (isNoGpuError(err)) return []; // reachable, just no NVIDIA GPU (local mode)
-    throw err; // genuine failure → recorded as unavailable
+    if (isNoGpuError(err)) return [];
+    throw err;
   }
 
   const [nvidiaCsv = '', lspciOut = '', drmOut = ''] = output.split(SECTION);
@@ -300,10 +277,6 @@ async function fetchNodeGpus(target: NodeTarget): Promise<NodeGpu[]> {
     toNodeGpu(target.node, index, sample),
   );
 
-  // NVIDIA cards are already covered (with full metrics) by nvidia-smi; the
-  // PCI scan contributes everything else. Best-effort sysfs metrics are
-  // matched to PCI devices by vendor (per-card PCI addresses would be exact,
-  // but vendor is enough for the common one-iGPU / one-dGPU layouts).
   const others = parseLspciDisplays(lspciOut).filter((d) => d.vendor !== 'nvidia');
   const drmQueues = new Map<GpuVendor, DrmCard[]>();
   for (const card of parseDrmCards(drmOut)) {
@@ -323,7 +296,6 @@ async function fetchGpuDataRaw(): Promise<GpuApiResponse> {
   const targets = gpuTargets();
   const { results, unavailable } = await collectPerNode(targets, fetchNodeGpus);
   if (results.length === 0) {
-    // Nothing responded at all — surface it (preserves single-host 502 behavior).
     throw new Error(
       unavailable.map((u) => `${u.node}: ${u.reason}`).join('; ') || 'no GPU targets configured',
     );
@@ -340,8 +312,6 @@ async function fetchGpuDataRaw(): Promise<GpuApiResponse> {
 
 const fetchGpuData = withTtlCache(fetchGpuDataRaw, GPU_CACHE_TTL);
 
-// Status descriptor. Includes the SSH fields because the sensors integration
-// defaults its own SSH config to the GPU host (they usually target the same box).
 export const gpuStatus = {
   enabled: config.enabled,
   configured: config.enabled && ((config.mode || 'ssh') === 'local' || !!config.sshHost),
@@ -365,7 +335,6 @@ export function configureGpu(next: GpuRuntimeConfig): void {
   gpuStatus.host = config.sshHost || '';
 }
 
-/** Liveness probe used by /api/health/live. Probes the primary node only. */
 export function probeGpu() {
   const target = gpuTargets()[0];
   if (!target) return Promise.reject(new Error('GPU not configured'));

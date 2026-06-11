@@ -48,16 +48,15 @@ interface Subsystem {
   status: Health;
   statusLabel: string;
   section?: Section;
-  /** Sub-tab to land on when the card is clicked (e.g. 'sensors'). */
+
   sub?: string;
-  /** Enabled but reporting nothing — show an explicit empty affordance. */
+
   noData?: boolean;
   metrics?: EntityMetric[];
   meta?: EntityMeta[];
   children?: ReactNode;
 }
 
-/** Build the per-subsystem summary cards from live state, gated by enabled capabilities. */
 function buildSubsystems(data: DashboardState, p: PresentationMap): Subsystem[] {
   const out: Subsystem[] = [];
 
@@ -233,8 +232,6 @@ export function OverviewPage({ data, setRoute }: Props) {
   const listRows = useListRows();
   const subsystems = buildSubsystems(data, presentation);
 
-  // Per-node selection (persisted). A single-node cluster has nothing to pick,
-  // so the Nodes section only appears for real multi-node clusters.
   const allNodes = data.proxmox.nodes.map((n) => n.name);
   const storedSelection = useStoreValue<string[] | null>(SELECTED_NODES_KEY, null);
   const selectedNames =
@@ -261,7 +258,6 @@ export function OverviewPage({ data, setRoute }: Props) {
       ? 'warn'
       : 'ok';
 
-  // Surface severity + age in the health bar rather than a bare count.
   const badCount = alerts.filter((a) => a.kind === 'bad').length;
   const warnCount = alerts.filter((a) => a.kind === 'warn').length;
   const alertBreakdown = [
@@ -371,7 +367,6 @@ export function OverviewPage({ data, setRoute }: Props) {
   );
 }
 
-/** Explicit empty affordance for an enabled subsystem that reports no data. */
 function CardEmpty() {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground">
@@ -399,7 +394,6 @@ function useStoreValue<T>(key: string, fallback: T): T {
   );
 }
 
-/** Toggle chips for choosing which nodes the Nodes section renders. */
 function NodeSelector({
   nodes,
   selected,
@@ -431,7 +425,6 @@ function NodeSelector({
   );
 }
 
-/** A per-node summary tile — CPU/RAM/disk plus node-attributed GPU + temps. */
 function NodeCard({
   node,
   data,

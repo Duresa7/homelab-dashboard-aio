@@ -54,12 +54,11 @@ describe('login rate limiter', () => {
       expect(rl.check(key).allowed).toBe(true);
       rl.recordFailure(key);
     }
-    // 5th failure fills the window -> blocked for the base delay.
+
     let d = rl.check(key);
     expect(d.allowed).toBe(false);
     expect(d.retryAfterMs).toBe(2_000);
 
-    // Next failure doubles the delay.
     t += 2_000;
     expect(rl.check(key).allowed).toBe(true);
     rl.recordFailure(key);
@@ -131,9 +130,9 @@ describe('totp', () => {
 
     const remaining = await consumeRecoveryCode(hashes, codes[3].toLowerCase());
     expect(remaining).toHaveLength(9);
-    // Burned code no longer works against the remaining set.
+
     expect(await consumeRecoveryCode(remaining!, codes[3])).toBeNull();
-    // Unknown code rejected.
+
     expect(await consumeRecoveryCode(hashes, 'AAAA-AAAA-AAAA')).toBeNull();
   });
 

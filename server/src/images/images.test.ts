@@ -78,8 +78,7 @@ describe('image upload pipeline', () => {
   it('applies EXIF orientation and strips metadata on re-encode', async () => {
     await usingApp(async ({ app }) => {
       const admin = await bootstrapAdmin(app);
-      // Landscape pixels + EXIF orientation 6 (rotate 90 CW) = portrait photo,
-      // the classic phone-camera case.
+
       const oriented = await sharp({
         create: { width: 400, height: 300, channels: 3, background: { r: 10, g: 120, b: 40 } },
       })
@@ -88,14 +87,14 @@ describe('image upload pipeline', () => {
         .toBuffer();
 
       const res = await admin.post('/api/images').attach('file', oriented, 'photo.jpg').expect(201);
-      // Orientation applied: stored image is portrait.
+
       expect(res.body).toMatchObject({ w: 300, h: 400 });
 
       const served = await admin.get(`/api/images/${res.body.id}`).expect(200);
       const meta = await sharp(served.body as Buffer).metadata();
       expect(meta.width).toBe(300);
       expect(meta.height).toBe(400);
-      // Re-encode drops EXIF entirely.
+
       expect(meta.exif).toBeUndefined();
       expect(meta.orientation).toBeUndefined();
     });
@@ -122,7 +121,7 @@ describe('image upload pipeline', () => {
         .post('/api/images')
         .attach('file', Buffer.from('#!/bin/sh\necho pwned'), 'totally-a.png')
         .expect(415);
-      // Valid magic bytes but truncated garbage body → sharp rejects it.
+
       const fake = Buffer.concat([
         Buffer.from([0xff, 0xd8, 0xff]),
         Buffer.from('not really a jpeg at all'),
@@ -191,7 +190,6 @@ describe('orphan GC', () => {
     await usingApp(async ({ app, imagesDir }) => {
       const admin = await bootstrapAdmin(app);
 
-      // Referenced upload: inventory points at it.
       const kept = await admin
         .post('/api/images')
         .attach('file', await pngFixture(), 'kept.png')
@@ -201,7 +199,6 @@ describe('orphan GC', () => {
         .send({ v: 10, data: { components: [{ id: 'c1', images: [{ id: kept.body.id }] }] } })
         .expect(200);
 
-      // Unreferenced uploads: one fresh, one backdated past the grace window.
       const freshOrphan = await admin
         .post('/api/images')
         .attach('file', await pngFixture(), 'fresh.png')
@@ -217,7 +214,7 @@ describe('orphan GC', () => {
       }
 
       const res = await admin.post('/api/images/gc').expect(200);
-      expect(res.body.removed).toBe(2); // full + thumb of the old orphan
+      expect(res.body.removed).toBe(2);
 
       await admin.get(`/api/images/${kept.body.id}`).expect(200);
       await admin.get(`/api/images/${freshOrphan.body.id}`).expect(200);

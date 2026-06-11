@@ -22,11 +22,9 @@ describe('bootstrap mode', () => {
       const status = await request(app).get('/api/auth/status').expect(200);
       expect(status.body).toMatchObject({ usersExist: false, authenticated: false });
 
-      // Protected routes 401 with the bootstrap hint.
       const res = await request(app).get('/api/state').expect(401);
       expect(res.body.bootstrap).toBe(true);
 
-      // Unauthenticated /api/health is minimized to the liveness flag.
       const health = await request(app).get('/api/health').expect(200);
       expect(health.body).toEqual({ ok: true });
     });
@@ -39,13 +37,11 @@ describe('bootstrap mode', () => {
       const me = await agent.get('/api/auth/me').expect(200);
       expect(me.body.user).toMatchObject({ username: 'admin', role: 'admin' });
 
-      // Second bootstrap is rejected.
       await request(app)
         .post('/api/auth/bootstrap')
         .send({ username: 'evil', password: TEST_PASSWORD })
         .expect(403);
 
-      // Authenticated health is the full payload again.
       const health = await agent.get('/api/health').expect(200);
       expect(health.body).toHaveProperty('unifi');
     });
@@ -129,7 +125,6 @@ describe('login and sessions', () => {
     await usingApp({}, async ({ app }) => {
       const agent = await bootstrapAdmin(app);
 
-      // A second session for the same user.
       const other = request.agent(app);
       await other
         .post('/api/auth/login')
@@ -146,7 +141,6 @@ describe('login and sessions', () => {
         .send({ current: TEST_PASSWORD, next: nextPassword })
         .expect(200);
 
-      // The changing session survives; the other one is revoked.
       await agent.get('/api/auth/me').expect(200);
       await other.get('/api/auth/me').expect(401);
 
@@ -168,7 +162,6 @@ describe('totp', () => {
       expect(setup.body.otpauthUrl).toContain('otpauth://totp/');
       expect(setup.body.qrDataUrl).toMatch(/^data:image\/png;base64,/);
 
-      // Wrong code does not enable.
       await agent.post('/api/auth/totp/enable').send({ code: '000000' }).expect(400);
 
       const { generate } = await import('otplib');
@@ -177,7 +170,6 @@ describe('totp', () => {
       const recoveryCodes: string[] = enabled.body.recoveryCodes;
       expect(recoveryCodes).toHaveLength(10);
 
-      // Password alone now yields a pending TOTP step.
       const fresh = request.agent(app);
       const step1 = await fresh
         .post('/api/auth/login')
@@ -185,7 +177,6 @@ describe('totp', () => {
         .expect(200);
       expect(step1.body.totpRequired).toBe(true);
 
-      // Bad code rejected; recovery code accepted and burned.
       await fresh
         .post('/api/auth/login/totp')
         .send({ pendingToken: step1.body.pendingToken, code: '000000' })
@@ -196,7 +187,6 @@ describe('totp', () => {
         .expect(200);
       await fresh.get('/api/auth/me').expect(200);
 
-      // Same recovery code cannot be used twice.
       const again = request.agent(app);
       const step2 = await again
         .post('/api/auth/login')
@@ -207,7 +197,6 @@ describe('totp', () => {
         .send({ pendingToken: step2.body.pendingToken, code: recoveryCodes[0] })
         .expect(401);
 
-      // A real TOTP code still works.
       const code2 = await generate({ secret: setup.body.secret });
       await again
         .post('/api/auth/login/totp')
@@ -246,30 +235,24 @@ describe('role matrix', () => {
       const member = await authedAgent(app, 'member', { admin });
       const viewer = await authedAgent(app, 'viewer', { admin });
 
-      // Reads: everyone.
       await viewer.get('/api/state').expect(200);
       await member.get('/api/state').expect(200);
       await viewer.get('/api/setup/status').expect(200);
       await viewer.get('/api/setup/capabilities').expect(200);
 
-      // State writes: member+, not viewer.
       await viewer.put('/api/state/tweaks').send({ a: 1 }).expect(403);
       await member.put('/api/state/tweaks').send({ a: 1 }).expect(200);
       await admin.put('/api/state/tweaks').send({ a: 2 }).expect(200);
 
-      // WoL: member+ — an empty body 400s, proving the member passed the gate
-      // without actually broadcasting a packet from the test run.
       await viewer.post('/api/wol/wake').send({}).expect(403);
       await member.post('/api/wol/wake').send({}).expect(400);
 
-      // Setup config + users: admin only.
       await viewer.get('/api/setup/config').expect(403);
       await member.get('/api/setup/config').expect(403);
       await admin.get('/api/setup/config').expect(200);
       await member.get('/api/users').expect(403);
       await admin.get('/api/users').expect(200);
 
-      // Debug endpoints: admin role required, then still env-gated (404).
       await member.get('/api/state/debug').expect(403);
       await admin.get('/api/state/debug').expect(404);
     });
@@ -287,17 +270,15 @@ describe('user management', () => {
         .expect(201);
       const kiraId = created.body.user.id;
 
-      // Duplicate username rejected.
       await admin
         .post('/api/users')
         .send({ username: 'Kira', password: TEST_PASSWORD, role: 'viewer' })
         .expect(409);
 
-      // Promote, then verify the last-admin guard protects the original admin.
       await admin.patch(`/api/users/${kiraId}`).send({ role: 'admin' }).expect(200);
       const adminId = (await admin.get('/api/auth/me').expect(200)).body.user.id;
       await admin.patch(`/api/users/${adminId}`).send({ role: 'viewer' }).expect(200);
-      // Now kira is the only admin — she cannot be demoted or deleted.
+
       const kira = request.agent(app);
       await kira
         .post('/api/auth/login')
@@ -306,8 +287,6 @@ describe('user management', () => {
       await kira.patch(`/api/users/${kiraId}`).send({ role: 'member' }).expect(409);
       await kira.delete(`/api/users/${kiraId}`).expect(409);
 
-      // The self-demoted original admin keeps their current session by design
-      // but has lost admin powers.
       await admin.get('/api/users').expect(403);
     });
   });
@@ -339,7 +318,7 @@ describe('proxy auth', () => {
       {
         AUTH_PROXY_ENABLED: 'true',
         AUTH_PROXY_HEADER: 'remote-user',
-        // supertest requests arrive from loopback.
+
         AUTH_PROXY_TRUSTED_IPS: '127.0.0.1, ::1',
       },
       async ({ app }) => {
@@ -352,7 +331,6 @@ describe('proxy auth', () => {
         expect(viaProxy.body).toMatchObject({ via: 'proxy' });
         expect(viaProxy.body.user.username).toBe('admin');
 
-        // Unknown asserted user → still unauthenticated.
         await request(app).get('/api/auth/me').set('Remote-User', 'ghost').expect(401);
       },
     );

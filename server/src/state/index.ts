@@ -18,9 +18,6 @@ const RESERVED_KEYS = new Set([
 ]);
 const RETIRED_KEYS = new Set(['bookmarksOrder']);
 
-// Server-internal keys (e.g. setup.integrationConfig holding integration
-// secrets) live in the same DB but must never be read/written through the public
-// /api/state API or shipped to the client in the hydrate snapshot.
 const INTERNAL_KEY_PREFIX = 'setup.';
 
 function isAllowedKey(key: unknown): key is string {
@@ -31,11 +28,6 @@ function isAllowedKey(key: unknown): key is string {
   return /^[a-zA-Z][a-zA-Z0-9._-]{0,63}$/.test(key);
 }
 
-// Same-origin check for mutating requests. The dashboard is LAN-exposed and
-// has no per-user auth, so we rely on the browser's same-origin guarantees:
-// only pages served from this server (or the Vite dev origin during local
-// development) may issue mutating calls. CSRF-style requests from a
-// malicious LAN-local page get rejected.
 export function makeSameOriginGuard() {
   const allow = new Set<string>();
   const extra = String(process.env.STATE_ALLOWED_ORIGINS || '')
@@ -46,8 +38,7 @@ export function makeSameOriginGuard() {
   return function sameOriginGuard(req: Request, res: Response, next: NextFunction) {
     const origin = req.headers.origin;
     const referer = req.headers.referer;
-    // Allow CLI / server-internal calls (no Origin AND no Referer — never
-    // a browser-cross-origin request, which would always carry Origin).
+
     if (!origin && !referer) return next();
     const host = req.headers.host;
     if (!host) return res.status(403).json({ error: 'missing Host' });
@@ -69,10 +60,6 @@ export function makeSameOriginGuard() {
   };
 }
 
-// Reject body shapes that callers in this app never send. `null` in
-// particular passes JSON.parse but downstream consumers (loadInventory,
-// loadOrder, thresholds.load) all treat null as "no value" → which would
-// silently wipe the user's saved data when persisted back via PUT.
 function isValidStateBody(body: unknown): boolean {
   if (body === null || body === undefined) return false;
   const t = typeof body;
@@ -93,15 +80,13 @@ export async function initState(app: Express, opts: { store: StateStore }) {
   };
   const sameOrigin = makeSameOriginGuard();
 
-  // The store is async; Express 4 doesn't catch rejected handler promises, so
-  // each handler maps a store failure to a 500 itself.
   const dbError = (res: Response, err: unknown) =>
     res.status(500).json({ error: err instanceof Error ? err.message : 'state store error' });
 
   app.get('/api/state', async (_req: Request, res: Response) => {
     try {
       const { values, updatedAt } = await db.getAll();
-      // Strip server-internal keys so integration secrets never reach the client.
+
       for (const key of Object.keys(values)) {
         if (key.startsWith(INTERNAL_KEY_PREFIX)) {
           delete values[key];
@@ -178,7 +163,9 @@ export async function initState(app: Express, opts: { store: StateStore }) {
   });
 
   function shutdown() {
-    void db.close().catch(() => {});
+    void db.close().catch(() => {
+      void 0;
+    });
   }
 
   return { shutdown };

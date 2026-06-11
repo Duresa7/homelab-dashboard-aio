@@ -1,6 +1,3 @@
-// Auth domain types and the AuthStore contract. Kept free of storage imports so
-// storage/types.ts can re-export the contract without a cycle.
-
 export type UserRole = 'admin' | 'member' | 'viewer';
 
 export const USER_ROLES: UserRole[] = ['admin', 'member', 'viewer'];
@@ -11,7 +8,7 @@ export function isUserRole(value: unknown): value is UserRole {
 
 export interface UserRecord {
   id: number;
-  /** Login identifier, stored lowercase; displayName carries the user's casing. */
+
   username: string;
   displayName: string;
   email: string | null;
@@ -19,7 +16,7 @@ export interface UserRecord {
   role: UserRole;
   totpSecret: string | null;
   totpEnabled: boolean;
-  /** Argon2 hashes of unused recovery codes. */
+
   recoveryCodes: string[];
   createdAt: number;
   updatedAt: number;
@@ -57,7 +54,7 @@ export interface SessionRecord {
 
 export interface NewSession {
   id: string;
-  /** SHA-256 hex of the raw cookie token — the raw token is never stored. */
+
   tokenHash: string;
   userId: number;
   expiresAt: number;
@@ -66,7 +63,6 @@ export interface NewSession {
   userAgent: string | null;
 }
 
-/** Users + sessions store backing /api/auth and /api/users. */
 export interface AuthStore {
   countUsers(): Promise<number>;
   countAdmins(opts?: { excludeId?: number }): Promise<number>;

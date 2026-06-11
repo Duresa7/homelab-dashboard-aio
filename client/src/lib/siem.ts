@@ -63,9 +63,8 @@ export interface SiemSubscription {
 }
 
 export interface ReplayTruncated {
-  /** Lowest id we asked for (exclusive) — i.e. the client's last seen id. */
   replayFromId: number;
-  /** Highest id the server actually replayed; events in (from, through] arrived. */
+
   replayThroughId: number;
 }
 
@@ -73,11 +72,11 @@ export interface SubscribeOptions {
   onEvent: (evt: SyslogEvent) => void;
   onStatus?: (status: SiemStatus) => void;
   onError?: (err: Event | Error) => void;
-  /** Server signals when replay was capped and the client should backfill via fetchLogs. */
+
   onReplayTruncated?: (info: ReplayTruncated) => void;
-  /** Resume after this DB id; the backend replays anything newer. */
+
   lastEventId?: number;
-  /** Status poll cadence (ms). Default 30s. */
+
   statusIntervalMs?: number;
 }
 
@@ -94,7 +93,6 @@ export function subscribeSiem(opts: SubscribeOptions): SiemSubscription {
   let disposed = false;
   let statusTimer: ReturnType<typeof setInterval> | null = null;
 
-  // EventSource has no API for the Last-Event-ID header on the initial GET, so pass it as a query.
   const url = lastEventId
     ? `/api/siem/stream?lastEventId=${encodeURIComponent(String(lastEventId))}`
     : '/api/siem/stream';
@@ -106,7 +104,7 @@ export function subscribeSiem(opts: SubscribeOptions): SiemSubscription {
       const evt = JSON.parse(msg.data) as SyslogEvent;
       onEvent(evt);
     } catch {
-      /* drop malformed message */
+      void 0;
     }
   };
   es.addEventListener('replay-truncated', (msg) => {
@@ -115,7 +113,7 @@ export function subscribeSiem(opts: SubscribeOptions): SiemSubscription {
       const info = JSON.parse((msg as MessageEvent).data) as ReplayTruncated;
       onReplayTruncated?.(info);
     } catch {
-      /* drop malformed marker */
+      void 0;
     }
   });
   es.onerror = (e) => {
@@ -142,7 +140,7 @@ export function subscribeSiem(opts: SubscribeOptions): SiemSubscription {
       try {
         es.close();
       } catch {
-        /* ignore */
+        void 0;
       }
       if (statusTimer) clearInterval(statusTimer);
     },

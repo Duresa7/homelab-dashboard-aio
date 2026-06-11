@@ -217,9 +217,9 @@ describe('Wake-on-LAN validation helpers', () => {
   it('rejects non-string and malformed MAC addresses', () => {
     expect(() => normalizeMac(42)).toThrow(/mac must be a string/i);
     expect(() => normalizeMac('')).toThrow(/invalid MAC/i);
-    expect(() => normalizeMac('AA:BB:CC:DD:EE:FF:00')).toThrow(/invalid MAC/i); // 7 groups
-    expect(() => normalizeMac('aabbccddee')).toThrow(/invalid MAC/i); // 10 hex digits
-    expect(normalizeMac('  aabbccddeeff  ')).toBe('AA:BB:CC:DD:EE:FF'); // trims surrounding space
+    expect(() => normalizeMac('AA:BB:CC:DD:EE:FF:00')).toThrow(/invalid MAC/i);
+    expect(() => normalizeMac('aabbccddee')).toThrow(/invalid MAC/i);
+    expect(normalizeMac('  aabbccddeeff  ')).toBe('AA:BB:CC:DD:EE:FF');
   });
 
   it('repeats the MAC sixteen times after the 0xff header', () => {
@@ -236,10 +236,10 @@ describe('Wake-on-LAN validation helpers', () => {
     expect(normalizeBroadcast(undefined)).toBe('255.255.255.255');
     expect(normalizeBroadcast(null)).toBe('255.255.255.255');
     expect(normalizeBroadcast('')).toBe('255.255.255.255');
-    expect(normalizeBroadcast('  198.51.100.255  ')).toBe('198.51.100.255'); // trims
+    expect(normalizeBroadcast('  198.51.100.255  ')).toBe('198.51.100.255');
     expect(() => normalizeBroadcast(123)).toThrow(/broadcast must be a string/i);
-    expect(() => normalizeBroadcast('198.51.100.0')).toThrow(/subnet broadcast/i); // not .255
-    expect(() => normalizeBroadcast('::1')).toThrow(/IPv4/i); // IPv6 rejected
+    expect(() => normalizeBroadcast('198.51.100.0')).toThrow(/subnet broadcast/i);
+    expect(() => normalizeBroadcast('::1')).toThrow(/IPv4/i);
     expect(() => normalizeBroadcast('not-an-ip')).toThrow(/IPv4/i);
   });
 
@@ -247,10 +247,10 @@ describe('Wake-on-LAN validation helpers', () => {
     expect(normalizeWolPort(undefined)).toBe(9);
     expect(normalizeWolPort(null)).toBe(9);
     expect(normalizeWolPort('')).toBe(9);
-    expect(normalizeWolPort('7')).toBe(7); // numeric string coerces
-    expect(() => normalizeWolPort(9.5)).toThrow(/integer from 1 to 65535/i); // non-integer
+    expect(normalizeWolPort('7')).toBe(7);
+    expect(() => normalizeWolPort(9.5)).toThrow(/integer from 1 to 65535/i);
     expect(() => normalizeWolPort(0)).toThrow(/integer from 1 to 65535/i);
     expect(() => normalizeWolPort(70000)).toThrow(/integer from 1 to 65535/i);
-    expect(() => normalizeWolPort(8080)).toThrow(/one of/i); // in range, not allowlisted
+    expect(() => normalizeWolPort(8080)).toThrow(/one of/i);
   });
 });

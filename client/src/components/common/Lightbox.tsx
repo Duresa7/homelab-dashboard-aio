@@ -8,10 +8,10 @@ import { cn } from '@/lib/utils';
 
 interface LightboxProps {
   images: ItemImage[];
-  /** Index of the open image, or null when closed. */
+
   index: number | null;
   onClose: () => void;
-  /** Accessible context, e.g. the item name. */
+
   label?: string;
 }
 

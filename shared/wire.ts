@@ -27,7 +27,6 @@ export interface RAMData {
   history: number[];
 }
 
-/** GPU silicon vendor, from nvidia-smi or the PCI vendor id (lspci). */
 export type GpuVendor = 'nvidia' | 'amd' | 'intel' | 'unknown';
 
 export interface GPUData {
@@ -43,14 +42,11 @@ export interface GPUData {
   gpuClockMHz: number;
   memClockMHz: number;
   history: number[];
-  /** Detected vendor; absent on payloads from older servers. */
+
   vendor?: GpuVendor;
-  /** True for integrated graphics (iGPU) rather than a discrete card. */
+
   integrated?: boolean;
-  /**
-   * False when the GPU was detected (via PCI scan) but full utilization
-   * metrics aren't readable — e.g. Intel iGPUs without igt-gpu-tools.
-   */
+
   metricsAvailable?: boolean;
 }
 
@@ -69,14 +65,12 @@ export interface GpuSample {
   memClockMHz: number;
 }
 
-/** A GPU attributed to a specific Proxmox node (by canonical node name). */
 export interface NodeGpu extends GpuWireData {
   node: string;
-  /** GPU index within that node (0-based; a node may expose more than one). */
+
   index: number;
 }
 
-/** A node that was queried for per-node metrics but could not be read. */
 export interface NodeUnavailable {
   node: string;
   reason: string;
@@ -196,7 +190,6 @@ export interface ProxmoxClusterNode {
 }
 
 export interface PhysicalDisk {
-  /** Proxmox node the disk is attached to. */
   node: string;
   devpath: string;
   model: string;
@@ -316,7 +309,7 @@ export interface ClientBreakdown {
 export interface UnifiFirewallZone {
   id: string;
   name: string;
-  /** Number of networks attached to the zone. */
+
   networkCount: number;
 }
 
@@ -325,7 +318,7 @@ export interface UnifiFirewallPolicy {
   name: string;
   enabled: boolean;
   action: string;
-  /** Resolved zone names (falls back to the raw zone id). */
+
   sourceZone: string;
   destinationZone: string;
   index: number | null;
@@ -489,14 +482,10 @@ export interface SensorsData {
   other: SensorOther[];
 }
 
-/** Sensor readings attributed to a specific Proxmox node. */
 export interface NodeSensors extends SensorsData {
   node: string;
 }
 
-// SIEM - syslog events received from UniFi gear over UDP/514.
-// Severity uses standard syslog codes (0=emerg .. 7=debug). The dashboard
-// collapses 0-3 to 'bad', 4 to 'warn', 5-7 to 'info' for the chip UI.
 export type SyslogSeverity = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type SyslogFormat = 'rfc3164' | 'cef';
 export type SyslogDeviceKind = 'gateway' | 'ap' | 'switch' | 'controller' | 'unknown';
@@ -560,9 +549,9 @@ export interface DashboardState {
   cpu: CPUData;
   ram: RAMData;
   gpu: GPUData;
-  /** Every GPU across the cluster, node-attributed (empty if none/disabled). */
+
   gpus: NodeGpu[];
-  /** Nodes that GPU collection could not reach. */
+
   gpuUnavailable: NodeUnavailable[];
   fans: Fan[];
   storage: StorageData;
@@ -576,9 +565,9 @@ export interface DashboardState {
   events: EventEntry[];
   alerts: AlertEntry[];
   sensors: SensorsData;
-  /** Per-node sensor readings (empty until the node-aware backend responds). */
+
   sensorNodes: NodeSensors[];
-  /** Nodes that sensor collection could not reach. */
+
   sensorsUnavailable: NodeUnavailable[];
 }
 
@@ -596,11 +585,10 @@ export interface DockerApiResponse {
 }
 
 export interface GpuApiResponse {
-  /** Legacy "primary" GPU — kept for the single GPU tile until it migrates. */
   gpu: GpuWireData;
-  /** Every GPU across the cluster, each tagged with its node + local index. */
+
   gpus: NodeGpu[];
-  /** Nodes configured for GPU collection that could not be read. */
+
   unavailable?: NodeUnavailable[];
 }
 
@@ -609,10 +597,9 @@ export interface UnasApiResponse {
 }
 
 export interface SensorsApiResponse {
-  /** Legacy single-host sensors — kept until the UI is fully node-aware. */
   sensors: SensorsData;
-  /** Per-node sensor readings (one entry per successfully-read node). */
+
   nodes?: NodeSensors[];
-  /** Nodes configured for sensor collection that could not be read. */
+
   unavailable?: NodeUnavailable[];
 }

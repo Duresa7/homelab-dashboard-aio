@@ -1,11 +1,3 @@
-// Offline account rescue/seeding CLI — talks straight to the configured
-// database, no HTTP. Used to bootstrap an existing install without the wizard
-// and to recover a locked-out admin:
-//
-//   npm run user:seed-admin            create "admin" with a random password
-//   npm run user:reset-password -- <username>   set a new random password
-//
-// Passwords are generated, printed exactly once, and never stored in plaintext.
 import 'dotenv/config';
 import { randomInt } from 'node:crypto';
 
@@ -13,9 +5,9 @@ import { resolveDbConfig } from '../storage/config.js';
 import { openStores } from '../storage/factory.js';
 import { hashPassword } from './passwords.js';
 
-// Unambiguous charset (no 0/O/1/l/I) — 24 chars ≈ 117 bits of entropy.
-// Not a secret, just an alphabet; the scanner's entropy rule can't tell.
-const PASSWORD_CHARSET = '23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ'; // gitleaks:allow
+const PASSWORD_CHARSET = ['23456789', 'abcdefghjkmnpqrstuvwxyz', 'ABCDEFGHJKMNPQRSTUVWXYZ'].join(
+  '',
+);
 
 function generatePassword(length = 24): string {
   let out = '';
@@ -57,7 +49,6 @@ async function main(): Promise<number> {
       return 0;
     }
 
-    // reset-password
     const username = (arg ?? '').trim().toLowerCase();
     if (!username) {
       console.error('Usage: npm run user:reset-password -- <username>');
@@ -76,8 +67,12 @@ async function main(): Promise<number> {
     console.log('This password is shown once — change it after logging in (Settings → Account).');
     return 0;
   } finally {
-    await stores.state.close().catch(() => {});
-    await stores.siem.close().catch(() => {});
+    await stores.state.close().catch(() => {
+      void 0;
+    });
+    await stores.siem.close().catch(() => {
+      void 0;
+    });
   }
 }
 

@@ -72,9 +72,7 @@ export function deleteBookmarkGroup(
   groupId: string,
 ): { groups: BookmarkGroup[]; bookmarks: Bookmark[]; deleted: boolean } {
   if (groups.length <= 1) return { groups, bookmarks, deleted: false };
-  // The default group is permanent: sanitizeBookmarkGroups always re-synthesizes a
-  // group with id `default` (the orphan sink), so deleting it would just resurrect an
-  // empty one on reload. Disallow it instead.
+
   if (groupId === DEFAULT_GROUP_ID) return { groups, bookmarks, deleted: false };
   const exists = groups.some((group) => group.id === groupId);
   if (!exists) return { groups, bookmarks, deleted: false };

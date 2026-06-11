@@ -1,5 +1,3 @@
-/* Image upload/delete API for inventory item photos. Serving is plain
-   <img src={imageUrl(id)}> — the session cookie rides along same-origin. */
 import type { ItemImage } from './inventory';
 
 export function imageUrl(id: string, thumb = false): string {
@@ -17,9 +15,10 @@ export async function uploadImage(file: File): Promise<ItemImage> {
   return { id: body.id, w: body.w ?? 0, h: body.h ?? 0 };
 }
 
-/** Best-effort: refs are the source of truth; orphaned files are GC'd later. */
 export async function deleteImage(id: string): Promise<void> {
-  await fetch(imageUrl(id), { method: 'DELETE' }).catch(() => {});
+  await fetch(imageUrl(id), { method: 'DELETE' }).catch(() => {
+    void 0;
+  });
 }
 
 export function deleteImages(images: { id: string }[] | undefined): void {

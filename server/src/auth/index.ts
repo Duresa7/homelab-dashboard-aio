@@ -1,6 +1,3 @@
-// Auth API: bootstrap, login (password + optional TOTP step), logout, session
-// self-service, password change, and TOTP enrollment. Installed together with
-// the global auth gate; admin user management lives in users.routes.ts.
 import express, { type Express, type Request, type Response } from 'express';
 import cookieParser from 'cookie-parser';
 import QRCode from 'qrcode';
@@ -33,7 +30,6 @@ import type { AuthStore, UserRecord } from './types.js';
 const PENDING_TOTP_TTL_MS = 5 * 60 * 1000;
 const USERNAME_RE = /^[a-z0-9](?:[a-z0-9._-]{0,30}[a-z0-9])?$/;
 
-/** Shape of a user as shipped to the client — never includes hashes/secrets. */
 export function publicUser(u: UserRecord) {
   return {
     id: u.id,
@@ -88,8 +84,6 @@ export function initAuth(app: Express, opts: InitAuthOpts): AuthHandle {
     );
   }
 
-  // Gate first: everything registered after this (including the routes below)
-  // passes through it.
   app.use(cookieParser());
   app.use(createAuthGate(service));
 
@@ -102,7 +96,7 @@ export function initAuth(app: Express, opts: InitAuthOpts): AuthHandle {
       sameSite: 'lax',
       path: '/',
       secure: requestIsSecure(req),
-      // No Max-Age without "remember me" — the cookie dies with the browser.
+
       ...(remember ? { maxAge: SESSION_TTL_MS } : {}),
     });
   };
@@ -128,15 +122,14 @@ export function initAuth(app: Express, opts: InitAuthOpts): AuthHandle {
     setSessionCookie(req, res, token, remember);
   };
 
-  // Expired-session sweep: boot + daily.
   const sweep = () => {
-    void store.deleteExpiredSessions(Date.now()).catch(() => {});
+    void store.deleteExpiredSessions(Date.now()).catch(() => {
+      void 0;
+    });
   };
   sweep();
   const sweepTimer = setInterval(sweep, 24 * 60 * 60 * 1000);
   sweepTimer.unref?.();
-
-  // ---- Public endpoints -------------------------------------------------
 
   app.get('/api/auth/status', async (req: Request, res: Response) => {
     try {
@@ -213,9 +206,9 @@ export function initAuth(app: Express, opts: InitAuthOpts): AuthHandle {
 
       const user = await store.getUserByUsername(username);
       if (!user) {
-        // Burn comparable time to an argon2 verify so missing users are not
-        // distinguishable from wrong passwords by response timing.
-        await hashPassword(password).catch(() => {});
+        await hashPassword(password).catch(() => {
+          void 0;
+        });
         limiter.recordFailure(key);
         console.warn(`Auth: failed login for unknown user "${username}" from ${req.ip}`);
         return res.status(401).json({ error: 'invalid username or password' });
@@ -279,7 +272,6 @@ export function initAuth(app: Express, opts: InitAuthOpts): AuthHandle {
         ok = await verifyTotpCode(user.totpSecret, code);
       }
       if (!ok) {
-        // Fall back to a one-time recovery code; burn it on success.
         const remaining = await consumeRecoveryCode(user.recoveryCodes, code);
         if (remaining) {
           await store.updateUser(user.id, { recoveryCodes: remaining });
@@ -300,8 +292,6 @@ export function initAuth(app: Express, opts: InitAuthOpts): AuthHandle {
       res.status(500).json({ error: errorMessage(err) });
     }
   });
-
-  // ---- Authenticated self-service ---------------------------------------
 
   app.get('/api/auth/me', (req: Request, res: Response) => {
     const auth = req.auth!;
@@ -339,7 +329,7 @@ export function initAuth(app: Express, opts: InitAuthOpts): AuthHandle {
         ]);
         if (!check.ok) return res.status(400).json({ error: check.reason });
         await store.updateUser(auth.user.id, { passwordHash: await hashPassword(next) });
-        // Changing the password revokes every other session.
+
         await store.deleteSessionsForUser(auth.user.id, {
           exceptSessionId: auth.sessionId ?? undefined,
         });
@@ -409,8 +399,6 @@ export function initAuth(app: Express, opts: InitAuthOpts): AuthHandle {
     }
   });
 
-  // ---- TOTP enrollment ----------------------------------------------------
-
   app.post('/api/auth/totp/setup', sameOrigin, async (req: Request, res: Response) => {
     try {
       const auth = req.auth!;
@@ -446,7 +434,7 @@ export function initAuth(app: Express, opts: InitAuthOpts): AuthHandle {
       }
       const { codes, hashes } = await generateRecoveryCodes();
       await store.updateUser(user.id, { totpEnabled: true, recoveryCodes: hashes });
-      // Plaintext recovery codes are returned exactly once, never stored.
+
       res.json({ ok: true, recoveryCodes: codes });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err) });

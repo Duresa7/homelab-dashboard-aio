@@ -15,7 +15,7 @@ export interface SummaryStat {
   key: string;
   label: ReactNode;
   value: ReactNode;
-  /** Optional secondary line under the value (e.g. "8/12 cores"). */
+
   sub?: ReactNode;
   tone?: StatTone;
   icon?: ReactNode;
@@ -27,11 +27,6 @@ export interface SummaryBarProps {
   className?: string;
 }
 
-/**
- * A compact, single-card KPI strip — several headline stats separated by thin
- * dividers, wrapping to a grid on narrow widths. Anchors a page (cluster
- * totals, overall health) without the dead space of one-stat-per-card rows.
- */
 export function SummaryBar({ stats, span = 12, className }: SummaryBarProps) {
   return (
     <div

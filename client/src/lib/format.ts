@@ -1,6 +1,3 @@
-// Duration / age formatters shared across UNAS-related widgets and pages.
-// Kept tiny and dependency-free.
-
 export function formatPowerOnTime(hours: number | null | undefined): string {
   if (!hours) return '—';
   const days = hours / 24;
@@ -42,13 +39,6 @@ function epochMs(value: Date | number | string | null | undefined): number | nul
   return Number.isNaN(ms) ? null : ms;
 }
 
-/**
- * Relative "time since" formatter for recent, live-ish timestamps.
- *
- * Default output preserves dashboard minute-hour-day strings. `granularity:
- * 'second'` preserves second-level freshness with a configurable absolute-date
- * cutoff.
- */
 export function formatSince(
   value: Date | number | string | null | undefined,
   options: FormatSinceOptions = {},

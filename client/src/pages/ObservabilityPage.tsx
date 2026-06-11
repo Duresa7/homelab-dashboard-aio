@@ -16,12 +16,6 @@ interface Props {
   onSelectSub: (sub: string) => void;
 }
 
-/**
- * Unified Observability surface — Alerts / Events / SIEM / Health under one set
- * of sub-tabs. The SIEM tab only appears when the logs capability is enabled
- * (syslog configured); the rest are always available. Hosts the existing page
- * bodies as tab panels — same logic, one destination.
- */
 export function ObservabilityPage({
   data,
   integrations,

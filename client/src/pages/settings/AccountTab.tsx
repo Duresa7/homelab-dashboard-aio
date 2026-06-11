@@ -39,7 +39,6 @@ function copyText(text: string, label: string): void {
   );
 }
 
-/** Relative time for recent activity, locale date for anything older. */
 function whenLabel(ts: number): string {
   const minutes = Math.round((Date.now() - ts) / 60_000);
   if (minutes < 1) return 'just now';

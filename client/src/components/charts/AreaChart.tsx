@@ -8,9 +8,9 @@ interface Props {
   height?: number;
   color?: string;
   kind?: Severity;
-  /** Format the hovered value, e.g. v => `${v.toFixed(1)} ms`. */
+
   formatValue?: (v: number) => string;
-  /** Render min/max labels inside the chart corners. */
+
   showBounds?: boolean;
 }
 
@@ -18,19 +18,12 @@ const PAD = 2;
 const W = 200;
 
 interface HoverState {
-  /** Index into `data`. */
   i: number;
-  /** Position as fractions of the rendered box (0..1). */
+
   x: number;
   y: number;
 }
 
-/**
- * Custom SVG area chart with hover inspection: a crosshair plus an exact value
- * readout, so dips and spikes can be read precisely (TODO #14). The SVG is
- * stretched (`preserveAspectRatio="none"`), so the crosshair uses
- * `vector-effect` and the dot/tooltip are HTML overlays to stay undistorted.
- */
 export function AreaChart({ data, height = 56, color, kind, formatValue, showBounds }: Props) {
   const [hover, setHover] = useState<HoverState | null>(null);
   const h = height;

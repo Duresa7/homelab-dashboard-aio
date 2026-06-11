@@ -8,25 +8,12 @@ export interface TtlCacheState<T> {
 
 export interface CachedFn<T> {
   (): Promise<T>;
-  /** Expose `{ data, ts, lastError }` for the integration's debug route. */
+
   peek(): TtlCacheState<T>;
-  /** Drop cached data after an integration reconfiguration. */
+
   clear(): void;
 }
 
-/**
- * Wrap an async fetcher with a single-slot time-to-live cache, replacing the
- * `let cache = { data, ts }` + manual TTL-check boilerplate repeated across
- * every integration.
- *
- * Behavior matches the hand-rolled version exactly:
- *  - a fresh cache hit (within `ttlMs`) returns the cached value without calling
- *    `fetchFn` and without touching `lastError`;
- *  - on success the value + timestamp are stored and `lastError` is cleared;
- *  - on error the previous cached value/timestamp are left intact (so a stale
- *    value can still satisfy a later in-TTL hit) and `lastError` is recorded,
- *    then the error re-throws so the route can answer 502.
- */
 export function withTtlCache<T>(fetchFn: () => Promise<T>, ttlMs: number): CachedFn<T> {
   const state: TtlCacheState<T> = { data: null, ts: 0, lastError: null };
 

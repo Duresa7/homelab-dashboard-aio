@@ -27,15 +27,12 @@ import {
 
 import { BrandIcon } from '../components/icons/BrandIcon';
 
-// Brand keyword → icon source. Sources are checked in array order so longer /
-// more specific patterns must come first ("wd-blue" before bare "wd").
 type BrandSource =
   | { kind: 'dashboard'; name: string }
   | { kind: 'simple'; slug: string }
   | { kind: 'wvl'; slug: string };
 
 const BRAND_MAP: Array<[RegExp, BrandSource]> = [
-  // dashboard-icons (official full-color logos)
   [/western[\s-]?digital|^wd\b|\bwd\s/i, { kind: 'dashboard', name: 'western-digital' }],
   [/wd[\s-]?(blue|purple|red|black|green|gold)/i, { kind: 'dashboard', name: 'western-digital' }],
   [/tp[\s-]?link/i, { kind: 'dashboard', name: 'tp-link' }],
@@ -49,7 +46,6 @@ const BRAND_MAP: Array<[RegExp, BrandSource]> = [
   [/toshiba/i, { kind: 'dashboard', name: 'toshiba' }],
   [/\bhp\b|hewlett/i, { kind: 'dashboard', name: 'hp' }],
 
-  // simple-icons (single-tone, brand-colored)
   [/intel/i, { kind: 'simple', slug: 'intel' }],
   [/samsung/i, { kind: 'simple', slug: 'samsung' }],
   [/corsair/i, { kind: 'simple', slug: 'corsair' }],
@@ -59,7 +55,6 @@ const BRAND_MAP: Array<[RegExp, BrandSource]> = [
   [/seagate/i, { kind: 'simple', slug: 'seagate' }],
   [/nzxt/i, { kind: 'simple', slug: 'nzxt' }],
 
-  // worldvectorlogo (long-tail brands)
   [/g[\s.\-]?skill/i, { kind: 'wvl', slug: 'gskill' }],
   [/sk[\s-]?hynix|\bhynix\b/i, { kind: 'wvl', slug: 'sk-hynix' }],
   [/crucial/i, { kind: 'wvl', slug: 'crucial' }],
@@ -83,7 +78,7 @@ const WVL_BASE = 'https://cdn.worldvectorlogo.com/logos';
 interface BrandGlyphProps {
   text: string | null | undefined;
   size?: number;
-  /** When true and no brand is detected, render an empty placeholder slot. */
+
   reserveSpace?: boolean;
 }
 

@@ -10,39 +10,31 @@ export interface EntityMetric extends MetricBarProps {
 }
 
 export interface EntityMeta {
-  /** Short caption, e.g. an icon-less fact like "↑ 41d" or "192.0.2.5". */
   label?: ReactNode;
   value: ReactNode;
   key: string;
 }
 
 export interface EntityCardProps {
-  /** Primary identity — hostname/name. */
   name: ReactNode;
-  /** Optional secondary line under the name (model, type, IP…). */
+
   subtitle?: ReactNode;
-  /** Leading type/brand icon. */
+
   icon?: ReactNode;
-  /** Status dot + pill. */
+
   status?: StatusKind;
   statusLabel?: ReactNode;
-  /** Usage bars (CPU/RAM/disk…). */
+
   metrics?: EntityMetric[];
-  /** Footer key facts, rendered as a wrapped dot-separated row. */
+
   meta?: EntityMeta[];
-  /** Makes the whole card an interactive drill-in affordance. */
+
   onClick?: () => void;
   span?: number;
   className?: string;
   children?: ReactNode;
 }
 
-/**
- * The canonical entity tile: a status-headed card with usage bars and a row of
- * key facts, optionally clickable to drill in. One pattern for Proxmox nodes,
- * Docker hosts, NAS pools, network devices, and inventory machines — chosen to
- * surface dense per-entity info without dead space.
- */
 export function EntityCard({
   name,
   subtitle,

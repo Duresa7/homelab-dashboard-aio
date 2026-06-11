@@ -2,14 +2,6 @@ import { useEffect, useState } from 'react';
 
 import { getState, setState, subscribe as subscribeState } from './store';
 
-/**
- * How aggressively the dashboard polls the backend. `realtime` shrinks every
- * poller interval to ~1-2s for users who want live-feeling data; `relaxed`
- * triples the intervals for low-traffic setups. Persisted via /api/state.
- *
- * Note: the server may cache integration responses (e.g. Portainer), so
- * real-time polling is bounded by how fresh the backend data is.
- */
 export type RefreshRate = 'realtime' | 'standard' | 'relaxed';
 
 const STORAGE_KEY = 'refreshRate';
@@ -43,7 +35,6 @@ export function useRefreshRate(): RefreshRate {
   return rate;
 }
 
-/** Scale a poller's base interval by the current refresh-rate preference. */
 export function effectiveIntervalMs(baseMs: number): number {
   switch (getRefreshRate()) {
     case 'realtime':

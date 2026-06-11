@@ -1,16 +1,3 @@
-/* =========================================================
-   Auth state + API client.
-
-   The server gates every /api route behind a session cookie. On boot,
-   AuthBoot (main.tsx) calls fetchAuthStatus() and routes between the
-   create-admin screen, the login page, and the app. After that the
-   current user lives here and components read it synchronously via
-   useAuth() — same useSyncExternalStore pattern as the rest of lib/.
-
-   A thin window.fetch wrapper watches for 401s from /api so an expired
-   session anywhere flips the auth state back to logged-out instead of
-   surfacing as a generic request error.
-   ========================================================= */
 import { useSyncExternalStore } from 'react';
 
 export type UserRole = 'admin' | 'member' | 'viewer';
@@ -27,7 +14,6 @@ export interface AuthUser {
 }
 
 export interface AuthState {
-  /** null until the first /api/auth/status response lands. */
   usersExist: boolean | null;
   user: AuthUser | null;
   via: 'session' | 'proxy' | null;
@@ -75,16 +61,8 @@ export function isAdmin(user: AuthUser | null): boolean {
   return user?.role === 'admin';
 }
 
-/* ---- 401 interceptor ---------------------------------------------------- */
-
 let interceptorInstalled = false;
 
-/**
- * Wrap window.fetch once: any 401 from a same-origin /api call (other than the
- * auth endpoints themselves) means the session died — drop to logged-out so
- * AuthBoot swaps the login screen in. Lighter than threading 401 handling
- * through every fetch call site in lib/.
- */
 export function installAuthExpiryInterceptor(): void {
   if (interceptorInstalled || typeof window === 'undefined') return;
   interceptorInstalled = true;
@@ -101,8 +79,6 @@ export function installAuthExpiryInterceptor(): void {
     return res;
   };
 }
-
-/* ---- API calls ----------------------------------------------------------- */
 
 interface ApiError {
   error?: string;
@@ -193,7 +169,9 @@ export async function bootstrapAdmin(input: {
 }
 
 export async function logout(): Promise<void> {
-  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {
+    void 0;
+  });
   setAuthState({ ...authState, user: null, via: null });
 }
 
@@ -232,8 +210,6 @@ export async function revokeSession(id: string): Promise<void> {
   if (!res.ok) throw new Error(await readError(res, `revoke failed (${res.status})`));
 }
 
-/* ---- TOTP ---------------------------------------------------------------- */
-
 export interface TotpSetup {
   secret: string;
   otpauthUrl: string;
@@ -271,8 +247,6 @@ export async function totpDisable(password: string): Promise<void> {
     setAuthState({ ...authState, user: { ...authState.user, totpEnabled: false } });
   }
 }
-
-/* ---- Admin user management ----------------------------------------------- */
 
 export async function listUsers(): Promise<AuthUser[]> {
   const res = await fetch('/api/users');

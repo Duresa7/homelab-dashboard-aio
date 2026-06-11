@@ -1,8 +1,3 @@
-// Transient connection test for a candidate integration config — used by the
-// onboarding "Test connection" button before saving. Reuses each integration's
-// auth scheme + a cheap liveness endpoint, but never persists or touches the
-// live integration. HTTP integrations are probed; SSH/local/listener
-// capabilities (gpu, sensors, logs) have no transient upstream to hit.
 import { errorMessage } from '../lib/errors.js';
 import { insecureFetch } from '../lib/http.js';
 
@@ -11,8 +6,6 @@ function str(value: unknown): string {
 }
 
 function trimSlash(url: string): string {
-  // Strip trailing slashes with a plain scan rather than /\/+$/, which
-  // backtracks quadratically on long slash runs (CodeQL js/polynomial-redos).
   let end = url.length;
   while (end > 0 && url[end - 1] === '/') end--;
   return url.slice(0, end);
@@ -42,7 +35,6 @@ interface HttpTest {
   headers: (config: Record<string, unknown>) => Record<string, string>;
 }
 
-// Auth + liveness path per HTTP capability, matching the live integrations.
 const HTTP_TESTS: Record<string, HttpTest> = {
   datacenter: {
     path: '/api2/json/version',
@@ -68,7 +60,7 @@ const HTTP_TESTS: Record<string, HttpTest> = {
 export interface TestResult {
   ok: boolean;
   error?: string;
-  /** True when the capability has no transient connection to probe (gpu/sensors/logs). */
+
   untestable?: boolean;
 }
 

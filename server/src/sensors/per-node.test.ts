@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Express } from 'express';
 
-// Mock the shell-out edge and the pure parser so these tests exercise ONLY the
-// per-node aggregation / degradation logic, not lm-sensors parsing.
 const remoteMock = vi.hoisted(() => ({ runRemote: vi.fn() }));
 vi.mock('../lib/remote.js', () => ({ runRemote: remoteMock.runRemote }));
 
@@ -49,7 +47,7 @@ const CONFIG = {
   sshUser: 'root',
   sshPort: 22,
   sshKeyPath: '',
-  cacheTtl: 0, // disable caching so each test sees a fresh fetch
+  cacheTtl: 0,
 };
 
 const NODE_A_SENSORS = {
@@ -92,7 +90,7 @@ describe('sensors per-node collection', () => {
     parseMock.parseSensorsJson.mockReturnValue(NODE_A_SENSORS);
     remoteMock.runRemote.mockImplementation(async (opts: { host?: string; remoteCmd?: string }) => {
       if (opts.remoteCmd?.startsWith('sensors')) return opts.host === '10' ? '{"chip":{}}' : '';
-      return '{}'; // lsblk
+      return '{}';
     });
 
     const res = await callSensors();
@@ -106,10 +104,10 @@ describe('sensors per-node collection', () => {
       node: string;
     };
     expect(nodeA.cpuTempC).toBe(45);
-    expect(nodeC.cores).toEqual([]); // empty output → all-empty reading, NOT unavailable
+    expect(nodeC.cores).toEqual([]);
     expect(nodeC.cpuTempC).toBeNull();
     expect(res.body.unavailable).toBeUndefined();
-    // legacy single-host field mirrors the primary node (nodeA)
+
     expect((res.body.sensors as typeof NODE_A_SENSORS).cpuTempC).toBe(45);
   });
 

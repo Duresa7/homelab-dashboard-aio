@@ -1,23 +1,16 @@
-// Orphaned-image sweep. Inventory edits flow client → debounced state PUT, so
-// the server can't transactionally tie uploads to refs; instead, files whose
-// id no longer appears anywhere in the persisted inventory are deleted once
-// they are older than a grace window (so an upload whose inventory save hasn't
-// flushed yet is never reaped).
 import { readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { StateStore } from '../storage/types.js';
 
 const FILE_RE = /^([0-9a-f]{16})(\.thumb)?\.webp$/;
-/** Grace period before an unreferenced file is considered orphaned. */
+
 export const GC_MIN_AGE_MS = 24 * 60 * 60 * 1000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Walk any JSON shape collecting `images: [{id}]` arrays on objects. The
- * structural walk keeps the GC tolerant of inventory schema evolution. */
 export function collectImageIds(value: unknown, out = new Set<string>()): Set<string> {
   if (Array.isArray(value)) {
     for (const item of value) collectImageIds(item, out);
@@ -48,7 +41,7 @@ export async function sweepOrphanedImages(
   try {
     files = await readdir(dir);
   } catch {
-    return 0; // No images directory yet — nothing to sweep.
+    return 0;
   }
 
   const inventory = await store.get('inventory');
@@ -66,7 +59,7 @@ export async function sweepOrphanedImages(
       await rm(full, { force: true });
       removed++;
     } catch {
-      /* raced with a delete — fine */
+      void 0;
     }
   }
   if (removed > 0) console.log(`Images: GC removed ${removed} orphaned file(s)`);

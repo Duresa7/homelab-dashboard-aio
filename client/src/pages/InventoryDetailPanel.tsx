@@ -38,9 +38,9 @@ type Mutator<T> = (mut: (cur: T) => T) => void;
 interface Props {
   found: FoundItem;
   isEditing: boolean;
-  /** All machines — for the component assignment selector + machine listing. */
+
   machines: Machine[];
-  /** The full component pool — a machine pop-up lists the ones assigned to it. */
+
   components: Component[];
   onChange: (id: string, mut: (item: AnyItem) => AnyItem) => void;
   onClose: () => void;

@@ -1,7 +1,3 @@
-// The auth gate: default-deny for every /api route, with a small public
-// allowlist and a central role-escalation matrix. Keeping the whole protection
-// table in one file makes the policy reviewable and testable as a unit
-// (see ADR 0006).
 import { createHash } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 
@@ -10,24 +6,21 @@ import { proxyAssertedUser, type ProxyAuthConfig } from './proxy-auth.js';
 import type { AuthStore, UserRecord, UserRole } from './types.js';
 
 export const SESSION_COOKIE = 'hd_session';
-/** Sliding session lifetime. */
+
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-/** Renewal writes are throttled so reads don't hammer the sessions table. */
+
 const SESSION_TOUCH_INTERVAL_MS = 60 * 60 * 1000;
 
 export interface AuthInfo {
   user: UserRecord;
-  /** Null when authenticated via the reverse-proxy header (no local session). */
+
   sessionId: string | null;
   via: 'session' | 'proxy';
 }
 
-declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
-  namespace Express {
-    interface Request {
-      auth?: AuthInfo;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    auth?: AuthInfo;
   }
 }
 
@@ -35,7 +28,6 @@ export function sha256Hex(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-/** Cookie Secure flag: on for HTTPS requests (direct or via trusted proxy). */
 export function requestIsSecure(req: Request): boolean {
   if (req.secure) return true;
   const xfp = req.headers['x-forwarded-proto'];
@@ -49,8 +41,6 @@ export function roleAtLeast(role: UserRole, min: UserRole): boolean {
   return ROLE_ORDER[role] >= ROLE_ORDER[min];
 }
 
-/** API paths reachable without a session. /api/health is additionally
- * minimized for unauthenticated callers in its handler. */
 const PUBLIC_API_PATHS = new Set([
   '/api/health',
   '/api/auth/status',
@@ -59,23 +49,14 @@ const PUBLIC_API_PATHS = new Set([
   '/api/auth/bootstrap',
 ]);
 
-/**
- * Role-escalation matrix. The gate already requires a valid session for every
- * non-public /api route, so 'viewer' means "any authenticated user".
- */
 export function requiredRoleFor(method: string, path: string): UserRole {
   const m = method === 'HEAD' ? 'GET' : method;
 
-  // Debug endpoints reveal raw integration payloads, hosts, and DB stats.
-  // (/api/debug is the legacy UniFi debug path.)
   if (path === '/api/debug' || path.endsWith('/debug')) return 'admin';
 
   if (path === '/api/users' || path.startsWith('/api/users/')) return 'admin';
 
   if (path.startsWith('/api/setup/')) {
-    // Status + capability metadata drive non-admin UI states; they carry no
-    // secrets or addresses. Everything else (config/db reads reveal hosts and
-    // usernames; writes change integrations) is admin-only.
     if (path === '/api/setup/status' || path === '/api/setup/capabilities') return 'viewer';
     return 'admin';
   }
@@ -86,31 +67,23 @@ export function requiredRoleFor(method: string, path: string): UserRole {
 
   if (path === '/api/wol/wake') return 'member';
 
-  // Inventory images: anyone authenticated can view; uploading/deleting edits
-  // the inventory (member+); the orphan GC sweep is operational (admin).
   if (path === '/api/images/gc') return 'admin';
   if (path === '/api/images' || path.startsWith('/api/images/')) {
     return m === 'GET' ? 'viewer' : 'member';
   }
 
-  // Everything else (providers, sensors, siem, history, auth self-service) is
-  // available to any authenticated user; mutating auth/user actions do their
-  // own ownership checks in the handlers.
   return 'viewer';
 }
 
 export interface AuthService {
-  /** Resolve the request's user via session cookie or trusted proxy header. */
   resolveAuth(req: Request): Promise<AuthInfo | null>;
   usersExist(): Promise<boolean>;
-  /** Called after the bootstrap account is created. */
+
   noteUserCreated(): void;
   store: AuthStore;
 }
 
 export function createAuthService(store: AuthStore, proxy: ProxyAuthConfig): AuthService {
-  // countUsers() is cached once true: users can only drop to zero via offline
-  // CLI surgery, and a restart re-checks anyway.
   let usersExist: boolean | null = null;
 
   return {
@@ -135,8 +108,9 @@ export function createAuthService(store: AuthStore, proxy: ProxyAuthConfig): Aut
           const user = await store.getUserById(session.userId);
           if (user) {
             if (now - session.lastUsedAt > SESSION_TOUCH_INTERVAL_MS) {
-              // Sliding renewal; failure here must not fail the request.
-              void store.touchSession(session.id, now, now + SESSION_TTL_MS).catch(() => {});
+              void store.touchSession(session.id, now, now + SESSION_TTL_MS).catch(() => {
+                void 0;
+              });
             }
             return { user, sessionId: session.id, via: 'session' };
           }
@@ -170,12 +144,11 @@ export function createAuthGate(service: AuthService) {
     if (PUBLIC_API_PATHS.has(req.path)) return next();
 
     if (!req.auth) {
-      // Surface bootstrap mode so the client can route to account creation.
       let bootstrap = false;
       try {
         bootstrap = !(await service.usersExist());
       } catch {
-        /* DB error — plain 401 */
+        void 0;
       }
       return res
         .status(401)
@@ -195,8 +168,6 @@ export function createAuthGate(service: AuthService) {
   };
 }
 
-/** Installed instead of the gate when the database failed to open: the API
- * cannot authenticate anyone, so it fails closed. */
 export function createUnavailableGate() {
   return function unavailableGate(req: Request, res: Response, next: NextFunction) {
     if (!req.path.startsWith('/api/')) return next();

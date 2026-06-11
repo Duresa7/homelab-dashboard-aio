@@ -29,11 +29,10 @@ import { SECTION_CAPABILITY, usePresentation } from '@/lib/presentation';
 interface Props {
   section: Section;
   activeSub?: string;
-  /** Drilled-in Data Center entity name (node/guest/storage), shown between the
-   *  section and the active sub. */
+
   entityLabel?: string | null;
   dateTime: DateTimePreferences;
-  /** Hidden in top-bar navigation mode, where there is no sidebar to toggle. */
+
   showSidebarTrigger?: boolean;
   onNavigateSection: (section: Section) => void;
   onOpenSearch: () => void;
@@ -124,8 +123,6 @@ export function Topbar({
   const sectionLbl = capabilityId ? presentation[capabilityId].label : SECTION_LABEL[section];
   const here = activeSub ? subLabel(section, activeSub) : null;
 
-  // Ordered breadcrumb trail: section root, optional drilled-in entity, active
-  // sub. The last crumb is the current page; earlier ones link back.
   const trail: string[] = [
     sectionLbl,
     ...(entityLabel ? [entityLabel] : []),

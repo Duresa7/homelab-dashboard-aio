@@ -2,8 +2,7 @@ import type { IntegrationKey } from './telemetry';
 
 export interface IntegrationDef {
   key: IntegrationKey;
-  // What field on /api/health to consult for server-side state. Matches the
-  // shape `{ enabled, configured }` returned by the server health route.
+
   healthField: string;
   label: string;
   description: string;

@@ -24,8 +24,6 @@ describe('state DB schema migrations', () => {
     await db.put('tempUnit', 'f');
     await db.close();
 
-    // Re-open: migrations are already recorded so the runner is a no-op,
-    // and the previously-written row survives.
     const reopened = await openStateDb(dbPath);
     expect((await reopened.stats()).schemaVersion).toBe(5);
     expect((await reopened.get('tempUnit'))?.value).toBe('f');

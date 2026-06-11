@@ -22,7 +22,6 @@ export interface TileProps {
 
 const CHART_KINDS: ChartKind[] = ['area', 'sparkline', 'bars'];
 
-/** Responsive column spans against the 12-column overview grid. */
 const SPAN_CLASS: Record<number, string> = {
   3: 'col-span-12 sm:col-span-6 lg:col-span-3',
   4: 'col-span-12 sm:col-span-6 lg:col-span-4',

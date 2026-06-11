@@ -47,8 +47,6 @@ vi.mock('@/lib/store', () => ({
   subscribe: storeMock.subscribe,
 }));
 
-// The card hides editing affordances for viewers; these tests exercise the
-// member+ behavior, so render as an authenticated admin.
 vi.mock('@/lib/auth', () => ({
   useAuth: () => ({
     usersExist: true,
@@ -239,7 +237,7 @@ describe('ComputeWakeCard', () => {
   it('filters out corrupted host entries from the store', () => {
     storeMock.values.set('computeHosts', [
       { id: 'good', name: 'Good Host', mac: 'AA:BB:CC:DD:EE:FF' },
-      { id: 'bad', name: 'Missing MAC' }, // no mac → rejected by isComputeHost
+      { id: 'bad', name: 'Missing MAC' },
       'totally-not-a-host',
     ]);
     renderCard();

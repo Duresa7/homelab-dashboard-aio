@@ -1,11 +1,3 @@
-// Inventory photo uploads. Files live on local disk next to the SQLite state
-// (data/images/ by default) regardless of the configured DB backend — image
-// refs travel inside the inventory state blob, the bytes stay on the app host.
-//
-// Every accepted upload is re-encoded with sharp: EXIF orientation is applied
-// (rotate()), all metadata is dropped by the re-encode, and the result is
-// stored as webp in a full (max 2048px) and thumb (256px) variant. The stored
-// id is random, so URLs are immutable and cacheable.
 import { randomBytes } from 'node:crypto';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -25,15 +17,13 @@ export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const FULL_MAX_PX = 2048;
 const THUMB_PX = 256;
 const WEBP_QUALITY = 82;
-/** Decompression-bomb guard for sharp. */
+
 const MAX_INPUT_PIXELS = 64_000_000;
 
 export function imagePath(dir: string, id: string, thumb = false): string {
   return path.join(dir, `${id}${thumb ? '.thumb' : ''}.webp`);
 }
 
-/** Magic-byte allowlist: jpeg/png/webp. Fast pre-check; sharp's decoded
- * format is the authoritative one. */
 export function sniffImageFormat(buf: Buffer): 'jpeg' | 'png' | 'webp' | null {
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
   if (
@@ -58,9 +48,8 @@ export function sniffImageFormat(buf: Buffer): 'jpeg' | 'png' | 'webp' | null {
 }
 
 export interface InitImagesOpts {
-  /** Directory for image files; created on demand. */
   dir: string;
-  /** State store used by the orphan GC to read inventory refs. */
+
   store: StateStore;
 }
 
@@ -78,7 +67,6 @@ export function initImages(app: Express, opts: InitImagesOpts): ImagesHandle {
     limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
   });
 
-  // multer throws on oversize; map its errors to JSON instead of a stack page.
   const uploadSingle: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
     upload.single('file')(req, res, (err: unknown) => {
       if (!err) return next();
@@ -105,8 +93,6 @@ export function initImages(app: Express, opts: InitImagesOpts): ImagesHandle {
         return res.status(415).json({ error: 'only JPEG, PNG, or WebP images are accepted' });
       }
 
-      // rotate() applies EXIF orientation; the webp re-encode (no
-      // withMetadata) drops EXIF/GPS and every other metadata block.
       const { data: full, info } = await sharp(file.buffer, {
         limitInputPixels: MAX_INPUT_PIXELS,
       })
@@ -133,7 +119,7 @@ export function initImages(app: Express, opts: InitImagesOpts): ImagesHandle {
   const serve = (thumb: boolean) => (req: Request, res: Response) => {
     const id = String(req.params.id);
     if (!IMAGE_ID_RE.test(id)) return res.status(400).json({ error: 'invalid image id' });
-    // Ids are random and content-addressed-per-upload: safe to cache forever.
+
     res.sendFile(
       imagePath(dir, id, thumb),
       {
@@ -163,7 +149,6 @@ export function initImages(app: Express, opts: InitImagesOpts): ImagesHandle {
     }
   });
 
-  // Admin-triggered orphan sweep (role enforced by the auth gate matrix).
   app.post('/api/images/gc', sameOrigin, async (_req: Request, res: Response) => {
     try {
       const removed = await sweepOrphanedImages(dir, store);
@@ -173,7 +158,6 @@ export function initImages(app: Express, opts: InitImagesOpts): ImagesHandle {
     }
   });
 
-  // Boot-time sweep, fire-and-forget — never blocks startup.
   void sweepOrphanedImages(dir, store).catch((err) => {
     console.warn(`Images: boot GC failed - ${errorMessage(err)}`);
   });

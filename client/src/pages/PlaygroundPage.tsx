@@ -92,7 +92,6 @@ interface PickerOption {
 function buildPickerOptions(slot: SlotDef, inv: Inventory): PickerOption[] {
   const opts: PickerOption[] = [];
 
-  // Spare-parts options, filtered by category regex if defined; otherwise everything.
   for (const cat of inv.devices) {
     if (cat.deviceType === 'network') continue;
     if (slot.categoryMatch && !slot.categoryMatch.test(cat.name)) continue;
@@ -105,7 +104,6 @@ function buildPickerOptions(slot: SlotDef, inv: Inventory): PickerOption[] {
     }
   }
 
-  // Spare components from the pool (CPUs, RAM, drives, …) also fill build slots.
   if (slot.componentMatch) {
     for (const c of inv.components) {
       if (!slot.componentMatch.test(c.label)) continue;
@@ -140,7 +138,6 @@ export function PlaygroundPage() {
   const [inv] = useState<Inventory>(() => loadInventory());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Skip initial mount; loadPlayground returned the persisted value.
   const didMount = useRef(false);
   useEffect(() => {
     if (!didMount.current) {

@@ -16,7 +16,6 @@ import { cn } from '@/lib/utils';
 
 import { GHOST_ICON_BTN, statusKind } from './shared';
 
-/** Shared table for a list of pool components (UID · Part · Spec · Status). */
 export function ComponentTable({
   items,
   isEditing,

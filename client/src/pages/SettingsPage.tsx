@@ -747,7 +747,7 @@ function DatabaseSettings() {
 
   const onChange = (next: DbDraft) => {
     setDraft(next);
-    setConfirmSwitch(false); // editing supersedes a pending switch confirmation
+    setConfirmSwitch(false);
   };
 
   const test = async () => {
@@ -1153,8 +1153,7 @@ export function SettingsPage({
   onPreferenceChange,
 }: Props) {
   const enabledCount = INTEGRATIONS.reduce((n, def) => n + (integrations[def.key] ? 1 : 0), 0);
-  // Setup (integration credentials) and user management are admin-only; the
-  // server enforces the same matrix — hiding the tabs is UX, not security.
+
   const admin = isAdmin(useAuth().user);
   const activeTab: SettingsTabId =
     !admin && (tab === 'setup' || tab === 'users') ? 'preferences' : tab;

@@ -45,7 +45,9 @@ async function loadApp({
   vi.doMock('./lib/store', () => ({
     getState: <T,>(_key: string, fallback: T) => fallback,
     setState: vi.fn(),
-    subscribe: vi.fn(() => () => {}),
+    subscribe: vi.fn(() => () => {
+      void 0;
+    }),
   }));
   vi.doMock('./lib/route', () => ({
     DEFAULT_SUB: { overview: undefined },
