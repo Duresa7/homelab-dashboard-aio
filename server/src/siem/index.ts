@@ -8,6 +8,7 @@ import { parseSyslog } from './parser.js';
 import { classifySyslog } from './classifier.js';
 import type { StoredEvent } from './types.js';
 import { createSseBus } from './sse.js';
+import { isSourceAllowed, parseAllowedSources, resolveBindHost } from './source-guard.js';
 
 const RETENTION_SWEEP_INTERVAL_MS = 6 * 60 * 60_000;
 
@@ -80,6 +81,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     parseErrors: number;
     packetsTruncated: number;
     packetsRateLimited: number;
+    packetsBlocked: number;
     lastEventAt: number | null;
     bindError: string | null;
     boundAt: number | null;
@@ -107,17 +109,21 @@ export async function initSiem(app: Express, opts: SiemOptions) {
       parseErrors: 0,
       packetsTruncated: 0,
       packetsRateLimited: 0,
+      packetsBlocked: 0,
       lastEventAt: null,
       bindError: null,
       boundAt: null,
     };
   }
 
+  const sourceFilter = parseAllowedSources(process.env.SIEM_ALLOWED_SOURCES, (entry) =>
+    console.warn(`SIEM: ignoring invalid SIEM_ALLOWED_SOURCES entry "${entry}"`),
+  );
   const allowedSources = String(process.env.SIEM_ALLOWED_SOURCES || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  const sourceAllowSet = allowedSources.length ? new Set(allowedSources) : null;
+  const effectiveBind = () => resolveBindHost(config.host, sourceFilter);
 
   const globalBucket = { tokens: GLOBAL_RATE_BURST, lastRefillMs: Date.now() };
   function admitGlobal(): boolean {
@@ -205,8 +211,8 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     stats.packetsReceived += 1;
     stats.bytesReceived += buf.length;
 
-    if (sourceAllowSet && !sourceAllowSet.has(rinfo.address)) {
-      stats.packetsRateLimited += 1;
+    if (!isSourceAllowed(sourceFilter, rinfo.address)) {
+      stats.packetsBlocked += 1;
       return;
     }
 
@@ -281,6 +287,18 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     if (!config.enabled || sock || closed) return;
     stats = createStats();
     sweepRunning = false;
+
+    const bind = effectiveBind();
+    if (bind.loopbackFallback) {
+      console.warn(
+        `SIEM: SIEM_ALLOWED_SOURCES is not set, so binding loopback (127.0.0.1) instead of ` +
+          `${config.host} to avoid accepting syslog from arbitrary hosts. Set ` +
+          `SIEM_ALLOWED_SOURCES to a comma-separated list of sender IPs/CIDRs ` +
+          `(e.g. "192.0.2.1,192.0.2.0/24") to listen on ${config.host}, or "*" to ` +
+          `explicitly allow any source.`,
+      );
+    }
+
     const nextSock = dgram.createSocket('udp4');
     sock = nextSock;
 
@@ -297,11 +315,11 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     });
 
     await new Promise<void>((resolve) => {
-      nextSock.bind(config.port, config.host, () => resolve());
+      nextSock.bind(config.port, bind.host, () => resolve());
       nextSock.once('error', (err) => {
         stats.bindError = err.message;
         console.warn(
-          `SIEM: failed to bind UDP ${config.host}:${config.port} - ${err.message}. ` +
+          `SIEM: failed to bind UDP ${bind.host}:${config.port} - ${err.message}. ` +
             `On Windows, ports below 1024 may require an elevated terminal. ` +
             `Set SIEM_PORT=5514 in .env to use an unprivileged port, then point ` +
             `your UniFi controller at <server-ip>:5514.`,
@@ -351,11 +369,13 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     if (!config.enabled) return res.json(disabledStatus());
     try {
       const t = await db.totals();
+      const bind = effectiveBind();
       res.json({
         enabled: true,
         listening: !!stats.boundAt && !stats.bindError,
-        host: config.host,
+        host: bind.host,
         port: config.port,
+        loopbackOnly: bind.loopbackFallback,
         serverAddress: bestLanIp(),
         eventsTotal: t.total,
         eventsLastHour: t.lastHour,
@@ -363,6 +383,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
         packetsReceived: stats.packetsReceived,
         packetsTruncated: stats.packetsTruncated,
         packetsRateLimited: stats.packetsRateLimited,
+        packetsBlocked: stats.packetsBlocked,
         parseErrors: stats.parseErrors,
         lastEventAt: t.lastEventAt,
         clientCount: sse.clientCount(),
@@ -447,7 +468,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
       enabled: config.enabled,
       configured: config.enabled,
       listening: !!stats.boundAt && !stats.bindError,
-      host: config.host,
+      host: effectiveBind().host,
       port: config.port,
       bindError: stats.bindError,
     };
