@@ -52,17 +52,21 @@ export function sanitizeBookmarks(
 ): Bookmark[] {
   if (!Array.isArray(value)) return [];
   const groupIds = new Set(groups.map((group) => group.id));
-  return value.filter(isBookmark).map((bookmark) => {
+  return value.filter(isBookmark).flatMap((bookmark) => {
+    const url = validateBookmarkUrl(bookmark.url);
+    if (!url) return [];
     const groupId = groupIds.has(bookmark.groupId) ? bookmark.groupId : DEFAULT_GROUP_ID;
-    return {
-      id: bookmark.id,
-      label: bookmark.label,
-      url: bookmark.url,
-      ...(typeof bookmark.icon === 'string' && bookmark.icon.trim()
-        ? { icon: bookmark.icon.trim() }
-        : {}),
-      groupId,
-    };
+    return [
+      {
+        id: bookmark.id,
+        label: bookmark.label,
+        url,
+        ...(typeof bookmark.icon === 'string' && bookmark.icon.trim()
+          ? { icon: bookmark.icon.trim() }
+          : {}),
+        groupId,
+      },
+    ];
   });
 }
 

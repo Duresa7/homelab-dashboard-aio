@@ -63,6 +63,15 @@ describe('keepDbSecrets', () => {
     expect(out.mysql?.password).toBeUndefined();
   });
 
+  it('does not inherit a stored password when same-driver connection details change', () => {
+    expect(() =>
+      keepDbSecrets(
+        { driver: 'postgres', postgres: { host: 'attacker', database: 'd', user: 'u' } },
+        current,
+      ),
+    ).toThrow(/password is required/i);
+  });
+
   it('is a no-op for sqlite (no secret)', () => {
     const file = { driver: 'sqlite' as const, sqlite: { statePath: 'data/x.sqlite' } };
     expect(keepDbSecrets(file, current)).toBe(file);
@@ -390,6 +399,36 @@ describe('connection test API', () => {
             })
             .expect(400);
           expect(res.body.error).toMatch(/secret fields are required/i);
+        } finally {
+          await ctx.cleanup();
+        }
+      },
+    );
+  });
+
+  it('does not retain stored integration secrets when saving a changed base URL', async () => {
+    await withJsonUpstream(
+      { '/api2/json/version': { data: { version: '8.0' } } },
+      async (baseUrl) => {
+        const ctx = await loadServerApp();
+        try {
+          await request(ctx.app)
+            .put('/api/setup/config')
+            .send({
+              ...proxmox,
+              config: { ...proxmox.config, baseUrl: 'https://pve.example.test' },
+            })
+            .expect(200);
+
+          const rejected = await request(ctx.app)
+            .put('/api/setup/config')
+            .send({
+              capability: 'datacenter',
+              vendor: 'proxmox',
+              config: { baseUrl, node: 'pve2' },
+            })
+            .expect(400);
+          expect(rejected.body.error).toMatch(/secret fields are required/i);
         } finally {
           await ctx.cleanup();
         }

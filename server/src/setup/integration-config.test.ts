@@ -119,4 +119,37 @@ describe('upsertSelection', () => {
       }),
     ).rejects.toThrow(/required/);
   });
+
+  it('requires fresh secrets before retaining credentials across a base URL change', async () => {
+    await importEnvConfigIfEmpty(store, ENV, '2026-01-01T00:00:00Z');
+
+    await expect(
+      upsertSelection(store, {
+        capability: 'datacenter',
+        vendor: 'proxmox',
+        config: { baseUrl: 'https://attacker.example.test', node: 'pve2' },
+      }),
+    ).rejects.toThrow(/secret fields are required/i);
+
+    let cfg = (await store.get(CONFIG_KEY))?.value as IntegrationConfig;
+    expect(cfg.datacenter.config.baseUrl).toBe('https://pve.example.test');
+    expect(cfg.datacenter.config.tokenSecret).toBe('super-secret');
+
+    await upsertSelection(store, {
+      capability: 'datacenter',
+      vendor: 'proxmox',
+      config: {
+        baseUrl: 'https://replacement.example.test',
+        tokenSecret: 'replacement-secret',
+        node: 'pve2',
+      },
+    });
+
+    cfg = (await store.get(CONFIG_KEY))?.value as IntegrationConfig;
+    expect(cfg.datacenter.config).toMatchObject({
+      baseUrl: 'https://replacement.example.test',
+      tokenSecret: 'replacement-secret',
+      node: 'pve2',
+    });
+  });
 });

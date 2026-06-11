@@ -64,6 +64,40 @@ async function readOnboarding(store: StateStore): Promise<OnboardingState> {
   return (row?.value as OnboardingState | undefined) ?? { complete: false };
 }
 
+function trimSlash(url: string): string {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === '/') end--;
+  return url.slice(0, end);
+}
+
+function normalizedBaseUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const parsed = new URL(trimSlash(value.trim()));
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    if (parsed.username || parsed.password) return null;
+    parsed.hash = '';
+    return trimSlash(parsed.toString());
+  } catch {
+    return null;
+  }
+}
+
+function missingSecretsForBaseUrlChange(
+  provider: NonNullable<ReturnType<typeof getProvider>>,
+  existing: Record<string, unknown>,
+  incoming: Record<string, unknown>,
+): string[] {
+  const storedBaseUrl = normalizedBaseUrl(existing.baseUrl);
+  const incomingBaseUrl = normalizedBaseUrl(incoming.baseUrl);
+  if (!storedBaseUrl || !incomingBaseUrl || storedBaseUrl === incomingBaseUrl) return [];
+
+  return provider.configSchema
+    .filter((field) => field.secret)
+    .map((field) => field.name)
+    .filter((name) => typeof incoming[name] !== 'string' || !String(incoming[name]).trim());
+}
+
 /** Build selections from env (the available provider per enabled capability). */
 export function importConfigFromEnv(
   env: NodeJS.ProcessEnv,
@@ -192,6 +226,18 @@ export async function upsertSelection(store: StateStore, input: SelectionInput):
   const enabled = input.enabled !== false;
   const config = await readConfig(store);
   const existing = config[capabilityId]?.config ?? {};
+  const missingChangedEndpointSecrets = missingSecretsForBaseUrlChange(
+    provider,
+    existing,
+    incoming,
+  );
+  if (missingChangedEndpointSecrets.length) {
+    throw new ConfigError(
+      `secret fields are required when saving a different base URL: ${missingChangedEndpointSecrets.join(
+        ', ',
+      )}`,
+    );
+  }
 
   const merged: Record<string, unknown> = {};
   for (const field of provider.configSchema) {

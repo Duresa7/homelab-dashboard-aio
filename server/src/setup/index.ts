@@ -101,16 +101,26 @@ function parseDbConfigFile(input: unknown): DbConfigFile {
 /**
  * Keep the previously-saved password when a re-save/test for the SAME backend
  * omits it — this is what powers the "leave blank to keep the saved password"
- * affordance on the Settings re-entry. Switching to a different backend has no
- * prior secret to inherit, so a password must be supplied for that case.
+ * affordance on the Settings re-entry. Changing the endpoint has no prior
+ * secret to inherit, so a password must be supplied for that case.
  */
 export function keepDbSecrets(file: DbConfigFile, current: ResolvedDbConfig): DbConfigFile {
   if (file.driver !== 'postgres' && file.driver !== 'mysql') return file;
   if (current.driver !== file.driver) return file;
   const incoming = file[file.driver];
-  if (incoming?.password) return file; // an explicitly supplied password wins
+  if (incoming?.password) return file; // an explicitly supplied non-empty password wins
   const prior = file.driver === 'postgres' ? current.postgres : current.mysql;
   if (!prior?.password) return file;
+  const defaultPort = file.driver === 'postgres' ? 5432 : 3306;
+  const sameEndpoint =
+    incoming?.host === prior.host &&
+    (incoming.port ?? defaultPort) === prior.port &&
+    incoming.database === prior.database &&
+    incoming.user === prior.user &&
+    (incoming.ssl ?? false) === prior.ssl;
+  if (!sameEndpoint) {
+    throw new BadRequest('password is required when changing database connection details');
+  }
   return { ...file, [file.driver]: { ...(incoming ?? {}), password: prior.password } };
 }
 
