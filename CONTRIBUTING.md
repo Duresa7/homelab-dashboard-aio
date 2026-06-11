@@ -57,9 +57,11 @@ add `Co-Authored-By` or other attribution trailers for AI tools.
 ## Issues
 
 Bug reports and feature requests live in
-[GitHub Issues](https://github.com/Duresa7/homelab-dashboard-aio/issues).
-Before opening a PR for a larger change, it's worth opening an issue first to
-discuss the approach.
+[GitHub Issues](https://github.com/Duresa7/homelab-dashboard-aio/issues) —
+the issue forms will guide you through what to include. As with code, keep
+real IPs, hostnames, and other private details out of reports. Before opening
+a PR for a larger change, it's worth opening an issue first to discuss the
+approach.
 
 ## Architecture context
 
