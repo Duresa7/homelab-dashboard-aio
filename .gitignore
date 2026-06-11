@@ -30,6 +30,8 @@ docs/*
 
 # Personal / local-only tooling
 .claude/
+CLAUDE.md
+AGENTS.md
 
 # OS
 .DS_Store
