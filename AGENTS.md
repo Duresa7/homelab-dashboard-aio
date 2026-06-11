@@ -22,7 +22,7 @@ Use the repo run and verification contract in `docs/agents/run-and-verify.md`.
 
 Do **not** add unnecessary, AI-generated filler comments. Avoid comments that merely narrate what the code obviously does or restate an identifier — e.g. `// fire a slim status rail`, `// loop over items`, `// set the value`. These add noise and are not wanted anywhere in the codebase.
 
-Only add a comment when it carries information the code itself cannot: a non-obvious *why*, a gotcha, a workaround and its reason, an invariant, or a link to relevant context. If the comment doesn't help someone understand something they couldn't get from reading the code, don't write it.
+Only add a comment when it carries information the code itself cannot: a non-obvious _why_, a gotcha, a workaround and its reason, an invariant, or a link to relevant context. If the comment doesn't help someone understand something they couldn't get from reading the code, don't write it.
 
 ## Branch model
 
