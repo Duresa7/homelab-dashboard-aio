@@ -58,7 +58,6 @@ function NetworkBrandIcon({ size = 18 }: { size?: number }) {
 
 type DotKind = 'ok' | 'bad' | 'idle';
 
-/** A throughput readout: arrow + big value + unit, with a sparkline of history. */
 function RateStat({
   dir,
   value,
@@ -271,7 +270,6 @@ function Clients({ data }: { data: DashboardState }) {
   );
 }
 
-/** Status dot + primary name, used as the first cell of config tables. */
 function NameCell({ dot, children }: { dot: DotKind; children: ReactNode }) {
   return (
     <span className="flex items-center gap-2">

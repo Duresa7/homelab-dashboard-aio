@@ -49,8 +49,7 @@ export function Masthead({
   onUidMap,
 }: MastheadProps) {
   const isEditing = mode === 'edit';
-  // Viewers browse read-only: editing, importing, and resetting are member+
-  // actions (the server rejects the writes regardless).
+
   const editor = canEdit(useAuth().user);
 
   const summaryStats: SummaryStat[] = [

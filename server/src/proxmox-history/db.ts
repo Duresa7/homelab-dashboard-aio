@@ -20,8 +20,7 @@ export interface HistorySeriesPoint {
 }
 
 export const NODE_METRICS = new Set(['cpu_pct', 'mem_pct', 'mem_used', 'disk_pct']);
-// Only metrics the snapshot actually populates: cpu/mem are live, while guest
-// netin/netout/disk were never sourced and stayed flat, so they're omitted.
+
 export const GUEST_METRICS = new Set(['cpu_pct', 'mem_pct']);
 export const STORAGE_METRICS = new Set(['used', 'total', 'used_pct']);
 export const CLUSTER_METRICS = new Set(['cpu_pct', 'mem_pct', 'storage_pct']);

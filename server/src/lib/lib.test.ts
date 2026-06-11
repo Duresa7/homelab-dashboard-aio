@@ -43,7 +43,9 @@ describe('withTtlCache', () => {
 
 describe('makeSafeFetch', () => {
   it('returns the fallback and warns on error', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
+      void 0;
+    });
     const safe = makeSafeFetch<string>('Test', async () => {
       throw new Error('down');
     });

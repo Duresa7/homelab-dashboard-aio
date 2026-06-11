@@ -100,7 +100,7 @@ describe('database setup API', () => {
     try {
       const api = await bootstrapAdmin(ctx.app);
       await api.post('/api/setup/db/test').send({ driver: 'sqlite' }).expect(200, { ok: true });
-      // Nothing persisted: still reports the default.
+
       expect((await api.get('/api/setup/db')).body.driver).toBe('sqlite');
     } finally {
       await ctx.cleanup();
@@ -328,8 +328,7 @@ describe('integration config API', () => {
     try {
       const api = await bootstrapAdmin(ctx.app);
       await api.put('/api/setup/config').send(proxmox).expect(200);
-      // The stored selection lives under setup.integrationConfig — it must not
-      // appear in the public hydrate snapshot, nor be fetchable by key.
+
       const state = await api.get('/api/state').expect(200);
       expect(Object.keys(state.body.values)).not.toContain('setup.integrationConfig');
       await api.get('/api/state/setup.integrationConfig').expect(400);

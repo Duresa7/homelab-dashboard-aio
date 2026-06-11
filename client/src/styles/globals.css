@@ -1,34 +1,11 @@
-/* =========================================================
-   Homelab Dashboard — design system (Refined Light SaaS).
-   Tailwind v4 entry + design tokens + base.
-
-   - Single sharp indigo accent (#4F46E5), white surfaces on a
-     near-white canvas, soft layered shadows, 1px hairlines.
-   - Display: Clash Display. Body/data: General Sans. Logs: JetBrains Mono.
-   - Themes: light (default) | dark, via [data-theme] on <html>.
-   - Density: compact | regular | comfy (spacing only).
-
-   Token strategy: the legacy design tokens (--accent, --surface, --ink-*,
-   --line-*, …) are kept *by name* and consumed by both the existing CSS and
-   Tailwind, so restyling propagates everywhere. shadcn's semantic tokens are
-   layered on top and mostly *source* from these legacy tokens, so dark mode
-   flips automatically. The one name clash (shadcn's neutral `--accent`) is
-   sourced from `--sh-accent` instead, leaving our brand `--accent` = indigo.
-   ========================================================= */
-
 @import 'tailwindcss';
 @import 'tw-animate-css';
-/* Slimmed component CSS — the old `@layer legacy` block was retired once the
-   redesign moved every page onto the shared card kit. Only a few uniquely-named
-   component-scoped rules remain (no Tailwind-utility name clashes), so this is
-   imported unlayered. */
+
 @import './components.css';
 
-/* Bridge shadcn's `dark:` variant to our existing [data-theme="dark"] hook. */
 @custom-variant dark (&:is([data-theme='dark'] *));
 
 :root {
-  /* ---- brand accent (indigo) + status ---- */
   --accent: #4f46e5;
   --accent-strong: #4338ca;
   --accent-soft: rgba(79, 70, 229, 0.12);
@@ -40,60 +17,46 @@
   --info: #0284c7;
   --idle: #94a3b8;
 
-  /* ---- surfaces (light) ---- */
-  --bg: #fbfbfd; /* page canvas */
-  --bg-2: #f1f3f7; /* hover / muted fill */
-  --bg-3: #e7eaf0; /* tertiary */
-  --surface: #ffffff; /* card / tile fill */
-  --surface-2: #fafbfc; /* subtle inset */
+  --bg: #fbfbfd;
+  --bg-2: #f1f3f7;
+  --bg-3: #e7eaf0;
+  --surface: #ffffff;
+  --surface-2: #fafbfc;
 
-  /* ---- ink (slate-tinted 4-step hierarchy, all AA+ on white) ---- */
-  --ink: #0b0f1a; /* primary: titles, metric values (~19:1) */
-  --ink-2: #1e293b; /* body, labels, key names (~13:1) */
-  --ink-3: #475569; /* muted: section labels, captions (~7:1, AAA) */
-  --ink-4: #64748b; /* deemphasized: stale timestamps (~4.9:1, AA) */
+  --ink: #0b0f1a;
+  --ink-2: #1e293b;
+  --ink-3: #475569;
+  --ink-4: #64748b;
 
-  /* ---- lines (soft hairlines — no more hard black borders) ---- */
-  --line: #eef0f4; /* soft hairline (lightened) */
-  --line-2: #dce0e6; /* hover / divider */
-  --line-strong: #cbd2db; /* table edges */
-  --panel-line: #e6e8ec; /* card outline (was #000) */
+  --line: #eef0f4;
+  --line-2: #dce0e6;
+  --line-strong: #cbd2db;
+  --panel-line: #e6e8ec;
 
-  /* ---- shadcn neutral accent (hover/highlight surfaces) ---- */
   --sh-accent: #f1f3f7;
   --sh-accent-foreground: #1e293b;
 
-  /* ---- radii (softer / rounder surfaces) ---- */
-  --radius: 0.75rem; /* 12px base */
-  --radius-sm: 0.5rem; /* 8px */
-  --radius-md: 0.625rem; /* 10px */
-  --radius-lg: 0.875rem; /* 14px */
+  --radius: 0.75rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
   --radius-pill: 999px;
 
-  /* ---- spacing (density-aware; regular tuned airier) ----
-     --pad      card interior padding
-     --gap      grid / tile gap
-     --page-gap vertical rhythm between stacked page sections/cards
-     --page-pad outer page content padding
-     --section-gap gap between titled overview section groups */
   --pad: 20px;
   --gap: 18px;
   --page-gap: 24px;
   --page-pad: 28px;
   --section-gap: 44px;
 
-  /* ---- shadows (soft, layered, diffuse) ---- */
   --shadow-tile: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 6px -1px rgba(15, 23, 42, 0.05);
   --shadow-tile-hover: 0 6px 20px -4px rgba(15, 23, 42, 0.1), 0 3px 8px -2px rgba(15, 23, 42, 0.06);
   --shadow-overlay:
     0 32px 64px -16px rgba(15, 23, 42, 0.24), 0 12px 28px -12px rgba(15, 23, 42, 0.14);
 
-  /* ---- layout ---- */
   --sidebar-w: 240px;
   --sidebar-rail: 60px;
-  --content-max: 1600px; /* caps page content width so wide monitors don't stretch tables/rows */
+  --content-max: 1600px;
 
-  /* ---- z-index scale ---- */
   --z-base: 1;
   --z-sticky: 10;
   --z-dropdown: 40;
@@ -105,7 +68,6 @@
 }
 
 [data-theme='dark'] {
-  /* brand accent — brighter, more electric indigo to pop on near-black */
   --accent: #7c83ff;
   --accent-strong: #9ba1ff;
   --accent-soft: rgba(124, 131, 255, 0.16);
@@ -117,28 +79,25 @@
   --info: #38bdf8;
   --idle: #64748b;
 
-  /* Surfaces — true near-black canvas with clearly elevated panels (control-room depth) */
-  --bg: #0a0b10; /* rich near-black canvas */
+  --bg: #0a0b10;
   --bg-2: #14161f;
   --bg-3: #1e212c;
-  --surface: #15171f; /* card fill — distinctly lifted off the canvas */
+  --surface: #15171f;
   --surface-2: #1b1e28;
 
-  --ink: #f6f8fc; /* primary */
-  --ink-2: #dde3ee; /* body */
-  --ink-3: #97a2b6; /* muted */
-  --ink-4: #7a8498; /* deemphasized — lifted to clear WCAG AA (4.75:1 on surface) */
+  --ink: #f6f8fc;
+  --ink-2: #dde3ee;
+  --ink-3: #97a2b6;
+  --ink-4: #7a8498;
 
-  /* Crisper hairlines for panel definition */
   --line: #242834;
   --line-2: #313747;
   --line-strong: #404758;
-  --panel-line: #313747; /* card outline — a touch crisper so panels read off the near-black canvas */
+  --panel-line: #313747;
 
   --sh-accent: #1c2030;
   --sh-accent-foreground: #dde3ee;
 
-  /* Deeper, more present shadows */
   --shadow-tile: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 10px -2px rgba(0, 0, 0, 0.45);
   --shadow-tile-hover: 0 10px 28px -6px rgba(0, 0, 0, 0.7), 0 4px 10px -2px rgba(0, 0, 0, 0.5);
   --shadow-overlay: 0 32px 64px -16px rgba(0, 0, 0, 0.78), 0 12px 28px -12px rgba(0, 0, 0, 0.6);
@@ -161,7 +120,6 @@
   --sidebar-w: 264px;
 }
 
-/* Shell column width — flips to the rail width when the sidebar is collapsed. */
 :root {
   --shell-sidebar: var(--sidebar-w);
 }
@@ -169,10 +127,6 @@
   --shell-sidebar: var(--sidebar-rail);
 }
 
-/* =========================================================
-   shadcn semantic tokens — sourced from the design tokens above
-   so they flip with [data-theme="dark"] automatically.
-   ========================================================= */
 :root {
   --background: var(--bg);
   --foreground: var(--ink);
@@ -210,10 +164,6 @@
   --sidebar-ring: var(--accent);
 }
 
-/* =========================================================
-   Tailwind theme — map utilities to the tokens (inline so the
-   leaf variables flip in dark mode without extra indirection).
-   ========================================================= */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -235,7 +185,6 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* brand + status as first-class utilities (text-brand, bg-ok/10, …) */
   --color-brand: var(--accent);
   --color-brand-foreground: var(--accent-ink);
   --color-ok: var(--ok);
@@ -244,7 +193,6 @@
   --color-info: var(--info);
   --color-idle: var(--idle);
 
-  /* named box-shadow utilities (shadow-card, shadow-card-hover, shadow-pop) */
   --shadow-card: var(--shadow-tile);
   --shadow-card-hover: var(--shadow-tile-hover);
   --shadow-pop: var(--shadow-overlay);
@@ -270,17 +218,12 @@
   --radius-xl: calc(var(--radius) + 8px);
 }
 
-/* Fonts use a non-inline @theme so the variables are emitted to :root
-   (consumed by both Tailwind `font-*` utilities and legacy `var(--font-*)`). */
 @theme {
   --font-display: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 }
 
-/* =========================================================
-   Reset + base
-   ========================================================= */
 @layer base {
   *,
   *::before,
@@ -303,7 +246,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    /* Inter: contextual alternates + disambiguated l/I/1 for legibility. */
+
     font-feature-settings: 'cv05', 'cv08';
   }
   h1,
@@ -320,7 +263,7 @@
     color: inherit;
     cursor: pointer;
   }
-  /* Keyboard focus baseline — components may tighten this. */
+
   input:focus-visible,
   textarea:focus-visible,
   select:focus-visible,
@@ -330,7 +273,6 @@
   }
 }
 
-/* Thin, themed scrollbars for any scrollable container */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line-2) transparent;
@@ -361,9 +303,6 @@
   display: none;
 }
 
-/* =========================================================
-   Utility classes (kept — used across existing markup)
-   ========================================================= */
 .muted {
   color: var(--ink-3);
 }
@@ -398,7 +337,6 @@
   place-items: center;
 }
 
-/* Critical pulse — value crossing the `bad` threshold. Respects reduced-motion. */
 @keyframes pulse-bad {
   0%,
   100% {
@@ -419,7 +357,6 @@
   }
 }
 
-/* Status pill — outlined, used for state badges */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -476,7 +413,6 @@
   background: var(--info);
 }
 
-/* Status dot — inline, sized via font/em context */
 .status-dot {
   display: inline-block;
   width: 7px;
@@ -502,7 +438,6 @@
   background: var(--idle);
 }
 
-/* Hairline rule */
 .hairline {
   display: block;
   height: 1px;
@@ -511,7 +446,6 @@
   margin: 0;
 }
 
-/* Section header — uppercase label + trailing hairline */
 .section-head {
   display: flex;
   align-items: center;
@@ -551,12 +485,6 @@
   color: var(--ink-3);
 }
 
-/* =========================================================
-   Shell polish — branded, control-room navigation chrome.
-   Unlayered so these win over Tailwind's neutral active utilities.
-   ========================================================= */
-
-/* Active primary nav item: indigo tint + accent text instead of flat grey. */
 [data-sidebar='menu-button'][data-active='true'] {
   background: var(--accent-soft);
   color: var(--accent);
@@ -567,7 +495,6 @@
   color: var(--accent);
 }
 
-/* Active sub-page item in the expanded sidebar — accent text. */
 [data-sidebar='menu-sub-button'][data-active='true'] {
   color: var(--accent);
   font-weight: 600;

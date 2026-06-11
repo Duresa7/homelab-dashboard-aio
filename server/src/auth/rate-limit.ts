@@ -1,29 +1,22 @@
-// In-memory login throttle: per ip+username consecutive-failure counter with
-// exponential backoff once the burst allowance is spent. No hard lockout — an
-// attacker can slow a legitimate user down but never lock them out
-// permanently. Single-process only, which matches how the server runs.
-
 export interface RateLimitOptions {
-  /** Burst of failures tolerated before backoff kicks in. */
   maxFailures?: number;
-  /** First backoff delay; doubles per extra consecutive failure. */
+
   baseDelayMs?: number;
-  /** Backoff ceiling. */
+
   maxDelayMs?: number;
-  /** Quiet period after which the failure count is forgiven. */
+
   forgiveAfterMs?: number;
-  /** Clock injection for tests. */
+
   now?: () => number;
 }
 
 export interface RateLimitDecision {
   allowed: boolean;
-  /** When blocked, how long until the next attempt is allowed. */
+
   retryAfterMs: number;
 }
 
 interface Entry {
-  /** Consecutive failures since the last success / quiet period. */
   consecutive: number;
   lastFailureAt: number;
   blockedUntil: number;
@@ -33,7 +26,7 @@ export interface LoginRateLimiter {
   check(key: string): RateLimitDecision;
   recordFailure(key: string): void;
   recordSuccess(key: string): void;
-  /** ip+username keys are normalized here so callers build them one way. */
+
   key(ip: string | undefined, username: string): string;
 }
 
@@ -46,7 +39,6 @@ export function createLoginRateLimiter(opts: RateLimitOptions = {}): LoginRateLi
 
   const entries = new Map<string, Entry>();
 
-  // Cheap stale-entry GC so the map can't grow unboundedly under scanning.
   const sweep = (t: number) => {
     if (entries.size < 1000) return;
     for (const [k, e] of entries) {

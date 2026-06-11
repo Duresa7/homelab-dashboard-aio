@@ -10,22 +10,15 @@ export interface SubTabsProps {
   tabs: SubTab[];
   active: string;
   onChange: (id: string) => void;
-  /** Optional trailing controls (e.g. a time-window picker), right-aligned. */
+
   actions?: ReactNode;
   className?: string;
 }
 
-/**
- * In-page underline sub-navigation — the reusable page sub-tabs pattern.
- * Linear-style: a thin baseline with an accent underline on the active tab.
- * Replaces ad-hoc button rows; pairs with the section sub-routes.
- */
 export function SubTabs({ tabs, active, onChange, actions, className }: SubTabsProps) {
   const btnRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const activeIndex = tabs.findIndex((t) => t.id === active);
 
-  // WAI-ARIA tabs keyboard model: Left/Right move between tabs (with wrap),
-  // Home/End jump to the ends, and focus follows selection (automatic activation).
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const count = tabs.length;
     if (count === 0) return;

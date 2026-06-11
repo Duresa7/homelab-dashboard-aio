@@ -1,9 +1,3 @@
-/* =========================================================
-   Playground — hypothetical PC builds assembled from devices,
-   existing machine components, or free-text wishlist entries.
-   Persisted via lib/store.ts under the `playground` key.
-   ========================================================= */
-
 import { genId, type Component, type Machine } from './inventory';
 import { getState, setState } from './store';
 
@@ -23,13 +17,13 @@ export type SlotId =
 export interface SlotDef {
   id: SlotId;
   label: string;
-  /** Spare-category name regex that naturally fills this slot. Omit = no inventory mapping. */
+
   categoryMatch?: RegExp;
-  /** Regex matched against a Machine.components[].component string for cloning. */
+
   componentMatch?: RegExp;
-  /** Empty required slot counts toward the "missing" list. */
+
   required: boolean;
-  /** This slot defines the PSU rating; its watts is rating, not draw. */
+
   isPsu?: boolean;
 }
 
@@ -77,13 +71,13 @@ export type SlotSource = 'empty' | 'spare' | 'machine-component' | 'custom';
 
 export interface SlotEntry {
   source: SlotSource;
-  /** Device.id when source='spare'. */
+
   spareId?: string;
-  /** SpecRow.id when source='machine-component'. */
+
   componentId?: string;
-  /** Free-text label when source='custom'. */
+
   customText?: string;
-  /** PSU rating for the PSU slot; estimated draw otherwise. */
+
   watts?: number;
 }
 
@@ -100,8 +94,6 @@ export interface PlaygroundState {
   lastUpdated: string;
   builds: PlaygroundBuild[];
 }
-
-/* ---------- factories ---------- */
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -125,7 +117,6 @@ export function emptyBuild(name = 'New build'): PlaygroundBuild {
   };
 }
 
-/** Clone a Machine into a build by matching each of its components to a slot. */
 export function buildFromMachine(machine: Machine, components: Component[]): PlaygroundBuild {
   const build = emptyBuild(`${machine.name} (copy)`);
   for (const c of components) {
@@ -138,8 +129,6 @@ export function buildFromMachine(machine: Machine, components: Component[]): Pla
   }
   return build;
 }
-
-/* ---------- persistence ---------- */
 
 const STORAGE_KEY = 'playground';
 const SCHEMA_VERSION = 1;
@@ -157,7 +146,6 @@ function makeSeed(): PlaygroundState {
 }
 
 function migrate(data: PlaygroundState): PlaygroundState {
-  // Ensure every build has all 11 slot keys defined (forward-compat for added slots).
   for (const b of data.builds) {
     if (!b.slots) b.slots = emptySlots();
     for (const def of SLOT_DEFS) {
@@ -190,8 +178,6 @@ export function resetPlayground(): PlaygroundState {
   return fresh;
 }
 
-/* ---------- serialization ---------- */
-
 export function exportPlaygroundJSON(state: PlaygroundState): string {
   return JSON.stringify(
     { v: SCHEMA_VERSION, exportedAt: new Date().toISOString(), data: state },
@@ -210,8 +196,6 @@ export function tryImportPlaygroundJSON(text: string): PlaygroundState | null {
     return null;
   }
 }
-
-/* ---------- derived state ---------- */
 
 const PSU_HEADROOM = 0.85;
 

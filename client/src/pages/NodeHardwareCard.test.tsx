@@ -5,11 +5,12 @@ import { NodeHardwareCard } from './ProxmoxPage';
 import { makeDashboardState } from '@/test/fixtures';
 import type { NodeGpu, NodeSensors } from '@/types';
 
-// useTempUnit reads the store; a passthrough mock keeps the default unit.
 vi.mock('@/lib/store', () => ({
   getState: vi.fn((_key: string, fallback: unknown) => fallback),
   setState: vi.fn(),
-  subscribe: vi.fn(() => () => {}),
+  subscribe: vi.fn(() => () => {
+    void 0;
+  }),
 }));
 
 const NODE_A_GPU: NodeGpu = {

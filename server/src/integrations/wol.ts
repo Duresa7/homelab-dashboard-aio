@@ -1,4 +1,3 @@
-// Wake-on-LAN integration. Sends magic packets to registered Compute hosts.
 import express from 'express';
 import dgram from 'node:dgram';
 import net from 'node:net';

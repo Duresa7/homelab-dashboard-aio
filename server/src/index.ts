@@ -34,10 +34,6 @@ import { registerProvider } from './integrations/provider.js';
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-// Surface otherwise-invisible async failures. A promise rejection with no
-// handler would otherwise vanish (or, on newer Node, terminate the process)
-// with no log line explaining why. Skipped under test so it doesn't outlive
-// the suite's module re-imports.
 if (process.env.NODE_ENV !== 'test') {
   process.on('unhandledRejection', (reason) => {
     console.error(`Unhandled promise rejection: ${errorMessage(reason)}`);
@@ -50,28 +46,18 @@ const SIEM_HOST = process.env.SIEM_HOST || '0.0.0.0';
 const SIEM_RETENTION_DAYS = Number(process.env.SIEM_RETENTION_DAYS) || 30;
 const SIEM_MAX_PER_QUERY = Number(process.env.SIEM_MAX_PER_QUERY) || 1000;
 
-// Resolve the database backend once at boot (SQLite at today's paths unless env
-// or data/database.json selects otherwise). Used for both the store factory and
-// the startup log.
 const DB_CONFIG = resolveDbConfig();
 
-// Behind a reverse proxy, req.ip / req.secure must come from X-Forwarded-*
-// headers; TRUST_PROXY takes Express's `trust proxy` values (true, 1, an IP…).
 const TRUST_PROXY = process.env.TRUST_PROXY;
 if (TRUST_PROXY) {
   app.set('trust proxy', TRUST_PROXY === 'true' ? 1 : TRUST_PROXY);
 }
 
-// Open both stores for the resolved backend before any route registration —
-// the auth gate needs the user/session store, and it must precede every route.
 const stores = await openStores(DB_CONFIG).catch((err) => {
   console.error(`Database: failed to open stores - ${errorMessage(err)}`);
   return null;
 });
 
-// Security headers. img-src stays open because bookmark tiles load favicons
-// from arbitrary user-added hosts and brand icons come from icon CDNs; the
-// load-bearing directives are script/connect/object-src.
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -94,8 +80,6 @@ app.use(
   }),
 );
 
-// Auth gate + /api/auth routes. Fails closed (503 for /api) when the DB is
-// unavailable, since nobody could be authenticated anyway.
 const authHandle: AuthHandle | null = stores ? initAuth(app, { auth: stores.auth }) : null;
 if (!stores) app.use(createUnavailableGate());
 
@@ -180,8 +164,6 @@ async function applyRuntimeConfig(
 }
 
 app.get('/api/health', (req, res) => {
-  // Unauthenticated callers (the client's connectivity heartbeat before login)
-  // get a bare liveness flag — the integration inventory is not public.
   if (!req.auth) {
     return res.json({ ok: true });
   }
@@ -376,8 +358,6 @@ registerProxmoxNodeRoutes(app);
 const proxmoxHistoryHandle = initProxmoxHistory(app);
 registerWol(app);
 
-// Sensors share the GPU SSH config by default — both usually target the same host.
-
 const SENSORS_ENABLED = isEnabled(process.env.SENSORS_ENABLED);
 const SENSORS_MODE = (process.env.SENSORS_MODE || gpuStatus.mode).toLowerCase();
 const SENSORS_SSH_HOST = process.env.SENSORS_SSH_HOST || gpuStatus.host;
@@ -396,7 +376,6 @@ const sensorsHandle = initSensors(app, {
   cacheTtl: SENSORS_CACHE_TTL,
 });
 
-// Persistent app-state DB (inventory, thresholds, tweaks, etc.). Core, always on.
 const stateHandle = stores
   ? await initState(app, { store: stores.state }).catch((err) => {
       console.error(`State: init failed - ${err.message}`);
@@ -404,18 +383,12 @@ const stateHandle = stores
     })
   : { shutdown() {} };
 
-// Inventory photo storage — files live next to the SQLite state regardless of
-// the configured DB backend (refs travel in the inventory blob, bytes stay
-// on the app host; back up data/images/ together with the DB).
 const IMAGES_DIR =
   process.env.IMAGES_DIR || path.join(path.dirname(DB_CONFIG.sqlite.statePath), 'images');
 if (stores) {
   initImages(app, { dir: IMAGES_DIR, store: stores.state });
 }
 
-// One-time, idempotent: seed the runtime config store from env-configured
-// integrations so existing installs skip onboarding (a fresh install stays empty
-// and triggers the wizard).
 if (stores) {
   await importEnvConfigIfEmpty(stores.state).catch((err) => {
     console.warn(`Setup: env config import failed - ${errorMessage(err)}`);
@@ -435,7 +408,7 @@ if (process.env.NODE_ENV !== 'test') {
       authHandle?.shutdown();
       stateHandle.shutdown();
     } catch {
-      /* ignore */
+      void 0;
     }
   });
   process.on('SIGTERM', () => {
@@ -443,12 +416,11 @@ if (process.env.NODE_ENV !== 'test') {
       authHandle?.shutdown();
       stateHandle.shutdown();
     } catch {
-      /* ignore */
+      void 0;
     }
   });
 }
 
-// SIEM mounts UDP listener + SSE + REST routes on `app`. Must complete before app.listen.
 const siemHandle = stores
   ? await initSiem(app, {
       store: stores.siem,
@@ -469,7 +441,7 @@ if (process.env.NODE_ENV !== 'test') {
       siemHandle.shutdown();
       proxmoxHistoryHandle.shutdown();
     } catch {
-      /* ignore */
+      void 0;
     }
   });
   process.on('SIGTERM', () => {
@@ -477,12 +449,11 @@ if (process.env.NODE_ENV !== 'test') {
       siemHandle.shutdown();
       proxmoxHistoryHandle.shutdown();
     } catch {
-      /* ignore */
+      void 0;
     }
   });
 }
 
-// Database setup/onboarding API (test a backend + persist config + selections).
 initSetup(app, {
   store: stores?.state,
   onSelectionChanged: async (capabilityId) => {
@@ -494,7 +465,6 @@ initSetup(app, {
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-// Static SPA + fallback so client-side routes resolve on hard refresh.
 const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
 app.use(express.static(distDir, { index: false, maxAge: '1h' }));
 app.get(/^\/(?!api\/|healthz).*/, (_req, res, next) => {

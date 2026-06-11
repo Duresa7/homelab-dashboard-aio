@@ -1,6 +1,3 @@
-// TOTP enrollment/verification (otplib) plus one-time recovery codes. Recovery
-// codes are stored argon2-hashed and burned on use; the plaintext is shown to
-// the user exactly once at enrollment.
 import { randomBytes, randomInt } from 'node:crypto';
 
 import { generateSecret, generateURI, verify } from 'otplib';
@@ -22,7 +19,6 @@ export async function verifyTotpCode(secret: string, code: string): Promise<bool
   const token = code.replace(/\s+/g, '');
   if (!/^\d{6}$/.test(token)) return false;
   try {
-    // ±30s tolerance for clock skew between server and phone (one time step).
     const result = await verify({ secret, token, epochTolerance: 30 });
     return result.valid;
   } catch {
@@ -30,7 +26,6 @@ export async function verifyTotpCode(secret: string, code: string): Promise<bool
   }
 }
 
-/** Format: XXXX-XXXX-XXXX from an unambiguous charset (no 0/O/1/I/L). */
 const RECOVERY_CHARSET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 
 function oneRecoveryCode(): string {
@@ -47,9 +42,8 @@ export function normalizeRecoveryCode(code: string): string {
 }
 
 export interface RecoveryCodeSet {
-  /** Plaintext codes — show once, never persist. */
   codes: string[];
-  /** Argon2 hashes to store on the user record. */
+
   hashes: string[];
 }
 
@@ -59,10 +53,6 @@ export async function generateRecoveryCodes(): Promise<RecoveryCodeSet> {
   return { codes, hashes };
 }
 
-/**
- * Check a submitted recovery code against the stored hashes. Returns the
- * remaining hashes (with the matched one burned) or null on no match.
- */
 export async function consumeRecoveryCode(
   storedHashes: string[],
   submitted: string,
@@ -77,7 +67,6 @@ export async function consumeRecoveryCode(
   return null;
 }
 
-/** Opaque id for pending-TOTP login handoffs. */
 export function randomToken(bytes = 32): string {
   return randomBytes(bytes).toString('hex');
 }

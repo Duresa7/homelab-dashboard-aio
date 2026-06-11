@@ -1,6 +1,3 @@
-// App-state key→value store on Kysely. One query codebase serves SQLite,
-// Postgres, and MySQL; dialect differences (column types, upsert syntax) are
-// the only branches. Exposes the async StateStore contract.
 import { stat } from 'node:fs/promises';
 import type { Generated, Kysely } from 'kysely';
 
@@ -64,9 +61,6 @@ function inventoryCategoryKey(value: Record<string, unknown>): 'devices' | 'spar
   return null;
 }
 
-// Strip the per-category descriptive `note` and rename the old
-// "Networking (legacy)" category — the vendor-neutral cleanup applied to an
-// already-persisted inventory blob.
 function cleanPersistedInventory(value: unknown): { value: unknown; changed: boolean } {
   if (!isRecord(value)) {
     return { value, changed: false };
@@ -111,8 +105,6 @@ function renamePersistedInventoryDevices(value: unknown): { value: unknown; chan
   };
 }
 
-// Ordered migrations. Names map 1:1 to the old `user_version` steps so an
-// existing SQLite DB reconciles cleanly (v1 -> 001, v2 -> 002).
 export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
   {
     name: '001_app_state',
@@ -144,7 +136,7 @@ export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
       }
       const cleaned = cleanPersistedInventory(parsed);
       if (!cleaned.changed) return;
-      // Update value only — leave updated_at so the row's age is preserved.
+
       await db
         .updateTable('app_state')
         .set({ value: JSON.stringify(cleaned.value) })
@@ -169,7 +161,7 @@ export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
       }
       const renamed = renamePersistedInventoryDevices(parsed);
       if (!renamed.changed) return;
-      // Update value only — leave updated_at so the row's age is preserved.
+
       await db
         .updateTable('app_state')
         .set({ value: JSON.stringify(renamed.value) })
@@ -232,13 +224,11 @@ export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
   },
 ];
 
-/** Build the StateStore over an already-migrated Kysely instance. */
 export function createStateStore(
   db: Kysely<StateDatabase>,
   driver: DbDriver,
   dbPath: string | null,
 ): StateStore {
-  // Upsert: Postgres/SQLite use ON CONFLICT, MySQL uses ON DUPLICATE KEY UPDATE.
   const upsert = (qc: Kysely<StateDatabase>, key: string, value: unknown, now: number) => {
     const row = { key, value: JSON.stringify(value), updated_at: now };
     if (driver === 'mysql') {
@@ -319,7 +309,7 @@ export function createStateStore(
         try {
           fileSize = (await stat(dbPath)).size;
         } catch {
-          /* ignore */
+          void 0;
         }
       }
       const count = await db
@@ -340,7 +330,6 @@ export function createStateStore(
   };
 }
 
-/** Open a SQLite-backed state store (the default backend). */
 export async function openStateDb(dbPath: string): Promise<StateStore> {
   const { db, legacyVersion } = await openSqliteKysely<StateDatabase>(dbPath);
   await runMigrations(db, STATE_MIGRATIONS, { driver: 'sqlite', legacyVersion });

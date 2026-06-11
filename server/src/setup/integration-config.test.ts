@@ -66,7 +66,6 @@ describe('importEnvConfigIfEmpty', () => {
     await importEnvConfigIfEmpty(store, ENV, '2026-01-01T00:00:00Z');
     expect((await getStatus(store)).onboardingComplete).toBe(true);
 
-    // Edit a field, then re-run import (e.g. next boot) — edit must survive.
     await upsertSelection(store, {
       capability: 'datacenter',
       vendor: 'proxmox',
@@ -76,7 +75,7 @@ describe('importEnvConfigIfEmpty', () => {
 
     const cfg = (await store.get(CONFIG_KEY))?.value as IntegrationConfig;
     expect(cfg.datacenter.config.node).toBe('pve2');
-    // Omitted secret was preserved through the edit.
+
     expect(cfg.datacenter.config.tokenSecret).toBe('super-secret');
   });
 
@@ -107,7 +106,7 @@ describe('getRedactedConfig', () => {
 describe('upsertSelection', () => {
   it('rejects unknown capability / vendor and missing required fields', async () => {
     await expect(upsertSelection(store, { capability: 'nope', vendor: 'x' })).rejects.toThrow();
-    // vmware is a real (planned) provider under datacenter — not yet available.
+
     await expect(
       upsertSelection(store, { capability: 'datacenter', vendor: 'vmware' }),
     ).rejects.toThrow(/not available/);

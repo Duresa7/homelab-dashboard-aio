@@ -15,7 +15,6 @@ import { cn } from '@/lib/utils';
 import { Editable } from './Editable';
 import { ADD_ROW_BTN, EmptyState, GHOST_ICON_BTN, matchMachine, statusKind } from './shared';
 
-/** Responsive 4-of-12 span, matching EntityCard layouts elsewhere. */
 const CARD_SPAN = 'col-span-12 sm:col-span-6 lg:col-span-4';
 
 interface MachinesTabProps {
@@ -94,11 +93,6 @@ export function MachinesTab({
   );
 }
 
-/**
- * Read-only browse rendering of a Machine: a SectionCard (a div, so component
- * rows can stay individually clickable) with a clickable header that opens the
- * Machine, and ListRow component rows that open each Component. See ADR 0003.
- */
 function MachineBrowseCard({
   machine,
   components,

@@ -1,19 +1,3 @@
-/* =========================================================
-   Inventory — persistent tracker (v2 model).
-
-   Two top-level entities:
-   - `machines`     — active host chassis (PCs / servers / NAS). Block 08xx.
-   - `components`   — ONE flat pool of parts (CPU/GPU/RAM/…). Each carries
-                      structured `fields`, a type-block UID (CPU 1000, GPU 2000…),
-                      and an `assignment` (a machine id, or the literal 'spare').
-   - `devices`       — DEVICE categories only now (laptops 01, phones 02, printers
-                      03, network 04, peripherals 05, monitors 06, cameras 07).
-                      Each item has a per-item `deployment` (in-service|spare).
-
-   Persisted via the server-backed store (lib/store.ts); user can edit,
-   export/import, reset, and build their own inventory from an empty default.
-   ========================================================= */
-
 import { getState, setState } from './store';
 
 export interface MetaRow {
@@ -24,20 +8,19 @@ export interface MetaRow {
 
 export type ItemStatus = 'working' | 'broken' | 'in-repair' | 'retired';
 
-/** Whether a part/device is deployed (in-service) or sitting in the drawer (spare). */
 export type Deployment = 'in-service' | 'spare';
 
 export interface PurchaseInfo {
-  date?: string; // ISO yyyy-mm-dd
+  date?: string;
   vendor?: string;
   price?: string;
   receiptRef?: string;
-  warrantyEnd?: string; // ISO yyyy-mm-dd
+  warrantyEnd?: string;
 }
 
 export interface ItemIds {
   serial?: string;
-  /** Manufacturer part / configuration number (e.g. Seagate "PART-EXAMPLE-001"). */
+
   part?: string;
   uid?: string;
   mac?: string;
@@ -47,20 +30,16 @@ export interface ItemIds {
 
 export interface ProblemLogEntry {
   id: string;
-  date: string; // ISO yyyy-mm-dd
+  date: string;
   note: string;
 }
 
-/** A photo attached to an item. The id addresses /api/images/:id (full) and
- * /api/images/:id/thumb; w/h are the stored full-variant dimensions. */
 export interface ItemImage {
   id: string;
   w: number;
   h: number;
 }
 
-/** Most photos one item can carry (enforced in the editor UI; the server only
- * caps per-upload size since refs live inside the inventory blob). */
 export const MAX_IMAGES_PER_ITEM = 6;
 
 export interface ItemDetail {
@@ -68,11 +47,9 @@ export interface ItemDetail {
   purchase?: PurchaseInfo;
   ids?: ItemIds;
   problemLog?: ProblemLogEntry[];
-  /** Photos; the first one is the card thumbnail. */
+
   images?: ItemImage[];
 }
-
-/* ---------- components ---------- */
 
 export type ComponentType =
   | 'cpu'
@@ -86,25 +63,23 @@ export type ComponentType =
   | 'nic'
   | 'other';
 
-/** One labeled spec row, e.g. { label: 'Cores', value: '16' }. */
 export interface SpecField {
   id: string;
   label: string;
   value: string;
 }
 
-/** The literal value of `Component.assignment` when a part is not installed. */
 export const SPARE = 'spare';
 
 export interface Component extends ItemDetail {
   id: string;
   type: ComponentType;
-  /** Display label, e.g. "GPU", "RAM 1", "Storage 1". */
+
   label: string;
   fields: SpecField[];
-  /** Original free-text spec, preserved on migration so nothing is ever lost. */
+
   rawSpec?: string;
-  /** A machine id, or the literal `SPARE` ('spare'). UID is stable across changes. */
+
   assignment: string;
 }
 
@@ -112,13 +87,11 @@ export interface Machine extends ItemDetail {
   id: string;
   name: string;
   role: string;
-  /** Visible badge in the masthead of each card. e.g. "01", "02". */
+
   ordinal?: string;
   deployment: Deployment;
   meta: MetaRow[];
 }
-
-/* ---------- device categories (devices) ---------- */
 
 export type DeviceCategoryType =
   | 'laptop'
@@ -132,10 +105,10 @@ export type DeviceCategoryType =
 
 export interface Device extends ItemDetail {
   id: string;
-  /** Friendly name (laptops + network gear). Falls back to model/brand for display. */
+
   name?: string;
   deployment: Deployment;
-  /** Keyed by column id. */
+
   values: Record<string, string>;
 }
 
@@ -149,11 +122,10 @@ export interface DeviceCategory {
   id: string;
   name: string;
   note?: string;
-  /** 2-digit UID block, e.g. "01" → 0101, 0102… */
+
   prefix?: string;
-  /** Canonical device kind (drives the block + icon). */
+
   deviceType?: DeviceCategoryType;
-  /** @deprecated pre-v7 network split; superseded by deviceType. */
   kind?: 'spare' | 'network';
   columns: DeviceColumn[];
   items: Device[];
@@ -165,8 +137,6 @@ export interface Inventory {
   components: Component[];
   devices: DeviceCategory[];
 }
-
-/* ---------- ids ---------- */
 
 let _idTick = 0;
 export function genId(prefix = 'x'): string {
@@ -180,9 +150,6 @@ function field(label: string, value: string): SpecField {
   return { id: genId('f'), label, value };
 }
 
-/* ---------- UID blocks ---------- */
-
-/** Component type → 1000-wide UID block base. */
 export const COMPONENT_BLOCKS: Record<ComponentType, number> = {
   cpu: 1000,
   gpu: 2000,
@@ -196,7 +163,6 @@ export const COMPONENT_BLOCKS: Record<ComponentType, number> = {
   other: 10000,
 };
 
-/** Device category type → 2-digit UID block prefix. */
 export const DEVICE_BLOCKS: Record<DeviceCategoryType, string> = {
   laptop: '01',
   phone: '02',
@@ -208,10 +174,8 @@ export const DEVICE_BLOCKS: Record<DeviceCategoryType, string> = {
   other: '09',
 };
 
-/** Active machines (PCs / servers / NAS) all share this block. */
 export const MACHINE_BLOCK = '08';
 
-/** Default labeled fields offered when adding a component of each type. */
 export const COMPONENT_TYPE_FIELDS: Record<ComponentType, string[]> = {
   cpu: ['Brand', 'Model', 'Cores', 'Threads', 'Socket', 'TDP'],
   gpu: ['Brand', 'Model', 'VRAM', 'Interface'],
@@ -249,7 +213,6 @@ export const DEVICE_TYPE_LABELS: Record<DeviceCategoryType, string> = {
   other: 'Devices',
 };
 
-/** Detect a canonical component type from its label (and optional spec text). */
 export function detectComponentType(label: string, spec = ''): ComponentType {
   const k = `${label} ${spec}`.toLowerCase();
   if (/coolers?|\baio\b|heatsink|radiator|\bfans?\b|thermal\s*paste|\bpaste\b/.test(k))
@@ -266,7 +229,6 @@ export function detectComponentType(label: string, spec = ''): ComponentType {
   return 'other';
 }
 
-/** Detect a canonical device category type from a category name. */
 export function detectDeviceType(name: string): DeviceCategoryType {
   const k = name.toLowerCase();
   if (/unifi|network|switch|router|gateway|firewall|wi[- ]?fi|\bap\b/.test(k)) return 'network';
@@ -285,7 +247,6 @@ function num(uid: string | undefined): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-/** Next free UID in a component type block (global across installed + spare). */
 export function nextComponentUid(type: ComponentType, components: Component[]): string {
   const base = COMPONENT_BLOCKS[type];
   const used = new Set<number>();
@@ -299,7 +260,6 @@ export function nextComponentUid(type: ComponentType, components: Component[]): 
   return String(base + 999);
 }
 
-/** Next free `{prefix}{nn}` UID for a device block. */
 export function nextDeviceUid(prefix: string, usedUids: Iterable<string | undefined>): string {
   const used = new Set<number>();
   for (const uid of usedUids) {
@@ -314,9 +274,6 @@ export function nextDeviceUid(prefix: string, usedUids: Iterable<string | undefi
   return `${prefix}99`;
 }
 
-/* ---------- spec parsing ---------- */
-
-/** Split a "Name — detail" spec into a concise name + trailing detail. */
 export function splitSpec(spec: string): { name: string; detail: string } {
   const sep = (spec ?? '').match(/\s+[—–]\s+/);
   if (!sep || sep.index == null) return { name: (spec ?? '').trim(), detail: '' };
@@ -385,7 +342,6 @@ function escRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Detect the left-most known brand in a spec string. */
 export function detectBrand(text: string): string | undefined {
   const t = text ?? '';
   let best: string | undefined;
@@ -400,7 +356,6 @@ export function detectBrand(text: string): string | undefined {
   return best;
 }
 
-/** Detect how many physical units a spec describes, e.g. "(2×16 GB)" → 2. */
 export function splitMultiUnit(spec: string): { count: number; perUnit?: string } {
   const m = (spec ?? '').match(/(\d+)\s*[×x]\s*(\d+(?:\.\d+)?)\s*(GB|TB)/i);
   if (!m) return { count: 1 };
@@ -448,8 +403,6 @@ const EXTRACTORS: Extractor[] = [
   { label: 'Speed', types: ['nic'], re: /\b(\d+(?:\.\d+)?\s*(?:GbE|Gbps|Gbit|MbE|Mbps))\b/i },
 ];
 
-/** Best-effort parse of a free-text spec into labeled fields for a given type.
- *  Mainly for migrating saved data and imported inventory files. */
 export function parseSpecToFields(type: ComponentType, spec: string): SpecField[] {
   const { name, detail } = splitSpec(spec);
   const brand = detectBrand(spec);
@@ -461,10 +414,9 @@ export function parseSpecToFields(type: ComponentType, spec: string): SpecField[
   if (model) fields.push(field('Model', model));
 
   const seen = new Set(fields.map((f) => f.label));
-  // Specs live after the dash; consume matches out of `work` so leftovers → Notes.
+
   let work = detail || '';
 
-  // Cores / Threads (one match → two fields).
   if (type === 'cpu') {
     const ct = work.match(/(\d+)\s*C\s*\/\s*(\d+)\s*T/i);
     if (ct) {
@@ -476,7 +428,6 @@ export function parseSpecToFields(type: ComponentType, spec: string): SpecField[
     }
   }
 
-  // DDR generation + speed (overlapping → handled together).
   if (type === 'ram') {
     const ddr = work.match(/\bDDR(\d)[A-Z]*(?:[\s-]?(\d{3,5}))?\b/i);
     if (ddr) {
@@ -515,12 +466,10 @@ export function parseSpecToFields(type: ComponentType, spec: string): SpecField[
   return fields;
 }
 
-/** Read a field value by label (case-insensitive). */
 export function fieldValue(fields: SpecField[], label: string): string | undefined {
   return fields.find((f) => f.label.toLowerCase() === label.toLowerCase())?.value || undefined;
 }
 
-/** Short display name for a component (Brand + Model, else label). */
 export function componentTitle(c: Component): string {
   const brand = fieldValue(c.fields, 'Brand');
   const model = fieldValue(c.fields, 'Model');
@@ -530,24 +479,18 @@ export function componentTitle(c: Component): string {
   return c.label;
 }
 
-/* ---------- defaults ---------- */
-
 export function emptyInventory(): Inventory {
   return { lastUpdated: '', machines: [], components: [], devices: [] };
 }
 
-/* ---------- storage ---------- */
-
 const STORAGE_KEY = 'inventory';
-// v10: ItemDetail gains optional `images` (photo refs served by /api/images).
+
 const SCHEMA_VERSION = 10;
 
 interface Persisted {
   v: number;
   data: Inventory;
 }
-
-/* ---------- migration ---------- */
 
 function cloneInventory<T>(data: T): T {
   if (typeof structuredClone === 'function') return structuredClone(data);
@@ -562,7 +505,6 @@ function ensureDetail<T extends ItemDetail>(item: T): void {
   if (!Array.isArray(item.images)) item.images = [];
 }
 
-/** old → new UID mapping recorded during the last v6→v7 migration (for relabeling). */
 export interface UidMapEntry {
   old: string;
   new: string;
@@ -573,7 +515,6 @@ export function getLastUidMap(): UidMapEntry[] {
   return _lastUidMap;
 }
 
-/** Old v6 shapes (machines embed components; spares mix component + device cats). */
 interface OldSpecRow extends ItemDetail {
   id: string;
   component: string;
@@ -676,7 +617,6 @@ function migrateV6toV7(old: OldInventory): Inventory {
   const devices: DeviceCategory[] = [];
   for (const cat of old.devices ?? old.spares ?? []) {
     if (COMPONENT_CATEGORY.test(cat.name.trim())) {
-      // Dissolve component categories into the component pool as spares.
       const type = detectComponentType(cat.name);
       for (const it of cat.items) {
         const spec = [
@@ -710,13 +650,12 @@ function migrateV6toV7(old: OldInventory): Inventory {
       }
       continue;
     }
-    // Device category — keep, classify, renumber, inject names / deployment.
+
     const deviceType = cat.kind === 'network' ? 'network' : detectDeviceType(cat.name);
     const prefix = DEVICE_BLOCKS[deviceType];
-    // Only the explicitly-active category (the old kind:'network') is deployed;
-    // older spare-networking and every other device category default to spare.
+
     const activeCategory = cat.kind === 'network';
-    // Don't carry vendor-specific category names (e.g. "UniFi Network Infrastructure").
+
     const catName =
       cat.name === 'Networking (legacy)'
         ? 'Networking'
@@ -725,8 +664,7 @@ function migrateV6toV7(old: OldInventory): Inventory {
           : cat.name;
     const cameraItems: Device[] = [];
     const keptItems: Device[] = [];
-    // Expand qty>1 identical gear into separately named units; other items pass
-    // through as a single unit.
+
     interface Unit {
       src: OldDeviceItem;
       name?: string;
@@ -813,12 +751,10 @@ function stripModel(model: string): string {
   return model.split('(')[0].trim();
 }
 
-/** Identical multi-unit gear (qty>1) → one friendly name per physical unit. */
 const NETWORK_SPLIT: Record<string, string[]> = {
   'USW-FX-X': ['Access Switch 1', 'Access Switch 2'],
 };
 
-/** Known UniFi gear → friendly name (used when migrating existing saved data). */
 const NETWORK_NAMES: Record<string, string> = {
   'UCG-X': 'Gateway',
   'USW-PM-X': 'PoE Switch',
@@ -837,7 +773,6 @@ function valuesToFields(values: Record<string, string>, columns: DeviceColumn[])
     .map(([id, v]) => field(/^notes$/i.test(id) ? 'Notes' : labelFor(id), v));
 }
 
-/** Fill defaults / assign any missing UIDs on an already-v7 inventory. */
 type MaybeLegacyDevices = Omit<Inventory, 'devices'> & {
   devices?: DeviceCategory[];
   spares?: DeviceCategory[];
@@ -940,8 +875,6 @@ export function migrateInventory(data: Inventory | OldInventory | MaybeLegacyDev
   return ensureNew(data);
 }
 
-/* ---------- load / save ---------- */
-
 export function loadInventory(): Inventory {
   const persisted = getState<Persisted | null>(STORAGE_KEY, null);
   if (!persisted?.data) {
@@ -975,8 +908,6 @@ export function resetInventory(): Inventory {
   return fresh;
 }
 
-/* ---------- serialization helpers ---------- */
-
 export function exportInventoryJSON(inv: Inventory): string {
   return JSON.stringify(
     { v: SCHEMA_VERSION, exportedAt: new Date().toISOString(), data: inv },
@@ -1003,8 +934,6 @@ export function tryImportInventoryJSON(text: string): Inventory | null {
   }
 }
 
-/* ---------- item lookup ---------- */
-
 export type FoundItem =
   | { kind: 'machine'; machine: Machine }
   | { kind: 'spare'; item: Device; category: DeviceCategory }
@@ -1028,12 +957,9 @@ export function findItem(inv: Inventory, id: string): FoundItem | null {
   return null;
 }
 
-/** Components installed in a machine. */
 export function machineComponents(inv: Inventory, machineId: string): Component[] {
   return inv.components.filter((c) => c.assignment === machineId);
 }
-
-/* ---------- summary stats ---------- */
 
 export interface InventoryStats {
   machineCount: number;

@@ -10,7 +10,7 @@ import { MAX_IMAGES_PER_ITEM, type ItemImage } from '@/lib/inventory';
 interface ImagesSectionProps {
   images: ItemImage[];
   isEditing: boolean;
-  /** Item name, for alt text and the lightbox label. */
+
   label: string;
   onChange: (images: ItemImage[]) => void;
 }

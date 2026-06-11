@@ -15,11 +15,6 @@ export interface ListCardProps {
   className?: string;
 }
 
-/**
- * A titled card wrapping a vertical list of rows (APs, switches, containers,
- * services…). Pairs with ListRow. Replaces ad-hoc list markup with a single
- * consistent surface.
- */
 export function ListCard({
   title,
   sub,
@@ -51,18 +46,16 @@ export function ListCard({
 }
 
 export interface ListRowProps {
-  /** Status dot color (omit to hide the dot). */
   dot?: StatusKind;
   name: ReactNode;
-  /** Muted detail under or beside the name. */
+
   meta?: ReactNode;
-  /** Right-aligned value. */
+
   value?: ReactNode;
   onClick?: () => void;
   className?: string;
 }
 
-/** A single row inside a ListCard: optional status dot · name/meta · value. */
 export function ListRow({ dot, name, meta, value, onClick, className }: ListRowProps) {
   const interactive = typeof onClick === 'function';
   const Tag = interactive ? 'button' : 'div';

@@ -15,11 +15,6 @@ interface Props {
   alerts: AlertEntry[];
 }
 
-/**
- * Horizontal primary navigation — the "traditional top bar" alternative to the
- * sidebar (Settings → Preferences → Navigation). Same NAV_GROUPS source as the
- * sidebar; sub-pages stay reachable through each page's own tabs.
- */
 export function TopNav({ route, setRoute, alerts }: Props) {
   const presentation = usePresentation();
   const alertKind = alerts.some((a) => a.kind === 'bad') ? 'bad' : alerts.length ? 'warn' : null;

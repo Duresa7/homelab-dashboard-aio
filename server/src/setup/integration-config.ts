@@ -1,7 +1,3 @@
-// Runtime integration config, persisted in the state DB under `setup.`-prefixed
-// keys (hidden from the public /api/state API so secrets never reach the client
-// in bulk). The onboarding UI reads a redacted view and writes selections here;
-// integrations consume it in issue 03.
 import {
   CAPABILITIES,
   getCapability,
@@ -25,8 +21,6 @@ export interface OnboardingState {
   completedAt?: string;
 }
 
-// Per-capability enable flag from the current env-configured integration. Kept
-// here (not in the pure registry) since it only drives the one-time env import.
 const ENABLE_ENV: Record<string, string> = {
   datacenter: 'PROXMOX_ENABLED',
   network: 'UNIFI_ENABLED',
@@ -64,7 +58,6 @@ async function readOnboarding(store: StateStore): Promise<OnboardingState> {
   return (row?.value as OnboardingState | undefined) ?? { complete: false };
 }
 
-/** Build selections from env (the available provider per enabled capability). */
 export function importConfigFromEnv(
   env: NodeJS.ProcessEnv,
   nowIso: string,
@@ -90,11 +83,6 @@ export function importConfigFromEnv(
   return { config, onboarding: { complete: true, completedAt: nowIso } };
 }
 
-/**
- * One-time env import: if the store has no config yet, seed it from env and mark
- * onboarding complete so existing installs skip the wizard. Idempotent — a later
- * boot sees the existing config and leaves user edits untouched.
- */
 export async function importEnvConfigIfEmpty(
   store: StateStore,
   env: NodeJS.ProcessEnv = process.env,
@@ -118,7 +106,6 @@ export async function markOnboardingComplete(
   );
 }
 
-/** Raw stored config for a capability (includes secrets — server-side only). */
 export async function readSelectionConfig(
   store: StateStore,
   capabilityId: string,
@@ -140,7 +127,6 @@ export async function getStatus(
   };
 }
 
-/** Selections for the UI, with secret values replaced by presence markers. */
 export async function getRedactedConfig(store: StateStore): Promise<{
   capabilities: Record<string, unknown>;
   onboarding: OnboardingState;
@@ -171,11 +157,6 @@ interface SelectionInput {
   config?: unknown;
 }
 
-/**
- * Upsert one capability's selection, validated against the provider's
- * configSchema. Secret fields omitted by the caller keep their stored value
- * (so the client never has to round-trip a secret it was never shown).
- */
 export async function upsertSelection(store: StateStore, input: SelectionInput): Promise<void> {
   const capabilityId = typeof input.capability === 'string' ? input.capability : '';
   const vendor = typeof input.vendor === 'string' ? input.vendor : '';

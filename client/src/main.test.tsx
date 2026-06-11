@@ -25,7 +25,7 @@ describe('main startup', () => {
     vi.doMock('./lib/store', () => ({ hydrateStore, rehydrate }));
     vi.doMock('react-dom/client', () => ({ createRoot }));
     vi.doMock('./App', () => ({ App: () => null }));
-    // AuthBoot owns post-login hydration now; main only wires the boot shell.
+
     vi.doMock('./pages/auth/AuthBoot', () => ({
       AuthBoot: ({ children }: { children: React.ReactNode }) => children,
     }));
@@ -42,7 +42,7 @@ describe('main startup', () => {
     expect(onReconnect).toHaveBeenCalledTimes(1);
     expect(startHeartbeat).toHaveBeenCalledTimes(1);
     expect(installAuthExpiryInterceptor).toHaveBeenCalledTimes(1);
-    // Hydration happens inside AuthBoot after login, not at module load.
+
     expect(hydrateStore).not.toHaveBeenCalled();
     expect(rehydrate).not.toHaveBeenCalled();
 

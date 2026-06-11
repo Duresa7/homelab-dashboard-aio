@@ -1,17 +1,9 @@
-// Per-node remote-target resolution shared by the GPU and sensors integrations.
-//
-// A homelab Proxmox cluster has N nodes; per-node GPU/temperature data must be
-// collected from each one. Targets come from a config map (PROXMOX_NODE_TARGETS,
-// keyed by canonical Proxmox node name) with a single-host fallback so existing
-// installs keep working. Some nodes are firewalled from the dashboard host but
-// reachable via a peer — hence the optional jumpHost (SSH ProxyJump).
 import { errorMessage } from '../lib/errors.js';
 import type { NodeUnavailable } from '../../../shared/wire.ts';
 
 export interface NodeTarget {
-  /** Canonical Proxmox node name — the join key for the UI. */
   node: string;
-  mode: string; // 'ssh' | 'local'
+  mode: string;
   host: string;
   user: string;
   port: number;
@@ -30,11 +22,10 @@ export interface TargetDefaults {
 }
 
 export interface ResolveNodeTargetsOpts {
-  /** Raw PROXMOX_NODE_TARGETS env value: JSON map of node name -> overrides. */
   targetsJson?: string;
-  /** Canonical primary node name (PROXMOX_NODE) for the single-host fallback. */
+
   primaryNode?: string;
-  /** Single-host defaults; also the fallback target when no map is configured. */
+
   defaults: TargetDefaults;
 }
 
@@ -69,14 +60,6 @@ function parseTargetsMap(json?: string): Record<string, RawTarget> | null {
   }
 }
 
-/**
- * Build the list of per-node remote targets.
- *
- * With a valid PROXMOX_NODE_TARGETS map, returns one target per entry (each
- * inheriting the single-host defaults for any field it omits). Otherwise falls
- * back to a single target — the existing single-host config — attributed to the
- * primary node name, so single-host installs are unchanged.
- */
 export function resolveNodeTargets(opts: ResolveNodeTargetsOpts): NodeTarget[] {
   const { targetsJson, primaryNode, defaults } = opts;
   const map = parseTargetsMap(targetsJson);
@@ -86,7 +69,7 @@ export function resolveNodeTargets(opts: ResolveNodeTargetsOpts): NodeTarget[] {
     for (const [node, raw] of Object.entries(map)) {
       const mode = str(raw.mode) || defaults.mode;
       const host = str(raw.host) || (mode === 'local' ? '' : defaults.host);
-      if (mode !== 'local' && !host) continue; // an SSH target needs a host
+      if (mode !== 'local' && !host) continue;
       targets.push({
         node,
         mode,
@@ -123,13 +106,6 @@ export interface PerNodeCollection<T> {
   unavailable: NodeUnavailable[];
 }
 
-/**
- * Run `fetchOne` for every target concurrently. A target that rejects is
- * recorded in `unavailable` and never fails the whole batch; a target that
- * resolves — even to an "empty" value (no GPU / no sensors) — counts as a
- * success. This is the graceful-degradation core: one unreachable node must
- * not blank the rest of the cluster.
- */
 export async function collectPerNode<T>(
   targets: NodeTarget[],
   fetchOne: (target: NodeTarget) => Promise<T>,

@@ -54,7 +54,6 @@ export function SparesTab({
   onOpenItem,
   openItemId,
 }: SparesTabProps) {
-  // Spare device categories (items with deployment 'spare').
   const deviceGroups = inv.devices
     .map((cat) => ({
       cat,
@@ -64,7 +63,6 @@ export function SparesTab({
     }))
     .filter((g) => g.items.length > 0 || isEditing);
 
-  // Spare components from the pool, grouped by type.
   const sparePool = inv.components.filter(
     (c) => c.assignment === SPARE && matchComponent(c, query),
   );

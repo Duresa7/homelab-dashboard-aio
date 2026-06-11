@@ -1,8 +1,3 @@
-// Bootstrap database config: which backend to use and how to connect. This
-// must live OUTSIDE the app DB (the vendor/app config store lives inside the
-// chosen DB — chicken-and-egg), so the selection persists to a small JSON file
-// on the data volume, overridable by env. Resolution precedence is
-// env > file > SQLite default, so existing installs are untouched.
 import { readFileSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -23,7 +18,6 @@ export interface SqlServerSettings {
   ssl: boolean;
 }
 
-/** On-disk shape of data/database.json (partial — defaults fill the rest). */
 export interface DbConfigFile {
   driver: DbDriver;
   sqlite?: Partial<SqliteSettings>;
@@ -31,7 +25,6 @@ export interface DbConfigFile {
   mysql?: Partial<SqlServerSettings>;
 }
 
-/** Fully-resolved config the store factory consumes. */
 export interface ResolvedDbConfig {
   driver: DbDriver;
   sqlite: SqliteSettings;
@@ -42,7 +35,7 @@ export interface ResolvedDbConfig {
 export interface ResolveDbConfigOpts {
   env?: NodeJS.ProcessEnv;
   configPath?: string;
-  /** Use this config object instead of reading the file (used by the setup API). */
+
   file?: DbConfigFile | null;
 }
 
@@ -50,7 +43,6 @@ const DATA_DIR = 'data';
 export const DATA_DIR_PATH = path.resolve(DATA_DIR);
 export const DEFAULT_CONFIG_PATH = path.resolve(DATA_DIR, 'database.json');
 
-/** Bootstrap config file location, overridable via DB_CONFIG_PATH. */
 export function configFilePath(env: NodeJS.ProcessEnv = process.env): string {
   return env.DB_CONFIG_PATH ? path.resolve(env.DB_CONFIG_PATH) : DEFAULT_CONFIG_PATH;
 }
@@ -104,13 +96,12 @@ export function normalizeSqliteDataPath(value: string): string {
   return path.relative(process.cwd(), resolved);
 }
 
-/** Read + shape-validate the JSON config file. Any problem → null (safe fallback). */
 function readConfigFile(configPath: string): DbConfigFile | null {
   let text: string;
   try {
     text = readFileSync(configPath, 'utf8');
   } catch {
-    return null; // missing file is the normal case for a fresh install
+    return null;
   }
   try {
     const parsed: unknown = JSON.parse(text);
@@ -119,7 +110,7 @@ function readConfigFile(configPath: string): DbConfigFile | null {
     if (!driver) return null;
     return { ...(parsed as DbConfigFile), driver };
   } catch {
-    return null; // malformed JSON falls back to the default backend
+    return null;
   }
 }
 
@@ -181,11 +172,6 @@ function resolveServer(
   };
 }
 
-/**
- * Resolve the active backend at boot. Precedence: env (`DB_DRIVER`,
- * `DATABASE_URL` or discrete `DB_*`) > the JSON config file > SQLite default.
- * SQLite settings are always resolved so the default path is available.
- */
 export function resolveDbConfig(opts: ResolveDbConfigOpts = {}): ResolvedDbConfig {
   const env = opts.env ?? process.env;
   const configPath = opts.configPath ?? configFilePath(env);
@@ -203,11 +189,6 @@ export function resolveDbConfig(opts: ResolveDbConfigOpts = {}): ResolvedDbConfi
   return { driver: 'sqlite', sqlite };
 }
 
-/**
- * Persist the backend selection (written by the onboarding DB step, issue 05).
- * Atomic: write to a temp file then rename, so a crash mid-write can't corrupt
- * the live config.
- */
 export async function writeDbConfig(
   config: DbConfigFile,
   configPath = DEFAULT_CONFIG_PATH,

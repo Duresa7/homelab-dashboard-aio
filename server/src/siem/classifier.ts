@@ -19,7 +19,6 @@ function inferDeviceKind(parsed: ParsedSyslog): string {
   return 'unknown';
 }
 
-// Lowercased CEF categories UniFi emits — passed through as-is when present.
 const CEF_CATEGORIES = new Set([
   'monitoring',
   'security',
@@ -47,7 +46,6 @@ function inferCategory(parsed: ParsedSyslog): string {
   const tag = (parsed.tag || '').toLowerCase();
   const msg = parsed.message || '';
 
-  // UniFi iptables prefixes: [WAN_IN-3003-A], [LAN_LOCAL-...].
   if (/^\[?(?:WAN|LAN|GUEST|VLAN)[_\-](?:IN|OUT|LOCAL)/i.test(msg)) return 'firewall';
   if (tag === 'kernel' && /\b(?:DROP|ACCEPT|REJECT|src=|SRC=)/i.test(msg)) return 'firewall';
 

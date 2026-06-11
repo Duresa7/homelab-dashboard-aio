@@ -47,9 +47,6 @@ const STORAGE_KEY = 'thresholds';
 const listeners = new Set<() => void>();
 let current: Thresholds = load();
 
-// Cross-tab / cross-device updates: when another tab edits thresholds, our
-// store layer fires a subscribe callback. Refresh the cached value and
-// re-render any threshold-aware components.
 subscribeState(STORAGE_KEY, () => {
   current = load();
   listeners.forEach((fn) => fn());

@@ -2,14 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { Express } from 'express';
 import { initSensors } from './index.js';
 
-// Stored route handlers are called in-test with fake req/res, so they're
-// typed loosely (the real handlers are typed in ./index.ts).
 type StoredHandler = (req: unknown, res: unknown) => unknown;
 
-// Minimal Express stand-ins — capture registered route handlers and the
-// response so we can exercise initSensors' wiring without a real server or
-// any shell-out. The disabled path short-circuits before runSensors(), so
-// no I/O happens here. The fake is cast to Express at the call site.
 function makeApp() {
   const routes: Record<string, StoredHandler> = {};
   return {
@@ -22,14 +16,13 @@ function makeApp() {
 function makeRes() {
   return {
     statusCode: 200,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    body: undefined as any,
+    body: undefined as unknown as { error?: string },
     status(code: number) {
       this.statusCode = code;
       return this;
     },
     json(obj: unknown) {
-      this.body = obj;
+      this.body = obj as { error?: string };
       return this;
     },
   };

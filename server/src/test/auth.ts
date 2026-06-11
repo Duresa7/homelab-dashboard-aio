@@ -1,17 +1,12 @@
-// Auth helpers for server tests: bootstrap the first admin and hand back
-// supertest agents that carry the session cookie. Every loadServerApp() boot
-// starts with zero users, so each test bootstraps its own accounts.
 import type { Express } from 'express';
 import request from 'supertest';
 
 import type { UserRole } from '../auth/types.js';
 
-/** Strong enough for the zxcvbn policy, stable across suites. */
 export const TEST_PASSWORD = 'plasma otter veranda 9 quilt';
 
 export type AuthedAgent = ReturnType<typeof request.agent>;
 
-/** Create the first admin account and return an agent logged in as it. */
 export async function bootstrapAdmin(
   app: Express,
   opts: { username?: string } = {},
@@ -28,10 +23,6 @@ export async function bootstrapAdmin(
   return agent;
 }
 
-/**
- * Return an agent logged in with the given role. Bootstraps the admin first
- * (or reuses one via `opts.admin`) and creates the secondary account with it.
- */
 export async function authedAgent(
   app: Express,
   role: UserRole,

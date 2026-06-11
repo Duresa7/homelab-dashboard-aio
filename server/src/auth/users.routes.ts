@@ -1,6 +1,3 @@
-// Admin user management. The auth gate already restricts /api/users/* to
-// admins; handlers enforce the invariants the matrix can't see (last-admin
-// protection, password policy on resets).
 import type { Express, Request, RequestHandler, Response } from 'express';
 
 import { errorMessage } from '../lib/errors.js';
@@ -103,7 +100,7 @@ export function registerUserRoutes(app: Express, opts: UserRoutesOpts): void {
       }
 
       await store.updateUser(id, patch);
-      // Role changes take effect immediately: drop the user's sessions if demoted.
+
       if (patch.role && patch.role !== user.role) {
         await store.deleteSessionsForUser(id, {
           exceptSessionId: req.auth?.user.id === id ? (req.auth.sessionId ?? undefined) : undefined,
@@ -145,7 +142,7 @@ export function registerUserRoutes(app: Express, opts: UserRoutesOpts): void {
       const check = validatePassword(password, [user.username, user.displayName, user.email ?? '']);
       if (!check.ok) return res.status(400).json({ error: check.reason });
       await store.updateUser(id, { passwordHash: await hashPassword(password) });
-      // Admin reset invalidates the user's existing sessions.
+
       await store.deleteSessionsForUser(id);
       res.json({ ok: true });
     } catch (err) {

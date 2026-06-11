@@ -1,6 +1,3 @@
-// AuthStore over the migrated state Kysely instance — same dialect-portable
-// query codebase as the state store; the only branch is the upsert-free schema
-// so no per-driver SQL is needed here.
 import type { Kysely } from 'kysely';
 
 import type { StateDatabase } from '../state/db.js';
@@ -37,7 +34,7 @@ function toUser(row: UserRow): UserRecord {
     const parsed = JSON.parse(row.recovery_codes) as unknown;
     if (Array.isArray(parsed)) recoveryCodes = parsed.filter((c) => typeof c === 'string');
   } catch {
-    /* corrupted JSON — treat as no recovery codes */
+    void 0;
   }
   const role: UserRole = isUserRole(row.role) ? row.role : 'viewer';
   return {
@@ -104,8 +101,6 @@ const SESSION_COLUMNS = [
   'user_agent',
 ] as const;
 
-// `driver` is accepted for parity with createStateStore/createSiemStore even
-// though no per-dialect SQL is needed here yet.
 export function createAuthStore(db: Kysely<StateDatabase>, driver: DbDriver): AuthStore {
   void driver;
   const getUserByUsername = async (username: string): Promise<UserRecord | null> => {
@@ -167,7 +162,7 @@ export function createAuthStore(db: Kysely<StateDatabase>, driver: DbDriver): Au
         updated_at: now,
         password_changed_at: now,
       };
-      // Re-read by username after insert — portable across all three dialects.
+
       await db.insertInto('users').values(values).execute();
       const created = await getUserByUsername(user.username);
       if (!created) throw new Error('user insert did not persist');

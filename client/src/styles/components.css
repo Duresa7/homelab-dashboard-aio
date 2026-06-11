@@ -1,17 +1,3 @@
-/* =========================================================
-   Component CSS — the handful of component-scoped rules that
-   don't express cleanly as Tailwind utilities (SVG-internal
-   styling, the iOS-style bookmark grid, brand-glyph image
-   fitting, inline-editable fields, icon animations).
-
-   Imported UNLAYERED from globals.css. The old pre-redesign
-   `@layer legacy` block (the 19-tile grid, ExpandOverlay, the
-   sidebar/health/settings/inventory-detail shells, …) was
-   retired once the redesign moved those surfaces onto the
-   shared card kit + Tailwind utilities; only these survive.
-   ========================================================= */
-
-/* ---- icon animations (status/activity glyphs) ---------- */
 @keyframes icon-spin {
   to {
     transform: rotate(360deg);
@@ -51,9 +37,6 @@
   transform-origin: 50% 50%;
 }
 
-/* =========================================================
-   Bookmarks / Apps tile — iOS-style app icons, draggable
-   ========================================================= */
 .bm-groups {
   display: flex;
   flex-direction: column;
@@ -272,7 +255,6 @@
   }
 }
 
-/* ---- inventory icons (brand glyphs + component glyphs) --- */
 .inv-brand {
   display: inline-flex;
   align-items: center;
@@ -292,14 +274,10 @@
 }
 .inv-brand-simple img,
 .inv-brand-wvl img {
-  /* simple-icons and worldvectorlogo SVGs are tightly cropped — give
-     them a tiny breathing box so they don't sit edge-to-edge with
-     neighbouring text. */
   padding: 1px;
   box-sizing: border-box;
 }
 
-/* ---- inline-editable text (inventory fields) ------------ */
 .inv-edit {
   display: inline-block;
   font: inherit;

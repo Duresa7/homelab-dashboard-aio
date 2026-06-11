@@ -102,7 +102,6 @@ function tb(value: number): string {
   return `${value.toFixed(2)} TB`;
 }
 
-/** Severity → StatCard/SummaryBar tone, leaving "ok" neutral so color = meaning. */
 function tone(sev: Severity): StatTone {
   return sev === 'ok' ? 'default' : sev;
 }
@@ -113,10 +112,6 @@ function nodeStatusKind(node: { status?: string }): 'ok' | 'bad' {
   const online = node.status ? node.status === 'online' : true;
   return online ? 'ok' : 'bad';
 }
-
-// ---------------------------------------------------------------------------
-// Data hooks (unchanged behavior)
-// ---------------------------------------------------------------------------
 
 function useNodeDetail(itemId: string): {
   detail: NodeDetail | null;
@@ -226,7 +221,6 @@ function WindowPicker({
   );
 }
 
-/** Section heading inside the 12-col grid. */
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="col-span-12 -mb-1 flex items-center gap-2 text-[12px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
@@ -235,7 +229,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Back affordance + title + status for drill-in detail views. */
 function DetailHeader({
   onBack,
   backLabel,
@@ -272,10 +265,6 @@ function DetailHeader({
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Cluster summary + node cards
-// ---------------------------------------------------------------------------
 
 function clusterStats(data: DashboardState): SummaryStat[] {
   const c = data.proxmox.cluster;
@@ -396,10 +385,6 @@ function NodesGrid({ data, onSelect }: { data: DashboardState; onSelect: Props['
   );
 }
 
-// ---------------------------------------------------------------------------
-// Datacenter view
-// ---------------------------------------------------------------------------
-
 function DatacenterView({
   data,
   sub,
@@ -445,10 +430,6 @@ function DatacenterView({
     </>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Node view (drill-in)
-// ---------------------------------------------------------------------------
 
 function NodeView({
   data,
@@ -563,10 +544,6 @@ function NodeView({
     </>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Guest + storage detail (drill-in)
-// ---------------------------------------------------------------------------
 
 function GuestView({
   data,
@@ -701,13 +678,8 @@ function StorageView({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Tables
-// ---------------------------------------------------------------------------
-
 type TableView = 'combined' | 'per-node';
 
-/** Combined-vs-per-node table preference, persisted per table via /api/state. */
 function useTableView(key: string): [TableView, (v: TableView) => void] {
   const [view, setView] = useState<TableView>(() =>
     getState<TableView>(key, 'combined') === 'per-node' ? 'per-node' : 'combined',
@@ -724,7 +696,6 @@ const VIEW_OPTIONS = [
   { value: 'per-node', label: 'table per node' },
 ];
 
-/** Slim right-aligned layout switch shown above cluster tables. */
 function TableLayoutBar({ view, onChange }: { view: TableView; onChange: (v: TableView) => void }) {
   return (
     <div className="col-span-12 -mb-1 flex items-center justify-end gap-2">
@@ -822,7 +793,7 @@ function GuestsView({ vms }: { vms: VM[] }) {
 
 function StorageTables({ storages }: { storages: ProxmoxStorage[] }) {
   const [view, setView] = useTableView('storageTableView');
-  // Shared storages are cluster-wide, so the per-node view groups them apart.
+
   const groups = [...new Set(storages.map((s) => (s.shared ? 'Shared' : s.node)))];
   const multiNode = groups.length > 1;
 
@@ -957,7 +928,6 @@ function diskHealthKind(health: string | null): 'ok' | 'warn' | 'bad' | 'idle' {
   return 'ok';
 }
 
-/** Cluster-wide physical disks from the live state (no per-node fetch). */
 function ClusterDisksTable({
   disks,
   title = 'Physical Disks',
@@ -1014,7 +984,6 @@ function ClusterDisksTable({
   );
 }
 
-/** Disks tab: combined cluster table or one table per node (TODO #9). */
 function DisksView({ disks }: { disks: PhysicalDisk[] }) {
   const [view, setView] = useTableView('disksTableView');
   const nodes = [...new Set(disks.map((d) => d.node))];
@@ -1151,10 +1120,6 @@ function NetworkTable({
     </DataTableCard>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Sensors tab (local host hardware)
-// ---------------------------------------------------------------------------
 
 function tempColor(tempC: number, warnAt: number, badAt: number) {
   if (tempC >= badAt) return 'var(--bad)';
@@ -1361,11 +1326,6 @@ function SensorsView({ data }: { data: DashboardState }) {
   );
 }
 
-/**
- * Per-node hardware summary — one node's GPU(s) and CPU/system temps, clearly
- * attributed to that node. Used by the Sensors tab's per-node breakdown and by
- * a single node's detail view, so GPU/temps are never ambiguous across nodes.
- */
 export function NodeHardwareCard({
   data,
   nodeName,
@@ -1430,7 +1390,6 @@ export function NodeHardwareCard({
   );
 }
 
-/** The Sensors-tab per-node breakdown — only shown for multi-node clusters. */
 function PerNodeHardware({ data }: { data: DashboardState }) {
   if (data.proxmox.nodes.length <= 1) return null;
   return (
@@ -1493,10 +1452,6 @@ function SensorsTab({ data }: { data: DashboardState }) {
     </>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
 
 export function ProxmoxPage({ data, itemId, sub, onSelect }: Props) {
   const [windowId, setWindowId] = useState<WindowId>('1h');

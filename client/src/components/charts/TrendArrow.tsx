@@ -1,15 +1,10 @@
-/**
- * Tiny directional indicator placed next to a headline metric.
- * Color reflects whether the *trend* is moving toward the healthy side,
- * which is orthogonal to the value's current severity color.
- */
 interface Props {
   data: number[];
-  /** Which direction is good — e.g. 'down' for temps, 'up' for uptime. */
+
   goodDirection?: 'up' | 'down';
-  /** Window size (last N samples) used for slope; defaults to 8. */
+
   window?: number;
-  /** Hide if slope is below this normalized threshold. */
+
   flatBelow?: number;
 }
 
@@ -17,7 +12,7 @@ export function TrendArrow({ data, goodDirection = 'down', window = 8, flatBelow
   if (!data || data.length < 3) return null;
   const slice = data.slice(-window);
   const n = slice.length;
-  // Simple linear regression slope.
+
   let sx = 0,
     sy = 0,
     sxy = 0,

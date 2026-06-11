@@ -1,14 +1,3 @@
-// Capability & vendor-provider registry — the single source of truth for the
-// vendor-agnostic model. Pure data + types: it
-// describes WHICH capabilities exist, which vendor providers can fill each, and
-// WHAT config fields each provider needs — never any secret values.
-//
-// Location decision: the registry lives server-side (config validation, env
-// import, and integration mapping all run here) and is exposed to the client
-// read-only via GET /api/setup/capabilities. Server consumes it by import; the
-// client by API. A compile-time shared module was rejected: server (NodeNext)
-// and client (Vite) use different module resolution and share no build today.
-
 export type CapabilityId =
   | 'datacenter'
   | 'network'
@@ -21,27 +10,26 @@ export type CapabilityId =
 export type ConfigFieldType = 'text' | 'url' | 'password' | 'number' | 'boolean' | 'select';
 
 export interface ConfigField {
-  /** Config key stored under the selection, e.g. `baseUrl`. */
   name: string;
   label: string;
   type: ConfigFieldType;
   required: boolean;
-  /** Secret fields (API keys, tokens) are never echoed back to the client. */
+
   secret?: boolean;
   help?: string;
   default?: string | number | boolean;
-  /** Options for `select` fields. */
+
   options?: { value: string; label: string }[];
-  /** Env var this field imports from on first boot (issue 02). */
+
   env?: string;
 }
 
 export interface VendorProvider {
   id: string;
   label: string;
-  /** Key into the client icon registry (issue 05). */
+
   icon: string;
-  /** Internal integration key this provider drives (unchanged from today). */
+
   adapter: string;
   status: 'available' | 'planned';
   configSchema: ConfigField[];
@@ -49,9 +37,9 @@ export interface VendorProvider {
 
 export interface Capability {
   id: CapabilityId;
-  /** Generic, vendor-neutral name (Phase 0 labels). */
+
   label: string;
-  /** The integration key this capability maps to today. */
+
   integrationKey: string;
   providers: VendorProvider[];
 }
@@ -378,7 +366,6 @@ export function getProvider(capabilityId: string, providerId: string): VendorPro
   return getCapability(capabilityId)?.providers.find((p) => p.id === providerId);
 }
 
-/** The single available provider per capability (Phase 1 has exactly one each). */
 export function availableProviders(): { capability: Capability; provider: VendorProvider }[] {
   const out: { capability: Capability; provider: VendorProvider }[] = [];
   for (const capability of CAPABILITIES) {

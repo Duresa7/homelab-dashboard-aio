@@ -58,7 +58,6 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
 
   const selectItem = useCallback((id: string | undefined) => onSelectItem?.(id), [onSelectItem]);
 
-  // Skip the initial mount: loadInventory already returned the persisted value.
   const didMountInv = useRef(false);
   const invRef = useRef(inv);
   const skipNextSaveRef = useRef(false);
@@ -104,8 +103,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   }, [selectedItemId]);
 
   const stats = useMemo(() => summarize(inv), [inv]);
-  // Edit mode is member+; viewers stay in browse even if state says otherwise
-  // (the server rejects their writes regardless).
+
   const editor = canEdit(useAuth().user);
   const isEditing = mode === 'edit' && editor;
   const q = query.trim().toLowerCase();
@@ -113,8 +111,6 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   const patch = useCallback((mut: (draft: Inventory) => Inventory) => {
     setInv((prev) => mut(prev));
   }, []);
-
-  /* ---------- mutations ---------- */
 
   const updateItemById = useCallback(
     (id: string, mut: (item: Machine | Device | Component) => Machine | Device | Component) => {
@@ -200,7 +196,6 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     });
   };
 
-  /** Add a component to the pool (assignment = machine id or SPARE) and open it. */
   const addComponent = (type: ComponentType, assignment: string) => {
     const id = genId('comp');
     patch((prev) => {
@@ -278,8 +273,6 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     });
   };
 
-  /* ---------- import / export ---------- */
-
   const onExport = () => {
     download(`homelab-inventory-${today()}.json`, exportInventoryJSON(inv), 'application/json');
     toast.success('Exported inventory JSON');
@@ -320,8 +313,6 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     setInv(resetInventory());
     toast.success('Reset inventory');
   };
-
-  /* ---------- derived ---------- */
 
   const selectedFound = useMemo(
     () => (selectedItemId ? findItem(inv, selectedItemId) : null),

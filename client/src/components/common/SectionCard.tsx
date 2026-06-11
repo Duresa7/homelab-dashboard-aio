@@ -7,19 +7,15 @@ export interface SectionCardProps {
   sub?: ReactNode;
   icon?: ReactNode;
   actions?: ReactNode;
-  /** Column span against the 12-col page grid (3/4/6/8/12…). */
+
   span?: number;
-  /** Remove body padding — for full-bleed tables. */
+
   flush?: boolean;
   children?: ReactNode;
   className?: string;
   bodyClassName?: string;
 }
 
-/**
- * The canonical content card: rounded surface, soft border + shadow, optional
- * uppercase-muted header. Replaces the legacy `.tile`/`.t-head` structure.
- */
 export function SectionCard({
   title,
   sub,

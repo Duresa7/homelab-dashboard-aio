@@ -25,9 +25,7 @@ interface Props {
   setRoute: (section: Section, sub?: string, itemId?: string) => void;
 }
 
-/** ⌘K / Ctrl+K command palette — navigate every page + sub-page, run quick actions, jump to a machine. */
 export function CommandMenu({ open, onOpenChange, setRoute }: Props) {
-  // Re-read the inventory each time the palette opens so the machine list is fresh.
   const machines = useMemo(() => (open ? loadInventory().machines : []), [open]);
   const presentation = usePresentation();
 

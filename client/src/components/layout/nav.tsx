@@ -16,7 +16,7 @@ import type { Section } from '@/lib/route';
 export interface NavItemDef {
   section: Section;
   icon: LucideIcon;
-  /** Whether this item owns sub-pages (from SUBS). */
+
   hasSubs?: boolean;
 }
 
@@ -25,7 +25,6 @@ export interface NavGroupDef {
   items: NavItemDef[];
 }
 
-/** Single source of truth for primary navigation — shared by the sidebar and command palette. */
 export const NAV_GROUPS: NavGroupDef[] = [
   { items: [{ section: 'overview', icon: LayoutDashboard }] },
   {

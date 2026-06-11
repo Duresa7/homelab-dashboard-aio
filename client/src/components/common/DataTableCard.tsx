@@ -9,9 +9,9 @@ export interface DataTableCardProps {
   icon?: ReactNode;
   actions?: ReactNode;
   span?: number;
-  /** The `<TableHead>` cells for the header row. */
+
   head: ReactNode;
-  /** The `<TableRow>` body rows. */
+
   children: ReactNode;
   isEmpty?: boolean;
   empty?: ReactNode;
@@ -19,7 +19,6 @@ export interface DataTableCardProps {
   tableClassName?: string;
 }
 
-/** A shadcn `<Table>` inside a flush SectionCard. Replaces every legacy `.data-table`. */
 export function DataTableCard({
   title,
   sub,

@@ -1,6 +1,3 @@
-// Low-level SQLite + Kysely handle: opens better-sqlite3 (wrapped by Kysely's
-// SqliteDialect), applies the SQLite-only pragmas, and reads the legacy
-// `user_version` so the migration runner can reconcile pre-versioning DBs.
 import Database from 'better-sqlite3';
 import { Kysely, SqliteDialect } from 'kysely';
 import { mkdir } from 'node:fs/promises';

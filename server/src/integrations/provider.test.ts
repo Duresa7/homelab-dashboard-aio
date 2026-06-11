@@ -46,7 +46,9 @@ describe('registerProvider', () => {
   });
 
   it('maps upstream failures to 502', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+      void 0;
+    });
     const app = express();
     registerProvider(
       app,
