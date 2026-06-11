@@ -8,7 +8,6 @@ import {
 import { useEffect, useState } from 'react';
 import { Toaster as Sonner, type ToasterProps } from 'sonner';
 
-/** Mirror the app's [data-theme] so toasts match light/dark (no next-themes dependency). */
 function useDocumentTheme(): 'light' | 'dark' {
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
     typeof document !== 'undefined' &&

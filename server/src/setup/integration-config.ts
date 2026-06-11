@@ -1,7 +1,5 @@
-// Runtime integration config, persisted in the state DB under `setup.`-prefixed
-// keys (hidden from the public /api/state API so secrets never reach the client
-// in bulk). The onboarding UI reads a redacted view and writes selections here;
-// integrations consume it in issue 03.
+import { isIP } from 'node:net';
+
 import {
   CAPABILITIES,
   getCapability,
@@ -9,6 +7,8 @@ import {
   type ConfigField,
 } from '../capabilities/registry.js';
 import { isEnabled } from '../lib/env.js';
+import { errorMessage } from '../lib/errors.js';
+import { assertAllowedHost, BlockedHostError, hostFromInput } from '../lib/net-guard.js';
 import type { StateStore } from '../storage/types.js';
 
 export const CONFIG_KEY = 'setup.integrationConfig';
@@ -25,8 +25,6 @@ export interface OnboardingState {
   completedAt?: string;
 }
 
-// Per-capability enable flag from the current env-configured integration. Kept
-// here (not in the pure registry) since it only drives the one-time env import.
 const ENABLE_ENV: Record<string, string> = {
   datacenter: 'PROXMOX_ENABLED',
   network: 'UNIFI_ENABLED',
@@ -50,6 +48,33 @@ function coerceField(field: ConfigField, raw: unknown): unknown {
   return typeof raw === 'string' ? raw : String(raw);
 }
 
+/** Reject host values that carry whitespace, an `@`, slashes, or a leading `-`
+ * (which `ssh` would read as an option). Defense-in-depth on top of the
+ * shell-free execFile in runRemote. */
+function isSafeHostname(value: string): boolean {
+  const v = value.trim();
+  if (!v || v.length > 253) return false;
+  if (/[\s@/\\]/.test(v) || v.startsWith('-')) return false;
+  return isIP(v) !== 0 || /^[A-Za-z0-9._-]+$/.test(v);
+}
+
+/** Enforce the schema's own constraints that the registry declares but
+ * coerceField doesn't apply: select option allowlists and hostname fields. */
+function validateFieldValue(field: ConfigField, value: unknown): void {
+  if (value === undefined || value === '') return;
+  if (field.type === 'select' && field.options) {
+    const allowed = field.options.map((o) => o.value);
+    if (typeof value !== 'string' || !allowed.includes(value)) {
+      throw new ConfigError(
+        `invalid value for ${field.name}: expected one of ${allowed.join(', ')}`,
+      );
+    }
+  }
+  if (field.format === 'hostname' && typeof value === 'string' && !isSafeHostname(value)) {
+    throw new ConfigError(`invalid host for ${field.name}`);
+  }
+}
+
 async function readConfig(store: StateStore): Promise<IntegrationConfig> {
   const row = await store.get(CONFIG_KEY);
   return (row?.value as IntegrationConfig | undefined) ?? {};
@@ -64,7 +89,6 @@ async function readOnboarding(store: StateStore): Promise<OnboardingState> {
   return (row?.value as OnboardingState | undefined) ?? { complete: false };
 }
 
-/** Build selections from env (the available provider per enabled capability). */
 export function importConfigFromEnv(
   env: NodeJS.ProcessEnv,
   nowIso: string,
@@ -90,11 +114,6 @@ export function importConfigFromEnv(
   return { config, onboarding: { complete: true, completedAt: nowIso } };
 }
 
-/**
- * One-time env import: if the store has no config yet, seed it from env and mark
- * onboarding complete so existing installs skip the wizard. Idempotent — a later
- * boot sees the existing config and leaves user edits untouched.
- */
 export async function importEnvConfigIfEmpty(
   store: StateStore,
   env: NodeJS.ProcessEnv = process.env,
@@ -118,7 +137,6 @@ export async function markOnboardingComplete(
   );
 }
 
-/** Raw stored config for a capability (includes secrets — server-side only). */
 export async function readSelectionConfig(
   store: StateStore,
   capabilityId: string,
@@ -140,7 +158,6 @@ export async function getStatus(
   };
 }
 
-/** Selections for the UI, with secret values replaced by presence markers. */
 export async function getRedactedConfig(store: StateStore): Promise<{
   capabilities: Record<string, unknown>;
   onboarding: OnboardingState;
@@ -171,11 +188,6 @@ interface SelectionInput {
   config?: unknown;
 }
 
-/**
- * Upsert one capability's selection, validated against the provider's
- * configSchema. Secret fields omitted by the caller keep their stored value
- * (so the client never has to round-trip a secret it was never shown).
- */
 export async function upsertSelection(store: StateStore, input: SelectionInput): Promise<void> {
   const capabilityId = typeof input.capability === 'string' ? input.capability : '';
   const vendor = typeof input.vendor === 'string' ? input.vendor : '';
@@ -193,17 +205,47 @@ export async function upsertSelection(store: StateStore, input: SelectionInput):
   const config = await readConfig(store);
   const existing = config[capabilityId]?.config ?? {};
 
+  // If the caller points this integration at a different host than the stored
+  // one, any secret it omits must be re-supplied. Otherwise a stored secret
+  // would be inherited and sent to the new (attacker-chosen) destination on the
+  // next fetch. A missing stored baseUrl counts as "changed".
+  const existingHost = typeof existing.baseUrl === 'string' ? hostFromInput(existing.baseUrl) : '';
+  const incomingHost =
+    'baseUrl' in incoming && typeof incoming.baseUrl === 'string'
+      ? hostFromInput(incoming.baseUrl)
+      : '';
+  const hostChanged =
+    incomingHost !== '' && incomingHost.toLowerCase() !== existingHost.toLowerCase();
+
   const merged: Record<string, unknown> = {};
   for (const field of provider.configSchema) {
     let value: unknown;
     if (field.name in incoming) value = coerceField(field, incoming[field.name]);
-    else if (field.name in existing) value = existing[field.name];
+    else if (field.secret && hostChanged && field.name in existing) {
+      throw new ConfigError(`secret fields are required when changing the base URL: ${field.name}`);
+    } else if (field.name in existing) value = existing[field.name];
     else if (field.default !== undefined) value = field.default;
+
+    validateFieldValue(field, value);
 
     if (enabled && field.required && (value === undefined || value === '')) {
       throw new ConfigError(`missing required field: ${field.name}`);
     }
     if (value !== undefined) merged[field.name] = value;
+  }
+
+  // Defense-in-depth SSRF guard: never persist a base URL that points at the
+  // dashboard's own loopback or the link-local/metadata range.
+  for (const field of provider.configSchema) {
+    if (field.type !== 'url') continue;
+    const value = merged[field.name];
+    if (typeof value !== 'string' || !value) continue;
+    try {
+      await assertAllowedHost(value);
+    } catch (err) {
+      if (err instanceof BlockedHostError) throw new ConfigError(errorMessage(err));
+      throw err;
+    }
   }
 
   config[capabilityId] = { enabled, vendor, config: merged };

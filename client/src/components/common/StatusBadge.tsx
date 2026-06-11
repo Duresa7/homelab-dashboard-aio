@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 
 export type StatusKind = 'ok' | 'warn' | 'bad' | 'info' | 'idle';
 
-/** Tinted outline using color-mix so each kind flips automatically in dark mode. */
 const KIND: Record<StatusKind, string> = {
   ok: 'border-[color-mix(in_oklab,var(--ok)_30%,transparent)] bg-[color-mix(in_oklab,var(--ok)_10%,transparent)] text-[var(--ok)]',
   warn: 'border-[color-mix(in_oklab,var(--warn)_30%,transparent)] bg-[color-mix(in_oklab,var(--warn)_10%,transparent)] text-[var(--warn)]',
@@ -15,16 +14,15 @@ const KIND: Record<StatusKind, string> = {
 
 export interface StatusBadgeProps {
   kind?: StatusKind;
-  /** Show the leading severity dot (default true). */
+
   dot?: boolean;
-  /** Pulse the dot — for live/active states. */
+
   pulse?: boolean;
   title?: string;
   children: ReactNode;
   className?: string;
 }
 
-/** Status pill on top of shadcn Badge. Replaces the legacy `.pill .ok/.warn/.bad`. */
 export function StatusBadge({
   kind = 'idle',
   dot = true,

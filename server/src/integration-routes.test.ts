@@ -1,15 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import request from 'supertest';
 
+import { bootstrapAdmin, type AuthedAgent } from './test/auth.js';
 import { loadServerApp, withJsonUpstream } from './test/serverApp.js';
 
-async function usingApp(
-  env: Record<string, string>,
-  fn: (api: ReturnType<typeof request>) => Promise<unknown>,
-) {
+async function usingApp(env: Record<string, string>, fn: (api: AuthedAgent) => Promise<unknown>) {
   const ctx = await loadServerApp(env);
   try {
-    return await fn(request(ctx.app));
+    const api = await bootstrapAdmin(ctx.app);
+    return await fn(api);
   } finally {
     await ctx.cleanup();
   }
@@ -230,7 +228,6 @@ describe('Integration route contracts', () => {
           data: [{ id: 'z1', name: 'Internal', networkIds: ['lan'] }],
         },
         '/proxy/network/integration/v1/sites/site-1/firewall/policies': {
-          // Real v2 shape: action is an object, not a string.
           data: [
             {
               id: 'p1',
@@ -291,8 +288,7 @@ describe('Integration route contracts', () => {
               portsUp: 1,
             });
             expect(res.body.network.publicIp).toBe('198.51.100.20');
-            // Object-shaped action must normalize to its type string, and
-            // zone ids must resolve to zone names.
+
             expect(res.body.unifi.firewall.policyList[0]).toMatchObject({
               name: 'Allow LAN',
               action: 'ALLOW',
@@ -453,10 +449,10 @@ describe('Integration route contracts', () => {
               state: 'running',
             });
             expect(res.body.proxmox.storages[0].zfsHealth).toBe('ONLINE');
-            // Physical disks are fetched per node and carry node attribution.
+
             expect(res.body.proxmox.disks[0]).toMatchObject({
               node: 'node-a',
-              model: '990 PRO', // normalizeDiskParts splits the vendor off
+              model: '990 PRO',
               vendor: 'Samsung',
               health: 'PASSED',
             });
@@ -514,7 +510,9 @@ describe('Integration route contracts', () => {
   });
 
   it('surfaces upstream failures as 502 errors', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+      void 0;
+    });
 
     try {
       await withJsonUpstream(
@@ -540,14 +538,10 @@ describe('Integration route contracts', () => {
     }
   });
 
-  // Pins the failure contract for the other HTTP integrations so the #05
-  // decompose (which extracts the safe-fetch / route-factory layer) cannot
-  // silently change error mapping. Each integration's PRIMARY (non-safe)
-  // upstream call is forced to 500; the route must answer 502 with an error
-  // string. (Sub-resource calls use safe* wrappers and degrade — that
-  // swallowing is addressed in #07, not here.)
   it('maps a failing primary upstream to 502 for every HTTP integration', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+      void 0;
+    });
 
     const cases: {
       route: string;

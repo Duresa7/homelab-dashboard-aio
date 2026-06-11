@@ -92,7 +92,7 @@ const NODE_A_GPU: NodeGpu = {
 function clusterState(): DashboardState {
   const data = makeDashboardState();
   data.proxmox.nodes = [node('node-a'), node('node-c', { maxcpu: 4 })];
-  data.gpus = [NODE_A_GPU]; // only nodeA has a GPU
+  data.gpus = [NODE_A_GPU];
   data.sensorNodes = [sensors('node-a', 42), sensors('node-c', 38)];
   return data;
 }
@@ -101,7 +101,7 @@ beforeEach(() => storeMock.reset());
 
 describe('OverviewPage', () => {
   it('renders the health command center and navigates from a subsystem card', async () => {
-    const data = makeDashboardState(); // single node → no Nodes section
+    const data = makeDashboardState();
     const setRoute = vi.fn();
     const user = userEvent.setup();
 
@@ -124,10 +124,10 @@ describe('OverviewPage', () => {
     render(<OverviewPage data={clusterState()} setRoute={vi.fn()} />);
 
     expect(screen.getByText('Nodes')).toBeInTheDocument();
-    // nodeA is GPU-labeled; nodeC explicitly has no GPU — no ambiguity.
+
     expect(screen.getByText('Example GPU A')).toBeInTheDocument();
     expect(screen.getByText('No GPU')).toBeInTheDocument();
-    // temps attributed per node
+
     expect(screen.getByText(/GPU 0%.*31°C/)).toBeInTheDocument();
     expect(screen.getByText('CPU 42°C')).toBeInTheDocument();
     expect(screen.getByText('CPU 38°C')).toBeInTheDocument();
@@ -137,14 +137,12 @@ describe('OverviewPage', () => {
     const user = userEvent.setup();
     render(<OverviewPage data={clusterState()} setRoute={vi.fn()} />);
 
-    expect(screen.getByText('No GPU')).toBeInTheDocument(); // nodeC visible
+    expect(screen.getByText('No GPU')).toBeInTheDocument();
 
-    // The selector chip's accessible name is exactly the node name (exact match
-    // avoids colliding with the node card whose name embeds extra metrics).
     await user.click(screen.getByRole('button', { name: 'node-c' }));
 
     expect(storeMock.setState).toHaveBeenCalledWith('overviewSelectedNodes', ['node-a']);
-    expect(screen.queryByText('No GPU')).not.toBeInTheDocument(); // nodeC's tile gone
-    expect(screen.getByText('Example GPU A')).toBeInTheDocument(); // nodeA remains
+    expect(screen.queryByText('No GPU')).not.toBeInTheDocument();
+    expect(screen.getByText('Example GPU A')).toBeInTheDocument();
   });
 });

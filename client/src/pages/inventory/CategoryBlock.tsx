@@ -1,5 +1,6 @@
 import { Plus, Trash2, X } from 'lucide-react';
 
+import { deleteImages } from '../../lib/images';
 import { genId, nextDeviceUid, type DeviceCategory, type Device } from '../../lib/inventory';
 import { BrandGlyph, categoryIcon } from '../../lib/inventoryIcons';
 import {
@@ -78,7 +79,10 @@ export function CategoryBlock({
       ],
     }));
   const removeItem = (itemId: string) =>
-    onChange((cur) => ({ ...cur, items: cur.items.filter((it) => it.id !== itemId) }));
+    onChange((cur) => {
+      deleteImages(cur.items.find((it) => it.id === itemId)?.images);
+      return { ...cur, items: cur.items.filter((it) => it.id !== itemId) };
+    });
 
   const setColumnLabel = (colId: string, label: string) =>
     onChange((cur) => ({

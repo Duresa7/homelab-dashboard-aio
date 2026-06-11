@@ -12,11 +12,19 @@ const tabs = [
 
 describe('SubTabs', () => {
   it('exposes tab roles, selection, and a roving tabindex', () => {
-    render(<SubTabs tabs={tabs} active="b" onChange={() => {}} />);
+    render(
+      <SubTabs
+        tabs={tabs}
+        active="b"
+        onChange={() => {
+          void 0;
+        }}
+      />,
+    );
     expect(screen.getAllByRole('tab')).toHaveLength(3);
     const b = screen.getByRole('tab', { name: 'B' });
     expect(b).toHaveAttribute('aria-selected', 'true');
-    // Only the active tab is in the tab sequence; the rest are arrow-reachable.
+
     expect(b).toHaveAttribute('tabindex', '0');
     expect(screen.getByRole('tab', { name: 'A' })).toHaveAttribute('tabindex', '-1');
   });
@@ -30,7 +38,6 @@ describe('SubTabs', () => {
     await user.keyboard('{ArrowRight}');
     expect(onChange).toHaveBeenLastCalledWith('b');
 
-    // From the active tab (a), ArrowLeft wraps to the last tab.
     await user.keyboard('{ArrowLeft}');
     expect(onChange).toHaveBeenLastCalledWith('c');
 

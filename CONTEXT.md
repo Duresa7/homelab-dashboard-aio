@@ -180,6 +180,32 @@ containers, gpu, sensors, logs). Drives which Sections appear.
 The server-side adapter that talks to an external system (Proxmox, UniFi, Docker/Portainer,
 NVIDIA, sensors, syslog) and feeds a Capability.
 
+### Auth
+
+**User**:
+A local account (username + display name + optional email + argon2id password hash) stored
+in the state DB. The username is the lowercase login id; the display name carries the
+person's casing. There is no email delivery — recovery is admin reset or the offline CLI.
+
+**Role**:
+One of admin / member / viewer, enforced server-side by the central matrix in
+`server/src/auth/middleware.ts`. Viewer = read-only, Member = inventory writes + WoL,
+Admin = setup, users, debug endpoints.
+
+**Session**:
+A 30-day sliding login persisted in the `sessions` table; the cookie holds a random token,
+the DB holds only its SHA-256. "Remember me" controls whether the cookie outlives the browser.
+
+**Bootstrap mode**:
+The state when the active DB has zero users: every API route is gated off except auth
+status + first-admin creation, and the client forces the create-admin screen. Covers fresh
+installs, upgrades, and DB-backend switches with one invariant.
+
+**Proxy auth**:
+Optional header-based SSO (Authentik/Authelia style): a trusted reverse proxy asserts a
+username that must map to an existing local User. The header picks _who logs in_, never
+who exists or what role they hold. See ADR 0006.
+
 ## Flagged ambiguities
 
 - **Device**: inventory umbrella (sealed unit tracked whole) vs UniFi **network appliance**

@@ -115,7 +115,6 @@ export function AppSidebar({ route, setRoute, alerts }: Props) {
                     const subs = it.hasSubs ? (SUBS[it.section] ?? []) : [];
                     const showBadge = it.section === 'observability' && alerts.length > 0;
 
-                    // --- Leaf item (no sub-pages) ---
                     if (subs.length === 0) {
                       return (
                         <SidebarMenuItem key={it.section}>
@@ -150,7 +149,6 @@ export function AppSidebar({ route, setRoute, alerts }: Props) {
                       );
                     }
 
-                    // --- Section with sub-pages, sidebar collapsed → hover flyout ---
                     if (collapsed) {
                       return (
                         <SidebarMenuItem key={it.section}>
@@ -195,7 +193,6 @@ export function AppSidebar({ route, setRoute, alerts }: Props) {
                       );
                     }
 
-                    // --- Section with sub-pages, sidebar expanded → inline subs for active section ---
                     return (
                       <SidebarMenuItem key={it.section}>
                         <SidebarMenuButton isActive={isActive} onClick={() => go(it.section)}>

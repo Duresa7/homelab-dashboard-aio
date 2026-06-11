@@ -17,8 +17,6 @@ import {
   type Component,
 } from './inventory';
 
-/* A representative v6-shaped inventory (machines embed components; spares mix
-   component categories with device categories) for migration tests. */
 function v6Fixture() {
   return {
     lastUpdated: '2026-05-30',
@@ -220,7 +218,7 @@ describe('migrateInventory (v6 → v7)', () => {
     const spareCpu = inv.components.find((c) => c.type === 'cpu' && c.assignment === SPARE);
     expect(spareCpu).toBeTruthy();
     expect(spareCpu?.ids?.uid).toBe('1002');
-    // No component categories should remain in devices.
+
     expect(inv.devices.some((c) => /cpus?/i.test(c.name))).toBe(false);
   });
 
@@ -372,6 +370,51 @@ describe('migrateInventory (spares → devices)', () => {
       ids: { uid: '0401' },
       status: 'working',
     });
+  });
+});
+
+describe('migrateInventory (v9 → v10 images)', () => {
+  it('defaults images to [] on every item type and preserves existing refs', () => {
+    const v9 = {
+      lastUpdated: '2026-06-09',
+      machines: [
+        { id: 'm1', name: 'Tower', role: 'compute', deployment: 'in-service' as const, meta: [] },
+      ],
+      components: [
+        {
+          id: 'c1',
+          type: 'gpu' as const,
+          label: 'GPU',
+          fields: [],
+          assignment: 'm1',
+          images: [{ id: 'aaaaaaaaaaaaaaaa', w: 320, h: 200 }],
+        },
+      ],
+      devices: [
+        {
+          id: 'cat_net',
+          name: 'Network',
+          deviceType: 'network' as const,
+          prefix: '04',
+          columns: [],
+          items: [
+            {
+              id: 'd1',
+              name: 'Gateway',
+              deployment: 'in-service' as const,
+              values: {},
+              ids: { uid: '0401' },
+            },
+          ],
+        },
+      ],
+    };
+
+    const migrated = migrateInventory(v9 as never);
+    expect(migrated.machines[0].images).toEqual([]);
+    expect(migrated.devices[0].items[0].images).toEqual([]);
+
+    expect(migrated.components[0].images).toEqual([{ id: 'aaaaaaaaaaaaaaaa', w: 320, h: 200 }]);
   });
 });
 

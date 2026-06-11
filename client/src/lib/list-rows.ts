@@ -2,15 +2,10 @@ import { useEffect, useState } from 'react';
 
 import { getState, setState, subscribe as subscribeState } from './store';
 
-/**
- * User-adjustable cap on how many rows list cards show (connected clients,
- * recent events, ...). `0` means "show all". Persisted via /api/state.
- */
 const STORAGE_KEY = 'listRows';
 
 export const DEFAULT_LIST_ROWS = 5;
 
-/** Choices offered in Settings → Preferences. 0 = no cap. */
 export const LIST_ROWS_OPTIONS = [3, 5, 8, 10, 15, 25, 0] as const;
 
 export function listRowsLabel(rows: number): string {
@@ -34,7 +29,6 @@ export function useListRows(): number {
   return rows;
 }
 
-/** Apply the row cap; a cap of 0 returns the full list. */
 export function capList<T>(items: T[], rows: number): T[] {
   return rows > 0 ? items.slice(0, rows) : items;
 }

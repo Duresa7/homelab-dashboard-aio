@@ -7,20 +7,15 @@ export interface ChartCardProps {
   icon?: ReactNode;
   actions?: ReactNode;
   span?: number;
-  /** Chart body height in px (the SVG charts fill width and use this height). */
+
   height?: number;
-  /** Shown (centered, dashed) when there's no data yet. */
+
   empty?: ReactNode;
   isEmpty?: boolean;
   children?: ReactNode;
   className?: string;
 }
 
-/**
- * A titled chart container with a fixed, sane body height — so a 120px chart
- * doesn't sit in a 200px card. Centralizes the "Waiting for samples" empty
- * state that was duplicated inline across pages.
- */
 export function ChartCard({
   title,
   sub,

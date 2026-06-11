@@ -26,7 +26,6 @@ export const GHOST_ICON_BTN =
 export const ADD_ROW_BTN =
   'inline-flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-brand';
 
-/** Component types in UID-block order, for stable grouping. */
 export const TYPE_ORDER = (Object.entries(COMPONENT_BLOCKS) as [ComponentType, number][])
   .sort((a, b) => a[1] - b[1])
   .map(([t]) => t);

@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 
 export interface PageHeaderProps {
   title: ReactNode;
-  /** Small uppercase label above the title. */
+
   eyebrow?: ReactNode;
   sub?: ReactNode;
   badges?: ReactNode;
@@ -12,7 +12,6 @@ export interface PageHeaderProps {
   className?: string;
 }
 
-/** The page-level header card — matches the HealthPage pattern. */
 export function PageHeader({
   title,
   eyebrow,

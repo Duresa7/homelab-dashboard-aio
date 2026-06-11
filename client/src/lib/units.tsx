@@ -13,8 +13,12 @@ interface Ctx {
 
 const UnitContext = createContext<Ctx>({
   unit: 'F',
-  setUnit: () => {},
-  toggle: () => {},
+  setUnit: () => {
+    void 0;
+  },
+  toggle: () => {
+    void 0;
+  },
 });
 
 function normalizeUnit(value: unknown): TempUnit {

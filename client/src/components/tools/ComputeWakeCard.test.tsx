@@ -47,6 +47,24 @@ vi.mock('@/lib/store', () => ({
   subscribe: storeMock.subscribe,
 }));
 
+vi.mock('@/lib/auth', () => ({
+  useAuth: () => ({
+    usersExist: true,
+    user: {
+      id: 1,
+      username: 'admin',
+      displayName: 'Admin',
+      email: null,
+      role: 'admin',
+      totpEnabled: false,
+      createdAt: 0,
+      passwordChangedAt: 0,
+    },
+    via: 'session',
+  }),
+  canEdit: (user: { role?: string } | null) => user?.role === 'admin' || user?.role === 'member',
+}));
+
 vi.mock('sonner', () => ({
   toast: toastMock,
 }));
@@ -219,7 +237,7 @@ describe('ComputeWakeCard', () => {
   it('filters out corrupted host entries from the store', () => {
     storeMock.values.set('computeHosts', [
       { id: 'good', name: 'Good Host', mac: 'AA:BB:CC:DD:EE:FF' },
-      { id: 'bad', name: 'Missing MAC' }, // no mac → rejected by isComputeHost
+      { id: 'bad', name: 'Missing MAC' },
       'totally-not-a-host',
     ]);
     renderCard();

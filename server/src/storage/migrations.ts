@@ -1,8 +1,3 @@
-// Portable migration runner. Tracks applied migrations in a `schema_migrations`
-// table driven through Kysely (works on SQLite/Postgres/MySQL) instead of
-// SQLite's `user_version` pragma. Reconciliation lets a pre-versioning SQLite
-// DB carry over: the first `legacyVersion` migrations are marked applied without
-// re-running, so existing installs neither re-run DDL nor lose data.
 import type { Kysely } from 'kysely';
 
 import { columnTypes } from './columns.js';
@@ -13,7 +8,6 @@ export interface SchemaMigrationsTable {
   applied_at: number;
 }
 
-/** A database the runner can manage must carry the tracking table. */
 export interface WithMigrations {
   schema_migrations: SchemaMigrationsTable;
 }
@@ -23,7 +17,6 @@ export interface MigrationContext {
 }
 
 export interface Migration<DB extends WithMigrations> {
-  /** Sortable, stable name, e.g. `001_app_state`. Lexicographic = run order. */
   name: string;
   up: (db: Kysely<DB>, ctx: MigrationContext) => Promise<void>;
 }
@@ -35,9 +28,7 @@ export async function runMigrations<DB extends WithMigrations>(
 ): Promise<void> {
   const { driver } = opts;
   const types = columnTypes(driver);
-  // Kysely can't resolve table types against a generic DB param, so address the
-  // tracking table through a concrete view. The per-migration `up` still gets
-  // the caller's fully-typed Kysely<DB>.
+
   const tracker = db as unknown as Kysely<WithMigrations>;
 
   await tracker.schema
@@ -53,8 +44,6 @@ export async function runMigrations<DB extends WithMigrations>(
   const record = (name: string) =>
     tracker.insertInto('schema_migrations').values({ name, applied_at: Date.now() }).execute();
 
-  // Reconcile a DB created under the old `user_version` scheme: nothing tracked
-  // yet but a non-zero legacy version means those leading migrations already ran.
   if (applied.size === 0 && opts.legacyVersion && opts.legacyVersion > 0) {
     for (const m of migrations.slice(0, opts.legacyVersion)) {
       await record(m.name);
@@ -69,7 +58,6 @@ export async function runMigrations<DB extends WithMigrations>(
   }
 }
 
-/** Count of applied migrations — surfaced as the store's schemaVersion. */
 export async function countApplied<DB extends WithMigrations>(db: Kysely<DB>): Promise<number> {
   const tracker = db as unknown as Kysely<WithMigrations>;
   const row = await tracker

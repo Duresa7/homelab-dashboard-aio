@@ -279,7 +279,7 @@ export function BookmarksTile({ span = 12 }: Props) {
     try {
       event.dataTransfer.setData('text/plain', bookmarkId);
     } catch {
-      /* noop */
+      void 0;
     }
   };
 
@@ -333,7 +333,7 @@ export function BookmarksTile({ span = 12 }: Props) {
     try {
       event.dataTransfer.setData('text/plain', groupId);
     } catch {
-      /* noop */
+      void 0;
     }
   };
 

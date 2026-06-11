@@ -1,15 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// runRemote is the shell-out edge; mock it so tests drive per-node responses
-// without any SSH. The hoisted holder keeps a stable mock across resetModules.
 const remoteMock = vi.hoisted(() => ({ runRemote: vi.fn() }));
 vi.mock('../lib/remote.js', () => ({ runRemote: remoteMock.runRemote }));
 
-// Real nvidia-smi CSV line (sample GPU) — field order matches gpu.ts.
 const GPU_A_CSV = 'Example GPU A, 0, 6461, 11264, 31, 12.44, 275.00, 0, 139, 405';
 const GPU_B_CSV = 'Example GPU B, 5, 1000, 24576, 40, 100, 350, 30, 1500, 9000';
 
-// Full three-section detection outputs, captured from real hardware.
 const SEC = '__GPU_SECTION__';
 const NVIDIA_NODE_OUT =
   `NVIDIA GeForce GTX 1080 Ti, 0, 6461, 11264, 31, 12.54, 275.00, 0, 139, 405\n` +
@@ -65,7 +61,7 @@ describe('GPU per-node collection', () => {
     });
     remoteMock.runRemote.mockImplementation(async (opts: { host?: string }) => {
       if (opts.host === '192.0.2.10') return `${GPU_A_CSV}\n`;
-      throw new Error('bash: nvidia-smi: command not found'); // nodeC: Intel box, no nvidia-smi
+      throw new Error('bash: nvidia-smi: command not found');
     });
 
     const res = await gpuProvider.fetch();
@@ -75,11 +71,11 @@ describe('GPU per-node collection', () => {
       node: 'node-a',
       index: 0,
       model: 'Example GPU A',
-      memTotalGB: 11, // 11264 MB → 11 GB
+      memTotalGB: 11,
       tempC: 31,
     });
-    expect(res.gpu.model).toBe('Example GPU A'); // legacy primary = nodeA
-    expect(res.unavailable).toBeUndefined(); // GPU-less node is normal, not an outage
+    expect(res.gpu.model).toBe('Example GPU A');
+    expect(res.unavailable).toBeUndefined();
   });
 
   it('records an unreachable node under unavailable while keeping reachable ones', async () => {
@@ -148,15 +144,15 @@ describe('GPU per-node collection', () => {
       metricsAvailable: true,
       tempC: 31,
     });
-    // The NVIDIA lspci line must not duplicate the nvidia-smi entry.
+
     expect(res.gpus.filter((g) => g.node === 'node-a')).toHaveLength(1);
     expect(res.gpus[1]).toMatchObject({
       node: 'node-b',
       model: 'UHD Graphics 630',
       vendor: 'intel',
       integrated: true,
-      metricsAvailable: false, // no utilization without igt-gpu-tools
-      gpuClockMHz: 350, // i915 current frequency from sysfs
+      metricsAvailable: false,
+      gpuClockMHz: 350,
       usage: 0,
     });
   });
@@ -178,10 +174,10 @@ describe('GPU per-node collection', () => {
       vendor: 'amd',
       integrated: false,
       metricsAvailable: true,
-      usage: 37, // gpu_busy_percent
-      memUsedGB: 2, // 2147483648 B
+      usage: 37,
+      memUsedGB: 2,
       memTotalGB: 8,
-      tempC: 56, // 56000 m°C
+      tempC: 56,
     });
   });
 

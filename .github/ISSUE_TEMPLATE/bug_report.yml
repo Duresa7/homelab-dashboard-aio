@@ -1,0 +1,64 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly
+labels: ['bug', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! A heads-up before you start:
+        **please redact anything private** — real IP addresses, hostnames,
+        MAC addresses, serial numbers, API keys. Use placeholders like
+        `192.0.2.10` or `node-a` instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        1. Opened the Network section and clicked the Firewall tab
+        2. Expected the policy list
+        3. Page went blank instead
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How are you running the dashboard?
+      options:
+        - Docker image (ghcr.io)
+        - From source (npm run dev / dev:all)
+        - Other (describe below)
+    validations:
+      required: true
+  - type: checkboxes
+    id: integrations
+    attributes:
+      label: Which integrations are involved?
+      description: Check any that relate to the bug, if known.
+      options:
+        - label: Proxmox (Data Center)
+        - label: UniFi Network
+        - label: UNAS (NAS)
+        - label: Portainer (Containers)
+        - label: GPU / sensors (SSH collection)
+        - label: None / not integration-related
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or errors
+      description: |
+        Server output, browser console errors, or a screenshot.
+        **Double-check for private data before pasting.**
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Image tag (e.g. `latest`, `sha-abc1234`) or the commit you built from.
+  - type: checkboxes
+    id: pii-check
+    attributes:
+      label: Privacy check
+      options:
+        - label: I've redacted real IPs, hostnames, serial numbers, and credentials from this report
+          required: true

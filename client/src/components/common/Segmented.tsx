@@ -13,7 +13,6 @@ export interface SegmentedProps {
   className?: string;
 }
 
-/** Pill-style segmented toggle — replaces the legacy `.chart-pick` button group. */
 export function Segmented({ options, value, onChange, className }: SegmentedProps) {
   return (
     <div

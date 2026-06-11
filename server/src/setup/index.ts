@@ -1,8 +1,3 @@
-// First-run / Settings database setup API. Lets the UI test a backend connection
-// and persist the choice to the bootstrap config file (outside any DB). The
-// onboarding-wizard step and live hot-swap are layered on by vendor-onboarding;
-// a saved change here applies at next boot (restartRequired), since the store
-// layer is opened once at startup.
 import express from 'express';
 import type { Express, NextFunction, Request, Response } from 'express';
 
@@ -20,6 +15,7 @@ import {
   type SqlServerSettings,
 } from '../storage/config.js';
 import { testDbConnection } from '../storage/factory.js';
+import { assertAllowedHost } from '../lib/net-guard.js';
 import { makeSameOriginGuard } from '../state/index.js';
 import type { StateStore } from '../storage/types.js';
 import {
@@ -54,7 +50,6 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-/** Validate untrusted request bodies into a DbConfigFile. Throws BadRequest. */
 function parseDbConfigFile(input: unknown): DbConfigFile {
   if (!input || typeof input !== 'object') throw new BadRequest('body must be a JSON object');
   const body = input as Record<string, unknown>;
@@ -98,23 +93,28 @@ function parseDbConfigFile(input: unknown): DbConfigFile {
   return { driver, [driver]: server };
 }
 
-/**
- * Keep the previously-saved password when a re-save/test for the SAME backend
- * omits it — this is what powers the "leave blank to keep the saved password"
- * affordance on the Settings re-entry. Switching to a different backend has no
- * prior secret to inherit, so a password must be supplied for that case.
- */
 export function keepDbSecrets(file: DbConfigFile, current: ResolvedDbConfig): DbConfigFile {
   if (file.driver !== 'postgres' && file.driver !== 'mysql') return file;
   if (current.driver !== file.driver) return file;
   const incoming = file[file.driver];
-  if (incoming?.password) return file; // an explicitly supplied password wins
+  if (incoming?.password) return file;
   const prior = file.driver === 'postgres' ? current.postgres : current.mysql;
   if (!prior?.password) return file;
+  // Only inherit the saved password when re-saving the SAME host — never carry
+  // a stored credential over to a newly-specified destination.
+  if (incoming?.host !== prior.host) return file;
   return { ...file, [file.driver]: { ...(incoming ?? {}), password: prior.password } };
 }
 
-/** Current backend for display — connection details minus the password. */
+/** Reject a DB host in the link-local/metadata range (never a valid backend).
+ * Loopback and private/public hosts are allowed — a database is commonly
+ * co-located on localhost or reached as a managed cloud instance. */
+async function assertDbHostAllowed(file: DbConfigFile): Promise<void> {
+  const server =
+    file.driver === 'postgres' ? file.postgres : file.driver === 'mysql' ? file.mysql : undefined;
+  if (server?.host) await assertAllowedHost(server.host);
+}
+
 export function redactDbConfig(config: ResolvedDbConfig): Record<string, unknown> {
   if (config.driver === 'postgres' && config.postgres) {
     const { password, ...rest } = config.postgres;
@@ -172,7 +172,10 @@ export function initSetup(
   ): Record<string, unknown> {
     const storedBaseUrl = baseUrlOf(stored);
     const incomingBaseUrl = baseUrlOf(incoming);
-    if (storedBaseUrl && incomingBaseUrl && storedBaseUrl !== incomingBaseUrl) {
+    // Require secrets whenever the incoming base URL differs from the stored
+    // one — including when there is no usable stored base URL to anchor to.
+    // Inheriting a stored secret is only safe when re-testing the same target.
+    if (incomingBaseUrl && incomingBaseUrl !== storedBaseUrl) {
       const missing = secretFieldsFor(capability).filter(
         (field) => typeof incoming[field] !== 'string' || !String(incoming[field]).trim(),
       );
@@ -185,18 +188,14 @@ export function initSetup(
     return { ...stored, ...incoming };
   }
 
-  // Capability/vendor registry — read-only metadata the onboarding UI renders
-  // from (no secrets; describes which fields exist, not their values).
   app.get('/api/setup/capabilities', (_req: Request, res: Response) => {
     res.json({ capabilities: CAPABILITIES });
   });
 
-  // Current backend (password never returned).
   app.get('/api/setup/db', (_req: Request, res: Response) => {
     res.json(redactDbConfig(resolveDbConfig()));
   });
 
-  // Test a candidate connection without persisting anything.
   app.post('/api/setup/db/test', sameOrigin, parseJsonBody, async (req: Request, res: Response) => {
     let file: DbConfigFile;
     try {
@@ -206,16 +205,18 @@ export function initSetup(
     }
     file = keepDbSecrets(file, resolveDbConfig({ env: {}, configPath: configFilePath() }));
     try {
+      await assertDbHostAllowed(file);
+    } catch (err) {
+      return res.status(400).json({ ok: false, error: errorMessage(err) });
+    }
+    try {
       await testDbConnection(resolveDbConfig({ env: {}, file }));
       res.json({ ok: true });
     } catch (err) {
-      // The test ran; the connection failed — report it, don't 500.
       res.json({ ok: false, error: errorMessage(err) });
     }
   });
 
-  // Persist the backend selection to the bootstrap config (applies on restart).
-  // Connection is validated first so a bad config can't replace a working one.
   app.post('/api/setup/db', sameOrigin, parseJsonBody, async (req: Request, res: Response) => {
     let file: DbConfigFile;
     try {
@@ -224,6 +225,11 @@ export function initSetup(
       return res.status(400).json({ ok: false, error: errorMessage(err) });
     }
     file = keepDbSecrets(file, resolveDbConfig({ env: {}, configPath: configFilePath() }));
+    try {
+      await assertDbHostAllowed(file);
+    } catch (err) {
+      return res.status(400).json({ ok: false, error: errorMessage(err) });
+    }
     try {
       await testDbConnection(resolveDbConfig({ env: {}, file }));
     } catch (err) {
@@ -236,8 +242,6 @@ export function initSetup(
       res.status(500).json({ ok: false, error: errorMessage(err) });
     }
   });
-
-  // --- Runtime integration config (capability selections + onboarding flag) ---
 
   app.get('/api/setup/status', async (_req: Request, res: Response) => {
     if (!store) return res.status(503).json({ error: 'database unavailable' });
@@ -283,9 +287,6 @@ export function initSetup(
     }
   });
 
-  // Transient connection test for a candidate config (no persist). Secret fields
-  // the client omits are filled from the stored config so re-tests work without
-  // re-typing a secret that was never shown.
   app.post('/api/setup/test', sameOrigin, parseJsonBody, async (req: Request, res: Response) => {
     const body = (req.body ?? {}) as { capability?: unknown; config?: unknown };
     const capability = typeof body.capability === 'string' ? body.capability : '';

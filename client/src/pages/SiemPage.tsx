@@ -103,7 +103,7 @@ export function SiemPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [liveTail, setLiveTail] = useState(true);
   const [setupOpen, setSetupOpen] = useState(false);
-  // Ref lifts live state into the EventSource callback without re-subscribing.
+
   const liveTailRef = useRef(liveTail);
   liveTailRef.current = liveTail;
   const [, forceTick] = useState(0);
@@ -124,9 +124,6 @@ export function SiemPage() {
             if (!alive) return;
             if (!liveTailRef.current) return;
             setEvents((prev) => {
-              // Robust dedup: backfill + replay + live-tail can overlap on
-              // reconnect; only the head check would miss duplicates buried
-              // by a concurrent re-fetch. Use a Set over the existing ids.
               for (let i = 0; i < prev.length; i++) {
                 if (prev[i].id === evt.id) return prev;
               }
@@ -136,9 +133,6 @@ export function SiemPage() {
             });
           },
           onReplayTruncated: async ({ replayFromId, replayThroughId }) => {
-            // Server's replay was capped at 1000 events; fetch the gap so
-            // the in-memory buffer doesn't have a silent hole between the
-            // backfill and the live tail.
             try {
               const gap = await fetchLogs({
                 afterId: replayFromId,
@@ -150,7 +144,7 @@ export function SiemPage() {
                 const seen = new Set(prev.map((e) => e.id));
                 const merged = [...prev];
                 for (const e of gap) {
-                  if (e.id > replayThroughId) continue; // live tail handles these
+                  if (e.id > replayThroughId) continue;
                   if (seen.has(e.id)) continue;
                   merged.push(e);
                   seen.add(e.id);
@@ -160,12 +154,12 @@ export function SiemPage() {
                 return merged;
               });
             } catch {
-              /* leave the gap rather than crash */
+              void 0;
             }
           },
           onStatus: (s) => alive && setStatus(s),
           onError: () => {
-            /* EventSource auto-reconnects */
+            void 0;
           },
         });
       } catch (err) {
@@ -180,7 +174,6 @@ export function SiemPage() {
     };
   }, []);
 
-  // Tick so the "ago" labels stay current.
   useEffect(() => {
     const id = setInterval(() => forceTick((n) => n + 1), 30_000);
     return () => clearInterval(id);
@@ -273,7 +266,6 @@ export function SiemPage() {
         onToggleSetup={() => setSetupOpen((s) => !s)}
       />
 
-      {/* Summary + stats */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5 shadow-card">
         <div className="flex flex-col gap-1">
           <h2 className="font-display text-lg tracking-tight text-foreground">{logs.label}</h2>
@@ -292,7 +284,6 @@ export function SiemPage() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -410,7 +401,6 @@ export function SiemPage() {
         </div>
       </div>
 
-      {/* Log list */}
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
         {loading ? (
           <div className="p-10 text-center text-sm text-muted-foreground">Loading events…</div>

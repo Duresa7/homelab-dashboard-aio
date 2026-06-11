@@ -1,5 +1,3 @@
-// UniFi UNAS (drive appliance) integration. Normalizes storage pools + disks
-// (with SMART/incompatibility detail) into the dashboard's `unas` slice.
 import { insecureFetch, makeSafeFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isEnabled, trimBaseUrl } from '../lib/env.js';
@@ -68,7 +66,7 @@ function unasModelLabel(hardwareShort: Upstream) {
   const code = String(hardwareShort || '').toUpperCase();
   if (!code) return 'UNAS';
   if (UNAS_MODEL_NAMES[code]) return UNAS_MODEL_NAMES[code];
-  // Generic fallback for future models — e.g. "UNAS3B" → "UNAS 3B".
+
   return (
     code
       .replace(/^UNAS[-_ ]?/, 'UNAS ')
@@ -195,7 +193,6 @@ export function configureUnas(next: UnasRuntimeConfig): void {
   unasStatus.baseUrl = config.baseUrl;
 }
 
-/** Liveness probe used by /api/health/live. */
 export function probeUnas() {
   return unasFetch('/proxy/drive/api/v2/storage');
 }

@@ -22,7 +22,6 @@ export interface StatCardProps {
   className?: string;
 }
 
-/** A KPI tile — big display number over an uppercase label. Replaces `.t-big`. */
 export function StatCard({
   label,
   value,
@@ -61,7 +60,6 @@ export function StatCard({
   );
 }
 
-/** Vertical stack of key/value rows. Replaces `<dl className="kv">`. */
 export function StatList({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn('flex flex-col', className)}>{children}</div>;
 }

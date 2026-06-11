@@ -1,7 +1,3 @@
-/**
- * Responsive column spans against the 12-column page grid.
- * Mirrors the span map in components/tile/Tile.tsx so cards line up with tiles.
- */
 export const SPAN_CLASS: Record<number, string> = {
   2: 'col-span-12 sm:col-span-6 lg:col-span-2',
   3: 'col-span-12 sm:col-span-6 lg:col-span-3',

@@ -36,7 +36,7 @@ describe('resolveNodeTargets', () => {
       node: 'node-c',
       host: '192.0.2.12',
       user: 'admin',
-      port: 2222, // numeric string coerced
+      port: 2222,
       jumpHost: '192.0.2.10',
     });
   });
@@ -62,7 +62,7 @@ describe('resolveNodeTargets', () => {
   it('skips a map entry that resolves to no host, but keeps others', () => {
     const targets = resolveNodeTargets({
       targetsJson: JSON.stringify({ ghost: { user: 'a' }, real: { host: '192.0.2.5' } }),
-      defaults: { ...DEFAULTS, host: '' }, // no default host → ghost has nowhere to point
+      defaults: { ...DEFAULTS, host: '' },
     });
     expect(targets.map((t) => t.node)).toEqual(['real']);
   });
@@ -86,12 +86,12 @@ describe('collectPerNode', () => {
   it('keeps successes (including empty results) and records rejections as unavailable', async () => {
     const { results, unavailable } = await collectPerNode(targets, async (t) => {
       if (t.node === 'b') throw new Error('connect ETIMEDOUT');
-      return t.node === 'c' ? [] : [`gpu@${t.node}`]; // c is reachable but empty
+      return t.node === 'c' ? [] : [`gpu@${t.node}`];
     });
 
     expect(results).toEqual([
       { node: 'a', data: ['gpu@a'] },
-      { node: 'c', data: [] }, // empty success is still a success, not unavailable
+      { node: 'c', data: [] },
     ]);
     expect(unavailable).toEqual([{ node: 'b', reason: expect.stringContaining('ETIMEDOUT') }]);
   });

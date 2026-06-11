@@ -1,6 +1,3 @@
-// UniFi Network integration. Normalizes the gateway, switches, APs, clients,
-// networks/SSIDs, firewall, VPN, and DNS into the dashboard's `unifi` slice
-// (plus a derived `network` slice).
 import { insecureFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isEnabled, formatUptime } from '../lib/env.js';
@@ -121,8 +118,6 @@ async function fetchUnifiDataRaw(): Promise<UnifiApiResponse> {
   const siteId = await getSiteId();
   const prefix = `/proxy/network/integration/v1/sites/${siteId}`;
 
-  // The 5th call (`/wans`) is still issued for parity, but its result isn't
-  // surfaced in this slice — an array hole skips binding it without a lint flag.
   const [devices, clients, networks, ssids, , fwZones, fwPolicies, vpnServers, dnsRecords] =
     await Promise.all([
       fetchAllPages(`${prefix}/devices`),
@@ -282,7 +277,7 @@ async function fetchUnifiDataRaw(): Promise<UnifiApiResponse> {
             id: p.id || p.name || `policy-${i}`,
             name: p.name || 'Policy',
             enabled: p.enabled ?? true,
-            // v2 API ships action as an object: { type: 'ALLOW'|'BLOCK', ... }
+
             action: typeof p.action === 'string' ? p.action : String(p.action?.type || 'UNKNOWN'),
             sourceZone: zoneName(p.source?.zoneId),
             destinationZone: zoneName(p.destination?.zoneId),
@@ -339,7 +334,6 @@ export function configureUnifi(next: UnifiRuntimeConfig): void {
   unifiStatus.baseUrl = config.baseUrl;
 }
 
-/** Liveness probe used by /api/health/live. */
 export function probeUnifi() {
   return uniFetch('/proxy/network/integration/v1/sites');
 }
@@ -377,12 +371,12 @@ export const unifiProvider: Provider<UnifiApiResponse> = {
         try {
           deviceDetail = await uniFetch(`${prefix}/devices/${allDevices[0].id}`);
         } catch {
-          /* */
+          void 0;
         }
         try {
           deviceStats = await uniFetch(`${prefix}/devices/${allDevices[0].id}/statistics/latest`);
         } catch {
-          /* */
+          void 0;
         }
       }
 
@@ -390,19 +384,19 @@ export const unifiProvider: Provider<UnifiApiResponse> = {
       try {
         networks = await uniFetch(`${prefix}/networks?limit=50`);
       } catch {
-        /* */
+        void 0;
       }
       let ssids = null;
       try {
         ssids = await uniFetch(`${prefix}/wifi/broadcasts?limit=50`);
       } catch {
-        /* */
+        void 0;
       }
       let wans = null;
       try {
         wans = await uniFetch(`${prefix}/wans?limit=50`);
       } catch {
-        /* */
+        void 0;
       }
 
       return {

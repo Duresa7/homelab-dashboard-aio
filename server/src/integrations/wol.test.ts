@@ -29,6 +29,7 @@ import {
   normalizeWolPort,
   registerWol,
 } from './wol.js';
+import { bootstrapAdmin } from '../test/auth.js';
 import { loadServerApp } from '../test/serverApp.js';
 
 function makeApp() {
@@ -160,10 +161,8 @@ describe('Wake-on-LAN integration', () => {
   it('returns 503 from the wake route when Wake-on-LAN is disabled', async () => {
     const ctx = await loadServerApp({ WOL_ENABLED: 'off' });
     try {
-      const res = await request(ctx.app)
-        .post('/api/wol/wake')
-        .send({ mac: 'AA:BB:CC:DD:EE:FF' })
-        .expect(503);
+      const api = await bootstrapAdmin(ctx.app);
+      const res = await api.post('/api/wol/wake').send({ mac: 'AA:BB:CC:DD:EE:FF' }).expect(503);
       expect(res.body).toEqual({ error: 'Wake-on-LAN is disabled' });
       expect(dgramMock.createSocket).not.toHaveBeenCalled();
     } finally {
@@ -174,13 +173,14 @@ describe('Wake-on-LAN integration', () => {
   it('honors a custom WOL_ALLOWED_PORTS allowlist', async () => {
     const ctx = await loadServerApp({ WOL_ENABLED: 'true', WOL_ALLOWED_PORTS: '7,9,4000' });
     try {
-      const ok = await request(ctx.app)
+      const api = await bootstrapAdmin(ctx.app);
+      const ok = await api
         .post('/api/wol/wake')
         .send({ mac: 'AA:BB:CC:DD:EE:FF', port: 4000 })
         .expect(200);
       expect(ok.body).toMatchObject({ ok: true, port: 4000 });
 
-      const rejected = await request(ctx.app)
+      const rejected = await api
         .post('/api/wol/wake')
         .send({ mac: 'AA:BB:CC:DD:EE:FF', port: 8080 })
         .expect(400);
@@ -193,7 +193,8 @@ describe('Wake-on-LAN integration', () => {
   it('reports disabled health status only for explicit false/0/off values', async () => {
     const ctx = await loadServerApp({ WOL_ENABLED: 'off' });
     try {
-      const res = await request(ctx.app).get('/api/health').expect(200);
+      const api = await bootstrapAdmin(ctx.app);
+      const res = await api.get('/api/health').expect(200);
       expect(res.body.wol).toEqual({ enabled: false, configured: false });
     } finally {
       await ctx.cleanup();
@@ -203,7 +204,8 @@ describe('Wake-on-LAN integration', () => {
   it('keeps Wake-on-LAN enabled for other WOL_ENABLED values', async () => {
     const ctx = await loadServerApp({ WOL_ENABLED: 'disabled' });
     try {
-      const res = await request(ctx.app).get('/api/health').expect(200);
+      const api = await bootstrapAdmin(ctx.app);
+      const res = await api.get('/api/health').expect(200);
       expect(res.body.wol).toEqual({ enabled: true, configured: true });
     } finally {
       await ctx.cleanup();
@@ -215,9 +217,9 @@ describe('Wake-on-LAN validation helpers', () => {
   it('rejects non-string and malformed MAC addresses', () => {
     expect(() => normalizeMac(42)).toThrow(/mac must be a string/i);
     expect(() => normalizeMac('')).toThrow(/invalid MAC/i);
-    expect(() => normalizeMac('AA:BB:CC:DD:EE:FF:00')).toThrow(/invalid MAC/i); // 7 groups
-    expect(() => normalizeMac('aabbccddee')).toThrow(/invalid MAC/i); // 10 hex digits
-    expect(normalizeMac('  aabbccddeeff  ')).toBe('AA:BB:CC:DD:EE:FF'); // trims surrounding space
+    expect(() => normalizeMac('AA:BB:CC:DD:EE:FF:00')).toThrow(/invalid MAC/i);
+    expect(() => normalizeMac('aabbccddee')).toThrow(/invalid MAC/i);
+    expect(normalizeMac('  aabbccddeeff  ')).toBe('AA:BB:CC:DD:EE:FF');
   });
 
   it('repeats the MAC sixteen times after the 0xff header', () => {
@@ -234,10 +236,10 @@ describe('Wake-on-LAN validation helpers', () => {
     expect(normalizeBroadcast(undefined)).toBe('255.255.255.255');
     expect(normalizeBroadcast(null)).toBe('255.255.255.255');
     expect(normalizeBroadcast('')).toBe('255.255.255.255');
-    expect(normalizeBroadcast('  198.51.100.255  ')).toBe('198.51.100.255'); // trims
+    expect(normalizeBroadcast('  198.51.100.255  ')).toBe('198.51.100.255');
     expect(() => normalizeBroadcast(123)).toThrow(/broadcast must be a string/i);
-    expect(() => normalizeBroadcast('198.51.100.0')).toThrow(/subnet broadcast/i); // not .255
-    expect(() => normalizeBroadcast('::1')).toThrow(/IPv4/i); // IPv6 rejected
+    expect(() => normalizeBroadcast('198.51.100.0')).toThrow(/subnet broadcast/i);
+    expect(() => normalizeBroadcast('::1')).toThrow(/IPv4/i);
     expect(() => normalizeBroadcast('not-an-ip')).toThrow(/IPv4/i);
   });
 
@@ -245,10 +247,10 @@ describe('Wake-on-LAN validation helpers', () => {
     expect(normalizeWolPort(undefined)).toBe(9);
     expect(normalizeWolPort(null)).toBe(9);
     expect(normalizeWolPort('')).toBe(9);
-    expect(normalizeWolPort('7')).toBe(7); // numeric string coerces
-    expect(() => normalizeWolPort(9.5)).toThrow(/integer from 1 to 65535/i); // non-integer
+    expect(normalizeWolPort('7')).toBe(7);
+    expect(() => normalizeWolPort(9.5)).toThrow(/integer from 1 to 65535/i);
     expect(() => normalizeWolPort(0)).toThrow(/integer from 1 to 65535/i);
     expect(() => normalizeWolPort(70000)).toThrow(/integer from 1 to 65535/i);
-    expect(() => normalizeWolPort(8080)).toThrow(/one of/i); // in range, not allowlisted
+    expect(() => normalizeWolPort(8080)).toThrow(/one of/i);
   });
 });

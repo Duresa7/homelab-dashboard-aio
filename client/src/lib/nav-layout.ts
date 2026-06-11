@@ -2,10 +2,6 @@ import { useEffect, useState } from 'react';
 
 import { getState, setState, subscribe as subscribeState } from './store';
 
-/**
- * Primary navigation layout: the collapsible sidebar (default) or a
- * traditional horizontal bar under the topbar. Persisted via /api/state.
- */
 export type NavLayout = 'sidebar' | 'topbar';
 
 const STORAGE_KEY = 'navLayout';

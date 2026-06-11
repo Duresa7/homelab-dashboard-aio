@@ -37,10 +37,6 @@ function ContainersBrandIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-/**
- * Tells the user which integration the container data flows through, so a
- * Portainer-backed view is never mistaken for native Docker/Kubernetes data.
- */
 function DataSourceNotice() {
   const containers = useCapabilityPresentation('containers');
   const viaPortainer = containers.providerId === 'portainer';

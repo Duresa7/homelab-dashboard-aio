@@ -45,6 +45,18 @@
 | Adjustable row cap on list cards (device/client counts) | 2026-06-09 |
 | More precise graphs for spotting dips                   | 2026-06-09 |
 
+### Inventory
+
+| Item                                                                                            | Completed  |
+| ----------------------------------------------------------------------------------------------- | ---------- |
+| Component image uploads — authenticated attachments, lightbox viewer, server storage + GC (#42) | 2026-06-10 |
+
+### Security
+
+| Item                                                                                          | Completed  |
+| --------------------------------------------------------------------------------------------- | ---------- |
+| Mandatory login + role-based access — argon2id hashing, TOTP, rate limiting, proxy-auth (#41) | 2026-06-10 |
+
 ---
 
 ## Open (GitHub Issues)
@@ -79,7 +91,6 @@
 | Issue                                                             | Description                                                   |
 | ----------------------------------------------------------------- | ------------------------------------------------------------- |
 | [#46](https://github.com/Duresa7/homelab-dashboard-aio/issues/46) | Custom icons + automatic vendor icons (Proxmox, Cisco, WD, …) |
-| [#42](https://github.com/Duresa7/homelab-dashboard-aio/issues/42) | Inventory image uploads (component photos)                    |
 | [#44](https://github.com/Duresa7/homelab-dashboard-aio/issues/44) | Per-hardware severity thresholds (per CPU/GPU type)           |
 
 ### Onboarding
@@ -87,9 +98,3 @@
 | Issue                                                             | Description                                                         |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
 | [#48](https://github.com/Duresa7/homelab-dashboard-aio/issues/48) | Simpler, automated onboarding — auto-detect cluster vs. single node |
-
-### Security
-
-| Issue                                                             | Description                                  |
-| ----------------------------------------------------------------- | -------------------------------------------- |
-| [#41](https://github.com/Duresa7/homelab-dashboard-aio/issues/41) | Security audit + authentication (login/auth) |

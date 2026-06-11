@@ -19,11 +19,17 @@ describe('main startup', () => {
     const rehydrate = vi.fn(async () => undefined);
     const render = vi.fn();
     const createRoot = vi.fn(() => ({ render }));
+    const installAuthExpiryInterceptor = vi.fn();
 
     vi.doMock('./lib/connectivity', () => ({ onReconnect, startHeartbeat }));
     vi.doMock('./lib/store', () => ({ hydrateStore, rehydrate }));
     vi.doMock('react-dom/client', () => ({ createRoot }));
     vi.doMock('./App', () => ({ App: () => null }));
+
+    vi.doMock('./pages/auth/AuthBoot', () => ({
+      AuthBoot: ({ children }: { children: React.ReactNode }) => children,
+    }));
+    vi.doMock('./lib/auth', () => ({ installAuthExpiryInterceptor }));
     vi.doMock('./lib/units', () => ({
       TempUnitProvider: ({ children }: { children: React.ReactNode }) => children,
     }));
@@ -35,7 +41,9 @@ describe('main startup', () => {
 
     expect(onReconnect).toHaveBeenCalledTimes(1);
     expect(startHeartbeat).toHaveBeenCalledTimes(1);
-    expect(hydrateStore).toHaveBeenCalledTimes(1);
+    expect(installAuthExpiryInterceptor).toHaveBeenCalledTimes(1);
+
+    expect(hydrateStore).not.toHaveBeenCalled();
     expect(rehydrate).not.toHaveBeenCalled();
 
     reconnectListeners[0]();

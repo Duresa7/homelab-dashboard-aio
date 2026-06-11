@@ -25,6 +25,8 @@ import {
   type DeviceColumn,
   type Device,
 } from '../lib/inventory';
+import { canEdit, useAuth } from '../lib/auth';
+import { deleteImages } from '../lib/images';
 import { getState, subscribe } from '../lib/store';
 import { InventoryDetailPanel } from './InventoryDetailPanel';
 import { toast } from 'sonner';
@@ -56,7 +58,6 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
 
   const selectItem = useCallback((id: string | undefined) => onSelectItem?.(id), [onSelectItem]);
 
-  // Skip the initial mount: loadInventory already returned the persisted value.
   const didMountInv = useRef(false);
   const invRef = useRef(inv);
   const skipNextSaveRef = useRef(false);
@@ -102,14 +103,14 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   }, [selectedItemId]);
 
   const stats = useMemo(() => summarize(inv), [inv]);
-  const isEditing = mode === 'edit';
+
+  const editor = canEdit(useAuth().user);
+  const isEditing = mode === 'edit' && editor;
   const q = query.trim().toLowerCase();
 
   const patch = useCallback((mut: (draft: Inventory) => Inventory) => {
     setInv((prev) => mut(prev));
   }, []);
-
-  /* ---------- mutations ---------- */
 
   const updateItemById = useCallback(
     (id: string, mut: (item: Machine | Device | Component) => Machine | Device | Component) => {
@@ -182,17 +183,19 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
 
   const deleteMachine = (id: string) => {
     if (!confirm('Delete this machine? Its components will be moved to Spare.')) return;
-    patch((prev) => ({
-      ...prev,
-      machines: prev.machines.filter((m) => m.id !== id),
-      components: prev.components.map((c) =>
-        c.assignment === id ? { ...c, assignment: SPARE } : c,
-      ),
-      lastUpdated: today(),
-    }));
+    patch((prev) => {
+      deleteImages(prev.machines.find((m) => m.id === id)?.images);
+      return {
+        ...prev,
+        machines: prev.machines.filter((m) => m.id !== id),
+        components: prev.components.map((c) =>
+          c.assignment === id ? { ...c, assignment: SPARE } : c,
+        ),
+        lastUpdated: today(),
+      };
+    });
   };
 
-  /** Add a component to the pool (assignment = machine id or SPARE) and open it. */
   const addComponent = (type: ComponentType, assignment: string) => {
     const id = genId('comp');
     patch((prev) => {
@@ -214,11 +217,14 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   };
 
   const deleteComponent = (id: string) => {
-    patch((prev) => ({
-      ...prev,
-      components: prev.components.filter((c) => c.id !== id),
-      lastUpdated: today(),
-    }));
+    patch((prev) => {
+      deleteImages(prev.components.find((c) => c.id === id)?.images);
+      return {
+        ...prev,
+        components: prev.components.filter((c) => c.id !== id),
+        lastUpdated: today(),
+      };
+    });
   };
 
   const addCategory = () => {
@@ -255,14 +261,17 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
 
   const deleteCategory = (id: string) => {
     if (!confirm('Delete this entire category and all its items?')) return;
-    patch((prev) => ({
-      ...prev,
-      devices: prev.devices.filter((c) => c.id !== id),
-      lastUpdated: today(),
-    }));
+    patch((prev) => {
+      for (const item of prev.devices.find((c) => c.id === id)?.items ?? []) {
+        deleteImages(item.images);
+      }
+      return {
+        ...prev,
+        devices: prev.devices.filter((c) => c.id !== id),
+        lastUpdated: today(),
+      };
+    });
   };
-
-  /* ---------- import / export ---------- */
 
   const onExport = () => {
     download(`homelab-inventory-${today()}.json`, exportInventoryJSON(inv), 'application/json');
@@ -304,8 +313,6 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     setInv(resetInventory());
     toast.success('Reset inventory');
   };
-
-  /* ---------- derived ---------- */
 
   const selectedFound = useMemo(
     () => (selectedItemId ? findItem(inv, selectedItemId) : null),

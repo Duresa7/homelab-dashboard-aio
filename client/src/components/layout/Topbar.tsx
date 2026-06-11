@@ -1,7 +1,15 @@
 import { Fragment } from 'react';
-import { RefreshCw, Search } from 'lucide-react';
+import { LogOut, RefreshCw, Search, Settings2 } from 'lucide-react';
 import { Clock } from './Clock';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import {
@@ -13,6 +21,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { logout, useAuth } from '@/lib/auth';
 import type { DateTimePreferences } from '../../lib/datetime';
 import { SECTION_LABEL, subLabel, type Section } from '../../lib/route';
 import { SECTION_CAPABILITY, usePresentation } from '@/lib/presentation';
@@ -20,14 +29,57 @@ import { SECTION_CAPABILITY, usePresentation } from '@/lib/presentation';
 interface Props {
   section: Section;
   activeSub?: string;
-  /** Drilled-in Data Center entity name (node/guest/storage), shown between the
-   *  section and the active sub. */
+
   entityLabel?: string | null;
   dateTime: DateTimePreferences;
-  /** Hidden in top-bar navigation mode, where there is no sidebar to toggle. */
+
   showSidebarTrigger?: boolean;
   onNavigateSection: (section: Section) => void;
   onOpenSearch: () => void;
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function UserMenu({ onNavigateSection }: { onNavigateSection: (section: Section) => void }) {
+  const { user } = useAuth();
+  if (!user) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Account menu for ${user.displayName}`}
+          className="grid size-8 place-items-center rounded-full border border-border bg-muted text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          {initials(user.displayName || user.username)}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>
+          <div className="flex flex-col">
+            <span className="truncate text-sm font-medium text-foreground">{user.displayName}</span>
+            <span className="truncate font-mono text-xs font-normal text-muted-foreground">
+              {user.username} · {user.role}
+            </span>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => onNavigateSection('settings')}>
+          <Settings2 className="size-4" />
+          Account settings
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void logout()}>
+          <LogOut className="size-4" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 function IconAction({
@@ -71,8 +123,6 @@ export function Topbar({
   const sectionLbl = capabilityId ? presentation[capabilityId].label : SECTION_LABEL[section];
   const here = activeSub ? subLabel(section, activeSub) : null;
 
-  // Ordered breadcrumb trail: section root, optional drilled-in entity, active
-  // sub. The last crumb is the current page; earlier ones link back.
   const trail: string[] = [
     sectionLbl,
     ...(entityLabel ? [entityLabel] : []),
@@ -139,6 +189,8 @@ export function Topbar({
           <IconAction label="Refresh" onClick={() => window.location.reload()}>
             <RefreshCw className="size-4" />
           </IconAction>
+
+          <UserMenu onNavigateSection={onNavigateSection} />
         </div>
       </div>
     </header>

@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 
+import { imageUrl } from '../../lib/images';
 import { componentTitle, type Component } from '../../lib/inventory';
 import { BrandGlyph } from '../../lib/inventoryIcons';
 import { StatusBadge } from '@/components/common';
@@ -15,7 +16,6 @@ import { cn } from '@/lib/utils';
 
 import { GHOST_ICON_BTN, statusKind } from './shared';
 
-/** Shared table for a list of pool components (UID · Part · Spec · Status). */
 export function ComponentTable({
   items,
   isEditing,
@@ -66,6 +66,14 @@ export function ComponentTable({
                 <span className="flex items-center gap-2 text-foreground">
                   <BrandGlyph text={title} size={16} reserveSpace />
                   <span className="font-medium">{title}</span>
+                  {c.images?.[0] ? (
+                    <img
+                      src={imageUrl(c.images[0].id, true)}
+                      alt={`${title} photo`}
+                      loading="lazy"
+                      className="size-6 shrink-0 rounded border border-border object-cover"
+                    />
+                  ) : null}
                 </span>
               </TableCell>
               <TableCell className="text-muted-foreground">{summary || '—'}</TableCell>

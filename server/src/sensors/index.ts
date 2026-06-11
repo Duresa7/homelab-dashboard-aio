@@ -10,7 +10,6 @@ import {
   type NodeTarget,
 } from '../integrations/node-targets.js';
 
-/** An all-empty reading — a node that is reachable but exposes no sensor data. */
 const EMPTY_SENSORS: SensorTree = {
   cpuTempC: null,
   systemTempC: null,
@@ -39,25 +38,12 @@ export interface SensorsConfig {
   cacheTtl: number;
 }
 
-/**
- * Sensors integration — the I/O edge.
- *
- * Owns the shell-out (`sensors -j` / `lsblk -J`, local or over SSH), the
- * response cache, the degradation policy, and the `/api/sensors[/debug]`
- * routes. All pure parsing lives in ./parse.ts and is unit-tested there.
- *
- * Config is passed in (resolved from env in index.ts) rather than read from
- * process.env here, so the health routes can keep reporting the same values.
- *
- * Returns a handle the caller's health probes use (e.g. /api/health/live).
- */
 export function initSensors(app: Express, config: SensorsConfig) {
   let current = { ...config };
 
   let aggregateCache: { data: SensorsApiResponse; ts: number } | null = null;
   let sensorsLastError: string | null = null;
 
-  // One target per Proxmox node (config map), or the single-host fallback.
   function sensorTargets(): NodeTarget[] {
     return resolveNodeTargets({
       targetsJson: process.env.PROXMOX_NODE_TARGETS,
@@ -102,8 +88,6 @@ export function initSensors(app: Express, config: SensorsConfig) {
     return runRemoteOn(target, 'lsblk', ['-J', '-o', cols], `lsblk -J -o ${cols}`);
   }
 
-  // lsblk failure degrades to an empty inventory: temperatures still render,
-  // disks just fall back to generic "NVMe 1" / "SATA 1" labels.
   async function fetchDiskInventoryOn(target: NodeTarget) {
     try {
       return parseDiskInventory(await runLsblkOn(target));
@@ -112,8 +96,6 @@ export function initSensors(app: Express, config: SensorsConfig) {
     }
   }
 
-  // `sensors` missing or no exposed chips is a normal "no sensors" outcome
-  // (reachable, just nothing to read) — distinct from an unreachable node.
   function isNoSensorsError(err: unknown): boolean {
     const e = err as { message?: unknown; stderr?: unknown };
     const text = `${typeof e?.message === 'string' ? e.message : String(err)} ${
@@ -125,16 +107,15 @@ export function initSensors(app: Express, config: SensorsConfig) {
   async function fetchNodeSensors(target: NodeTarget): Promise<SensorTree> {
     const [raw, diskInventory] = await Promise.all([
       runSensorsOn(target).catch((err: unknown) => {
-        if (isNoSensorsError(err)) return ''; // reachable, lm-sensors absent / no chips
-        throw err; // genuine failure → recorded as unavailable
+        if (isNoSensorsError(err)) return '';
+        throw err;
       }),
       fetchDiskInventoryOn(target),
     ]);
-    if (!raw || !raw.trim()) return EMPTY_SENSORS; // reachable but no sensor data
+    if (!raw || !raw.trim()) return EMPTY_SENSORS;
     return parseSensorsJson(raw, diskInventory);
   }
 
-  // Probe + debug operate on the primary node (the single-host fallback target).
   function runSensors() {
     const target = sensorTargets()[0];
     if (!target) throw new Error('sensors not configured');
@@ -154,7 +135,6 @@ export function initSensors(app: Express, config: SensorsConfig) {
     const targets = sensorTargets();
     const { results, unavailable } = await collectPerNode(targets, fetchNodeSensors);
     if (results.length === 0) {
-      // Nothing responded — surface it (preserves single-host 502 behavior).
       throw new Error(
         unavailable.map((u) => `${u.node}: ${u.reason}`).join('; ') ||
           'no sensor targets configured',
@@ -174,7 +154,6 @@ export function initSensors(app: Express, config: SensorsConfig) {
     return data;
   }
 
-  // Back-compat: the handle's single-host fetch now resolves to the primary node.
   async function fetchSensorsData(): Promise<SensorTree> {
     return (await fetchPerNodeSensors()).sensors;
   }

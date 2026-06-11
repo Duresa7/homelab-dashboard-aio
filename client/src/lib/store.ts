@@ -1,24 +1,3 @@
-/* =========================================================
-   Persistent app state — server-backed with one-time legacy import.
-
-   Every persisted setting in the dashboard (inventory, thresholds,
-   bookmarks, sidebar, route, tempUnit, tweaks, siteName) goes through
-   this module instead of touching `window.localStorage` directly.
-
-   On boot, `hydrateStore()` pulls the full state map from
-   `GET /api/state`. Reads after that are synchronous against an
-   in-memory Map. Writes update the map immediately and debounce-flush
-   a `PUT /api/state/:key` so per-keystroke edits don't hammer the
-   network.
-
-   If the initial hydrate fails (e.g. server is down), the in-memory
-   state stays empty so the offline/error state can render truthfully.
-
-   First time the server returns an empty state, we copy any legacy
-   localStorage entries up to the server in a single bulk import,
-   then clean up the localStorage keys.
-   ========================================================= */
-
 type Listener = () => void;
 
 const DEBOUNCE_MS = 250;
@@ -71,7 +50,7 @@ function readLegacy(legacyKey: string): unknown {
   try {
     const raw = window.localStorage.getItem(legacyKey);
     if (raw == null) return undefined;
-    // tempUnit and sidebarCollapsed are stored as raw strings, not JSON.
+
     if (legacyKey === 'homelab-dashboard.tempUnit') return raw;
     if (legacyKey === 'homelab-dashboard.sidebar-collapsed') return raw === '1';
     try {
@@ -108,13 +87,13 @@ async function importLegacyToServer(): Promise<Record<string, unknown>> {
       body: JSON.stringify(bundle),
     });
     if (!res.ok) return {};
-    // Imported successfully — wipe legacy keys so we never re-import.
+
     try {
       for (const legacyKey of Object.values(LEGACY_KEY_MAP)) {
         window.localStorage.removeItem(legacyKey);
       }
     } catch {
-      /* ignore */
+      void 0;
     }
     return bundle;
   } catch {
@@ -128,8 +107,6 @@ async function loadServerState(): Promise<Record<string, unknown>> {
   const body = (await res.json()) as { values?: Record<string, unknown> };
   const values = body.values ?? {};
 
-  // First-time migration: if the server has no rows, bulk-import legacy
-  // localStorage keys so existing users don't lose their data.
   if (Object.keys(values).length === 0) return importLegacyToServer();
   return values;
 }
@@ -148,7 +125,6 @@ export async function hydrateStore(): Promise<void> {
     degraded = false;
     ensureBroadcastChannel();
   } catch {
-    // Server unreachable at boot: do not read legacy localStorage as a fallback.
     replaceState({});
     degraded = true;
   } finally {
@@ -163,7 +139,7 @@ export async function rehydrate(): Promise<void> {
     degraded = false;
     ensureBroadcastChannel();
   } catch {
-    /* Reconnect recovery is best-effort; live offline state is owned by connectivity.ts. */
+    void 0;
   }
 }
 
@@ -171,10 +147,6 @@ export function isHydrated(): boolean {
   return hydrated;
 }
 
-/**
- * Whether the initial boot hydrate failed and no later rehydrate has recovered it.
- * Live backend reachability is owned by connectivity.ts.
- */
 export function isDegraded(): boolean {
   return degraded;
 }
@@ -191,7 +163,7 @@ export function setState<T>(key: string, value: T): void {
     try {
       channel.postMessage({ key, value });
     } catch {
-      /* ignore */
+      void 0;
     }
   }
   scheduleFlush(key);
@@ -204,14 +176,14 @@ export function deleteState(key: string): void {
     try {
       channel.postMessage({ key, deleted: true });
     } catch {
-      /* ignore */
+      void 0;
     }
   }
   const existing = pendingTimers.get(key);
   if (existing) clearTimeout(existing);
   pendingTimers.delete(key);
   fetch(`/api/state/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => {
-    /* ignore */
+    void 0;
   });
 }
 
@@ -247,6 +219,6 @@ async function flush(key: string): Promise<void> {
       body: JSON.stringify(value),
     });
   } catch {
-    /* swallow — next write will retry */
+    void 0;
   }
 }

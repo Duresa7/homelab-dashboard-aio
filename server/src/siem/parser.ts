@@ -1,8 +1,3 @@
-// UniFi gear emits RFC 3164 from gateway/AP/switch and CEF (9.3+) for admin,
-// IDS, VPN, and client events. parseSyslog() tries 3164 first, then layers
-// CEF if the body starts with "CEF:".
-
-/** Parsed CEF header + extension fields. */
 export interface CefData {
   cefVersion: number;
   vendor: string;
@@ -14,7 +9,6 @@ export interface CefData {
   fields: Record<string, string>;
 }
 
-/** Normalized syslog event produced by parseSyslog()/parseRfc3164(). */
 export interface ParsedSyslog {
   format: string;
   facility: number | null;
@@ -42,11 +36,9 @@ const MONTHS: Record<string, number> = {
   Dec: 11,
 };
 
-// Optional <PRI>, BSD timestamp, hostname, tag[pid]: message — PRI may be missing.
 const RFC3164_RE =
   /^(?:<(\d+)>)?(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})\s+(\S+)\s+([^:\[\s]+)(?:\[(\d+)\])?:\s*(.*)$/s;
 
-// Fallback shape: <PRI>tag: msg with no timestamp/hostname.
 const RFC3164_SHORT_RE = /^<(\d+)>\s*([^:\[\s]+?)(?:\[(\d+)\])?:\s*(.*)$/s;
 
 function decodePriority(pri: string): { facility: number | null; severity: number } {
@@ -64,27 +56,20 @@ function parseBsdTimestamp(
 ): number | null {
   const monthIdx = MONTHS[month];
   if (monthIdx == null) return null;
-  // BSD timestamps (RFC 3164) lack both year AND timezone. The protocol
-  // specifies the SENDER'S local wall clock, so we interpret the fields in
-  // the server's local timezone (assumed to match the sender; configurable
-  // via SIEM_SYSLOG_TZ_OFFSET_MINUTES for cross-zone deployments). Using
-  // `new Date(year, monthIdx, day, hh, mm, ss)` (no UTC) does exactly that.
+
   const now = new Date();
   let year = now.getFullYear();
-  // If the resulting date is >30d in the future, it's from last year
-  // (year rollover / clock skew tolerance).
+
   let candidate = new Date(year, monthIdx, +day, +hh, +mm, +ss);
   if (candidate.getTime() - now.getTime() > 30 * 86400_000) {
     year -= 1;
     candidate = new Date(year, monthIdx, +day, +hh, +mm, +ss);
   }
-  // Allow an explicit offset override for senders in a different zone.
+
   const offsetOverride = process.env.SIEM_SYSLOG_TZ_OFFSET_MINUTES;
   if (offsetOverride != null && offsetOverride !== '') {
     const offMin = Number(offsetOverride);
     if (Number.isFinite(offMin)) {
-      // Treat the wall-clock as UTC+offMin: subtract the override and add
-      // back the server-local offset to land on the correct instant.
       const utcInstant = Date.UTC(year, monthIdx, +day, +hh, +mm, +ss);
       return utcInstant - offMin * 60_000;
     }
@@ -126,9 +111,6 @@ export function parseRfc3164(raw: string): ParsedSyslog | null {
   return null;
 }
 
-// CEF:Ver|Vendor|Product|ProductVer|SigID|Name|Severity|Extension. Pipes
-// escaped as \|; extension is space-separated key=value where values may
-// contain spaces — split on `key=` lookahead, not whitespace.
 const CEF_HEADER_RE =
   /^CEF:(\d+)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|((?:[^|\\]|\\.)*)\|(.*)$/s;
 
@@ -144,35 +126,26 @@ function unescapeCefValue(s: string): string {
   });
 }
 
-// Linear-time CEF extension parser. The previous implementation used a
-// lazy regex with a forward lookahead, which is O(n·k) in (input length ×
-// pair count) and stalled the event loop on adversarial inputs. This
-// version finds every `key=` boundary in one scan, then carves out the
-// value text between adjacent boundaries — O(n) total. We also bound the
-// input length so a single oversize packet can't dominate parsing.
 const CEF_EXT_MAX_LEN = 16 * 1024;
-// Anchor only at start-of-string or after literal whitespace; an `=` inside
-// an escaped value (\=) does not begin a new key.
+
 const CEF_KEY_RE = /(^|\s)([A-Za-z][A-Za-z0-9_]*)=/g;
 
 function parseCefExtension(ext: string): Record<string, string> {
   const fields: Record<string, string> = {};
   if (!ext) return fields;
   const src = ext.length > CEF_EXT_MAX_LEN ? ext.slice(0, CEF_EXT_MAX_LEN) : ext;
-  // Single pass to locate every key boundary.
+
   const boundaries: { key: string; valueStart: number }[] = [];
   CEF_KEY_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = CEF_KEY_RE.exec(src)) !== null) {
     boundaries.push({ key: m[2], valueStart: m.index + m[0].length });
-    if (boundaries.length > 1024) break; // sanity cap
+    if (boundaries.length > 1024) break;
   }
   for (let i = 0; i < boundaries.length; i++) {
     const cur = boundaries[i];
     const next = boundaries[i + 1];
-    // The value runs until just before the whitespace preceding the next key,
-    // or end-of-string. Walk back to strip the trailing whitespace consumed
-    // by the next match's `(^|\s)` group.
+
     let end = next ? next.valueStart - next.key.length - 1 : src.length;
     while (end > cur.valueStart && /\s/.test(src[end - 1])) end -= 1;
     fields[cur.key] = unescapeCefValue(src.slice(cur.valueStart, end)).trim();
@@ -195,7 +168,6 @@ export function parseCef(text: string): CefData | null {
   };
 }
 
-// CEF severity (0–10, high=bad) → syslog severity (0–7, low=bad).
 function cefToSyslogSeverity(cefSev: number): number {
   if (!Number.isFinite(cefSev)) return 6;
   if (cefSev >= 9) return 1;
@@ -212,7 +184,7 @@ export function parseSyslog(raw: string): ParsedSyslog | null {
   if (!trimmed) return null;
 
   const base = parseRfc3164(trimmed);
-  // Some UniFi senders put bare CEF in the packet without the 3164 envelope.
+
   const cefSource = base ? base.message : trimmed;
   const cef = cefSource.startsWith('CEF:') ? parseCef(cefSource) : null;
 
@@ -239,7 +211,6 @@ export function parseSyslog(raw: string): ParsedSyslog | null {
   }
   if (base) return base;
 
-  // Keep the raw line so we never silently drop traffic.
   return {
     format: 'rfc3164',
     facility: null,

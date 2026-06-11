@@ -1,5 +1,3 @@
-// Proxmox VE integration. Normalizes the primary node + cluster VMs/LXCs,
-// storage, and physical disks into the dashboard's `proxmox` slice.
 import type { Express, Request, Response } from 'express';
 
 import { insecureFetch, makeSafeFetch } from '../lib/http.js';
@@ -64,7 +62,7 @@ function mapVmState(s: Upstream): 'running' | 'stopped' | 'paused' {
 
 function trimPveVersion(raw: Upstream) {
   if (!raw) return 'n/a';
-  // "pve-manager/9.1.6/71482d1833ded40a" → "9.1.6"
+
   const m = String(raw).match(/(\d+\.\d+\.\d+)/);
   return m ? m[1] : String(raw);
 }
@@ -78,7 +76,6 @@ function pickNodeIp(networks: Upstream) {
 }
 
 async function getQemuIp(node: string, vmid: number | string) {
-  // Requires qemu-guest-agent installed AND running inside the VM.
   const data = await safePveFetch(
     `/api2/json/nodes/${node}/qemu/${vmid}/agent/network-get-interfaces`,
   );
@@ -95,7 +92,6 @@ async function getQemuIp(node: string, vmid: number | string) {
 }
 
 async function getLxcIp(node: string, vmid: number | string) {
-  // Runtime IPs via /interfaces (only works while running).
   const ifaces = await safePveFetch(`/api2/json/nodes/${node}/lxc/${vmid}/interfaces`);
   if (Array.isArray(ifaces)) {
     for (const iface of ifaces) {
@@ -104,7 +100,7 @@ async function getLxcIp(node: string, vmid: number | string) {
       if (ip) return String(ip).split('/')[0];
     }
   }
-  // Fallback: parse static IP from /config (net0: ...,ip=198.51.100.5/24)
+
   const cfg = await safePveFetch(`/api2/json/nodes/${node}/lxc/${vmid}/config`);
   if (cfg) {
     for (const key of Object.keys(cfg)) {
@@ -127,9 +123,6 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
     nodes.find((n: Upstream) => n.status === 'online') ||
     nodes[0];
 
-  // Physical disks and ZFS pools are node-local resources; query every online
-  // node (the API proxies to peers) so cluster setups see all hardware, not
-  // just the primary's. An offline node simply contributes nothing.
   const diskNodes = nodes.filter((n: Upstream) => n.status === 'online' && n.node);
 
   const [
@@ -169,7 +162,6 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
     0,
   );
 
-  // QEMU IPs need qemu-guest-agent in the VM; without it we just return null.
   const vmIps: Record<string, string> = {};
   await Promise.all(
     runningVms.map(async (v: Upstream) => {
@@ -178,12 +170,11 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
           v.type === 'lxc' ? await getLxcIp(v.node, v.vmid) : await getQemuIp(v.node, v.vmid);
         if (ip) vmIps[v.vmid] = ip;
       } catch {
-        /* ignore */
+        void 0;
       }
     }),
   );
 
-  // Dedupe by storage name so shared pools aren't counted twice.
   const resourceStorages: Upstream[] = Array.isArray(storageResources)
     ? storageResources.filter((s: Upstream) => s.storage)
     : [];
@@ -192,8 +183,7 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
     : Array.isArray(storageList)
       ? storageList.map((s: Upstream) => ({ ...s, node: primary.node }))
       : [];
-  // cluster/resources reports a shared pool once per node; collapse it to a
-  // single entry (keyed by name) so it isn't listed and sampled N times.
+
   const displayStorages: Upstream[] = [];
   const seenSharedStorage = new Set<string>();
   for (const s of clusterStorages) {
@@ -204,9 +194,7 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
     }
     displayStorages.push(s);
   }
-  // Field names differ by source: cluster/resources rows carry
-  // disk/maxdisk/plugintype/status, the per-node /storage fallback carries
-  // used/total/type/enabled/active. Normalize before any math.
+
   const storUsed = (s: Upstream) => Number(s.used ?? s.disk) || 0;
   const storTotal = (s: Upstream) => Number(s.total ?? s.maxdisk) || 0;
   const storType = (s: Upstream) =>
@@ -339,9 +327,9 @@ async function fetchProxmoxDataRaw(): Promise<ProxmoxApiResponse> {
             vendor: friendly.vendor,
             serial: d.serial || null,
             sizeBytes: Number(d.size) || 0,
-            type: (d.type || 'unknown').toLowerCase(), // nvme | ssd | hdd | usb
-            used: d.used || null, // "LVM", "ZFS", "partitions", null
-            health: d.health || null, // "PASSED", "FAILED", "UNKNOWN"
+            type: (d.type || 'unknown').toLowerCase(),
+            used: d.used || null,
+            health: d.health || null,
             wearout: typeof d.wearout === 'number' ? d.wearout : null,
             rpm: Number(d.rpm) || 0,
           };
@@ -428,7 +416,6 @@ export function configureProxmox(next: ProxmoxRuntimeConfig): void {
   proxmoxStatus.baseUrl = config.baseUrl;
 }
 
-/** Liveness probe used by /api/health/live. */
 export function probeProxmox() {
   return pveFetch('/api2/json/version');
 }

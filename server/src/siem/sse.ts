@@ -16,12 +16,6 @@ export interface SseBusOpts {
 }
 
 export function createSseBus({ replayAfter }: SseBusOpts) {
-  // Each client is tracked by an object that carries the response handle,
-  // its keepalive interval, and the highest event id we've already sent it.
-  // The lastSent counter lets broadcast() skip events the client received
-  // during initial replay (replay and live broadcast can overlap if any
-  // future code introduces an `await` inside handle()) — and lets us assert
-  // strictly-monotonic delivery so a client never sees an out-of-order id.
   const clients = new Set<Client>();
 
   function writeEvent(client: Client, evt: SyslogEvent, eventName?: string): boolean | undefined {
@@ -67,9 +61,6 @@ export function createSseBus({ replayAfter }: SseBusOpts) {
 
     const client: Client = { res, lastSent: since, ka: null, removed: false };
 
-    // Subscribe BEFORE replay. broadcast() filters by lastSent so we
-    // can't deliver the same event twice, and any live insert during
-    // replay is now delivered rather than lost in the race window.
     clients.add(client);
 
     if (since > 0) {
@@ -82,19 +73,15 @@ export function createSseBus({ replayAfter }: SseBusOpts) {
       for (const evt of missed) {
         if (!writeEvent(client, evt)) return;
       }
-      // Signal to the client that the replay window was capped so they
-      // can fetch the gap via /api/siem/logs?after_id=<since>&until=<lastSent>
-      // before drawing conclusions from the live tail.
+
       if (missed.length >= REPLAY_LIMIT) {
         const truncMarker = {
-          // Reuse the lastSent id so the client knows the high-water mark;
-          // the marker itself is not a real event id.
           id: client.lastSent,
           replayTruncated: true,
           replayFromId: since,
           replayThroughId: client.lastSent,
         };
-        // Use a named SSE event so it doesn't get fed into the events list.
+
         try {
           client.res.write(
             `event: replay-truncated\nid: ${client.lastSent}\ndata: ${JSON.stringify(truncMarker)}\n\n`,
@@ -130,7 +117,7 @@ export function createSseBus({ replayAfter }: SseBusOpts) {
       try {
         client.res.end();
       } catch {
-        /* ignore */
+        void 0;
       }
     }
     clients.clear();

@@ -12,7 +12,6 @@ export type Section =
   | 'playground'
   | 'settings';
 
-/** Legacy top-level sections folded into Observability tabs (for route migration). */
 const OBSERVABILITY_LEGACY: Record<string, string> = {
   events: 'events',
   alerts: 'alerts',
@@ -23,7 +22,7 @@ const OBSERVABILITY_LEGACY: Record<string, string> = {
 export interface Route {
   section: Section;
   sub?: string;
-  /** Optional item id for inventory detail panel. */
+
   itemId?: string;
 }
 
@@ -113,18 +112,12 @@ export function proxmoxEntityType(itemId?: string): 'datacenter' | 'node' | 'gue
   return 'datacenter';
 }
 
-/** The bare entity name encoded in a proxmox itemId, e.g. `node/pve1` → `pve1`. */
 export function entityName(itemId?: string): string {
   return itemId && itemId.includes('/')
     ? decodeURIComponent(itemId.split('/').slice(1).join('/'))
     : 'datacenter';
 }
 
-/**
- * Resolve the *display* name for a drilled-in proxmox itemId, mirroring the
- * lookups in the Data Center detail views so the global Topbar breadcrumb
- * matches the in-page DetailHeader title. Returns null at datacenter level.
- */
 export function resolveProxmoxEntityName(data: DashboardState, itemId?: string): string | null {
   const key = entityName(itemId);
   switch (proxmoxEntityType(itemId)) {
@@ -173,8 +166,7 @@ const KNOWN_SECTIONS = new Set<Section>(Object.keys(SECTION_LABEL) as Section[])
 
 function normalizeRoute(route: PersistedRoute): Route {
   let rawSection = route.section === 'storage' ? 'nas' : route.section;
-  // Legacy top-level sections (events/alerts/health/siem) now live as
-  // Observability tabs — redirect deep links and persisted routes.
+
   let legacySub: string | undefined;
   if (typeof rawSection === 'string' && rawSection in OBSERVABILITY_LEGACY) {
     legacySub = OBSERVABILITY_LEGACY[rawSection];

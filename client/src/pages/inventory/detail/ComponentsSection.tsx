@@ -1,5 +1,6 @@
 import { Boxes, Cpu } from 'lucide-react';
 
+import { imageUrl } from '../../../lib/images';
 import { componentTitle, type Component, type Machine } from '../../../lib/inventory';
 import { BrandGlyph, componentIcon } from '../../../lib/inventoryIcons';
 
@@ -40,6 +41,14 @@ export function ComponentsSection({
                   {c.ids?.uid ?? ''}
                 </div>
               </div>
+              {c.images?.[0] ? (
+                <img
+                  src={imageUrl(c.images[0].id, true)}
+                  alt={`${componentTitle(c)} photo`}
+                  loading="lazy"
+                  className="size-8 shrink-0 rounded-md border border-border object-cover"
+                />
+              ) : null}
             </div>
           );
         })}

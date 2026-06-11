@@ -1,6 +1,3 @@
-// Syslog/SIEM store on Kysely. One query codebase serves SQLite, Postgres, and
-// MySQL; the only dialect branches are the insert id path (RETURNING vs insertId)
-// and the case-insensitive search operator. Exposes the async SiemStore contract.
 import { sql, type Generated, type Kysely, type SqlBool } from 'kysely';
 
 import { autoIdColumn, columnTypes } from '../storage/columns.js';
@@ -16,7 +13,6 @@ import type {
   SyslogRow,
 } from './types.js';
 
-// Re-export the event types so existing imports (`from './db.js'`) keep working.
 export type { InsertEventInput, QueryEventsOpts, StoredEvent, SyslogEvent, SyslogRow };
 
 interface SyslogEventsTable {
@@ -85,8 +81,6 @@ export const SIEM_MIGRATIONS: Migration<SiemDatabase>[] = [
         ['idx_source_ip', 'source_ip'],
       ];
       for (const [name, column] of indexes) {
-        // MySQL has no CREATE INDEX IF NOT EXISTS; the guard is harmless to skip
-        // since migrations run exactly once (tracked in schema_migrations).
         const base = db.schema.createIndex(name).on('syslog_events').column(column);
         await (driver === 'mysql' ? base : base.ifNotExists()).execute();
       }
@@ -130,7 +124,6 @@ function rowToEvent(row: SyslogRow): SyslogEvent {
   };
 }
 
-/** Build the SiemStore over an already-migrated Kysely instance. */
 export function createSiemStore(db: Kysely<SiemDatabase>, driver: DbDriver): SiemStore {
   return {
     async insertEvent(evt: InsertEventInput): Promise<StoredEvent> {
@@ -150,7 +143,6 @@ export function createSiemStore(db: Kysely<SiemDatabase>, driver: DbDriver): Sie
         extra: evt.extra ? JSON.stringify(evt.extra) : null,
       };
       if (driver === 'mysql') {
-        // MySQL has no RETURNING — use the auto-increment insertId, then read back.
         const res = await db.insertInto('syslog_events').values(row).executeTakeFirstOrThrow();
         const id = Number(res.insertId);
         const stored = await db
@@ -200,16 +192,12 @@ export function createSiemStore(db: Kysely<SiemDatabase>, driver: DbDriver): Sie
       if (sourceIp) qb = qb.where('source_ip', '=', String(sourceIp));
 
       if (q) {
-        // Search message + raw. Escape LIKE wildcards in the term so a literal
-        // % / _ doesn't act as a wildcard. Case-insensitive on every backend:
-        // Postgres needs ILIKE; SQLite/MySQL LIKE is already case-insensitive.
         const needle = '%' + String(q).replace(/([\\%_])/g, '\\$1') + '%';
         if (driver === 'postgres') {
           qb = qb.where(
             sql<SqlBool>`(message ilike ${needle} escape '\\' or raw ilike ${needle} escape '\\')`,
           );
         } else if (driver === 'mysql') {
-          // Backslash is MySQL's default LIKE escape, so no ESCAPE clause needed.
           qb = qb.where(sql<SqlBool>`(message like ${needle} or raw like ${needle})`);
         } else {
           qb = qb.where(
@@ -280,10 +268,6 @@ export function createSiemStore(db: Kysely<SiemDatabase>, driver: DbDriver): Sie
     },
 
     async purgeOlderThanChunk(cutoffMs: number, chunkSize = 1000): Promise<number> {
-      // Chunked delete so a huge purge can't block the event loop; the caller
-      // yields between chunks. MySQL supports DELETE ... LIMIT directly but
-      // rejects a self-referencing subquery (error 1093); SQLite/Postgres are
-      // the reverse, so delete by id from a bounded sub-select there.
       if (driver === 'mysql') {
         const res = await db
           .deleteFrom('syslog_events')
@@ -331,7 +315,6 @@ export function createSiemStore(db: Kysely<SiemDatabase>, driver: DbDriver): Sie
   };
 }
 
-/** Open a SQLite-backed SIEM store (the default backend). */
 export async function openSiemDb(dbPath: string): Promise<SiemStore> {
   const { db, legacyVersion } = await openSqliteKysely<SiemDatabase>(dbPath);
   await runMigrations(db, SIEM_MIGRATIONS, { driver: 'sqlite', legacyVersion });

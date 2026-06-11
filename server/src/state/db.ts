@@ -1,10 +1,7 @@
-// App-state key→value store on Kysely. One query codebase serves SQLite,
-// Postgres, and MySQL; dialect differences (column types, upsert syntax) are
-// the only branches. Exposes the async StateStore contract.
 import { stat } from 'node:fs/promises';
-import type { Kysely } from 'kysely';
+import type { Generated, Kysely } from 'kysely';
 
-import { columnTypes } from '../storage/columns.js';
+import { autoIdColumn, columnTypes } from '../storage/columns.js';
 import type { DbDriver } from '../storage/config.js';
 import {
   countApplied,
@@ -21,8 +18,37 @@ interface AppStateTable {
   updated_at: number;
 }
 
+interface UsersTable {
+  id: Generated<number>;
+  username: string;
+  display_name: string;
+  email: string | null;
+  password_hash: string;
+  role: string;
+  totp_secret: string | null;
+  totp_enabled: number;
+  recovery_codes: string;
+  created_at: number;
+  updated_at: number;
+  password_changed_at: number;
+}
+
+interface SessionsTable {
+  id: string;
+  token_hash: string;
+  user_id: number;
+  created_at: number;
+  last_used_at: number;
+  expires_at: number;
+  remember: number;
+  ip: string | null;
+  user_agent: string | null;
+}
+
 export interface StateDatabase extends WithMigrations {
   app_state: AppStateTable;
+  users: UsersTable;
+  sessions: SessionsTable;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -35,9 +61,6 @@ function inventoryCategoryKey(value: Record<string, unknown>): 'devices' | 'spar
   return null;
 }
 
-// Strip the per-category descriptive `note` and rename the old
-// "Networking (legacy)" category — the vendor-neutral cleanup applied to an
-// already-persisted inventory blob.
 function cleanPersistedInventory(value: unknown): { value: unknown; changed: boolean } {
   if (!isRecord(value)) {
     return { value, changed: false };
@@ -82,8 +105,6 @@ function renamePersistedInventoryDevices(value: unknown): { value: unknown; chan
   };
 }
 
-// Ordered migrations. Names map 1:1 to the old `user_version` steps so an
-// existing SQLite DB reconciles cleanly (v1 -> 001, v2 -> 002).
 export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
   {
     name: '001_app_state',
@@ -115,7 +136,7 @@ export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
       }
       const cleaned = cleanPersistedInventory(parsed);
       if (!cleaned.changed) return;
-      // Update value only — leave updated_at so the row's age is preserved.
+
       await db
         .updateTable('app_state')
         .set({ value: JSON.stringify(cleaned.value) })
@@ -140,7 +161,7 @@ export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
       }
       const renamed = renamePersistedInventoryDevices(parsed);
       if (!renamed.changed) return;
-      // Update value only — leave updated_at so the row's age is preserved.
+
       await db
         .updateTable('app_state')
         .set({ value: JSON.stringify(renamed.value) })
@@ -148,15 +169,66 @@ export const STATE_MIGRATIONS: Migration<StateDatabase>[] = [
         .execute();
     },
   },
+  {
+    name: '004_users',
+    up: async (db, { driver }) => {
+      const t = columnTypes(driver);
+      await db.schema
+        .createTable('users')
+        .ifNotExists()
+        .addColumn('id', t.id, autoIdColumn(driver))
+        .addColumn('username', t.shortText, (c) => c.notNull().unique())
+        .addColumn('display_name', t.text, (c) => c.notNull())
+        .addColumn('email', t.text)
+        .addColumn('password_hash', t.text, (c) => c.notNull())
+        .addColumn('role', t.shortText, (c) => c.notNull())
+        .addColumn('totp_secret', t.text)
+        .addColumn('totp_enabled', t.int, (c) => c.notNull().defaultTo(0))
+        .addColumn('recovery_codes', t.text, (c) => c.notNull().defaultTo('[]'))
+        .addColumn('created_at', t.bigint, (c) => c.notNull())
+        .addColumn('updated_at', t.bigint, (c) => c.notNull())
+        .addColumn('password_changed_at', t.bigint, (c) => c.notNull())
+        .execute();
+    },
+  },
+  {
+    name: '005_sessions',
+    up: async (db, { driver }) => {
+      const t = columnTypes(driver);
+      await db.schema
+        .createTable('sessions')
+        .ifNotExists()
+        .addColumn('id', t.shortText, (c) => c.primaryKey())
+        .addColumn('token_hash', t.shortText, (c) => c.notNull().unique())
+        .addColumn('user_id', t.int, (c) => c.notNull())
+        .addColumn('created_at', t.bigint, (c) => c.notNull())
+        .addColumn('last_used_at', t.bigint, (c) => c.notNull())
+        .addColumn('expires_at', t.bigint, (c) => c.notNull())
+        .addColumn('remember', t.int, (c) => c.notNull().defaultTo(0))
+        .addColumn('ip', t.shortText)
+        .addColumn('user_agent', t.text)
+        .execute();
+      await db.schema
+        .createIndex('sessions_user_id_idx')
+        .ifNotExists()
+        .on('sessions')
+        .column('user_id')
+        .execute();
+      await db.schema
+        .createIndex('sessions_expires_at_idx')
+        .ifNotExists()
+        .on('sessions')
+        .column('expires_at')
+        .execute();
+    },
+  },
 ];
 
-/** Build the StateStore over an already-migrated Kysely instance. */
 export function createStateStore(
   db: Kysely<StateDatabase>,
   driver: DbDriver,
   dbPath: string | null,
 ): StateStore {
-  // Upsert: Postgres/SQLite use ON CONFLICT, MySQL uses ON DUPLICATE KEY UPDATE.
   const upsert = (qc: Kysely<StateDatabase>, key: string, value: unknown, now: number) => {
     const row = { key, value: JSON.stringify(value), updated_at: now };
     if (driver === 'mysql') {
@@ -237,7 +309,7 @@ export function createStateStore(
         try {
           fileSize = (await stat(dbPath)).size;
         } catch {
-          /* ignore */
+          void 0;
         }
       }
       const count = await db
@@ -258,7 +330,6 @@ export function createStateStore(
   };
 }
 
-/** Open a SQLite-backed state store (the default backend). */
 export async function openStateDb(dbPath: string): Promise<StateStore> {
   const { db, legacyVersion } = await openSqliteKysely<StateDatabase>(dbPath);
   await runMigrations(db, STATE_MIGRATIONS, { driver: 'sqlite', legacyVersion });

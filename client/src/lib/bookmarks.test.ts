@@ -22,6 +22,20 @@ describe('bookmark sanitizer', () => {
 
     expect(bookmarks.map((bookmark) => bookmark.groupId)).toEqual(['default', 'default']);
   });
+
+  it('drops stored bookmarks with non-http URLs', () => {
+    const bookmarks = sanitizeBookmarks(
+      [
+        { id: 'bad', label: 'Bad', url: 'javascript:alert(1)', groupId: 'default' },
+        { id: 'nas', label: 'NAS', url: 'https://nas.local', groupId: 'default' },
+      ],
+      [DEFAULT_BOOKMARK_GROUP],
+    );
+
+    expect(bookmarks).toEqual([
+      { id: 'nas', label: 'NAS', url: 'https://nas.local/', groupId: 'default' },
+    ]);
+  });
 });
 
 describe('bookmark groups', () => {

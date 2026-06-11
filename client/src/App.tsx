@@ -88,7 +88,7 @@ const BACKEND_BACKED_SECTIONS = new Set<Section>([
 ]);
 
 function DashboardApp() {
-  useThresholds(); // subscribe so threshold changes re-render all severity-aware tiles
+  useThresholds();
   const [t, setTweak] = useTweaks<TweakState>(DEFAULTS);
   const data = useDashData();
   const connectivity = useConnectivity();
@@ -131,8 +131,6 @@ function DashboardApp() {
     return () => window.removeEventListener('keydown', fn);
   }, []);
 
-  // Reflect the user-controlled integration toggles into telemetry. Disabling
-  // an integration stops its poller immediately and blanks its slice of state.
   useEffect(() => {
     for (const key of INTEGRATION_KEYS) {
       setIntegrationEnabled(key, !!integrations[key]);
@@ -174,8 +172,6 @@ function DashboardApp() {
       ? resolveProxmoxSub(route.itemId, route.sub)
       : resolveSub(route.section, route.sub);
 
-  // When drilled into a Data Center node/guest/storage, surface its resolved
-  // name in the global Topbar breadcrumb (matches the in-page DetailHeader).
   const breadcrumbEntity =
     route.section === 'proxmox' ? resolveProxmoxEntityName(data, route.itemId) : null;
 

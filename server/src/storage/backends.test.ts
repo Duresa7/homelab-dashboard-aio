@@ -1,6 +1,3 @@
-// One contract suite run against every backend. SQLite always runs; Postgres
-// runs when PG_TEST_URL is set (a throwaway container in dev/CI), MySQL when
-// MYSQL_TEST_URL is set. Same assertions on all three prove one query codebase.
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -56,7 +53,12 @@ const postgresBackend: Backend = {
     await client.connect();
     await client.query('DROP TABLE IF EXISTS schema_migrations, app_state, syslog_events CASCADE');
     await client.end();
-    return { config, cleanup: async () => {} };
+    return {
+      config,
+      cleanup: async () => {
+        void 0;
+      },
+    };
   },
 };
 
@@ -78,7 +80,12 @@ const mysqlBackend: Backend = {
     });
     await conn.query('DROP TABLE IF EXISTS schema_migrations, app_state, syslog_events');
     await conn.end();
-    return { config, cleanup: async () => {} };
+    return {
+      config,
+      cleanup: async () => {
+        void 0;
+      },
+    };
   },
 };
 
@@ -131,7 +138,6 @@ for (const backend of BACKENDS) {
       expect(await state.delete('tempUnit')).toBe(1);
       expect(await state.get('tempUnit')).toBeNull();
 
-      // importBulk upserts (overwrites the existing `route`).
       const n = await state.importBulk({ a: 1, b: [2, 3], route: { section: 'docker' } });
       expect(n).toBe(3);
       expect((await state.get('route'))?.value).toEqual({ section: 'docker' });
@@ -172,9 +178,9 @@ for (const backend of BACKENDS) {
         '1.1.1.1',
       ]);
       expect((await siem.queryEvents({ category: 'firewall' })).length).toBe(1);
-      // Case-insensitive on every backend (Postgres via ILIKE).
+
       expect((await siem.queryEvents({ q: 'all ok' })).length).toBe(1);
-      // Literal % is escaped, not a wildcard.
+
       expect((await siem.queryEvents({ q: '50%' })).length).toBe(1);
       expect((await siem.queryEvents({ q: 'no-such-text' })).length).toBe(0);
       expect((await siem.queryEvents({ order: 'asc' })).map((e) => e.receivedAt)).toEqual([

@@ -1,8 +1,12 @@
 import 'dotenv/config';
 import express from 'express';
+import helmet from 'helmet';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { initAuth, type AuthHandle } from './auth/index.js';
+import { createUnavailableGate } from './auth/middleware.js';
+import { initImages } from './images/index.js';
 import { initSiem, type SiemRuntimeConfig } from './siem/index.js';
 import { initProxmoxHistory } from './proxmox-history/index.js';
 import { initState } from './state/index.js';
@@ -30,10 +34,6 @@ import { registerProvider } from './integrations/provider.js';
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-// Surface otherwise-invisible async failures. A promise rejection with no
-// handler would otherwise vanish (or, on newer Node, terminate the process)
-// with no log line explaining why. Skipped under test so it doesn't outlive
-// the suite's module re-imports.
 if (process.env.NODE_ENV !== 'test') {
   process.on('unhandledRejection', (reason) => {
     console.error(`Unhandled promise rejection: ${errorMessage(reason)}`);
@@ -46,10 +46,42 @@ const SIEM_HOST = process.env.SIEM_HOST || '0.0.0.0';
 const SIEM_RETENTION_DAYS = Number(process.env.SIEM_RETENTION_DAYS) || 30;
 const SIEM_MAX_PER_QUERY = Number(process.env.SIEM_MAX_PER_QUERY) || 1000;
 
-// Resolve the database backend once at boot (SQLite at today's paths unless env
-// or data/database.json selects otherwise). Used for both the store factory and
-// the startup log.
 const DB_CONFIG = resolveDbConfig();
+
+const TRUST_PROXY = process.env.TRUST_PROXY;
+if (TRUST_PROXY) {
+  app.set('trust proxy', TRUST_PROXY === 'true' ? 1 : TRUST_PROXY);
+}
+
+const stores = await openStores(DB_CONFIG).catch((err) => {
+  console.error(`Database: failed to open stores - ${errorMessage(err)}`);
+  return null;
+});
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ['*', 'data:', 'blob:'],
+        fontSrc: ["'self'"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'self'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'same-origin' },
+  }),
+);
+
+const authHandle: AuthHandle | null = stores ? initAuth(app, { auth: stores.auth }) : null;
+if (!stores) app.use(createUnavailableGate());
 
 function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -131,7 +163,10 @@ async function applyRuntimeConfig(
   }
 }
 
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', (req, res) => {
+  if (!req.auth) {
+    return res.json({ ok: true });
+  }
   res.json({
     ok: true,
     unifi: {
@@ -323,8 +358,6 @@ registerProxmoxNodeRoutes(app);
 const proxmoxHistoryHandle = initProxmoxHistory(app);
 registerWol(app);
 
-// Sensors share the GPU SSH config by default — both usually target the same host.
-
 const SENSORS_ENABLED = isEnabled(process.env.SENSORS_ENABLED);
 const SENSORS_MODE = (process.env.SENSORS_MODE || gpuStatus.mode).toLowerCase();
 const SENSORS_SSH_HOST = process.env.SENSORS_SSH_HOST || gpuStatus.host;
@@ -343,15 +376,6 @@ const sensorsHandle = initSensors(app, {
   cacheTtl: SENSORS_CACHE_TTL,
 });
 
-// Open both stores for the resolved backend (SQLite at today's paths by
-// default). DB selection is read from env/file at boot since the app config
-// store lives inside the chosen DB.
-const stores = await openStores(DB_CONFIG).catch((err) => {
-  console.error(`Database: failed to open stores - ${errorMessage(err)}`);
-  return null;
-});
-
-// Persistent app-state DB (inventory, thresholds, tweaks, etc.). Core, always on.
 const stateHandle = stores
   ? await initState(app, { store: stores.state }).catch((err) => {
       console.error(`State: init failed - ${err.message}`);
@@ -359,9 +383,12 @@ const stateHandle = stores
     })
   : { shutdown() {} };
 
-// One-time, idempotent: seed the runtime config store from env-configured
-// integrations so existing installs skip onboarding (a fresh install stays empty
-// and triggers the wizard).
+const IMAGES_DIR =
+  process.env.IMAGES_DIR || path.join(path.dirname(DB_CONFIG.sqlite.statePath), 'images');
+if (stores) {
+  initImages(app, { dir: IMAGES_DIR, store: stores.state });
+}
+
 if (stores) {
   await importEnvConfigIfEmpty(stores.state).catch((err) => {
     console.warn(`Setup: env config import failed - ${errorMessage(err)}`);
@@ -378,21 +405,22 @@ const hasRuntimeConfig = Object.keys(runtimeConfig).length > 0;
 if (process.env.NODE_ENV !== 'test') {
   process.on('SIGINT', () => {
     try {
+      authHandle?.shutdown();
       stateHandle.shutdown();
     } catch {
-      /* ignore */
+      void 0;
     }
   });
   process.on('SIGTERM', () => {
     try {
+      authHandle?.shutdown();
       stateHandle.shutdown();
     } catch {
-      /* ignore */
+      void 0;
     }
   });
 }
 
-// SIEM mounts UDP listener + SSE + REST routes on `app`. Must complete before app.listen.
 const siemHandle = stores
   ? await initSiem(app, {
       store: stores.siem,
@@ -413,7 +441,7 @@ if (process.env.NODE_ENV !== 'test') {
       siemHandle.shutdown();
       proxmoxHistoryHandle.shutdown();
     } catch {
-      /* ignore */
+      void 0;
     }
   });
   process.on('SIGTERM', () => {
@@ -421,12 +449,11 @@ if (process.env.NODE_ENV !== 'test') {
       siemHandle.shutdown();
       proxmoxHistoryHandle.shutdown();
     } catch {
-      /* ignore */
+      void 0;
     }
   });
 }
 
-// Database setup/onboarding API (test a backend + persist config + selections).
 initSetup(app, {
   store: stores?.state,
   onSelectionChanged: async (capabilityId) => {
@@ -438,7 +465,6 @@ initSetup(app, {
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-// Static SPA + fallback so client-side routes resolve on hard refresh.
 const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
 app.use(express.static(distDir, { index: false, maxAge: '1h' }));
 app.get(/^\/(?!api\/|healthz).*/, (_req, res, next) => {

@@ -52,17 +52,23 @@ export function sanitizeBookmarks(
 ): Bookmark[] {
   if (!Array.isArray(value)) return [];
   const groupIds = new Set(groups.map((group) => group.id));
-  return value.filter(isBookmark).map((bookmark) => {
+  return value.filter(isBookmark).flatMap((bookmark) => {
+    // Validate the URL on hydration too, not just on form submit — stored/imported
+    // state must not carry a non-http(s) URL (e.g. javascript:) into a rendered link.
+    const url = validateBookmarkUrl(bookmark.url);
+    if (!url) return [];
     const groupId = groupIds.has(bookmark.groupId) ? bookmark.groupId : DEFAULT_GROUP_ID;
-    return {
-      id: bookmark.id,
-      label: bookmark.label,
-      url: bookmark.url,
-      ...(typeof bookmark.icon === 'string' && bookmark.icon.trim()
-        ? { icon: bookmark.icon.trim() }
-        : {}),
-      groupId,
-    };
+    return [
+      {
+        id: bookmark.id,
+        label: bookmark.label,
+        url,
+        ...(typeof bookmark.icon === 'string' && bookmark.icon.trim()
+          ? { icon: bookmark.icon.trim() }
+          : {}),
+        groupId,
+      },
+    ];
   });
 }
 
@@ -72,9 +78,7 @@ export function deleteBookmarkGroup(
   groupId: string,
 ): { groups: BookmarkGroup[]; bookmarks: Bookmark[]; deleted: boolean } {
   if (groups.length <= 1) return { groups, bookmarks, deleted: false };
-  // The default group is permanent: sanitizeBookmarkGroups always re-synthesizes a
-  // group with id `default` (the orphan sink), so deleting it would just resurrect an
-  // empty one on reload. Disallow it instead.
+
   if (groupId === DEFAULT_GROUP_ID) return { groups, bookmarks, deleted: false };
   const exists = groups.some((group) => group.id === groupId);
   if (!exists) return { groups, bookmarks, deleted: false };

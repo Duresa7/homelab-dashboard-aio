@@ -1,5 +1,3 @@
-// Portainer-backed Docker integration. Normalizes one or more Portainer
-// endpoints into the dashboard's `docker` slice (hosts + containers + counts).
 import { insecureFetch, makeSafeFetch } from '../lib/http.js';
 import { withTtlCache } from '../lib/cache.js';
 import { isEnabled, trimBaseUrl, formatUptime } from '../lib/env.js';
@@ -208,8 +206,6 @@ async function fetchPortainerDockerDataRaw(): Promise<DockerApiResponse> {
 
 const fetchPortainerDockerData = withTtlCache(fetchPortainerDockerDataRaw, PORTAINER_CACHE_TTL);
 
-// Status descriptor consumed by the aggregate /api/health route and startup
-// logging in index.js, so they don't need to reach into Portainer config.
 export const dockerStatus = {
   enabled: config.enabled,
   configured: config.enabled && !!(config.baseUrl && config.apiKey),
@@ -229,7 +225,6 @@ export function configureDocker(next: DockerRuntimeConfig): void {
   dockerStatus.baseUrl = config.baseUrl;
 }
 
-/** Liveness probe used by /api/health/live. */
 export function probeDocker(timeoutMs: number) {
   return portainerFetch('/api/endpoints', { timeoutMs });
 }
