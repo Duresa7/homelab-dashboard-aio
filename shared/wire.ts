@@ -523,16 +523,23 @@ export interface SiemStatus {
   listening: boolean;
   host: string;
   port: number;
+  /** True when the listener fell back to loopback because SIEM_ALLOWED_SOURCES is unset. */
+  loopbackOnly?: boolean;
   serverAddress: string;
   eventsTotal: number;
   eventsLastHour: number;
   bytesReceived: number;
   packetsReceived: number;
+  packetsTruncated?: number;
+  packetsRateLimited?: number;
+  /** Datagrams dropped because their source IP is not in SIEM_ALLOWED_SOURCES. */
+  packetsBlocked?: number;
   parseErrors: number;
   lastEventAt: number | null;
   clientCount: number;
   bindError: string | null;
   retentionDays?: number;
+  sourceAllowlist?: string[];
 }
 
 export interface SiemStats {
