@@ -1,4 +1,38 @@
+import {
+  COMPONENT_BLOCKS,
+  COMPONENT_TYPE_LABELS,
+  detectComponentType,
+  type ComponentType,
+} from './component-registry';
+import { genId } from './inventory-id';
+import {
+  createSpecField,
+  fieldValue,
+  parseSpecToFields,
+  splitMultiUnit,
+  type SpecField,
+} from './inventory-spec-parser';
 import { getState, setState } from './store';
+
+export {
+  COMPONENT_BLOCKS,
+  COMPONENT_TYPE_FIELDS,
+  COMPONENT_TYPE_LABELS,
+  COMPONENT_TYPE_ORDER,
+  COMPONENT_TYPE_REGISTRY,
+  detectComponentType,
+  type ComponentType,
+  type ComponentTypeDefinition,
+} from './component-registry';
+export { genId } from './inventory-id';
+export {
+  detectBrand,
+  fieldValue,
+  parseSpecToFields,
+  splitMultiUnit,
+  splitSpec,
+  type SpecField,
+} from './inventory-spec-parser';
 
 export interface MetaRow {
   id: string;
@@ -49,24 +83,6 @@ export interface ItemDetail {
   problemLog?: ProblemLogEntry[];
 
   images?: ItemImage[];
-}
-
-export type ComponentType =
-  | 'cpu'
-  | 'gpu'
-  | 'motherboard'
-  | 'ram'
-  | 'storage'
-  | 'psu'
-  | 'cooler'
-  | 'case'
-  | 'nic'
-  | 'other';
-
-export interface SpecField {
-  id: string;
-  label: string;
-  value: string;
 }
 
 export const SPARE = 'spare';
@@ -138,31 +154,6 @@ export interface Inventory {
   devices: DeviceCategory[];
 }
 
-let _idTick = 0;
-export function genId(prefix = 'x'): string {
-  _idTick += 1;
-  const t = Date.now().toString(36);
-  const r = Math.random().toString(36).slice(2, 6);
-  return `${prefix}_${t}${r}${_idTick.toString(36)}`;
-}
-
-function field(label: string, value: string): SpecField {
-  return { id: genId('f'), label, value };
-}
-
-export const COMPONENT_BLOCKS: Record<ComponentType, number> = {
-  cpu: 1000,
-  gpu: 2000,
-  motherboard: 3000,
-  ram: 4000,
-  storage: 5000,
-  psu: 6000,
-  cooler: 7000,
-  case: 8000,
-  nic: 9000,
-  other: 10000,
-};
-
 export const DEVICE_BLOCKS: Record<DeviceCategoryType, string> = {
   laptop: '01',
   phone: '02',
@@ -176,32 +167,6 @@ export const DEVICE_BLOCKS: Record<DeviceCategoryType, string> = {
 
 export const MACHINE_BLOCK = '08';
 
-export const COMPONENT_TYPE_FIELDS: Record<ComponentType, string[]> = {
-  cpu: ['Brand', 'Model', 'Cores', 'Threads', 'Socket', 'TDP'],
-  gpu: ['Brand', 'Model', 'VRAM', 'Interface'],
-  motherboard: ['Brand', 'Model', 'Socket', 'Chipset', 'Form Factor'],
-  ram: ['Brand', 'Model', 'Type', 'Speed', 'Capacity', 'Timing', 'Voltage', 'Profile'],
-  storage: ['Brand', 'Model', 'Capacity', 'Form Factor', 'Interface'],
-  psu: ['Brand', 'Model', 'Wattage', 'Rating', 'Modular'],
-  cooler: ['Brand', 'Model', 'Type', 'Size'],
-  case: ['Brand', 'Model', 'Form Factor'],
-  nic: ['Brand', 'Model', 'Speed', 'Interface'],
-  other: ['Brand', 'Model'],
-};
-
-export const COMPONENT_TYPE_LABELS: Record<ComponentType, string> = {
-  cpu: 'CPU',
-  gpu: 'GPU',
-  motherboard: 'Motherboard',
-  ram: 'RAM',
-  storage: 'Storage',
-  psu: 'PSU',
-  cooler: 'Cooler',
-  case: 'Case',
-  nic: 'NIC',
-  other: 'Other',
-};
-
 export const DEVICE_TYPE_LABELS: Record<DeviceCategoryType, string> = {
   laptop: 'Laptops',
   phone: 'Phones',
@@ -212,22 +177,6 @@ export const DEVICE_TYPE_LABELS: Record<DeviceCategoryType, string> = {
   camera: 'Cameras',
   other: 'Devices',
 };
-
-export function detectComponentType(label: string, spec = ''): ComponentType {
-  const k = `${label} ${spec}`.toLowerCase();
-  if (/coolers?|\baio\b|heatsink|radiator|\bfans?\b|thermal\s*paste|\bpaste\b/.test(k))
-    return 'cooler';
-  if (/\bcpus?\b|processor/.test(k)) return 'cpu';
-  if (/\bgpus?\b|graphics|geforce|radeon|video\s*card/.test(k)) return 'gpu';
-  if (/motherboards?|mainboards?|\bmobo\b/.test(k)) return 'motherboard';
-  if (/\bram\b|memory|dimm|dram/.test(k)) return 'ram';
-  if (/storage|drive\s*bay|\bssds?\b|\bhdds?\b|\bnvme\b|m\.2|hard\s*drives?/.test(k))
-    return 'storage';
-  if (/\bpsus?\b|power\s*supply|power supplies/.test(k)) return 'psu';
-  if (/\bcase\b|chassis|tower/.test(k)) return 'case';
-  if (/\bnics?\b|ethernet|\blan\b|network\s*card/.test(k)) return 'nic';
-  return 'other';
-}
 
 export function detectDeviceType(name: string): DeviceCategoryType {
   const k = name.toLowerCase();
@@ -272,202 +221,6 @@ export function nextDeviceUid(prefix: string, usedUids: Iterable<string | undefi
     if (!used.has(i)) return `${prefix}${String(i).padStart(2, '0')}`;
   }
   return `${prefix}99`;
-}
-
-export function splitSpec(spec: string): { name: string; detail: string } {
-  const sep = (spec ?? '').match(/\s+[—–]\s+/);
-  if (!sep || sep.index == null) return { name: (spec ?? '').trim(), detail: '' };
-  return {
-    name: spec.slice(0, sep.index).trim(),
-    detail: spec.slice(sep.index + sep[0].length).trim(),
-  };
-}
-
-const COMPONENT_BRANDS = [
-  'Thermal Grizzly',
-  'Cooler Master',
-  'Western Digital',
-  'SK hynix',
-  'Lian Li',
-  'G.SKILL',
-  'TEAMGROUP',
-  'Thermalright',
-  'Sabrent',
-  'Phanteks',
-  'Deepcool',
-  'SilverStone',
-  'AMD',
-  'Intel',
-  'NVIDIA',
-  'MSI',
-  'ASUS',
-  'ASRock',
-  'Gigabyte',
-  'Corsair',
-  'CORSAIR',
-  'Crucial',
-  'Samsung',
-  'Seagate',
-  'Toshiba',
-  'HGST',
-  'WDC',
-  'WD',
-  'Kingston',
-  'Micron',
-  'Arctic',
-  'Noctua',
-  'NZXT',
-  'Antec',
-  'Fractal',
-  'Realtek',
-  'Powerspec',
-  'Lenovo',
-  'HP',
-  'TP-Link',
-  'Netgear',
-  'Cisco',
-  'Ubiquiti',
-  'ADATA',
-  'Patriot',
-  'EVGA',
-  'PNY',
-  'Zotac',
-  'Palit',
-  'Sapphire',
-  'XFX',
-  'Gainward',
-];
-
-function escRe(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-export function detectBrand(text: string): string | undefined {
-  const t = text ?? '';
-  let best: string | undefined;
-  let bestIdx = Infinity;
-  for (const b of COMPONENT_BRANDS) {
-    const idx = t.search(new RegExp(`(?:^|\\b)${escRe(b)}\\b`, 'i'));
-    if (idx >= 0 && (idx < bestIdx || (idx === bestIdx && b.length > (best?.length ?? 0)))) {
-      bestIdx = idx;
-      best = b;
-    }
-  }
-  return best;
-}
-
-export function splitMultiUnit(spec: string): { count: number; perUnit?: string } {
-  const m = (spec ?? '').match(/(\d+)\s*[×x]\s*(\d+(?:\.\d+)?)\s*(GB|TB)/i);
-  if (!m) return { count: 1 };
-  const count = parseInt(m[1], 10);
-  if (!count || count < 2) return { count: 1 };
-  return { count, perUnit: `${m[2]} ${m[3].toUpperCase()}` };
-}
-
-interface Extractor {
-  label: string;
-  types: ComponentType[] | '*';
-  re: RegExp;
-  fmt?: (m: RegExpMatchArray) => string;
-}
-
-const EXTRACTORS: Extractor[] = [
-  {
-    label: 'Socket',
-    types: ['cpu', 'motherboard'],
-    re: /\b(AM[45]|LGA\s?\d+(?:-v\d+)?|sTRX?4|TR4|FM2\+?)\b/i,
-  },
-  { label: 'Chipset', types: ['motherboard'], re: /\b([XBZH]\d{3}[A-Z]?)\b/ },
-  { label: 'Timing', types: ['ram'], re: /\bCL(\d+)\b/i, fmt: (m) => `CL${m[1]}` },
-  { label: 'Voltage', types: ['ram'], re: /\b(\d\.\d+)\s*V\b/i, fmt: (m) => `${m[1]} V` },
-  { label: 'Profile', types: ['ram'], re: /\b(AMD EXPO|EXPO|Intel XMP|XMP)\b/i },
-  {
-    label: 'VRAM',
-    types: ['gpu'],
-    re: /\b(\d+(?:\.\d+)?)\s*(GB|MB)\b/i,
-    fmt: (m) => `${m[1]} ${m[2].toUpperCase()}`,
-  },
-  {
-    label: 'Capacity',
-    types: ['ram', 'storage'],
-    re: /\b(\d+(?:\.\d+)?)\s*(GB|TB)\b/i,
-    fmt: (m) => `${m[1]} ${m[2].toUpperCase()}`,
-  },
-  {
-    label: 'Form Factor',
-    types: ['storage', 'motherboard', 'case'],
-    re: /\b(2\.5"|3\.5"|M\.2|E-ATX|Micro-ATX|Mini-ITX|ATX|SFF)\b/i,
-  },
-  { label: 'Interface', types: ['storage'], re: /\b(NVMe|SATA(?:\s?6\s?Gb\/s)?|PCIe[^,;]*)\b/i },
-  { label: 'Wattage', types: ['psu'], re: /\b(\d{3,4})\s*W\b/i, fmt: (m) => `${m[1]} W` },
-  { label: 'Speed', types: ['nic'], re: /\b(\d+(?:\.\d+)?\s*(?:GbE|Gbps|Gbit|MbE|Mbps))\b/i },
-];
-
-export function parseSpecToFields(type: ComponentType, spec: string): SpecField[] {
-  const { name, detail } = splitSpec(spec);
-  const brand = detectBrand(spec);
-  let model = name;
-  if (brand) model = name.replace(new RegExp(`^\\s*${escRe(brand)}\\s*`, 'i'), '').trim();
-
-  const fields: SpecField[] = [];
-  if (brand) fields.push(field('Brand', brand));
-  if (model) fields.push(field('Model', model));
-
-  const seen = new Set(fields.map((f) => f.label));
-
-  let work = detail || '';
-
-  if (type === 'cpu') {
-    const ct = work.match(/(\d+)\s*C\s*\/\s*(\d+)\s*T/i);
-    if (ct) {
-      fields.push(field('Cores', ct[1]));
-      fields.push(field('Threads', ct[2]));
-      seen.add('Cores');
-      seen.add('Threads');
-      work = work.replace(ct[0], '');
-    }
-  }
-
-  if (type === 'ram') {
-    const ddr = work.match(/\bDDR(\d)[A-Z]*(?:[\s-]?(\d{3,5}))?\b/i);
-    if (ddr) {
-      fields.push(field('Type', `DDR${ddr[1]}`));
-      seen.add('Type');
-      if (ddr[2]) {
-        fields.push(field('Speed', `${ddr[2]} MT/s`));
-        seen.add('Speed');
-      }
-      work = work.replace(ddr[0], '');
-    }
-  }
-
-  for (const ex of EXTRACTORS) {
-    if (ex.types !== '*' && !ex.types.includes(type)) continue;
-    if (seen.has(ex.label)) continue;
-    const mm = work.match(ex.re);
-    if (!mm) continue;
-    fields.push(field(ex.label, ex.fmt ? ex.fmt(mm) : (mm[1] ?? mm[0])));
-    seen.add(ex.label);
-    work = work.replace(mm[0], '');
-  }
-
-  const notes = work
-    .split(/\s*[,;]\s*/)
-    .map((s) =>
-      s
-        .trim()
-        .replace(/^\(|\)$/g, '')
-        .trim(),
-    )
-    .filter((s) => s && !/^[—–-]+$/.test(s));
-  if (notes.length) fields.push(field('Notes', notes.join(', ')));
-
-  if (fields.length === 0 && spec.trim()) fields.push(field('Spec', spec.trim()));
-  return fields;
-}
-
-export function fieldValue(fields: SpecField[], label: string): string | undefined {
-  return fields.find((f) => f.label.toLowerCase() === label.toLowerCase())?.value || undefined;
 }
 
 export function componentTitle(c: Component): string {
@@ -770,7 +523,7 @@ function valuesToFields(values: Record<string, string>, columns: DeviceColumn[])
   const labelFor = (id: string) => columns.find((c) => c.id === id)?.label ?? id;
   return Object.entries(values)
     .filter(([, v]) => v != null && String(v).trim())
-    .map(([id, v]) => field(/^notes$/i.test(id) ? 'Notes' : labelFor(id), v));
+    .map(([id, v]) => createSpecField(/^notes$/i.test(id) ? 'Notes' : labelFor(id), v));
 }
 
 type MaybeLegacyDevices = Omit<Inventory, 'devices'> & {
