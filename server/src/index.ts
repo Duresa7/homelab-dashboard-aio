@@ -28,8 +28,12 @@ import { unasStatus } from './integrations/unas.js';
 import { unifiStatus } from './integrations/unifi.js';
 import { gpuStatus } from './integrations/gpu.js';
 import { registerWol, wolStatus } from './integrations/wol.js';
-import { integrationProviders, providerByCapabilityId } from './integrations/registry.js';
-import { registerProvider } from './integrations/provider.js';
+import { createProviderCatalog, type ProviderCatalog } from './integrations/registry.js';
+import {
+  readProviderStatus,
+  registerProvider,
+  type RuntimeProvider,
+} from './integrations/provider.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -47,6 +51,7 @@ const SIEM_RETENTION_DAYS = Number(process.env.SIEM_RETENTION_DAYS) || 30;
 const SIEM_MAX_PER_QUERY = Number(process.env.SIEM_MAX_PER_QUERY) || 1000;
 
 const DB_CONFIG = resolveDbConfig();
+let providerCatalog: ProviderCatalog = createProviderCatalog();
 
 const TRUST_PROXY = process.env.TRUST_PROXY;
 if (TRUST_PROXY) {
@@ -129,24 +134,8 @@ async function applyRuntimeCapability(
   capabilityId: string,
   selection: Selection | undefined,
 ): Promise<void> {
-  const enabled = !!selection?.enabled;
-  const cfg = selectionConfig(selection);
-  const provider = providerByCapabilityId.get(capabilityId);
-  if (provider) {
-    await provider.configure(selection);
-  } else if (capabilityId === 'sensors') {
-    sensorsHandle.configure({
-      enabled,
-      mode: text(cfg.mode) || 'ssh',
-      sshHost: text(cfg.sshHost) || gpuStatus.host,
-      sshUser: SENSORS_SSH_USER,
-      sshPort: SENSORS_SSH_PORT,
-      sshKeyPath: SENSORS_SSH_KEY_PATH,
-      cacheTtl: SENSORS_CACHE_TTL,
-    });
-  } else if (capabilityId === 'logs') {
-    await siemHandle.configure(siemConfigFromSelection(selection, true));
-  }
+  const provider = providerCatalog.providerByCapabilityId.get(capabilityId);
+  if (provider) await provider.configure(selection);
   liveHealthCache = { data: null, ts: 0 };
 }
 
@@ -156,8 +145,9 @@ async function applyRuntimeConfig(
 ): Promise<void> {
   const hasStoredConfig = Object.keys(config).length > 0;
   if (!hasStoredConfig) return;
-  const capabilityIds = ['network', 'datacenter', 'containers', 'nas', 'gpu', 'sensors'];
-  if (opts.includeLogs) capabilityIds.push('logs');
+  const capabilityIds = providerCatalog.providers
+    .map((provider) => provider.capabilityId)
+    .filter((capabilityId) => opts.includeLogs || capabilityId !== 'logs');
   for (const capabilityId of capabilityIds) {
     await applyRuntimeCapability(capabilityId, config[capabilityId]);
   }
@@ -167,40 +157,25 @@ app.get('/api/health', (req, res) => {
   if (!req.auth) {
     return res.json({ ok: true });
   }
+  const integrations = Object.fromEntries(
+    providerCatalog.providers.map((provider) => {
+      const status = readProviderStatus(provider);
+      return [
+        provider.healthId ?? provider.id,
+        {
+          enabled: status.enabled,
+          configured: status.configured,
+          ...(status.hasKey !== undefined ? { hasKey: status.hasKey } : {}),
+        },
+      ];
+    }),
+  );
   res.json({
     ok: true,
-    unifi: {
-      enabled: unifiStatus.enabled,
-      configured: unifiStatus.configured,
-      hasKey: unifiStatus.hasKey,
-    },
-    portainer: {
-      enabled: dockerStatus.enabled,
-      configured: dockerStatus.configured,
-    },
-    proxmox: {
-      enabled: proxmoxStatus.enabled,
-      configured: proxmoxStatus.configured,
-    },
-    unas: {
-      enabled: unasStatus.enabled,
-      configured: unasStatus.configured,
-    },
-    gpu: {
-      enabled: gpuStatus.enabled,
-      configured: gpuStatus.configured,
-    },
+    ...integrations,
     wol: {
       enabled: wolStatus.enabled,
       configured: wolStatus.configured,
-    },
-    sensors: {
-      enabled: sensorsHandle.status().enabled,
-      configured: sensorsHandle.status().configured,
-    },
-    siem: {
-      enabled: siemHandle.status().enabled,
-      configured: siemHandle.status().configured,
     },
   });
 });
@@ -280,20 +255,13 @@ async function runProbe(
 
 async function computeLiveHealth(): Promise<LiveHealth> {
   const probes = await Promise.all([
-    ...integrationProviders.map((provider) =>
-      runProbe(
+    ...providerCatalog.providers.map((provider) => {
+      const status = readProviderStatus(provider);
+      return runProbe(
         provider.healthId ?? provider.id,
-        provider.status.enabled && provider.status.configured,
-        () => provider.probe?.(LIVE_HEALTH_PROBE_TIMEOUT_MS),
-      ),
-    ),
-    runProbe('sensors', sensorsHandle.status().enabled && sensorsHandle.status().configured, () =>
-      sensorsHandle.runSensors(),
-    ),
-    runProbe('siem', siemHandle.status().enabled && siemHandle.status().configured, () => {
-      const status = siemHandle.status();
-      if (!status.listening) throw new Error(status.bindError || 'SIEM listener is not active');
-      return true;
+        status.enabled && status.configured,
+        () => provider.probe?.(LIVE_HEALTH_PROBE_TIMEOUT_MS) ?? true,
+      );
     }),
   ]);
 
@@ -353,7 +321,6 @@ app.get('/api/health/live', async (req, res) => {
   });
 });
 
-for (const provider of integrationProviders) registerProvider(app, provider);
 registerProxmoxNodeRoutes(app);
 const proxmoxHistoryHandle = initProxmoxHistory(app);
 registerWol(app);
@@ -430,6 +397,53 @@ const siemHandle = stores
       return disabledSiemHandle(err.message);
     })
   : disabledSiemHandle();
+
+function createSensorsProvider(): RuntimeProvider {
+  return {
+    id: 'sensors',
+    capabilityId: 'sensors',
+    logName: 'Sensors',
+    status: () => sensorsHandle.status(),
+    notConfiguredMessage:
+      'SENSORS_MODE=ssh but no host configured (set SENSORS_SSH_HOST or GPU_SSH_HOST)',
+    configure(selection) {
+      const cfg = selectionConfig(selection);
+      sensorsHandle.configure({
+        enabled: !!selection?.enabled,
+        mode: text(cfg.mode) || 'ssh',
+        sshHost: text(cfg.sshHost) || gpuStatus.host,
+        sshUser: SENSORS_SSH_USER,
+        sshPort: SENSORS_SSH_PORT,
+        sshKeyPath: SENSORS_SSH_KEY_PATH,
+        cacheTtl: SENSORS_CACHE_TTL,
+      });
+    },
+    probe() {
+      return sensorsHandle.runSensors();
+    },
+  };
+}
+
+function createSiemProvider(): RuntimeProvider {
+  return {
+    id: 'siem',
+    capabilityId: 'logs',
+    logName: 'SIEM',
+    status: () => siemHandle.status(),
+    notConfiguredMessage: 'SIEM disabled or not configured.',
+    configure(selection) {
+      return siemHandle.configure(siemConfigFromSelection(selection, true));
+    },
+    probe() {
+      const status = siemHandle.status();
+      if (!status.listening) throw new Error(status.bindError || 'SIEM listener is not active');
+      return true;
+    },
+  };
+}
+
+providerCatalog = createProviderCatalog([createSensorsProvider(), createSiemProvider()]);
+for (const provider of providerCatalog.providers) registerProvider(app, provider);
 
 await applyRuntimeConfig(runtimeConfig, { includeLogs: false }).catch((err) => {
   console.warn(`Setup: runtime config apply failed - ${errorMessage(err)}`);

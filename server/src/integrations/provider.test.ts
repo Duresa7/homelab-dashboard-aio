@@ -2,7 +2,7 @@ import express from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 
-import { registerProvider, type Provider } from './provider.js';
+import { readProviderStatus, registerProvider, type Provider } from './provider.js';
 
 interface Payload {
   value: number;
@@ -65,5 +65,48 @@ describe('registerProvider', () => {
     } finally {
       errorSpy.mockRestore();
     }
+  });
+
+  it('accepts handle-backed status functions', async () => {
+    const app = express();
+    registerProvider(
+      app,
+      fakeProvider({
+        status: () => ({ enabled: true, configured: true, hasKey: true }),
+      }),
+    );
+
+    await request(app).get('/api/fake').expect(200, { value: 1 });
+  });
+
+  it('skips route registration for providers without fetch', async () => {
+    const app = express();
+    registerProvider(
+      app,
+      fakeProvider({
+        fetch: undefined,
+      }),
+    );
+
+    await request(app).get('/api/fake').expect(404);
+  });
+});
+
+describe('readProviderStatus', () => {
+  it('reads object and function status sources through one interface', () => {
+    expect(
+      readProviderStatus(fakeProvider({ status: { enabled: false, configured: false } })),
+    ).toEqual({
+      enabled: false,
+      configured: false,
+    });
+
+    expect(
+      readProviderStatus(
+        fakeProvider({
+          status: () => ({ enabled: true, configured: true }),
+        }),
+      ),
+    ).toEqual({ enabled: true, configured: true });
   });
 });
