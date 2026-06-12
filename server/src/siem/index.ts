@@ -4,21 +4,15 @@ import type { Express, Request, Response } from 'express';
 
 import { errorMessage } from '../lib/errors.js';
 import type { SiemStore } from '../storage/types.js';
-import { parseSyslog } from './parser.js';
-import { classifySyslog } from './classifier.js';
-import type { StoredEvent } from './types.js';
 import { createSseBus } from './sse.js';
-import { isSourceAllowed, parseAllowedSources, resolveBindHost } from './source-guard.js';
+import {
+  createSiemPipeline,
+  DEFAULT_SIEM_PIPELINE_LIMITS,
+  type SiemPipelineStats,
+} from './pipeline.js';
+import { parseAllowedSources, resolveBindHost } from './source-guard.js';
 
 const RETENTION_SWEEP_INTERVAL_MS = 6 * 60 * 60_000;
-
-const MAX_PACKET_BYTES = 8 * 1024;
-
-const RATE_PPS = 200;
-const RATE_BURST = 1000;
-const GLOBAL_RATE_PPS = Number(process.env.SIEM_GLOBAL_RATE_PPS) || 1000;
-const GLOBAL_RATE_BURST = Number(process.env.SIEM_GLOBAL_RATE_BURST) || 5000;
-const RATE_BUCKETS_MAX = 4096;
 
 const RETENTION_CHUNK_ROWS = 1000;
 
@@ -75,19 +69,12 @@ export async function initSiem(app: Express, opts: SiemOptions) {
   let sweepRunning = false;
   let closed = false;
 
-  type SiemStats = {
-    packetsReceived: number;
-    bytesReceived: number;
-    parseErrors: number;
-    packetsTruncated: number;
-    packetsRateLimited: number;
-    packetsBlocked: number;
-    lastEventAt: number | null;
+  type SocketStats = {
     bindError: string | null;
     boundAt: number | null;
   };
 
-  let stats = createStats();
+  let socketStats = createSocketStats();
 
   function normalizeConfig(next: SiemRuntimeConfig): Required<SiemRuntimeConfig> {
     const port = Number(next.port);
@@ -102,15 +89,8 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     };
   }
 
-  function createStats(): SiemStats {
+  function createSocketStats(): SocketStats {
     return {
-      packetsReceived: 0,
-      bytesReceived: 0,
-      parseErrors: 0,
-      packetsTruncated: 0,
-      packetsRateLimited: 0,
-      packetsBlocked: 0,
-      lastEventAt: null,
       bindError: null,
       boundAt: null,
     };
@@ -125,44 +105,12 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     .filter(Boolean);
   const effectiveBind = () => resolveBindHost(config.host, sourceFilter);
 
-  const globalBucket = { tokens: GLOBAL_RATE_BURST, lastRefillMs: Date.now() };
-  function admitGlobal(): boolean {
-    const now = Date.now();
-    const elapsed = now - globalBucket.lastRefillMs;
-    if (elapsed > 0) {
-      globalBucket.tokens = Math.min(
-        GLOBAL_RATE_BURST,
-        globalBucket.tokens + (elapsed * GLOBAL_RATE_PPS) / 1000,
-      );
-      globalBucket.lastRefillMs = now;
-    }
-    if (globalBucket.tokens < 1) return false;
-    globalBucket.tokens -= 1;
-    return true;
-  }
-
-  const rateBuckets = new Map<string, { tokens: number; lastRefillMs: number }>();
-  function admit(ip: string): boolean {
-    const now = Date.now();
-    let b = rateBuckets.get(ip);
-    if (!b) {
-      if (rateBuckets.size >= RATE_BUCKETS_MAX) {
-        const firstKey = rateBuckets.keys().next().value;
-        if (firstKey !== undefined) rateBuckets.delete(firstKey);
-      }
-      b = { tokens: RATE_BURST, lastRefillMs: now };
-      rateBuckets.set(ip, b);
-    } else {
-      const elapsed = now - b.lastRefillMs;
-      if (elapsed > 0) {
-        b.tokens = Math.min(RATE_BURST, b.tokens + (elapsed * RATE_PPS) / 1000);
-        b.lastRefillMs = now;
-      }
-    }
-    if (b.tokens < 1) return false;
-    b.tokens -= 1;
-    return true;
-  }
+  let pipeline = createSiemPipeline({
+    store: db,
+    sourceFilter,
+    onEvent: (event) => sse.broadcast(event),
+    onInsertError: (err) => console.warn(`SIEM: insert failed - ${errorMessage(err)}`),
+  });
 
   function disabledStatus() {
     return {
@@ -208,84 +156,18 @@ export async function initSiem(app: Express, opts: SiemOptions) {
   }
 
   async function onMessage(buf: Buffer, rinfo: dgram.RemoteInfo) {
-    stats.packetsReceived += 1;
-    stats.bytesReceived += buf.length;
-
-    if (!isSourceAllowed(sourceFilter, rinfo.address)) {
-      stats.packetsBlocked += 1;
-      return;
-    }
-
-    if (!admitGlobal()) {
-      stats.packetsRateLimited += 1;
-      return;
-    }
-
-    if (!admit(rinfo.address)) {
-      stats.packetsRateLimited += 1;
-      return;
-    }
-
-    let safeBuf = buf;
-    if (buf.length > MAX_PACKET_BYTES) {
-      safeBuf = buf.subarray(0, MAX_PACKET_BYTES);
-      stats.packetsTruncated += 1;
-    }
-    const raw = safeBuf.toString('utf8');
-    const parsed = parseSyslog(raw);
-    if (!parsed) {
-      stats.parseErrors += 1;
-      return;
-    }
-    const tagged = classifySyslog(parsed, rinfo.address);
-    const cefFields = parsed.cef?.fields;
-    const extra = cefFields || (parsed.cef ? { _cef: parsed.cef } : null);
-
-    let stored: StoredEvent;
-    try {
-      stored = await db.insertEvent({
-        receivedAt: Date.now(),
-        logTime: parsed.logTime ?? null,
-        sourceIp: tagged.source_ip,
-        hostname: parsed.hostname ?? null,
-        facility: parsed.facility ?? null,
-        severity: parsed.severity,
-        tag: parsed.tag ?? null,
-        message: parsed.message,
-        raw,
-        format: parsed.format,
-        deviceKind: tagged.device_kind,
-        category: tagged.category,
-        extra,
-      });
-    } catch (err) {
-      stats.parseErrors += 1;
-      console.warn(`SIEM: insert failed - ${errorMessage(err)}`);
-      return;
-    }
-    stats.lastEventAt = stored.received_at;
-
-    sse.broadcast({
-      id: stored.id,
-      receivedAt: stored.received_at,
-      logTime: stored.log_time,
-      sourceIp: stored.source_ip,
-      hostname: stored.hostname,
-      facility: stored.facility,
-      severity: stored.severity,
-      tag: stored.tag,
-      message: stored.message,
-      raw: stored.raw,
-      format: stored.format,
-      deviceKind: stored.device_kind,
-      category: stored.category,
-      extra: extra || null,
-    });
+    await pipeline.ingest(buf, rinfo);
   }
 
   async function start() {
     if (!config.enabled || sock || closed) return;
-    stats = createStats();
+    socketStats = createSocketStats();
+    pipeline = createSiemPipeline({
+      store: db,
+      sourceFilter,
+      onEvent: (event) => sse.broadcast(event),
+      onInsertError: (err) => console.warn(`SIEM: insert failed - ${errorMessage(err)}`),
+    });
     sweepRunning = false;
 
     const bind = effectiveBind();
@@ -304,12 +186,12 @@ export async function initSiem(app: Express, opts: SiemOptions) {
 
     nextSock.on('message', onMessage);
     nextSock.on('error', (err) => {
-      stats.bindError = err.message;
+      socketStats.bindError = err.message;
       console.warn(`SIEM: socket error - ${err.message}`);
     });
 
     nextSock.on('listening', () => {
-      stats.boundAt = Date.now();
+      socketStats.boundAt = Date.now();
       const addr = nextSock.address();
       console.log(`SIEM: listening for syslog on UDP ${addr.address}:${addr.port}`);
     });
@@ -317,7 +199,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     await new Promise<void>((resolve) => {
       nextSock.bind(config.port, bind.host, () => resolve());
       nextSock.once('error', (err) => {
-        stats.bindError = err.message;
+        socketStats.bindError = err.message;
         console.warn(
           `SIEM: failed to bind UDP ${bind.host}:${config.port} - ${err.message}. ` +
             `On Windows, ports below 1024 may require an elevated terminal. ` +
@@ -359,7 +241,7 @@ export async function initSiem(app: Express, opts: SiemOptions) {
       }
     }
     sse.shutdown();
-    stats.boundAt = null;
+    socketStats.boundAt = null;
   }
 
   const dbError = (res: Response, err: unknown) =>
@@ -370,9 +252,10 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     try {
       const t = await db.totals();
       const bind = effectiveBind();
+      const stats: SiemPipelineStats = pipeline.stats();
       res.json({
         enabled: true,
-        listening: !!stats.boundAt && !stats.bindError,
+        listening: !!socketStats.boundAt && !socketStats.bindError,
         host: bind.host,
         port: config.port,
         loopbackOnly: bind.loopbackFallback,
@@ -387,13 +270,13 @@ export async function initSiem(app: Express, opts: SiemOptions) {
         parseErrors: stats.parseErrors,
         lastEventAt: t.lastEventAt,
         clientCount: sse.clientCount(),
-        bindError: stats.bindError,
+        bindError: socketStats.bindError,
         retentionDays: config.retentionDays,
-        maxPacketBytes: MAX_PACKET_BYTES,
-        ratePps: RATE_PPS,
-        rateBurst: RATE_BURST,
-        globalRatePps: GLOBAL_RATE_PPS,
-        globalRateBurst: GLOBAL_RATE_BURST,
+        maxPacketBytes: DEFAULT_SIEM_PIPELINE_LIMITS.maxPacketBytes,
+        ratePps: DEFAULT_SIEM_PIPELINE_LIMITS.ratePps,
+        rateBurst: DEFAULT_SIEM_PIPELINE_LIMITS.rateBurst,
+        globalRatePps: DEFAULT_SIEM_PIPELINE_LIMITS.globalRatePps,
+        globalRateBurst: DEFAULT_SIEM_PIPELINE_LIMITS.globalRateBurst,
         sourceAllowlist: allowedSources,
       });
     } catch (err) {
@@ -467,10 +350,10 @@ export async function initSiem(app: Express, opts: SiemOptions) {
     return {
       enabled: config.enabled,
       configured: config.enabled,
-      listening: !!stats.boundAt && !stats.bindError,
+      listening: !!socketStats.boundAt && !socketStats.bindError,
       host: effectiveBind().host,
       port: config.port,
-      bindError: stats.bindError,
+      bindError: socketStats.bindError,
     };
   }
 
