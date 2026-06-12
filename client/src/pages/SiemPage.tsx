@@ -543,13 +543,26 @@ function SiemStatusBanner({
       </div>
     );
   }
-  const addr = `${status.serverAddress}:${status.port}`;
+  const loopbackOnly = !!status.loopbackOnly;
+  const addr = loopbackOnly
+    ? `${status.host}:${status.port}`
+    : `${status.serverAddress}:${status.port}`;
   const isListening = status.listening;
   const bindMsg = status.bindError;
   const lastAgo = status.lastEventAt ? fmtAgo(status.lastEventAt) : 'never';
   return (
-    <div className={cn(shell, isListening ? 'border-l-ok' : 'border-l-bad')}>
-      <span className={cn('size-2 shrink-0 rounded-full', isListening ? 'bg-ok' : 'bg-bad')} />
+    <div
+      className={cn(
+        shell,
+        isListening ? (loopbackOnly ? 'border-l-warn' : 'border-l-ok') : 'border-l-bad',
+      )}
+    >
+      <span
+        className={cn(
+          'size-2 shrink-0 rounded-full',
+          isListening ? (loopbackOnly ? 'bg-warn' : 'bg-ok') : 'bg-bad',
+        )}
+      />
       <div className="min-w-0 flex-1 text-sm">
         {isListening ? (
           <>
@@ -564,6 +577,14 @@ function SiemStatusBanner({
               {' · '}
               last event {lastAgo}
             </span>
+            {loopbackOnly ? (
+              <div className="mt-1 text-warn">
+                Localhost only: <code className={code}>SIEM_ALLOWED_SOURCES</code> is not set, so
+                syslog from other devices is not accepted. Set it in{' '}
+                <code className={code}>.env</code> to a comma-separated list of sender IPs or CIDRs
+                (e.g. <code className={code}>192.0.2.1,192.0.2.0/24</code>) and restart.
+              </div>
+            ) : null}
           </>
         ) : (
           <>
