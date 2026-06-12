@@ -29,7 +29,12 @@ export function useApiResource<T>(
   const [data, setData] = useState<T | null>(initialData);
   const [loading, setLoading] = useState<boolean>(Boolean(enabled && url));
   const [error, setError] = useState<string | null>(null);
+  const initialDataRef = useRef<T | null>(initialData);
   const controllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    initialDataRef.current = initialData;
+  }, [initialData]);
 
   const refresh = useCallback(
     async (urlOverride?: string | null) => {
@@ -37,7 +42,7 @@ export function useApiResource<T>(
       if (!enabled || !target) {
         controllerRef.current?.abort();
         controllerRef.current = null;
-        setData(initialData);
+        setData(initialDataRef.current);
         setError(null);
         setLoading(false);
         return;
@@ -55,7 +60,7 @@ export function useApiResource<T>(
       } catch (err) {
         if (isAbortError(err)) return;
         setError(errorMessage(err));
-        if (!keepPreviousData) setData(initialData);
+        if (!keepPreviousData) setData(initialDataRef.current);
       } finally {
         if (controllerRef.current === controller) {
           controllerRef.current = null;
@@ -63,7 +68,7 @@ export function useApiResource<T>(
         }
       }
     },
-    [enabled, initialData, keepPreviousData, url],
+    [enabled, keepPreviousData, url],
   );
 
   useEffect(() => {

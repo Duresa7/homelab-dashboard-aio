@@ -75,6 +75,7 @@ describe('SIEM ingest pipeline', () => {
     expect(pipeline.stats()).toMatchObject({
       packetsReceived: 1,
       parseErrors: 0,
+      insertErrors: 0,
       lastEventAt: 1_000,
     });
   });
@@ -141,7 +142,8 @@ describe('SIEM ingest pipeline', () => {
     expect(onInsertError).toHaveBeenCalledWith(expect.any(Error));
     expect(onEvent).not.toHaveBeenCalled();
     expect(pipeline.stats()).toMatchObject({
-      parseErrors: 1,
+      parseErrors: 0,
+      insertErrors: 1,
       lastEventAt: null,
     });
   });

@@ -20,6 +20,7 @@ export interface SiemPipelineStats {
   packetsReceived: number;
   bytesReceived: number;
   parseErrors: number;
+  insertErrors: number;
   packetsTruncated: number;
   packetsRateLimited: number;
   packetsBlocked: number;
@@ -49,6 +50,7 @@ function createStats(): SiemPipelineStats {
     packetsReceived: 0,
     bytesReceived: 0,
     parseErrors: 0,
+    insertErrors: 0,
     packetsTruncated: 0,
     packetsRateLimited: 0,
     packetsBlocked: 0,
@@ -172,7 +174,7 @@ export function createSiemPipeline(opts: SiemPipelineOptions) {
         extra,
       });
     } catch (err) {
-      stats.parseErrors += 1;
+      stats.insertErrors += 1;
       opts.onInsertError?.(err);
       if (!opts.onInsertError) console.warn(`SIEM: insert failed - ${errorMessage(err)}`);
       return;

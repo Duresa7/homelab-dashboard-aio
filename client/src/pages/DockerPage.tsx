@@ -10,7 +10,7 @@ import {
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { useFilterableList } from '@/lib/filterable-list';
 import { cn } from '@/lib/utils';
-import type { DashboardState } from '../types';
+import type { Container, DashboardState } from '../types';
 import { PresentationIcon, useCapabilityPresentation } from '@/lib/presentation';
 
 interface Props {
@@ -24,6 +24,14 @@ const DOCKER_TABS = [
   { id: 'hosts', label: 'Hosts' },
   { id: 'containers', label: 'Containers' },
 ];
+
+const CONTAINER_FILTER_CONFIG = {
+  initialFilters: { host: 'all', stack: 'all' },
+  filters: {
+    host: (container: Container, value: string) => value === 'all' || container.host === value,
+    stack: (container: Container, value: string) => value === 'all' || container.stack === value,
+  },
+};
 
 function ContainersBrandIcon({ size = 18 }: { size?: number }) {
   const containers = useCapabilityPresentation('containers');
@@ -182,13 +190,7 @@ function Hosts({ data }: { data: DashboardState }) {
 function Containers({ data }: { data: DashboardState }) {
   const c = data.docker.containers;
   const hosts = data.docker.hosts;
-  const containerList = useFilterableList(c, {
-    initialFilters: { host: 'all', stack: 'all' },
-    filters: {
-      host: (container, value) => value === 'all' || container.host === value,
-      stack: (container, value) => value === 'all' || container.stack === value,
-    },
-  });
+  const containerList = useFilterableList(c, CONTAINER_FILTER_CONFIG);
   const hostFilter = containerList.filters.host ?? 'all';
   const stackFilter = containerList.filters.stack ?? 'all';
 

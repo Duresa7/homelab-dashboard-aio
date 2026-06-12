@@ -68,6 +68,19 @@ interface NodeDetail {
 type WindowId = '1h' | '6h' | '24h' | '48h';
 type HistoryResponse = { series?: Array<{ v: number }> };
 
+const GUEST_FILTER_CONFIG = {
+  initialFilters: { node: 'all', state: 'all' },
+  search: (guest: VM, query: string) =>
+    guest.name.toLowerCase().includes(query) ||
+    String(guest.id).includes(query) ||
+    (guest.ip ?? '').toLowerCase().includes(query) ||
+    guest.node.toLowerCase().includes(query),
+  filters: {
+    node: (guest: VM, value: string) => value === 'all' || guest.node === value,
+    state: (guest: VM, value: string) => value === 'all' || guest.state === value,
+  },
+};
+
 const EMPTY_HISTORY: number[] = [];
 
 const WINDOW_MS: Record<WindowId, number> = {
@@ -678,18 +691,7 @@ function GuestsView({ vms }: { vms: VM[] }) {
 
   const nodes = [...new Set(vms.map((v) => v.node))];
   const multiNode = nodes.length > 1;
-  const guests = useFilterableList(vms, {
-    initialFilters: { node: 'all', state: 'all' },
-    search: (guest, query) =>
-      guest.name.toLowerCase().includes(query) ||
-      String(guest.id).includes(query) ||
-      (guest.ip ?? '').toLowerCase().includes(query) ||
-      guest.node.toLowerCase().includes(query),
-    filters: {
-      node: (guest, value) => value === 'all' || guest.node === value,
-      state: (guest, value) => value === 'all' || guest.state === value,
-    },
-  });
+  const guests = useFilterableList(vms, GUEST_FILTER_CONFIG);
   const nodeFilter = guests.filters.node ?? 'all';
   const stateFilter = guests.filters.state ?? 'all';
   const filtered = guests.filtered;

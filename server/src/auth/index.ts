@@ -209,7 +209,7 @@ export function initAuth(app: Express, opts: InitAuthOpts): AuthHandle {
 
   app.delete('/api/auth/sessions/:id', sameOrigin, async (req: Request, res: Response) => {
     try {
-      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const { id } = req.params as { id: string };
       const result = await lifecycle.revokeSession(req.auth!, id);
       if (result.current) clearSessionCookie(res);
       res.json({ ok: true });
