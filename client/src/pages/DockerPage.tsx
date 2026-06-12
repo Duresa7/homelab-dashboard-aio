@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Play, Square, Server, Layers, Container as ContainerIcon } from 'lucide-react';
 import {
   EntityCard,
@@ -9,6 +8,7 @@ import {
   SubTabs,
 } from '@/components/common';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { useFilterableList } from '@/lib/filterable-list';
 import { cn } from '@/lib/utils';
 import type { DashboardState } from '../types';
 import { PresentationIcon, useCapabilityPresentation } from '@/lib/presentation';
@@ -182,14 +182,18 @@ function Hosts({ data }: { data: DashboardState }) {
 function Containers({ data }: { data: DashboardState }) {
   const c = data.docker.containers;
   const hosts = data.docker.hosts;
-  const [hostFilter, setHostFilter] = useState<string>('all');
-  const [stackFilter, setStackFilter] = useState<string>('all');
+  const containerList = useFilterableList(c, {
+    initialFilters: { host: 'all', stack: 'all' },
+    filters: {
+      host: (container, value) => value === 'all' || container.host === value,
+      stack: (container, value) => value === 'all' || container.stack === value,
+    },
+  });
+  const hostFilter = containerList.filters.host ?? 'all';
+  const stackFilter = containerList.filters.stack ?? 'all';
 
   const allStacks = [...new Set(c.map((x) => x.stack))];
-
-  let filtered = c;
-  if (hostFilter !== 'all') filtered = filtered.filter((x) => x.host === hostFilter);
-  if (stackFilter !== 'all') filtered = filtered.filter((x) => x.stack === stackFilter);
+  const filtered = containerList.filtered;
 
   const visibleHosts = hosts.filter((h) => hostFilter === 'all' || hostFilter === h.id);
 
@@ -201,7 +205,7 @@ function Containers({ data }: { data: DashboardState }) {
             <span className="text-xs text-muted-foreground">host</span>
             <Segmented
               value={hostFilter}
-              onChange={setHostFilter}
+              onChange={(value) => containerList.setFilter('host', value)}
               options={[
                 { value: 'all', label: 'all' },
                 ...hosts.map((h) => ({ value: h.id, label: h.name })),
@@ -213,7 +217,7 @@ function Containers({ data }: { data: DashboardState }) {
               <span className="text-xs text-muted-foreground">stack</span>
               <Segmented
                 value={stackFilter}
-                onChange={setStackFilter}
+                onChange={(value) => containerList.setFilter('stack', value)}
                 options={[
                   { value: 'all', label: 'all' },
                   ...allStacks.map((s) => ({ value: s, label: s })),

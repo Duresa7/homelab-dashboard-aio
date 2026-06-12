@@ -35,6 +35,7 @@ import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { entityName } from '../lib/route';
+import { useFilterableList } from '../lib/filterable-list';
 import { getState, setState } from '../lib/store';
 import { useApiResource } from '../lib/use-api-resource';
 import { cpuUsageSeverity, fillSeverity, ramUsageSeverity } from '../lib/severity';
@@ -673,27 +674,25 @@ function TableLayoutBar({ view, onChange }: { view: TableView; onChange: (v: Tab
 }
 
 function GuestsView({ vms }: { vms: VM[] }) {
-  const [query, setQuery] = useState('');
-  const [nodeFilter, setNodeFilter] = useState('all');
-  const [stateFilter, setStateFilter] = useState('all');
   const [view, setView] = useTableView('guestsTableView');
 
   const nodes = [...new Set(vms.map((v) => v.node))];
   const multiNode = nodes.length > 1;
-
-  const q = query.trim().toLowerCase();
-  let filtered = vms;
-  if (q) {
-    filtered = filtered.filter(
-      (v) =>
-        v.name.toLowerCase().includes(q) ||
-        String(v.id).includes(q) ||
-        (v.ip ?? '').toLowerCase().includes(q) ||
-        v.node.toLowerCase().includes(q),
-    );
-  }
-  if (nodeFilter !== 'all') filtered = filtered.filter((v) => v.node === nodeFilter);
-  if (stateFilter !== 'all') filtered = filtered.filter((v) => v.state === stateFilter);
+  const guests = useFilterableList(vms, {
+    initialFilters: { node: 'all', state: 'all' },
+    search: (guest, query) =>
+      guest.name.toLowerCase().includes(query) ||
+      String(guest.id).includes(query) ||
+      (guest.ip ?? '').toLowerCase().includes(query) ||
+      guest.node.toLowerCase().includes(query),
+    filters: {
+      node: (guest, value) => value === 'all' || guest.node === value,
+      state: (guest, value) => value === 'all' || guest.state === value,
+    },
+  });
+  const nodeFilter = guests.filters.node ?? 'all';
+  const stateFilter = guests.filters.state ?? 'all';
+  const filtered = guests.filtered;
 
   const perNode = multiNode && view === 'per-node';
   const visibleNodes = nodes.filter((n) => nodeFilter === 'all' || n === nodeFilter);
@@ -704,8 +703,8 @@ function GuestsView({ vms }: { vms: VM[] }) {
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
           <Input
             className="h-8 w-64"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={guests.query}
+            onChange={(e) => guests.setQuery(e.target.value)}
             placeholder="Search name, ID, node or IP…"
           />
           {multiNode && (
@@ -713,7 +712,7 @@ function GuestsView({ vms }: { vms: VM[] }) {
               <span className="text-xs text-muted-foreground">Node</span>
               <Segmented
                 value={nodeFilter}
-                onChange={setNodeFilter}
+                onChange={(value) => guests.setFilter('node', value)}
                 options={[
                   { value: 'all', label: 'all' },
                   ...nodes.map((n) => ({ value: n, label: n })),
@@ -725,7 +724,7 @@ function GuestsView({ vms }: { vms: VM[] }) {
             <span className="text-xs text-muted-foreground">State</span>
             <Segmented
               value={stateFilter}
-              onChange={setStateFilter}
+              onChange={(value) => guests.setFilter('state', value)}
               options={[
                 { value: 'all', label: 'all' },
                 { value: 'running', label: 'running' },
