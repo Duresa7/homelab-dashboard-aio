@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import { apiFetch } from './http';
+
 type Listener = () => void;
 type ReconnectListener = () => void;
 
@@ -56,7 +58,7 @@ function fetchWithTimeout(
 ): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+  return apiFetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
 }
 
 function notify(): void {

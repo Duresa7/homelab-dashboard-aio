@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { StatusBadge } from '@/components/common';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { INTEGRATIONS } from '../lib/integrations';
 import type { IntegrationKey } from '../lib/telemetry';
+import { useApiResource } from '../lib/use-api-resource';
 
 interface Props {
   integrations: Record<IntegrationKey, boolean>;
@@ -71,28 +72,12 @@ function fmtAge(ms: number | undefined): string {
 }
 
 export function HealthPage({ integrations }: Props) {
-  const [data, setData] = useState<LiveHealth | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error, refresh } = useApiResource<LiveHealth>('/api/health/live');
 
-  const load = useCallback(async (refresh: boolean) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/health/live${refresh ? '?refresh=1' : ''}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as LiveHealth;
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load(false);
-  }, [load]);
+  const load = useCallback(
+    (refreshNow: boolean) => refresh(`/api/health/live${refreshNow ? '?refresh=1' : ''}`),
+    [refresh],
+  );
 
   const summary = data?.summary;
   const probes = data?.integrations ?? {};

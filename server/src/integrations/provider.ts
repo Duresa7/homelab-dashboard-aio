@@ -7,22 +7,30 @@ import type { IntegrationStatus } from '../types.js';
 
 export interface ProviderStatus extends IntegrationStatus {
   hasKey?: boolean;
-  [key: string]: unknown;
 }
 
-export interface Provider<T> {
+export type ProviderStatusSource = ProviderStatus | (() => ProviderStatus);
+
+export interface ProviderBase {
   id: string;
   capabilityId: string;
   healthId?: string;
   logName: string;
-  status: ProviderStatus;
+  status: ProviderStatusSource;
   configure(selection: Selection | undefined): void | Promise<void>;
-  fetch(): Promise<T>;
   probe?(timeoutMs: number): Promise<unknown> | unknown;
   debug?(): Promise<unknown> | unknown;
   debugPath?: string;
   notConfiguredMessage: string;
   errorLogLevel?: 'error' | 'warn';
+}
+
+export interface Provider<T = unknown> extends ProviderBase {
+  fetch(): Promise<T>;
+}
+
+export interface RuntimeProvider<T = unknown> extends ProviderBase {
+  fetch?(): Promise<T>;
 }
 
 export function text(value: unknown): string | undefined {
@@ -39,14 +47,22 @@ export function selectionConfig(selection: Selection | undefined): Record<string
   return selection?.config ?? {};
 }
 
-export function registerProvider(app: Express, provider: Provider<unknown>): void {
+export function readProviderStatus(provider: ProviderBase): ProviderStatus {
+  return typeof provider.status === 'function' ? provider.status() : provider.status;
+}
+
+export function registerProvider(app: Express, provider: RuntimeProvider<unknown>): void {
+  const fetch = provider.fetch;
+  if (!fetch) return;
+
   app.get(`/api/${provider.id}`, async (_req: Request, res: Response) => {
-    if (!provider.status.enabled) return res.json({ disabled: true });
-    if (!provider.status.configured) {
+    const status = readProviderStatus(provider);
+    if (!status.enabled) return res.json({ disabled: true });
+    if (!status.configured) {
       return res.status(503).json({ error: provider.notConfiguredMessage });
     }
     try {
-      res.json(await provider.fetch());
+      res.json(await fetch());
     } catch (err) {
       const message = errorMessage(err);
       const logger = provider.errorLogLevel === 'warn' ? console.warn : console.error;
@@ -60,7 +76,7 @@ export function registerProvider(app: Express, provider: Provider<unknown>): voi
     provider.debugPath ?? `/api/${provider.id}/debug`,
     async (_req: Request, res: Response) => {
       if (!isDebugEndpointEnabled()) return res.status(404).json({ error: 'Not found' });
-      if (!provider.status.enabled) return res.json({ disabled: true });
+      if (!readProviderStatus(provider).enabled) return res.json({ disabled: true });
       try {
         res.json(await provider.debug?.());
       } catch (err) {

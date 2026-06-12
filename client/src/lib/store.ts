@@ -1,3 +1,5 @@
+import { apiFetch, jsonRequest } from './http';
+
 type Listener = () => void;
 
 const DEBOUNCE_MS = 250;
@@ -70,7 +72,7 @@ function fetchWithTimeout(
 ): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+  return apiFetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
 }
 
 async function importLegacyToServer(): Promise<Record<string, unknown>> {
@@ -182,7 +184,7 @@ export function deleteState(key: string): void {
   const existing = pendingTimers.get(key);
   if (existing) clearTimeout(existing);
   pendingTimers.delete(key);
-  fetch(`/api/state/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => {
+  apiFetch(`/api/state/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => {
     void 0;
   });
 }
@@ -213,11 +215,7 @@ function scheduleFlush(key: string): void {
 async function flush(key: string): Promise<void> {
   const value = state.get(key);
   try {
-    await fetch(`/api/state/${encodeURIComponent(key)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(value),
-    });
+    await apiFetch(`/api/state/${encodeURIComponent(key)}`, jsonRequest('PUT', value));
   } catch {
     void 0;
   }
