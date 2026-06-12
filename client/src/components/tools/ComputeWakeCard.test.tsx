@@ -229,7 +229,7 @@ describe('ComputeWakeCard', () => {
     await waitFor(() =>
       expect(toastMock.error).toHaveBeenCalledWith(
         'Wake failed for Flaky Host',
-        expect.objectContaining({ description: 'HTTP 500' }),
+        expect.objectContaining({ description: 'boom' }),
       ),
     );
   });

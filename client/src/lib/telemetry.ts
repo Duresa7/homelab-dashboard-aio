@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getConnectivity } from './connectivity';
+import { apiFetch, readApiError } from './http';
 import { effectiveIntervalMs } from './refresh-rate';
 import type {
   DashboardState,
@@ -241,11 +242,6 @@ function isErrorPayload<T extends object>(payload: ApiEnvelope<T>): payload is {
   return 'error' in payload && typeof payload.error === 'string';
 }
 
-async function readError(res: Response): Promise<string> {
-  const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
-  return typeof body?.error === 'string' ? body.error : `HTTP ${res.status}`;
-}
-
 function errorReason(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -278,12 +274,12 @@ function startPoller<K extends IntegrationKey>(config: PollerConfig<K>): () => v
     }
 
     try {
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (stopped) return;
       if (!res.ok) {
         setTelemetryState(id, {
           status: 'error',
-          lastError: await readError(res),
+          lastError: await readApiError(res),
           staleReason: 'Fetch failed',
         });
         schedule(effectiveIntervalMs(intervalMs));

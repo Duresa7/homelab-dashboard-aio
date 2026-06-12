@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Box,
@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { entityName } from '../lib/route';
 import { getState, setState } from '../lib/store';
+import { useApiResource } from '../lib/use-api-resource';
 import { cpuUsageSeverity, fillSeverity, ramUsageSeverity } from '../lib/severity';
 import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '../lib/units';
 import type {
@@ -64,6 +65,9 @@ interface NodeDetail {
 }
 
 type WindowId = '1h' | '6h' | '24h' | '48h';
+type HistoryResponse = { series?: Array<{ v: number }> };
+
+const EMPTY_HISTORY: number[] = [];
 
 const WINDOW_MS: Record<WindowId, number> = {
   '1h': 60 * 60 * 1000,
@@ -119,62 +123,25 @@ function useNodeDetail(itemId: string): {
   error: string | null;
 } {
   const node = itemId.startsWith('node/') ? entityName(itemId) : null;
-  const [detail, setDetail] = useState<NodeDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error } = useApiResource<NodeDetail>(
+    node ? `/api/proxmox/node/${encodeURIComponent(node)}` : null,
+    { keepPreviousData: false },
+  );
 
-  useEffect(() => {
-    if (!node) {
-      setDetail(null);
-      setError(null);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetch(`/api/proxmox/node/${encodeURIComponent(node)}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? res.statusText);
-        return res.json();
-      })
-      .then((json) => {
-        if (!cancelled) setDetail(json);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(String(err.message || err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [node]);
-
-  return { detail, loading, error };
+  return { detail: data, loading, error };
 }
 
 function useHistory(entity: string, metric: string, windowId: WindowId): number[] {
-  const [series, setSeries] = useState<number[]>([]);
-  useEffect(() => {
-    let cancelled = false;
+  const url = useMemo(() => {
     const to = Date.now();
     const from = to - WINDOW_MS[windowId];
-    fetch(
-      `/api/proxmox/history?entity=${encodeURIComponent(entity)}&metric=${encodeURIComponent(metric)}&from=${from}&to=${to}&points=96`,
-    )
-      .then((res) => (res.ok ? res.json() : { series: [] }))
-      .then((json) => {
-        if (!cancelled) setSeries((json.series ?? []).map((p: { v: number }) => Number(p.v)));
-      })
-      .catch(() => {
-        if (!cancelled) setSeries([]);
-      });
-    return () => {
-      cancelled = true;
-    };
+    return `/api/proxmox/history?entity=${encodeURIComponent(entity)}&metric=${encodeURIComponent(
+      metric,
+    )}&from=${from}&to=${to}&points=96`;
   }, [entity, metric, windowId]);
-  return series;
+  const { data } = useApiResource<HistoryResponse>(url, { keepPreviousData: false });
+
+  return useMemo(() => data?.series?.map((p) => Number(p.v)) ?? EMPTY_HISTORY, [data]);
 }
 
 function HistoryCard({
