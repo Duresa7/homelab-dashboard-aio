@@ -1,4 +1,5 @@
 import type { SyslogEvent, SiemStatus, SiemStats } from '../types';
+import { apiJson } from './http';
 
 export interface FetchLogsQuery {
   since?: number;
@@ -37,25 +38,19 @@ export async function fetchLogs(query: FetchLogsQuery = {}): Promise<SyslogEvent
     limit: query.limit,
     order: query.order,
   });
-  const res = await fetch(`/api/siem/logs${q}`);
-  if (!res.ok) throw new Error(`SIEM logs ${res.status}`);
-  const json = await res.json();
+  const json = await apiJson<{ disabled?: boolean; events?: SyslogEvent[] }>(`/api/siem/logs${q}`);
   if (json.disabled) return [];
   return (json.events ?? []) as SyslogEvent[];
 }
 
 export async function fetchStatus(): Promise<SiemStatus> {
-  const res = await fetch('/api/siem/status');
-  if (!res.ok) throw new Error(`SIEM status ${res.status}`);
-  return (await res.json()) as SiemStatus;
+  return apiJson<SiemStatus>('/api/siem/status');
 }
 
 export async function fetchStats(
   window: '15m' | '1h' | '24h' | '7d' | '30d' = '1h',
 ): Promise<SiemStats> {
-  const res = await fetch(`/api/siem/stats?window=${window}`);
-  if (!res.ok) throw new Error(`SIEM stats ${res.status}`);
-  return (await res.json()) as SiemStats;
+  return apiJson<SiemStats>(`/api/siem/stats?window=${window}`);
 }
 
 export interface SiemSubscription {

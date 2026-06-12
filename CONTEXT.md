@@ -24,6 +24,16 @@ A replaceable part — cpu, gpu, motherboard, ram, storage, psu, cooler, case, n
 Lives in the Component pool, never nested inside a Machine.
 _Avoid_: part (informal alias), peripheral.
 
+**Component type**:
+The canonical kind of a Component (cpu, gpu, motherboard, ram, storage, psu, cooler, case,
+nic, other). A Component type determines UID block, default fields, display label, and
+free-text detection rules.
+
+**Spec**:
+Free-text hardware description captured from an import or user entry, later parsed into
+Component fields when possible. Parsing is best-effort; raw Spec text is preserved when the
+parser cannot confidently structure it.
+
 **Component pool**:
 The one flat list holding _all_ Components, installed or spare. A Component points to its
 Machine via Assignment; reassigning is just changing that pointer, and the UID never moves.
@@ -155,6 +165,12 @@ A cooling fan reading (rpm + target).
 A parsed syslog line received from network gear over UDP/514, classified by Category,
 Source kind, and Severity.
 
+**Syslog event pipeline**:
+The server-side module that turns an incoming syslog packet into a stored and broadcast
+Syslog event. It owns source filtering, rate-limit state, truncation, parsing,
+classification, persistence, and broadcast outcomes; the UDP socket is only a transport
+adapter.
+
 **Source kind** (`deviceKind`):
 The class of network appliance that emitted a Syslog event (gateway | ap | switch |
 controller | unknown). A classifier on the log source, not a new kind of thing.
@@ -180,6 +196,11 @@ containers, gpu, sensors, logs). Drives which Sections appear.
 The server-side adapter that talks to an external system (Proxmox, UniFi, Docker/Portainer,
 NVIDIA, sensors, syslog) and feeds a Capability.
 
+**Provider catalog**:
+The server-side registry of Provider definitions. It describes each Capability's available
+vendors and setup fields, and attaches a runtime adapter for vendors that can actually run.
+Setup owns config persistence; adapters own live status, probes, and data fetches.
+
 ### Auth
 
 **User**:
@@ -195,6 +216,11 @@ Admin = setup, users, debug endpoints.
 **Session**:
 A 30-day sliding login persisted in the `sessions` table; the cookie holds a random token,
 the DB holds only its SHA-256. "Remember me" controls whether the cookie outlives the browser.
+
+**Session lifecycle**:
+The auth flow that starts, verifies, lists, revokes, expires, and clears Sessions,
+including the pending TOTP checkpoint during login. Permission decisions stay in the
+Role matrix; the Session lifecycle owns login state and cookies.
 
 **Bootstrap mode**:
 The state when the active DB has zero users: every API route is gated off except auth

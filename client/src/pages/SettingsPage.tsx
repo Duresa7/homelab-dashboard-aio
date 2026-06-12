@@ -36,6 +36,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/common';
 import { isAdmin, useAuth } from '@/lib/auth';
+import { apiJson } from '@/lib/http';
 import { cn } from '@/lib/utils';
 import { AccountTab } from './settings/AccountTab';
 import { UsersTab } from './settings/UsersTab';
@@ -137,9 +138,7 @@ function useServerHealth(): ServerHealthState {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch('/api/health');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as HealthResponse;
+        const data = await apiJson<HealthResponse>('/api/health');
         if (cancelled) return;
         setState({ data, error: null, loading: false });
       } catch (err) {

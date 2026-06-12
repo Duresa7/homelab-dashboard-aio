@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { canEdit, useAuth } from '@/lib/auth';
+import { apiJson, jsonRequest } from '@/lib/http';
 import { getState, setState, subscribe as subscribeState } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
@@ -157,9 +158,7 @@ export function ComputeWakeCard() {
     let cancelled = false;
     async function loadHealth() {
       try {
-        const res = await fetch('/api/health');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = (await res.json()) as Record<string, unknown>;
+        const body = await apiJson<Record<string, unknown>>('/api/health');
         if (!cancelled) setHealth(parseHealth(body.wol));
       } catch (err) {
         if (!cancelled) setHealthError(err instanceof Error ? err.message : String(err));
@@ -233,12 +232,7 @@ export function ComputeWakeCard() {
     }
     setWakingId(host.id);
     try {
-      const res = await fetch('/api/wol/wake', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(wakePayload(host)),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await apiJson('/api/wol/wake', jsonRequest('POST', wakePayload(host)));
       toast.success(`Magic packet sent to ${host.name}`);
     } catch (err) {
       toast.error(`Wake failed for ${host.name}`, {

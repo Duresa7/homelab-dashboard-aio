@@ -3,9 +3,9 @@ import { gpuProvider } from './gpu.js';
 import { proxmoxProvider } from './proxmox.js';
 import { unasProvider } from './unas.js';
 import { unifiProvider } from './unifi.js';
-import type { Provider } from './provider.js';
+import type { Provider, RuntimeProvider } from './provider.js';
 
-export const integrationProviders = [
+export const baseIntegrationProviders = [
   unifiProvider,
   dockerProvider,
   proxmoxProvider,
@@ -13,10 +13,21 @@ export const integrationProviders = [
   unasProvider,
 ] as const satisfies readonly Provider<unknown>[];
 
-export const providerByCapabilityId = new Map<string, Provider<unknown>>(
-  integrationProviders.map((provider) => [provider.capabilityId, provider]),
-);
+export interface ProviderCatalog {
+  providers: readonly RuntimeProvider<unknown>[];
+  providerByCapabilityId: ReadonlyMap<string, RuntimeProvider<unknown>>;
+  providerById: ReadonlyMap<string, RuntimeProvider<unknown>>;
+}
 
-export const providerById = new Map<string, Provider<unknown>>(
-  integrationProviders.map((provider) => [provider.id, provider]),
-);
+export function createProviderCatalog(
+  runtimeProviders: readonly RuntimeProvider<unknown>[] = [],
+): ProviderCatalog {
+  const providers = [...baseIntegrationProviders, ...runtimeProviders];
+  return {
+    providers,
+    providerByCapabilityId: new Map(providers.map((provider) => [provider.capabilityId, provider])),
+    providerById: new Map(providers.map((provider) => [provider.id, provider])),
+  };
+}
+
+export const integrationProviders = baseIntegrationProviders;

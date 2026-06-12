@@ -1,9 +1,9 @@
 import type { Express, Request, RequestHandler, Response } from 'express';
 
 import { errorMessage } from '../lib/errors.js';
-import { isValidEmail, isValidUsername, publicUser } from './index.js';
 import { hashPassword, validatePassword } from './passwords.js';
 import { isUserRole, type AuthStore } from './types.js';
+import { isValidEmail, isValidUsername, publicUser } from './user-profile.js';
 
 export interface UserRoutesOpts {
   store: AuthStore;

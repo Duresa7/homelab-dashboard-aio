@@ -1,4 +1,5 @@
 import type { ItemImage } from './inventory';
+import { apiFetch } from './http';
 
 export function imageUrl(id: string, thumb = false): string {
   return `/api/images/${encodeURIComponent(id)}${thumb ? '/thumb' : ''}`;
@@ -7,7 +8,7 @@ export function imageUrl(id: string, thumb = false): string {
 export async function uploadImage(file: File): Promise<ItemImage> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch('/api/images', { method: 'POST', body: form });
+  const res = await apiFetch('/api/images', { method: 'POST', body: form });
   const body = (await res.json().catch(() => ({}))) as Partial<ItemImage> & { error?: string };
   if (!res.ok || typeof body.id !== 'string') {
     throw new Error(body.error || `upload failed (${res.status})`);
@@ -16,7 +17,7 @@ export async function uploadImage(file: File): Promise<ItemImage> {
 }
 
 export async function deleteImage(id: string): Promise<void> {
-  await fetch(imageUrl(id), { method: 'DELETE' }).catch(() => {
+  await apiFetch(imageUrl(id), { method: 'DELETE' }).catch(() => {
     void 0;
   });
 }
