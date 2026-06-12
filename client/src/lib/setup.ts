@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { apiJson, jsonRequest } from './http';
+
 export type CapabilityId = string;
 export type ConfigFieldType = 'text' | 'url' | 'password' | 'number' | 'boolean' | 'select';
 export type DbDriver = 'sqlite' | 'postgres' | 'mysql';
@@ -102,29 +104,8 @@ function notifySetupConfigChanged(): void {
   window.dispatchEvent(new Event(SETUP_CONFIG_CHANGED_EVENT));
 }
 
-async function readJson<T>(res: Response): Promise<T> {
-  const body = (await res.json().catch(() => null)) as T | { error?: unknown } | null;
-  if (!res.ok) {
-    const message =
-      body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
-        ? body.error
-        : `HTTP ${res.status}`;
-    throw new Error(message);
-  }
-  return body as T;
-}
-
 async function setupFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  return readJson<T>(res);
-}
-
-function jsonInit(method: string, body: unknown): RequestInit {
-  return {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  };
+  return apiJson<T>(url, init);
 }
 
 export async function getSetupStatus(): Promise<SetupStatus> {
@@ -141,7 +122,7 @@ export async function getConfig(): Promise<RedactedConfig> {
 }
 
 export async function putSelection(input: SelectionInput): Promise<{ ok: true }> {
-  const result = await setupFetch<{ ok: true }>('/api/setup/config', jsonInit('PUT', input));
+  const result = await setupFetch<{ ok: true }>('/api/setup/config', jsonRequest('PUT', input));
   notifySetupConfigChanged();
   return result;
 }
@@ -150,7 +131,7 @@ export async function testIntegration(input: {
   capability: CapabilityId;
   config: Record<string, unknown>;
 }): Promise<TestResult> {
-  return setupFetch<TestResult>('/api/setup/test', jsonInit('POST', input));
+  return setupFetch<TestResult>('/api/setup/test', jsonRequest('POST', input));
 }
 
 export async function getDbConfig(): Promise<DbConfigView> {
@@ -158,17 +139,17 @@ export async function getDbConfig(): Promise<DbConfigView> {
 }
 
 export async function testDbConnection(body: DbConfigBody): Promise<TestResult> {
-  return setupFetch<TestResult>('/api/setup/db/test', jsonInit('POST', body));
+  return setupFetch<TestResult>('/api/setup/db/test', jsonRequest('POST', body));
 }
 
 export async function saveDbConfig(body: DbConfigBody): Promise<SaveDbResult> {
-  return setupFetch<SaveDbResult>('/api/setup/db', jsonInit('POST', body));
+  return setupFetch<SaveDbResult>('/api/setup/db', jsonRequest('POST', body));
 }
 
 export async function completeOnboarding(complete = true): Promise<{ ok: true }> {
   const result = await setupFetch<{ ok: true }>(
     '/api/setup/complete',
-    jsonInit('POST', { complete }),
+    jsonRequest('POST', { complete }),
   );
   notifySetupConfigChanged();
   return result;

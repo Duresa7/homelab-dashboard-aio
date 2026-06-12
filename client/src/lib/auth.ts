@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+import { apiFetch, apiJson, jsonRequest, readApiError, setAuthExpiredHandler } from './http';
+
 export type UserRole = 'admin' | 'member' | 'viewer';
 
 export interface AuthUser {
@@ -64,44 +66,20 @@ export function isAdmin(user: AuthUser | null): boolean {
 let interceptorInstalled = false;
 
 export function installAuthExpiryInterceptor(): void {
-  if (interceptorInstalled || typeof window === 'undefined') return;
+  if (interceptorInstalled) return;
   interceptorInstalled = true;
-  const original = window.fetch.bind(window);
-  window.fetch = async (input, init) => {
-    const res = await original(input, init);
-    if (res.status === 401 && authState.user) {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      const path = url.startsWith('/') ? url : new URL(url, window.location.origin).pathname;
-      if (path.startsWith('/api/') && !path.startsWith('/api/auth/')) {
-        setAuthState({ ...authState, user: null, via: null });
-      }
-    }
-    return res;
-  };
-}
-
-interface ApiError {
-  error?: string;
-}
-
-async function readError(res: Response, fallback: string): Promise<string> {
-  try {
-    const body = (await res.json()) as ApiError;
-    return body.error || fallback;
-  } catch {
-    return fallback;
-  }
+  setAuthExpiredHandler(() => {
+    if (authState.user) setAuthState({ ...authState, user: null, via: null });
+  });
 }
 
 export async function fetchAuthStatus(): Promise<AuthState> {
-  const res = await fetch('/api/auth/status');
-  if (!res.ok) throw new Error(await readError(res, `auth status failed (${res.status})`));
-  const body = (await res.json()) as {
+  const body = await apiJson<{
     usersExist: boolean;
     authenticated: boolean;
     user?: AuthUser;
     via?: 'session' | 'proxy';
-  };
+  }>('/api/auth/status');
   const next: AuthState = {
     usersExist: body.usersExist,
     user: body.authenticated && body.user ? body.user : null,
@@ -122,12 +100,13 @@ export async function login(
   password: string,
   remember: boolean,
 ): Promise<LoginResult> {
-  const res = await fetch('/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, remember }),
-  });
-  const body = (await res.json().catch(() => ({}))) as ApiError & LoginResult & { user?: AuthUser };
+  const res = await apiFetch(
+    '/api/auth/login',
+    jsonRequest('POST', { username, password, remember }),
+  );
+  const body = (await res.json().catch(() => ({}))) as { error?: string } & LoginResult & {
+      user?: AuthUser;
+    };
   if (!res.ok) {
     const err = new Error(body.error || `login failed (${res.status})`);
     if (body.retryAfterMs)
@@ -142,12 +121,8 @@ export async function login(
 }
 
 export async function loginTotp(pendingToken: string, code: string): Promise<void> {
-  const res = await fetch('/api/auth/login/totp', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pendingToken, code }),
-  });
-  const body = (await res.json().catch(() => ({}))) as ApiError & { user?: AuthUser };
+  const res = await apiFetch('/api/auth/login/totp', jsonRequest('POST', { pendingToken, code }));
+  const body = (await res.json().catch(() => ({}))) as { error?: string; user?: AuthUser };
   if (!res.ok) throw new Error(body.error || `code rejected (${res.status})`);
   if (body.user) setAuthState({ usersExist: true, user: body.user, via: 'session' });
 }
@@ -158,56 +133,42 @@ export async function bootstrapAdmin(input: {
   email: string | null;
   password: string;
 }): Promise<void> {
-  const res = await fetch('/api/auth/bootstrap', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  });
-  const body = (await res.json().catch(() => ({}))) as ApiError & { user?: AuthUser };
+  const res = await apiFetch('/api/auth/bootstrap', jsonRequest('POST', input));
+  const body = (await res.json().catch(() => ({}))) as { error?: string; user?: AuthUser };
   if (!res.ok) throw new Error(body.error || `account creation failed (${res.status})`);
   if (body.user) setAuthState({ usersExist: true, user: body.user, via: 'session' });
 }
 
 export async function logout(): Promise<void> {
-  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {
+  await apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {
     void 0;
   });
   setAuthState({ ...authState, user: null, via: null });
 }
 
 export async function changePassword(current: string, next: string): Promise<void> {
-  const res = await fetch('/api/auth/change-password', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ current, next }),
-  });
-  if (!res.ok) throw new Error(await readError(res, `password change failed (${res.status})`));
+  const res = await apiFetch('/api/auth/change-password', jsonRequest('POST', { current, next }));
+  if (!res.ok) throw new Error(await readApiError(res, `password change failed (${res.status})`));
 }
 
 export async function updateProfile(patch: {
   displayName?: string;
   email?: string | null;
 }): Promise<void> {
-  const res = await fetch('/api/auth/profile', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
-  const body = (await res.json().catch(() => ({}))) as ApiError & { user?: AuthUser };
+  const res = await apiFetch('/api/auth/profile', jsonRequest('POST', patch));
+  const body = (await res.json().catch(() => ({}))) as { error?: string; user?: AuthUser };
   if (!res.ok) throw new Error(body.error || `profile update failed (${res.status})`);
   if (body.user) setAuthState({ ...authState, user: body.user });
 }
 
 export async function listSessions(): Promise<AuthSessionInfo[]> {
-  const res = await fetch('/api/auth/sessions');
-  if (!res.ok) throw new Error(await readError(res, `sessions failed (${res.status})`));
-  const body = (await res.json()) as { sessions: AuthSessionInfo[] };
+  const body = await apiJson<{ sessions: AuthSessionInfo[] }>('/api/auth/sessions');
   return body.sessions;
 }
 
 export async function revokeSession(id: string): Promise<void> {
-  const res = await fetch(`/api/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(await readError(res, `revoke failed (${res.status})`));
+  const res = await apiFetch(`/api/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await readApiError(res, `revoke failed (${res.status})`));
 }
 
 export interface TotpSetup {
@@ -217,18 +178,15 @@ export interface TotpSetup {
 }
 
 export async function totpSetup(): Promise<TotpSetup> {
-  const res = await fetch('/api/auth/totp/setup', { method: 'POST' });
-  if (!res.ok) throw new Error(await readError(res, `setup failed (${res.status})`));
-  return (await res.json()) as TotpSetup;
+  return apiJson<TotpSetup>('/api/auth/totp/setup', { method: 'POST' });
 }
 
 export async function totpEnable(code: string): Promise<string[]> {
-  const res = await fetch('/api/auth/totp/enable', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code }),
-  });
-  const body = (await res.json().catch(() => ({}))) as ApiError & { recoveryCodes?: string[] };
+  const res = await apiFetch('/api/auth/totp/enable', jsonRequest('POST', { code }));
+  const body = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    recoveryCodes?: string[];
+  };
   if (!res.ok) throw new Error(body.error || `enable failed (${res.status})`);
   if (authState.user) {
     setAuthState({ ...authState, user: { ...authState.user, totpEnabled: true } });
@@ -237,21 +195,15 @@ export async function totpEnable(code: string): Promise<string[]> {
 }
 
 export async function totpDisable(password: string): Promise<void> {
-  const res = await fetch('/api/auth/totp/disable', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),
-  });
-  if (!res.ok) throw new Error(await readError(res, `disable failed (${res.status})`));
+  const res = await apiFetch('/api/auth/totp/disable', jsonRequest('POST', { password }));
+  if (!res.ok) throw new Error(await readApiError(res, `disable failed (${res.status})`));
   if (authState.user) {
     setAuthState({ ...authState, user: { ...authState.user, totpEnabled: false } });
   }
 }
 
 export async function listUsers(): Promise<AuthUser[]> {
-  const res = await fetch('/api/users');
-  if (!res.ok) throw new Error(await readError(res, `users failed (${res.status})`));
-  return ((await res.json()) as { users: AuthUser[] }).users;
+  return (await apiJson<{ users: AuthUser[] }>('/api/users')).users;
 }
 
 export async function createUser(input: {
@@ -261,12 +213,8 @@ export async function createUser(input: {
   password: string;
   role: UserRole;
 }): Promise<AuthUser> {
-  const res = await fetch('/api/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  });
-  const body = (await res.json().catch(() => ({}))) as ApiError & { user?: AuthUser };
+  const res = await apiFetch('/api/users', jsonRequest('POST', input));
+  const body = (await res.json().catch(() => ({}))) as { error?: string; user?: AuthUser };
   if (!res.ok || !body.user) throw new Error(body.error || `create failed (${res.status})`);
   return body.user;
 }
@@ -275,31 +223,23 @@ export async function updateUser(
   id: number,
   patch: { displayName?: string; email?: string | null; role?: UserRole },
 ): Promise<AuthUser> {
-  const res = await fetch(`/api/users/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
-  const body = (await res.json().catch(() => ({}))) as ApiError & { user?: AuthUser };
+  const res = await apiFetch(`/api/users/${id}`, jsonRequest('PATCH', patch));
+  const body = (await res.json().catch(() => ({}))) as { error?: string; user?: AuthUser };
   if (!res.ok || !body.user) throw new Error(body.error || `update failed (${res.status})`);
   return body.user;
 }
 
 export async function deleteUser(id: number): Promise<void> {
-  const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(await readError(res, `delete failed (${res.status})`));
+  const res = await apiFetch(`/api/users/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await readApiError(res, `delete failed (${res.status})`));
 }
 
 export async function resetUserPassword(id: number, password: string): Promise<void> {
-  const res = await fetch(`/api/users/${id}/password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),
-  });
-  if (!res.ok) throw new Error(await readError(res, `reset failed (${res.status})`));
+  const res = await apiFetch(`/api/users/${id}/password`, jsonRequest('POST', { password }));
+  if (!res.ok) throw new Error(await readApiError(res, `reset failed (${res.status})`));
 }
 
 export async function revokeUserSessions(id: number): Promise<void> {
-  const res = await fetch(`/api/users/${id}/revoke-sessions`, { method: 'POST' });
-  if (!res.ok) throw new Error(await readError(res, `revoke failed (${res.status})`));
+  const res = await apiFetch(`/api/users/${id}/revoke-sessions`, { method: 'POST' });
+  if (!res.ok) throw new Error(await readApiError(res, `revoke failed (${res.status})`));
 }

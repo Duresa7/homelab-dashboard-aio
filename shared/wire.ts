@@ -535,6 +535,7 @@ export interface SiemStatus {
   /** Datagrams dropped because their source IP is not in SIEM_ALLOWED_SOURCES. */
   packetsBlocked?: number;
   parseErrors: number;
+  insertErrors?: number;
   lastEventAt: number | null;
   clientCount: number;
   bindError: string | null;

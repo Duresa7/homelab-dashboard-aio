@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Box,
@@ -35,7 +35,9 @@ import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { entityName } from '../lib/route';
+import { useFilterableList } from '../lib/filterable-list';
 import { getState, setState } from '../lib/store';
+import { useApiResource } from '../lib/use-api-resource';
 import { cpuUsageSeverity, fillSeverity, ramUsageSeverity } from '../lib/severity';
 import { convertTemp, fmtTemp, tempSuffix, useTempUnit, type TempUnit } from '../lib/units';
 import type {
@@ -64,6 +66,22 @@ interface NodeDetail {
 }
 
 type WindowId = '1h' | '6h' | '24h' | '48h';
+type HistoryResponse = { series?: Array<{ v: number }> };
+
+const GUEST_FILTER_CONFIG = {
+  initialFilters: { node: 'all', state: 'all' },
+  search: (guest: VM, query: string) =>
+    guest.name.toLowerCase().includes(query) ||
+    String(guest.id).includes(query) ||
+    (guest.ip ?? '').toLowerCase().includes(query) ||
+    guest.node.toLowerCase().includes(query),
+  filters: {
+    node: (guest: VM, value: string) => value === 'all' || guest.node === value,
+    state: (guest: VM, value: string) => value === 'all' || guest.state === value,
+  },
+};
+
+const EMPTY_HISTORY: number[] = [];
 
 const WINDOW_MS: Record<WindowId, number> = {
   '1h': 60 * 60 * 1000,
@@ -119,62 +137,25 @@ function useNodeDetail(itemId: string): {
   error: string | null;
 } {
   const node = itemId.startsWith('node/') ? entityName(itemId) : null;
-  const [detail, setDetail] = useState<NodeDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error } = useApiResource<NodeDetail>(
+    node ? `/api/proxmox/node/${encodeURIComponent(node)}` : null,
+    { keepPreviousData: false },
+  );
 
-  useEffect(() => {
-    if (!node) {
-      setDetail(null);
-      setError(null);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetch(`/api/proxmox/node/${encodeURIComponent(node)}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? res.statusText);
-        return res.json();
-      })
-      .then((json) => {
-        if (!cancelled) setDetail(json);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(String(err.message || err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [node]);
-
-  return { detail, loading, error };
+  return { detail: data, loading, error };
 }
 
 function useHistory(entity: string, metric: string, windowId: WindowId): number[] {
-  const [series, setSeries] = useState<number[]>([]);
-  useEffect(() => {
-    let cancelled = false;
+  const url = useMemo(() => {
     const to = Date.now();
     const from = to - WINDOW_MS[windowId];
-    fetch(
-      `/api/proxmox/history?entity=${encodeURIComponent(entity)}&metric=${encodeURIComponent(metric)}&from=${from}&to=${to}&points=96`,
-    )
-      .then((res) => (res.ok ? res.json() : { series: [] }))
-      .then((json) => {
-        if (!cancelled) setSeries((json.series ?? []).map((p: { v: number }) => Number(p.v)));
-      })
-      .catch(() => {
-        if (!cancelled) setSeries([]);
-      });
-    return () => {
-      cancelled = true;
-    };
+    return `/api/proxmox/history?entity=${encodeURIComponent(entity)}&metric=${encodeURIComponent(
+      metric,
+    )}&from=${from}&to=${to}&points=96`;
   }, [entity, metric, windowId]);
-  return series;
+  const { data } = useApiResource<HistoryResponse>(url, { keepPreviousData: false });
+
+  return useMemo(() => data?.series?.map((p) => Number(p.v)) ?? EMPTY_HISTORY, [data]);
 }
 
 function HistoryCard({
@@ -706,27 +687,14 @@ function TableLayoutBar({ view, onChange }: { view: TableView; onChange: (v: Tab
 }
 
 function GuestsView({ vms }: { vms: VM[] }) {
-  const [query, setQuery] = useState('');
-  const [nodeFilter, setNodeFilter] = useState('all');
-  const [stateFilter, setStateFilter] = useState('all');
   const [view, setView] = useTableView('guestsTableView');
 
   const nodes = [...new Set(vms.map((v) => v.node))];
   const multiNode = nodes.length > 1;
-
-  const q = query.trim().toLowerCase();
-  let filtered = vms;
-  if (q) {
-    filtered = filtered.filter(
-      (v) =>
-        v.name.toLowerCase().includes(q) ||
-        String(v.id).includes(q) ||
-        (v.ip ?? '').toLowerCase().includes(q) ||
-        v.node.toLowerCase().includes(q),
-    );
-  }
-  if (nodeFilter !== 'all') filtered = filtered.filter((v) => v.node === nodeFilter);
-  if (stateFilter !== 'all') filtered = filtered.filter((v) => v.state === stateFilter);
+  const guests = useFilterableList(vms, GUEST_FILTER_CONFIG);
+  const nodeFilter = guests.filters.node ?? 'all';
+  const stateFilter = guests.filters.state ?? 'all';
+  const filtered = guests.filtered;
 
   const perNode = multiNode && view === 'per-node';
   const visibleNodes = nodes.filter((n) => nodeFilter === 'all' || n === nodeFilter);
@@ -737,8 +705,8 @@ function GuestsView({ vms }: { vms: VM[] }) {
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
           <Input
             className="h-8 w-64"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={guests.query}
+            onChange={(e) => guests.setQuery(e.target.value)}
             placeholder="Search name, ID, node or IP…"
           />
           {multiNode && (
@@ -746,7 +714,7 @@ function GuestsView({ vms }: { vms: VM[] }) {
               <span className="text-xs text-muted-foreground">Node</span>
               <Segmented
                 value={nodeFilter}
-                onChange={setNodeFilter}
+                onChange={(value) => guests.setFilter('node', value)}
                 options={[
                   { value: 'all', label: 'all' },
                   ...nodes.map((n) => ({ value: n, label: n })),
@@ -758,7 +726,7 @@ function GuestsView({ vms }: { vms: VM[] }) {
             <span className="text-xs text-muted-foreground">State</span>
             <Segmented
               value={stateFilter}
-              onChange={setStateFilter}
+              onChange={(value) => guests.setFilter('state', value)}
               options={[
                 { value: 'all', label: 'all' },
                 { value: 'running', label: 'running' },

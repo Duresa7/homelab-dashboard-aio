@@ -74,3 +74,4 @@ docker-compose.*.local.yml
 *~
 *.swp
 *.tmp
+.codex/environments/environment.toml
