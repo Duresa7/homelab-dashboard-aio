@@ -33,6 +33,7 @@ docs/*
 CLAUDE.md
 AGENTS.md
 TODO.md
+aftermath/
 
 # OS
 .DS_Store

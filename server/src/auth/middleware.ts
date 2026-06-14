@@ -56,6 +56,9 @@ export function requiredRoleFor(method: string, path: string): UserRole {
 
   if (path === '/api/users' || path.startsWith('/api/users/')) return 'admin';
 
+  // Forcing an update re-check makes an outbound call; only admins may trigger it.
+  if (path === '/api/update/check') return 'admin';
+
   if (path.startsWith('/api/setup/')) {
     if (path === '/api/setup/status' || path === '/api/setup/capabilities') return 'viewer';
     return 'admin';

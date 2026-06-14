@@ -299,6 +299,10 @@ function DashboardApp() {
             showSidebarTrigger={navLayout === 'sidebar'}
             onNavigateSection={(s) => setRoute(s)}
             onOpenSearch={() => setCmdOpen(true)}
+            onShowUpdate={() => {
+              setSettingsTab('about');
+              setRoute('settings');
+            }}
           />
           {navLayout === 'topbar' ? (
             <TopNav route={route} setRoute={setRoute} alerts={visibleAlerts} />

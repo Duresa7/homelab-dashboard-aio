@@ -9,8 +9,9 @@
 # and label-scoped, so only the dashboard container auto-updates.
 services:
   dashboard:
-    # Pin to :latest for hands-off CD, or to a :sha-<short> tag to freeze a build
-    # (rollback = set this to a known-good sha tag and `up -d`).
+    # :latest tracks the newest published release (set by release.yml on a v* tag).
+    # Pin :X.Y.Z to freeze a release, or :sha-<short> for a specific main build
+    # (rollback = set this to a known-good tag and `up -d`).
     image: ghcr.io/duresa7/homelab-dashboard-aio:latest
     container_name: homelab-dashboard
     restart: unless-stopped

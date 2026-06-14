@@ -611,3 +611,29 @@ export interface SensorsApiResponse {
 
   unavailable?: NodeUnavailable[];
 }
+
+/** Build identity of the running server (GET /api/version). */
+export interface VersionInfo {
+  version: string;
+  commit: string | null;
+  buildTime: string | null;
+  /** True when no version was baked in at build time (running from source). */
+  isDevBuild: boolean;
+}
+
+/** Update-check result comparing the running build to the latest release (GET /api/update). */
+export interface UpdateStatus {
+  current: string;
+  commit: string | null;
+  buildTime: string | null;
+  latest: string | null;
+  isOutdated: boolean;
+  releaseUrl: string | null;
+  releaseName: string | null;
+  publishedAt: string | null;
+  notes: string | null;
+  lastCheckedAt: string | null;
+  enabled: boolean;
+  isDevBuild: boolean;
+  error: string | null;
+}
