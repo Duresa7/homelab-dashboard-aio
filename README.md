@@ -97,20 +97,25 @@ Registry:
   build, for testing or rollback (published on every push to `main`).
 
 Track `:latest` for releases, or pin a `:X.Y.Z`/`:sha-` tag for a frozen
-deployment. Provide a `.env` (see the variables the app reads) and an SSH key
-mount for GPU/sensor access, then:
+deployment. Grab the compose file and start it — no `.env` or other setup is
+required to boot (integrations are configured later from the UI):
 
 ```bash
-docker compose -f docker-compose.deploy.yml pull
-docker compose -f docker-compose.deploy.yml up -d
+curl -fsSLO https://raw.githubusercontent.com/Duresa7/homelab-dashboard-aio/main/docker-compose.yml
+docker compose up -d
 ```
 
-`docker-compose.deploy.yml` pulls the published image and runs an optional,
-label-scoped [Watchtower](https://containrrr.dev/watchtower/) that auto-updates
-**only** this container when a new release is published. To deploy by hand
-instead, drop the `watchtower` service and re-run `pull` + `up -d` when you
-choose. To roll back, set `dashboard.image` to a known-good `:X.Y.Z` or
-`:sha-<short>` tag and `up -d` again.
+The dashboard comes up on port `3001` — open `http://<host-ip>:3001` and create
+the admin account. `docker-compose.yml` pulls the published image and runs an
+optional, label-scoped [Watchtower](https://containrrr.dev/watchtower/) that
+auto-updates **only** this container when a new release is published. To update
+by hand instead, drop the `watchtower` service and re-run
+`docker compose pull && docker compose up -d`. To roll back, set
+`dashboard.image` to a known-good `:X.Y.Z` or `:sha-<short>` tag and `up -d`
+again.
+
+> Need GPU/temperature stats over SSH? Uncomment the `id_homelab` volume in
+> `docker-compose.yml` and provide the key — otherwise it's not required.
 
 The dashboard checks GitHub for newer releases and shows admins an **update
 indicator** in the top bar plus a **Settings → About** tab (current version,
@@ -118,8 +123,9 @@ latest release, release notes, and the exact `pull` commands). It only notifies 
 you (or Watchtower) perform the update. Disable the check with
 `UPDATE_CHECK_ENABLED=false`.
 
-To build locally instead of pulling, use the default
-[docker-compose.yml](docker-compose.yml) (`docker compose up -d --build`).
+To build from source instead of pulling (contributors), use
+[docker-compose.dev.yml](docker-compose.dev.yml)
+(`docker compose -f docker-compose.dev.yml up -d --build`).
 
 ### Cutting a release
 

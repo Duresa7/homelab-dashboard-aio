@@ -1,19 +1,51 @@
+# Default compose for running the dashboard: PULLS the published image from GHCR.
+# Drop this file on your host and run:
+#
+#   docker compose up -d
+#
+# No .env or extra setup is required to start — integrations are off by default
+# and configured later from the UI. Contributors who build from source use
+# docker-compose.dev.yml instead.
 services:
   dashboard:
-    build: .
-    image: homelab-dashboard:latest
+    # :latest tracks the newest published release. Pin :X.Y.Z to freeze a release,
+    # or :sha-<short> for a specific main build (rollback = set a known-good tag + up -d).
+    image: ghcr.io/duresa7/homelab-dashboard-aio:latest
     container_name: homelab-dashboard
     restart: unless-stopped
-    # Host networking keeps real syslog source IPs (instead of the docker
-    # bridge gateway) and removes the unprivileged-LXC UDP/514 binding issue.
+    # Host networking keeps real syslog source IPs (instead of the docker bridge
+    # gateway) and removes the unprivileged-LXC UDP/514 binding issue.
     network_mode: host
-    env_file: .env
+    # Optional: the app runs with no .env at all. Add one to configure integrations
+    # via environment instead of the UI.
+    env_file:
+      - path: .env
+        required: false
     environment:
       NODE_ENV: production
     volumes:
       - ./data:/app/data
-      # Mount an SSH key the container can use for GPU/sensors over SSH.
-      # The host file must be 0600 and owned by UID 1000.
-      - ${HOME}/.ssh/id_homelab:/home/node/.ssh/id_homelab:ro
+      # Optional — only if you collect GPU/sensor stats over SSH. Uncomment, then
+      # create the key (0600, owned by UID 1000) and set GPU_SSH_KEY_PATH in .env.
+      # - ${HOME}/.ssh/id_homelab:/home/node/.ssh/id_homelab:ro
     ulimits:
       nofile: 65536
+    labels:
+      # Only containers with this label are watched (see WATCHTOWER_LABEL_ENABLE).
+      com.centurylinklabs.watchtower.enable: 'true'
+
+  # Optional auto-updater: pulls a new image when you publish a release and
+  # recreates only the labelled dashboard container. Remove this service to
+  # update by hand (docker compose pull && docker compose up -d).
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: homelab-watchtower
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_LABEL_ENABLE: 'true'
+      WATCHTOWER_POLL_INTERVAL: '300'
+      WATCHTOWER_CLEANUP: 'true'
+    volumes:
+      # Read-only socket: Watchtower needs to inspect/pull/recreate, but mounting
+      # ro limits the blast radius of a compromised image.
+      - /var/run/docker.sock:/var/run/docker.sock:ro

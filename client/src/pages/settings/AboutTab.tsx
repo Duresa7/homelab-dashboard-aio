@@ -122,8 +122,8 @@ export function AboutTab() {
                 Pull the new image and recreate the container:
               </p>
               <pre className="mt-2 overflow-x-auto rounded-md bg-background px-3 py-2 font-mono text-xs text-foreground">
-                {'docker compose -f docker-compose.deploy.yml pull\n'}
-                {'docker compose -f docker-compose.deploy.yml up -d'}
+                {'docker compose pull\n'}
+                {'docker compose up -d'}
               </pre>
             </div>
           ) : null}

@@ -18,7 +18,7 @@ Registry; the box **pulls**. The cloud never initiates a connection to the LAN.
 - Pull requests build the image with `push: false`. This proves the `Dockerfile`
   still compiles at review time (previously nothing exercised it — `npm run
 build` only runs Vite) without granting registry access to forks.
-- The box runs [docker-compose.deploy.yml](../../docker-compose.deploy.yml),
+- The box runs [docker-compose.yml](../../docker-compose.yml),
   which pulls the image and runs a label-scoped Watchtower that auto-updates only
   the dashboard container when a new `:latest` appears. Watchtower is opt-in so
   downstream users who pin a tag are unaffected.
