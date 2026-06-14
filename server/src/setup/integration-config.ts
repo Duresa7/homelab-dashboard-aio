@@ -301,7 +301,9 @@ export async function upsertSelection(store: StateStore, input: SelectionInput):
       : {};
   const enabled = input.enabled !== false;
   const config = await readConfig(store);
-  const existingSelection = config[capabilityId];
+  // Index by the registry's canonical id (cap.id === capabilityId here, but
+  // sourced from the allowlist) so neither read nor write keys on raw user input.
+  const existingSelection = config[cap.id];
   const existing = existingSelection?.config ?? {};
   const secretSource: 'db' | 'env' =
     input.secretSource === 'env'
@@ -371,6 +373,6 @@ export async function upsertSelection(store: StateStore, input: SelectionInput):
     }
   }
 
-  config[capabilityId] = { enabled, vendor, config: merged, secretSource };
+  config[cap.id] = { enabled, vendor, config: merged, secretSource };
   await store.put(CONFIG_KEY, config);
 }
