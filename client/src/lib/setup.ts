@@ -44,6 +44,7 @@ export interface RedactedCapabilityConfig {
   vendor: string;
   config: Record<string, unknown>;
   secrets: Record<string, boolean>;
+  secretSource?: 'db' | 'env';
 }
 
 export interface RedactedConfig {
@@ -95,6 +96,7 @@ export interface SelectionInput {
   vendor: string;
   enabled?: boolean;
   config: Record<string, unknown>;
+  secretSource?: 'db' | 'env';
 }
 
 export const SETUP_CONFIG_CHANGED_EVENT = 'homelab:setup-config-changed';

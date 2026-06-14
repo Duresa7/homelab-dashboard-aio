@@ -681,6 +681,7 @@ function buildSetupDrafts(capabilities: Capability[], config: RedactedConfig | n
       vendor,
       config: values,
       secrets: stored?.secrets ?? {},
+      secretSource: stored?.secretSource ?? 'db',
     };
   }
   return drafts;
@@ -911,6 +912,7 @@ function SetupTab() {
         vendor: draft.vendor,
         enabled: draft.enabled,
         config: configForSave(capability, draft),
+        secretSource: draft.secretSource,
       });
       const next = await getConfig();
       setConfig(next);
@@ -1076,6 +1078,10 @@ function SetupTab() {
                     fields={provider?.configSchema ?? []}
                     values={draft.config}
                     secrets={draft.secrets}
+                    secretSource={draft.secretSource ?? 'db'}
+                    onSecretSourceChange={(next) =>
+                      updateDraft(capability.id, (cur) => ({ ...cur, secretSource: next }))
+                    }
                     idPrefix={`settings-setup-${capability.id}`}
                     onChange={(field, value) =>
                       updateDraft(capability.id, (cur) => ({
