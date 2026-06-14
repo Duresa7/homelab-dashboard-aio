@@ -1,0 +1,97 @@
+name: Release
+
+# Cut a release by pushing a semver tag:
+#   npm version <patch|minor|major>   # bumps package.json + commits + tags vX.Y.Z
+#   git push --follow-tags
+# This builds the multi-arch image, publishes :X.Y.Z / :X.Y / :latest to GHCR,
+# bakes the version into the image, and creates a GitHub Release with generated
+# notes (the source of truth the in-app update check reads).
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # create the GitHub Release
+  packages: write # push the image to GHCR
+
+jobs:
+  release:
+    name: Build, publish, and release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Re-run the full gate on the exact tagged commit before anything ships.
+      - name: Verify
+        run: npm run verify
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: ghcr.io/duresa7/homelab-dashboard-aio
+          # :latest only moves for a final release — never a prerelease (vX.Y.Z-rc.1).
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+
+      - name: Build timestamp
+        id: build
+        run: echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (multi-arch)
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.version }}
+            APP_COMMIT=${{ github.sha }}
+            APP_BUILD_TIME=${{ steps.build.outputs.time }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A tag containing a hyphen (vX.Y.Z-rc.1) is published as a prerelease so it
+      # never becomes the "latest release" the update check compares against.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=(--generate-notes --verify-tag)
+          case "${{ github.ref_name }}" in
+            *-*) flags+=(--prerelease) ;;
+          esac
+          gh release create "${{ github.ref_name }}" "${flags[@]}"

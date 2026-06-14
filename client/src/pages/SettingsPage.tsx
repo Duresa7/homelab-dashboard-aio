@@ -6,6 +6,7 @@ import {
   Database,
   Gauge,
   Globe2,
+  Info,
   KeyRound,
   Minus,
   MonitorCog,
@@ -39,6 +40,7 @@ import { isAdmin, useAuth } from '@/lib/auth';
 import { apiJson } from '@/lib/http';
 import { cn } from '@/lib/utils';
 import { AccountTab } from './settings/AccountTab';
+import { AboutTab } from './settings/AboutTab';
 import { UsersTab } from './settings/UsersTab';
 import { DEFAULT_SITE_NAME, setSiteName, useSiteNameRaw } from '@/lib/site-name';
 import {
@@ -105,7 +107,8 @@ export type SettingsTabId =
   | 'setup'
   | 'severity'
   | 'account'
-  | 'users';
+  | 'users'
+  | 'about';
 
 export interface SettingsPreferences {
   theme: ThemeChoice;
@@ -1199,6 +1202,9 @@ export function SettingsPage({
               <UsersRound className="size-4" /> Users
             </TabsTrigger>
           ) : null}
+          <TabsTrigger value="about">
+            <Info className="size-4" /> About
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="preferences">
@@ -1223,6 +1229,9 @@ export function SettingsPage({
             <UsersTab />
           </TabsContent>
         ) : null}
+        <TabsContent value="about">
+          <AboutTab />
+        </TabsContent>
       </Tabs>
     </div>
   );

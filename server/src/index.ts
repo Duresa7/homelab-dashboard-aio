@@ -9,9 +9,10 @@ import { createUnavailableGate } from './auth/middleware.js';
 import { initImages } from './images/index.js';
 import { initSiem, type SiemRuntimeConfig } from './siem/index.js';
 import { initProxmoxHistory } from './proxmox-history/index.js';
-import { initState } from './state/index.js';
+import { initState, makeSameOriginGuard } from './state/index.js';
 import { initSensors } from './sensors/index.js';
 import { initSetup } from './setup/index.js';
+import { registerVersionRoutes, startUpdateChecker } from './version/index.js';
 import {
   importEnvConfigIfEmpty,
   readIntegrationConfig,
@@ -179,6 +180,8 @@ app.get('/api/health', (req, res) => {
     },
   });
 });
+
+registerVersionRoutes(app, { sameOrigin: makeSameOriginGuard() });
 
 const LIVE_HEALTH_CACHE_TTL_MS = Number(process.env.HEALTH_LIVE_CACHE_TTL) || 12000;
 const LIVE_HEALTH_PROBE_TIMEOUT_MS = Number(process.env.HEALTH_LIVE_TIMEOUT) || 5000;
@@ -486,6 +489,7 @@ app.get(/^\/(?!api\/|healthz).*/, (_req, res, next) => {
 });
 
 if (process.env.NODE_ENV !== 'test') {
+  startUpdateChecker();
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Dashboard listening on http://0.0.0.0:${PORT}`);
     if (unifiStatus.enabled) {

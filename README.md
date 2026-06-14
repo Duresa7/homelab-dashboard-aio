@@ -88,15 +88,17 @@ branch model (feature → `Dev` → `main`) and pull request process.
 
 ## Running the published image
 
-CI publishes a multi-stage Docker image to the GitHub Container Registry on every
-push to `main`:
+CI publishes a multi-arch (amd64 + arm64) Docker image to the GitHub Container
+Registry:
 
-- `ghcr.io/duresa7/homelab-dashboard-aio:latest` — moves with `main` (bleeding edge).
-- `ghcr.io/duresa7/homelab-dashboard-aio:sha-<short>` — immutable, one per commit.
+- `ghcr.io/duresa7/homelab-dashboard-aio:latest` — the newest **release**.
+- `ghcr.io/duresa7/homelab-dashboard-aio:X.Y.Z` / `:X.Y` — a specific release (semver).
+- `ghcr.io/duresa7/homelab-dashboard-aio:sha-<short>` — immutable per-`main`-commit
+  build, for testing or rollback (published on every push to `main`).
 
-Pin a `sha-` tag for a stable deployment, or track `:latest` if you want each
-merge. Provide a `.env` (see the variables the app reads) and an SSH key mount
-for GPU/sensor access, then:
+Track `:latest` for releases, or pin a `:X.Y.Z`/`:sha-` tag for a frozen
+deployment. Provide a `.env` (see the variables the app reads) and an SSH key
+mount for GPU/sensor access, then:
 
 ```bash
 docker compose -f docker-compose.deploy.yml pull
@@ -105,14 +107,36 @@ docker compose -f docker-compose.deploy.yml up -d
 
 `docker-compose.deploy.yml` pulls the published image and runs an optional,
 label-scoped [Watchtower](https://containrrr.dev/watchtower/) that auto-updates
-**only** this container when a new `:latest` is published. To deploy by hand
+**only** this container when a new release is published. To deploy by hand
 instead, drop the `watchtower` service and re-run `pull` + `up -d` when you
-choose. To roll back, set `dashboard.image` to a known-good `sha-<short>` tag and
-`up -d` again.
+choose. To roll back, set `dashboard.image` to a known-good `:X.Y.Z` or
+`:sha-<short>` tag and `up -d` again.
+
+The dashboard checks GitHub for newer releases and shows admins an **update
+indicator** in the top bar plus a **Settings → About** tab (current version,
+latest release, release notes, and the exact `pull` commands). It only notifies —
+you (or Watchtower) perform the update. Disable the check with
+`UPDATE_CHECK_ENABLED=false`.
 
 To build locally instead of pulling, use the default
 [docker-compose.yml](docker-compose.yml) (`docker compose up -d --build`).
 
-The deployment rationale (pull-based because the cloud runner can't reach the
-LAN) is recorded in
-[docs/adr/0005-cd-via-ghcr-watchtower.md](docs/adr/0005-cd-via-ghcr-watchtower.md).
+### Cutting a release
+
+Releases are tag-driven. Bump the version, then push the tag:
+
+```bash
+npm version patch   # or minor / major — commits package.json and tags vX.Y.Z
+git push --follow-tags
+```
+
+The [release workflow](.github/workflows/release.yml) verifies the commit, builds
+the multi-arch image with the version baked in, publishes `:X.Y.Z`, `:X.Y`, and
+`:latest`, and creates a GitHub Release with generated notes — which is the source
+the in-app update check reads. (Prerelease tags like `vX.Y.Z-rc.1` are published as
+prereleases and do **not** move `:latest`.)
+
+The deployment rationale (pull-based because the cloud runner can't reach the LAN)
+is in [docs/adr/0005-cd-via-ghcr-watchtower.md](docs/adr/0005-cd-via-ghcr-watchtower.md);
+the release/versioning model is in
+[docs/adr/0009-versioned-releases-and-update-check.md](docs/adr/0009-versioned-releases-and-update-check.md).

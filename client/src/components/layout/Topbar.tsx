@@ -21,6 +21,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { UpdateIndicator } from './UpdateIndicator';
 import { logout, useAuth } from '@/lib/auth';
 import type { DateTimePreferences } from '../../lib/datetime';
 import { SECTION_LABEL, subLabel, type Section } from '../../lib/route';
@@ -36,6 +37,7 @@ interface Props {
   showSidebarTrigger?: boolean;
   onNavigateSection: (section: Section) => void;
   onOpenSearch: () => void;
+  onShowUpdate: () => void;
 }
 
 function initials(name: string): string {
@@ -117,6 +119,7 @@ export function Topbar({
   showSidebarTrigger = true,
   onNavigateSection,
   onOpenSearch,
+  onShowUpdate,
 }: Props) {
   const presentation = usePresentation();
   const capabilityId = SECTION_CAPABILITY[section];
@@ -189,6 +192,8 @@ export function Topbar({
           <IconAction label="Refresh" onClick={() => window.location.reload()}>
             <RefreshCw className="size-4" />
           </IconAction>
+
+          <UpdateIndicator onOpenDetails={onShowUpdate} />
 
           <UserMenu onNavigateSection={onNavigateSection} />
         </div>
