@@ -14,6 +14,8 @@ interface Props {
   fields: ConfigField[];
   values: Record<string, unknown>;
   secrets?: Record<string, boolean>;
+  secretSource?: 'db' | 'env';
+  onSecretSourceChange?: (next: 'db' | 'env') => void;
   idPrefix?: string;
   onChange: (field: string, value: unknown) => void;
 }
@@ -26,6 +28,8 @@ export function ConfigFieldsForm({
   fields,
   values,
   secrets = {},
+  secretSource = 'db',
+  onSecretSourceChange,
   idPrefix = 'setup',
   onChange,
 }: Props) {
@@ -33,10 +37,48 @@ export function ConfigFieldsForm({
     return <p className="text-sm text-muted-foreground">No credentials are required.</p>;
   }
 
+  const showSourceToggle = fields.some((field) => field.secret) && !!onSecretSourceChange;
+
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {showSourceToggle ? (
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <Label htmlFor={`${idPrefix}-secret-source`}>Where to keep the secret</Label>
+          <Select
+            value={secretSource}
+            onValueChange={(value) => onSecretSourceChange?.(value === 'env' ? 'env' : 'db')}
+          >
+            <SelectTrigger id={`${idPrefix}-secret-source`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="db">Encrypted in the app</SelectItem>
+              <SelectItem value="env">Environment variable</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {secretSource === 'env'
+              ? 'Set the variable(s) below in your .env or compose file and restart; nothing sensitive is stored in the app.'
+              : 'The key is encrypted before it is written to the app database.'}
+          </p>
+        </div>
+      ) : null}
+
       {fields.map((field) => {
         const id = `${idPrefix}-${field.name}`;
+
+        if (field.secret && secretSource === 'env') {
+          return (
+            <div key={field.name} className="flex flex-col gap-1.5">
+              <Label>{field.label}</Label>
+              <div className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                Set <code className="font-mono text-foreground">{field.env ?? field.name}</code> in
+                your <code className="font-mono">.env</code> or compose file, then restart.
+              </div>
+            </div>
+          );
+        }
+
         const help =
           field.secret && secrets[field.name]
             ? `${field.help ? `${field.help} ` : ''}Leave blank to keep the saved value.`

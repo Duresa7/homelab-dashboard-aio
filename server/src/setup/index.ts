@@ -16,6 +16,7 @@ import {
 } from '../storage/config.js';
 import { testDbConnection } from '../storage/factory.js';
 import { assertAllowedHost } from '../lib/net-guard.js';
+import { encryptSecretToString, getSecretKey, isEncryptedString } from '../lib/secrets.js';
 import { makeSameOriginGuard } from '../state/index.js';
 import type { StateStore } from '../storage/types.js';
 import {
@@ -104,6 +105,31 @@ export function keepDbSecrets(file: DbConfigFile, current: ResolvedDbConfig): Db
   // a stored credential over to a newly-specified destination.
   if (incoming?.host !== prior.host) return file;
   return { ...file, [file.driver]: { ...(incoming ?? {}), password: prior.password } };
+}
+
+/** Encrypt a freshly supplied DB password before it is written to disk. The
+ * value here is always plaintext (resolveDbConfig decrypts on read and
+ * keepDbSecrets inherits the decrypted value), so this never double-encrypts. */
+async function encryptDbFilePassword(file: DbConfigFile): Promise<DbConfigFile> {
+  if (
+    file.driver === 'postgres' &&
+    file.postgres?.password &&
+    !isEncryptedString(file.postgres.password)
+  ) {
+    const key = await getSecretKey();
+    return {
+      ...file,
+      postgres: { ...file.postgres, password: encryptSecretToString(file.postgres.password, key) },
+    };
+  }
+  if (file.driver === 'mysql' && file.mysql?.password && !isEncryptedString(file.mysql.password)) {
+    const key = await getSecretKey();
+    return {
+      ...file,
+      mysql: { ...file.mysql, password: encryptSecretToString(file.mysql.password, key) },
+    };
+  }
+  return file;
 }
 
 /** Reject a DB host in the link-local/metadata range (never a valid backend).
@@ -236,7 +262,8 @@ export function initSetup(
       return res.status(502).json({ ok: false, error: `connection failed: ${errorMessage(err)}` });
     }
     try {
-      await writeDbConfig(file, configFilePath());
+      const toStore = await encryptDbFilePassword(file);
+      await writeDbConfig(toStore, configFilePath());
       res.json({ ok: true, restartRequired: true });
     } catch (err) {
       res.status(500).json({ ok: false, error: errorMessage(err) });

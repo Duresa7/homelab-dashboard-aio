@@ -9,6 +9,7 @@ import {
 import { isEnabled } from '../lib/env.js';
 import { errorMessage } from '../lib/errors.js';
 import { assertAllowedHost, BlockedHostError, hostFromInput } from '../lib/net-guard.js';
+import { decryptSecret, encryptSecret, getSecretKey, isEncryptedValue } from '../lib/secrets.js';
 import type { StateStore } from '../storage/types.js';
 
 export const CONFIG_KEY = 'setup.integrationConfig';
@@ -18,6 +19,9 @@ export interface Selection {
   enabled: boolean;
   vendor: string;
   config: Record<string, unknown>;
+  /** Where secret fields live: encrypted in this store ('db', the default) or
+   * read from `process.env` at runtime ('env'). */
+  secretSource?: 'db' | 'env';
 }
 export type IntegrationConfig = Record<string, Selection>;
 export interface OnboardingState {
@@ -80,8 +84,50 @@ async function readConfig(store: StateStore): Promise<IntegrationConfig> {
   return (row?.value as IntegrationConfig | undefined) ?? {};
 }
 
+/** Turn stored secret fields into plaintext for server-side consumption: decrypt
+ * 'db' blobs, and read 'env'-sourced fields from `process.env`. A decrypt failure
+ * (key changed or data corrupt) drops the field rather than crashing. */
+function resolveSecrets(
+  capabilityId: string,
+  selection: Selection,
+  key: Buffer,
+): Record<string, unknown> {
+  const provider = getProvider(capabilityId, selection.vendor);
+  if (!provider) return selection.config;
+  const out: Record<string, unknown> = { ...selection.config };
+  for (const field of provider.configSchema) {
+    if (!field.secret) continue;
+    if (selection.secretSource === 'env') {
+      const envVal = field.env ? process.env[field.env]?.trim() : undefined;
+      if (envVal) out[field.name] = envVal;
+      else delete out[field.name];
+      continue;
+    }
+    const stored = out[field.name];
+    if (isEncryptedValue(stored)) {
+      try {
+        out[field.name] = decryptSecret(stored, key);
+      } catch {
+        console.warn(
+          `Setup: could not decrypt ${capabilityId}.${field.name} (encryption key changed or data corrupt); re-enter it in setup`,
+        );
+        delete out[field.name];
+      }
+    }
+    // a plain string here is a legacy plaintext secret: used as-is and
+    // re-encrypted by migrateSecretsAtRest or the next save
+  }
+  return out;
+}
+
 export async function readIntegrationConfig(store: StateStore): Promise<IntegrationConfig> {
-  return readConfig(store);
+  const config = await readConfig(store);
+  const key = await getSecretKey();
+  const resolved: IntegrationConfig = {};
+  for (const [capId, selection] of Object.entries(config)) {
+    resolved[capId] = { ...selection, config: resolveSecrets(capId, selection, key) };
+  }
+  return resolved;
 }
 
 async function readOnboarding(store: StateStore): Promise<OnboardingState> {
@@ -102,13 +148,16 @@ export function importConfigFromEnv(
 
     const cfg: Record<string, unknown> = {};
     for (const field of provider.configSchema) {
+      // Secret fields stay in the environment and are resolved at read time, so
+      // an env-configured deployment never copies its keys into the database.
+      if (field.secret) continue;
       const raw = field.env ? env[field.env] : undefined;
       if (raw != null && raw !== '') {
         const value = coerceField(field, raw);
         if (value !== undefined) cfg[field.name] = value;
       }
     }
-    config[cap.id] = { enabled: true, vendor: provider.id, config: cfg };
+    config[cap.id] = { enabled: true, vendor: provider.id, config: cfg, secretSource: 'env' };
   }
   if (Object.keys(config).length === 0) return null;
   return { config, onboarding: { complete: true, completedAt: nowIso } };
@@ -124,6 +173,30 @@ export async function importEnvConfigIfEmpty(
   if (!imported) return;
   await store.put(CONFIG_KEY, imported.config);
   await store.put(ONBOARDING_KEY, imported.onboarding);
+}
+
+/** One-time, best-effort: encrypt any legacy plaintext secrets left in the store
+ * by a version that predates at-rest encryption. Idempotent (skips blobs and
+ * env-sourced selections). */
+export async function migrateSecretsAtRest(store: StateStore): Promise<void> {
+  const config = await readConfig(store);
+  let key: Buffer | null = null;
+  let changed = false;
+  for (const [capId, selection] of Object.entries(config)) {
+    if (selection.secretSource === 'env') continue;
+    const provider = getProvider(capId, selection.vendor);
+    if (!provider) continue;
+    for (const field of provider.configSchema) {
+      if (!field.secret) continue;
+      const value = selection.config[field.name];
+      if (typeof value === 'string' && value !== '') {
+        key ??= await getSecretKey();
+        selection.config[field.name] = encryptSecret(value, key);
+        changed = true;
+      }
+    }
+  }
+  if (changed) await store.put(CONFIG_KEY, config);
 }
 
 export async function markOnboardingComplete(
@@ -142,7 +215,10 @@ export async function readSelectionConfig(
   capabilityId: string,
 ): Promise<Record<string, unknown>> {
   const config = await readConfig(store);
-  return config[capabilityId]?.config ?? {};
+  const selection = config[capabilityId];
+  if (!selection) return {};
+  const key = await getSecretKey();
+  return resolveSecrets(capabilityId, selection, key);
 }
 
 export async function getStatus(
@@ -167,16 +243,37 @@ export async function getRedactedConfig(store: StateStore): Promise<{
   const capabilities: Record<string, unknown> = {};
   for (const [capId, sel] of Object.entries(config)) {
     const provider = getProvider(capId, sel.vendor);
-    const secretFields = new Set(
-      (provider?.configSchema ?? []).filter((f) => f.secret).map((f) => f.name),
-    );
+    const schema = provider?.configSchema ?? [];
+    const secretFields = new Set(schema.filter((f) => f.secret).map((f) => f.name));
+    const source: 'db' | 'env' = sel.secretSource === 'env' ? 'env' : 'db';
+
     const safeConfig: Record<string, unknown> = {};
-    const secrets: Record<string, boolean> = {};
     for (const [key, value] of Object.entries(sel.config)) {
-      if (secretFields.has(key)) secrets[key] = value != null && value !== '';
-      else safeConfig[key] = value;
+      if (!secretFields.has(key)) safeConfig[key] = value;
     }
-    capabilities[capId] = { enabled: sel.enabled, vendor: sel.vendor, config: safeConfig, secrets };
+
+    // Report a secret as set without revealing it: in env mode that means the
+    // variable is present in the environment; in db mode that there is a stored
+    // (encrypted) value.
+    const secrets: Record<string, boolean> = {};
+    for (const field of schema) {
+      if (!field.secret) continue;
+      if (source === 'env') {
+        secrets[field.name] = Boolean(field.env && process.env[field.env]?.trim());
+      } else {
+        const stored = sel.config[field.name];
+        secrets[field.name] =
+          isEncryptedValue(stored) || (typeof stored === 'string' && stored !== '');
+      }
+    }
+
+    capabilities[capId] = {
+      enabled: sel.enabled,
+      vendor: sel.vendor,
+      config: safeConfig,
+      secrets,
+      secretSource: source,
+    };
   }
   return { capabilities, onboarding };
 }
@@ -186,6 +283,7 @@ interface SelectionInput {
   vendor?: unknown;
   enabled?: unknown;
   config?: unknown;
+  secretSource?: unknown;
 }
 
 export async function upsertSelection(store: StateStore, input: SelectionInput): Promise<void> {
@@ -203,7 +301,14 @@ export async function upsertSelection(store: StateStore, input: SelectionInput):
       : {};
   const enabled = input.enabled !== false;
   const config = await readConfig(store);
-  const existing = config[capabilityId]?.config ?? {};
+  const existingSelection = config[capabilityId];
+  const existing = existingSelection?.config ?? {};
+  const secretSource: 'db' | 'env' =
+    input.secretSource === 'env'
+      ? 'env'
+      : input.secretSource === 'db'
+        ? 'db'
+        : (existingSelection?.secretSource ?? 'db');
 
   // If the caller points this integration at a different host than the stored
   // one, any secret it omits must be re-supplied. Otherwise a stored secret
@@ -217,16 +322,34 @@ export async function upsertSelection(store: StateStore, input: SelectionInput):
   const hostChanged =
     incomingHost !== '' && incomingHost.toLowerCase() !== existingHost.toLowerCase();
 
+  const key = await getSecretKey();
   const merged: Record<string, unknown> = {};
   for (const field of provider.configSchema) {
-    let value: unknown;
-    if (field.name in incoming) value = coerceField(field, incoming[field.name]);
-    else if (field.secret && hostChanged && field.name in existing) {
-      throw new ConfigError(`secret fields are required when changing the base URL: ${field.name}`);
-    } else if (field.name in existing) value = existing[field.name];
-    else if (field.default !== undefined) value = field.default;
+    // In env mode the secret lives in process.env, never in the store, and is
+    // exempt from the required-field check below (resolved at runtime).
+    if (field.secret && secretSource === 'env') continue;
 
-    validateFieldValue(field, value);
+    let value: unknown;
+    if (field.name in incoming) {
+      const coerced = coerceField(field, incoming[field.name]);
+      if (field.secret) {
+        if (typeof coerced === 'string' && coerced.trim() !== '') {
+          value = encryptSecret(coerced, key);
+        } else if (field.name in existing) {
+          value = existing[field.name]; // blank submitted: keep the saved value
+        }
+      } else {
+        value = coerced;
+      }
+    } else if (field.secret && hostChanged && field.name in existing) {
+      throw new ConfigError(`secret fields are required when changing the base URL: ${field.name}`);
+    } else if (field.name in existing) {
+      value = existing[field.name];
+    } else if (field.default !== undefined) {
+      value = field.default;
+    }
+
+    if (!field.secret) validateFieldValue(field, value);
 
     if (enabled && field.required && (value === undefined || value === '')) {
       throw new ConfigError(`missing required field: ${field.name}`);
@@ -248,6 +371,6 @@ export async function upsertSelection(store: StateStore, input: SelectionInput):
     }
   }
 
-  config[capabilityId] = { enabled, vendor, config: merged };
+  config[capabilityId] = { enabled, vendor, config: merged, secretSource };
   await store.put(CONFIG_KEY, config);
 }

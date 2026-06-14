@@ -1,11 +1,13 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { encryptSecretToString, resetSecretKeyCache } from '../lib/secrets.js';
 import {
   DEFAULT_SQLITE_SIEM_PATH,
   DEFAULT_SQLITE_STATE_PATH,
+  migrateDbConfigSecretAtRest,
   resolveDbConfig,
   writeDbConfig,
   type DbConfigFile,
@@ -125,5 +127,57 @@ describe('writeDbConfig', () => {
     const leftovers = readFileSync(configPath(), 'utf8');
     expect(leftovers).toContain('"driver": "sqlite"');
     expect(() => readFileSync(`${configPath()}.tmp-${process.pid}`, 'utf8')).toThrow();
+  });
+});
+
+describe('DB password encryption at rest', () => {
+  const HEX = 'a'.repeat(64);
+  const key = Buffer.from(HEX, 'hex');
+
+  beforeEach(() => {
+    vi.stubEnv('APP_ENCRYPTION_KEY', HEX);
+    resetSecretKeyCache();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    resetSecretKeyCache();
+  });
+
+  it('decrypts a file-stored encrypted password on resolve', () => {
+    writeFile({
+      driver: 'postgres',
+      postgres: {
+        host: 'db.example.test',
+        database: 'd',
+        user: 'u',
+        password: encryptSecretToString('s3cret-pw', key),
+      },
+    });
+    const cfg = resolveDbConfig({ env: { APP_ENCRYPTION_KEY: HEX }, configPath: configPath() });
+    expect(cfg.postgres?.password).toBe('s3cret-pw');
+  });
+
+  it('leaves a plaintext env password untouched', () => {
+    const cfg = resolveDbConfig({
+      env: { APP_ENCRYPTION_KEY: HEX, DB_DRIVER: 'postgres', DB_PASSWORD: 'plain' },
+      configPath: configPath(),
+    });
+    expect(cfg.postgres?.password).toBe('plain');
+  });
+
+  it('migrateDbConfigSecretAtRest encrypts a legacy plaintext password', async () => {
+    writeFile({
+      driver: 'postgres',
+      postgres: { host: 'db.example.test', database: 'd', user: 'u', password: 'legacy-pw' },
+    });
+    await migrateDbConfigSecretAtRest(configPath());
+
+    const raw = JSON.parse(readFileSync(configPath(), 'utf8'));
+    expect(typeof raw.postgres.password).toBe('string');
+    expect(raw.postgres.password.startsWith('encv1:')).toBe(true);
+    expect(JSON.stringify(raw)).not.toContain('legacy-pw');
+
+    const cfg = resolveDbConfig({ env: { APP_ENCRYPTION_KEY: HEX }, configPath: configPath() });
+    expect(cfg.postgres?.password).toBe('legacy-pw');
   });
 });

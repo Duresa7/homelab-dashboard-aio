@@ -236,6 +236,7 @@ export function OnboardingWizard({ onDone }: Props) {
           vendor: selection.vendor,
           enabled: true,
           config: selection.config,
+          secretSource: selection.secretSource,
         });
       }
       await completeOnboarding();
@@ -484,6 +485,14 @@ function WizardStep({
               <ConfigFieldsForm
                 fields={provider?.configSchema ?? []}
                 values={selection.config}
+                secretSource={selection.secretSource}
+                onSecretSourceChange={(next) =>
+                  onDispatch({
+                    type: 'setSecretSource',
+                    capabilityId: capability.id,
+                    secretSource: next,
+                  })
+                }
                 idPrefix={`setup-${capability.id}`}
                 onChange={(field, value) =>
                   onDispatch({ type: 'setField', capabilityId: capability.id, field, value })

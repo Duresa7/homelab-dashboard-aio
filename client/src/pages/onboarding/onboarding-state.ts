@@ -11,6 +11,7 @@ export interface CapabilitySelection {
   enabled: boolean;
   vendor: string;
   config: Record<string, unknown>;
+  secretSource: 'db' | 'env';
   testState: TestState;
 }
 
@@ -27,6 +28,7 @@ export type WizardAction =
   | { type: 'setEnabled'; capabilityId: string; enabled: boolean }
   | { type: 'setVendor'; capabilityId: string; vendor: string; capability: Capability }
   | { type: 'setField'; capabilityId: string; field: string; value: unknown }
+  | { type: 'setSecretSource'; capabilityId: string; secretSource: 'db' | 'env' }
   | { type: 'setTestState'; capabilityId: string; testState: TestState };
 
 export function firstAvailableProvider(capability: Capability): string {
@@ -59,6 +61,7 @@ export function createWizardState(capabilities: Capability[]): WizardState {
       enabled: false,
       vendor,
       config: configForVendor(capability, vendor),
+      secretSource: 'db',
       testState: { status: 'idle' },
     };
   }
@@ -96,6 +99,7 @@ export function onboardingReducer(state: WizardState, action: WizardAction): Wiz
             ...state.selections[action.capabilityId],
             vendor: action.vendor,
             config: configForVendor(action.capability, action.vendor),
+            secretSource: 'db',
             testState: { status: 'idle' },
           },
         },
@@ -111,6 +115,18 @@ export function onboardingReducer(state: WizardState, action: WizardAction): Wiz
               ...state.selections[action.capabilityId].config,
               [action.field]: action.value,
             },
+            testState: { status: 'idle' },
+          },
+        },
+      };
+    case 'setSecretSource':
+      return {
+        ...state,
+        selections: {
+          ...state.selections,
+          [action.capabilityId]: {
+            ...state.selections[action.capabilityId],
+            secretSource: action.secretSource,
             testState: { status: 'idle' },
           },
         },
@@ -151,6 +167,8 @@ export function missingRequiredFields(
   return provider.configSchema
     .filter((field) => {
       if (!field.required) return false;
+      // In env mode the secret is supplied via the environment, not the form.
+      if (field.secret && selection.secretSource === 'env') return false;
       const value = selection.config[field.name];
       return value === undefined || value === null || value === '';
     })
