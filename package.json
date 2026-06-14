@@ -1,7 +1,7 @@
 {
   "name": "homelab-dashboard",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
@@ -24,10 +24,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview --config client/vite.config.ts",
-    "docker:build": "docker compose build",
-    "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f dashboard",
+    "docker:build": "docker compose -f docker-compose.dev.yml build",
+    "docker:up": "docker compose -f docker-compose.dev.yml up -d",
+    "docker:down": "docker compose -f docker-compose.dev.yml down",
+    "docker:logs": "docker compose -f docker-compose.dev.yml logs -f dashboard",
     "prepare": "husky || true"
   },
   "dependencies": {
