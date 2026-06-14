@@ -48,6 +48,22 @@ RUN mkdir -p /app/data /home/node/.ssh \
 
 USER node
 
+# Build metadata, injected by CI on release (see .github/workflows/release.yml).
+# Left empty for local/dev builds — the server treats a missing APP_VERSION as a
+# dev build and never shows the update indicator. Declared last so per-build
+# values don't invalidate the cache of the heavy COPY layers above.
+ARG APP_VERSION=""
+ARG APP_COMMIT=""
+ARG APP_BUILD_TIME=""
+ENV APP_VERSION=$APP_VERSION \
+    APP_COMMIT=$APP_COMMIT \
+    APP_BUILD_TIME=$APP_BUILD_TIME
+LABEL org.opencontainers.image.title="Homelab Dashboard" \
+      org.opencontainers.image.source="https://github.com/Duresa7/homelab-dashboard-aio" \
+      org.opencontainers.image.version=$APP_VERSION \
+      org.opencontainers.image.revision=$APP_COMMIT \
+      org.opencontainers.image.created=$APP_BUILD_TIME
+
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

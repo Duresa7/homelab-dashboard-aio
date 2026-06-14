@@ -34,4 +34,10 @@ Branch protection is intentionally light: `main` requires the `verify` and
 then deploys that push, so the local husky pre-commit remains the backstop). This
 is a repository setting, not tracked in the repo.
 
-Status: implemented
+Refined by [ADR 0009](0009-versioned-releases-and-update-check.md): `:latest`
+no longer moves with `main`. Main pushes now publish only `:sha-<short>`; a
+release workflow (triggered by a `v*` tag) owns `:latest` and the semver tags, so
+`docker pull :latest` and Watchtower track published **releases**, not every
+commit. The pull-based GHCR + Watchtower model below is otherwise unchanged.
+
+Status: implemented (tag scheme refined by ADR 0009)
