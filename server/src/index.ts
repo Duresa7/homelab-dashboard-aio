@@ -15,11 +15,13 @@ import { initSetup } from './setup/index.js';
 import { registerVersionRoutes, startUpdateChecker } from './version/index.js';
 import {
   importEnvConfigIfEmpty,
+  migrateSecretsAtRest,
   readIntegrationConfig,
   type IntegrationConfig,
   type Selection,
 } from './setup/integration-config.js';
-import { resolveDbConfig } from './storage/config.js';
+import { getSecretKey } from './lib/secrets.js';
+import { migrateDbConfigSecretAtRest, resolveDbConfig } from './storage/config.js';
 import { openStores } from './storage/factory.js';
 import { isEnabled } from './lib/env.js';
 import { errorMessage } from './lib/errors.js';
@@ -360,8 +362,17 @@ if (stores) {
 }
 
 if (stores) {
+  await getSecretKey().catch((err) => {
+    console.warn(`Secrets: encryption key init failed - ${errorMessage(err)}`);
+  });
   await importEnvConfigIfEmpty(stores.state).catch((err) => {
     console.warn(`Setup: env config import failed - ${errorMessage(err)}`);
+  });
+  await migrateSecretsAtRest(stores.state).catch((err) => {
+    console.warn(`Secrets: at-rest migration failed - ${errorMessage(err)}`);
+  });
+  await migrateDbConfigSecretAtRest().catch((err) => {
+    console.warn(`Secrets: database password migration failed - ${errorMessage(err)}`);
   });
 }
 

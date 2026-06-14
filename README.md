@@ -1,148 +1,206 @@
 # Homelab Dashboard
 
-Homelab Dashboard is a single place to see what is happening across a home lab.
-It brings together live telemetry from UniFi networking, Proxmox compute, Docker
-containers, UNAS storage, GPU and host sensors, syslog/SIEM events, and the
-physical hardware inventory behind those systems.
+I built Homelab Dashboard because I got tired of opening five tabs to answer one
+question. Switches and access points live in UniFi. VMs live in Proxmox.
+Containers in Portainer, storage in the UNAS web UI, GPU load and temperatures
+over SSH, syslog somewhere else again. Every vendor ships its own dashboard, and
+none of them showed me the few things I check every day. So I built one that
+does.
 
-The app is meant for daily operations: check whether core services are healthy,
-spot noisy network clients, wake compute hosts, review recent events, and keep
-track of the machines, parts, and service relationships that make up the lab.
-When live integrations are unavailable, the dashboard can still run against
-fixtures and disabled integration states so UI and workflow changes remain
-testable away from the LAN.
+It's one page for the whole lab, built for daily operations rather than deep
+configuration: is everything healthy, what's noisy on the network, what's
+running where, and what hardware sits behind it all. I wanted something minimal
+that surfaces what I actually care about, not another tool to babysit.
 
-## Authentication
+<!-- TODO: drop a screenshot of the dashboard here -->
 
-The dashboard requires a login. On first run (or after upgrading an install
-that has no accounts yet) the app shows a one-time **create admin account**
-screen before anything else; that admin can then add more users under
-Settings → Users with one of three roles:
+## What it pulls together
 
-- **admin** — everything, including integration setup, user management, and
-  debug endpoints
-- **member** — can edit inventory and send Wake-on-LAN packets
-- **viewer** — read-only dashboard access
+- **Network**: UniFi clients, devices, and health
+- **Compute**: Proxmox nodes, VMs, and containers, with Wake-on-LAN
+- **Containers**: Docker state and per-container stats, via Portainer
+- **Storage**: UniFi UNAS capacity, drives, and fan/system status
+- **Sensors**: NVIDIA GPU load and host temperatures (lm-sensors), read locally or over SSH
+- **Events**: syslog/SIEM ingestion from UniFi gear
+- **Inventory**: the machines, parts, and service relationships behind all of it
 
-Per-user TOTP two-factor auth (authenticator app + one-time recovery codes) can
-be enabled under Settings → Account. Sessions last 30 days (sliding) and
-"Remember me" controls whether the login survives closing the browser.
+## Features
 
-Useful knobs:
+Beyond reading from your gear, it's built to run the lab day to day:
 
-- `npm run user:seed-admin` — create an `admin` account with a generated
-  password, printed once (offline bootstrap without the wizard).
-- `npm run user:reset-password -- <username>` — locked-out recovery; sets a new
-  generated password and signs that user out everywhere.
-- `AUTH_PROXY_ENABLED` / `AUTH_PROXY_HEADER` / `AUTH_PROXY_TRUSTED_IPS` — opt-in
-  reverse-proxy SSO (Authentik/Authelia forward auth). The asserted username
-  must match an existing local user; the local account decides the role.
-- `TRUST_PROXY` — set when running behind a reverse proxy so client IPs and
-  HTTPS detection use `X-Forwarded-*`.
+- **First-run setup wizard**: point it at your gear and choose a database from the browser, with no config files to hand-write.
+- **Hardware inventory**: machines, components, and spare devices, each with photos, service relationships, identifiers, and a per-item problem log.
+- **Wake-on-LAN**: wake a compute host straight from the dashboard.
+- **Event log**: syslog/SIEM capture from UniFi gear, with a retention window you set.
+- **Alerts**: flag the metrics you care about once they cross a threshold.
+- **Accounts and access**: admin, member, and viewer roles, optional TOTP two-factor, and reverse-proxy SSO.
+- **Update notifications**: admins get a badge when a new release ships; it notifies, never auto-pulls.
+- **Your choice of database**: SQLite by default, or point it at Postgres or MySQL.
+- **Encrypted secrets**: integration API keys and database passwords are encrypted at rest (AES-256-GCM) with a key only your server holds, or kept in environment variables if you'd rather.
+- **Runs empty**: every integration is off until you switch it on, so you can explore the whole UI before connecting any gear.
 
-The full design and security-audit notes live in
-[docs/adr/0006-authentication-and-security-hardening.md](docs/adr/0006-authentication-and-security-hardening.md).
+## Deploy with Docker
 
-## Inventory photos
+You need a host with Docker and Docker Compose already installed. Any Linux box
+works: a VM, an LXC, a spare mini PC, an ARM board.
 
-Machines, components, and devices can each carry up to 6 photos (Inventory →
-open an item → Photos, in edit mode). Uploads are re-encoded to WebP with EXIF
-stripped and stored on the app host under `data/images/` next to the SQLite
-state — **even when the state DB is Postgres or MySQL**, image files stay on
-local disk, so back up `data/images/` together with the database. Orphaned
-files (e.g. after an item is deleted) are swept on boot and via
-`POST /api/images/gc` (admin).
-
-## Development
-
-Install dependencies from the repo root:
-
-```bash
-npm install
-```
-
-Run the API server and Vite client together:
-
-```bash
-npm run dev:all
-```
-
-Or run them in separate terminals:
-
-```bash
-npm run server
-npm run dev
-```
-
-The client dev server runs at `http://localhost:5173` and proxies `/api/*` to
-the Express server on port `3001`. In production, the Express server also serves
-the built client.
-
-For the full run and verification contract used by agents and contributors, see
-[AGENTS.md](AGENTS.md) and [docs/agents/run-and-verify.md](docs/agents/run-and-verify.md).
-
-## Contributing
-
-Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the
-branch model (feature → `Dev` → `main`) and pull request process.
-
-## Running the published image
-
-CI publishes a multi-arch (amd64 + arm64) Docker image to the GitHub Container
-Registry:
-
-- `ghcr.io/duresa7/homelab-dashboard-aio:latest` — the newest **release**.
-- `ghcr.io/duresa7/homelab-dashboard-aio:X.Y.Z` / `:X.Y` — a specific release (semver).
-- `ghcr.io/duresa7/homelab-dashboard-aio:sha-<short>` — immutable per-`main`-commit
-  build, for testing or rollback (published on every push to `main`).
-
-Track `:latest` for releases, or pin a `:X.Y.Z`/`:sha-` tag for a frozen
-deployment. Grab the compose file and start it — no `.env` or other setup is
-required to boot (integrations are configured later from the UI):
+Grab the compose file and start it:
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/Duresa7/homelab-dashboard-aio/main/docker-compose.yml
 docker compose up -d
 ```
 
-The dashboard comes up on port `3001` — open `http://<host-ip>:3001` and create
-the admin account. `docker-compose.yml` pulls the published image and runs an
-optional, label-scoped [Watchtower](https://containrrr.dev/watchtower/) that
-auto-updates **only** this container when a new release is published. To update
-by hand instead, drop the `watchtower` service and re-run
-`docker compose pull && docker compose up -d`. To roll back, set
-`dashboard.image` to a known-good `:X.Y.Z` or `:sha-<short>` tag and `up -d`
-again.
+<details>
+<summary>Or copy this <code>docker-compose.yml</code> directly</summary>
 
-> Need GPU/temperature stats over SSH? Uncomment the `id_homelab` volume in
-> `docker-compose.yml` and provide the key — otherwise it's not required.
+```yaml
+services:
+  dashboard:
+    image: ghcr.io/duresa7/homelab-dashboard-aio:latest
+    container_name: homelab-dashboard
+    restart: unless-stopped
+    # Host networking keeps real syslog source IPs and avoids unprivileged-port pain.
+    network_mode: host
+    # .env is optional; integrations can also be configured from the UI.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+    volumes:
+      - ./data:/app/data
+      # Optional: SSH key for GPU/sensor stats over SSH. Uncomment, then set
+      # GPU_SSH_KEY_PATH in .env.
+      # - ${HOME}/.ssh/id_homelab:/home/node/.ssh/id_homelab:ro
+    ulimits:
+      nofile: 65536
+    labels:
+      com.centurylinklabs.watchtower.enable: 'true'
 
-The dashboard checks GitHub for newer releases and shows admins an **update
-indicator** in the top bar plus a **Settings → About** tab (current version,
-latest release, release notes, and the exact `pull` commands). It only notifies —
-you (or Watchtower) perform the update. Disable the check with
-`UPDATE_CHECK_ENABLED=false`.
-
-To build from source instead of pulling (contributors), use
-[docker-compose.dev.yml](docker-compose.dev.yml)
-(`docker compose -f docker-compose.dev.yml up -d --build`).
-
-### Cutting a release
-
-Releases are tag-driven. Bump the version, then push the tag:
-
-```bash
-npm version patch   # or minor / major — commits package.json and tags vX.Y.Z
-git push --follow-tags
+  # Optional auto-updater. Remove this service to update by hand instead
+  # (docker compose pull && docker compose up -d).
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: homelab-watchtower
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_LABEL_ENABLE: 'true'
+      WATCHTOWER_POLL_INTERVAL: '300'
+      WATCHTOWER_CLEANUP: 'true'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 ```
 
-The [release workflow](.github/workflows/release.yml) verifies the commit, builds
-the multi-arch image with the version baked in, publishes `:X.Y.Z`, `:X.Y`, and
-`:latest`, and creates a GitHub Release with generated notes — which is the source
-the in-app update check reads. (Prerelease tags like `vX.Y.Z-rc.1` are published as
-prereleases and do **not** move `:latest`.)
+</details>
 
-The deployment rationale (pull-based because the cloud runner can't reach the LAN)
-is in [docs/adr/0005-cd-via-ghcr-watchtower.md](docs/adr/0005-cd-via-ghcr-watchtower.md);
-the release/versioning model is in
-[docs/adr/0009-versioned-releases-and-update-check.md](docs/adr/0009-versioned-releases-and-update-check.md).
+Open `http://<host-ip>:3001` and create your admin account on the first-run
+screen. That's the whole setup: no `.env`, no config files to write first. The
+image is multi-arch, so the same command works on a regular server or an ARM
+board like a Raspberry Pi.
+
+By default, everything you create (inventory, settings, uploaded photos, the
+database) lives in a `./data` folder next to the compose file. Back up that
+folder and your dashboard moves with it. (Point it at Postgres or MySQL instead
+and only the photos and config stay on local disk.)
+
+## Turning on integrations
+
+Out of the box the dashboard talks to nothing. You can wire up your gear two
+ways: in the **setup wizard** in the browser (the easy path, with each secret
+encrypted at rest), or with a **`.env` file** beside the compose file if you'd
+rather manage configuration as environment variables. For the `.env` route, copy
+the template and fill in only the parts you use:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/Duresa7/homelab-dashboard-aio/main/.env.example
+mv .env.example .env
+# edit .env, then re-run:
+docker compose up -d
+```
+
+Each integration has an on/off switch plus its own connection settings:
+
+| Integration            | Switch                                 | What you provide                              |
+| ---------------------- | -------------------------------------- | --------------------------------------------- |
+| UniFi network          | `UNIFI_ENABLED=true`                   | controller URL + API key                      |
+| Proxmox                | `PROXMOX_ENABLED=true`                 | API token (id + secret)                       |
+| Docker (via Portainer) | `PORTAINER_ENABLED=true`               | Portainer URL + API key                       |
+| UniFi UNAS             | `UNAS_ENABLED=true`                    | UNAS URL + local API key                      |
+| GPU + host sensors     | `GPU_ENABLED` / `SENSORS_ENABLED=true` | local access, or SSH to the host              |
+| Syslog / SIEM          | `SIEM_ENABLED=true`                    | point your gear's remote logging at this host |
+
+The full list, with a comment on every option, is in [`.env.example`](.env.example).
+
+<details>
+<summary>A minimal <code>.env</code> to copy and trim</summary>
+
+```bash
+# Everything is off by default; switch on only what you use.
+UNIFI_ENABLED=false
+UNIFI_BASE_URL=
+UNIFI_API_KEY=
+
+PROXMOX_ENABLED=false
+PROXMOX_BASE_URL=
+PROXMOX_TOKEN_ID=
+PROXMOX_TOKEN_SECRET=
+PROXMOX_NODE=
+
+PORTAINER_ENABLED=false
+PORTAINER_BASE_URL=
+PORTAINER_API_KEY=
+
+UNAS_ENABLED=false
+UNAS_BASE_URL=
+UNAS_API_KEY=
+
+SIEM_ENABLED=false
+
+# Optional: bring your own key for encrypting stored secrets (otherwise one is
+# auto-generated at data/secret.key). 64 hex chars, or any passphrase.
+# APP_ENCRYPTION_KEY=
+```
+
+</details>
+
+> Reading GPU or temperature stats over SSH needs a key inside the container.
+> Uncomment the `id_homelab` volume in `docker-compose.yml`, place your key
+> there, and set `GPU_SSH_KEY_PATH` in `.env`. Skip this if you don't collect
+> sensors over SSH.
+
+Secrets you enter in the setup wizard (integration API keys and any Postgres or
+MySQL password) are encrypted at rest with AES-256-GCM. The key is generated once
+and kept at `data/secret.key`, so back up `data/` as a unit; a stolen database
+backup alone can't be read without it. To supply your own key instead (for
+example a Docker secret kept off the data volume), set `APP_ENCRYPTION_KEY`.
+Prefer a secret to stay in the environment? Set its variable (see the table and
+`.env.example`) and pick "Environment variable" for that integration in the
+wizard; the app reads it from the environment and never stores it.
+
+## Staying updated
+
+`docker-compose.yml` includes an optional
+[Watchtower](https://containrrr.dev/watchtower/) that watches only this
+container and pulls a new image when a release is published. To update by hand
+instead, delete the `watchtower` service and run:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+The dashboard also checks GitHub for newer releases and shows admins an update
+badge in the top bar, plus a **Settings → About** tab with the current version
+and release notes. It only notifies; you (or Watchtower) choose when to pull.
+Switch the check off with `UPDATE_CHECK_ENABLED=false`.
+
+Two image tracks are published to the GitHub Container Registry:
+
+- `ghcr.io/duresa7/homelab-dashboard-aio:latest` is the newest tagged **release**, and what most people should run.
+- `ghcr.io/duresa7/homelab-dashboard-aio:sha-<short>` is the **cutting-edge** build from the latest `main` commit, rebuilt on every push. Point `dashboard.image` at one to ride the bleeding edge, or pin `:X.Y.Z` to freeze a specific release.
+
+## Contributing
+
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers local
+development setup, the branch model (feature → `Dev` → `main`), and how releases
+are cut.

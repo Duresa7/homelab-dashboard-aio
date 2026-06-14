@@ -2,6 +2,14 @@ import { readFileSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  decryptSecretFromString,
+  encryptSecretToString,
+  getSecretKey,
+  getSecretKeySync,
+  isEncryptedString,
+} from '../lib/secrets.js';
+
 export type DbDriver = 'sqlite' | 'postgres' | 'mysql';
 
 export interface SqliteSettings {
@@ -172,6 +180,27 @@ function resolveServer(
   };
 }
 
+/** Decrypt a file-stored password that was encrypted at rest. Env-supplied
+ * passwords (DATABASE_URL / DB_PASSWORD) are plaintext and pass through. */
+function decryptServerPassword(settings: SqlServerSettings): SqlServerSettings {
+  if (!isEncryptedString(settings.password)) return settings;
+  const key = getSecretKeySync();
+  if (!key) {
+    console.warn(
+      'Database: stored password is encrypted but no key is available; set APP_ENCRYPTION_KEY or restore data/secret.key',
+    );
+    return { ...settings, password: '' };
+  }
+  try {
+    return { ...settings, password: decryptSecretFromString(settings.password, key) };
+  } catch {
+    console.warn(
+      'Database: stored password could not be decrypted (key changed?); re-enter it in setup',
+    );
+    return { ...settings, password: '' };
+  }
+}
+
 export function resolveDbConfig(opts: ResolveDbConfigOpts = {}): ResolvedDbConfig {
   const env = opts.env ?? process.env;
   const configPath = opts.configPath ?? configFilePath(env);
@@ -181,10 +210,18 @@ export function resolveDbConfig(opts: ResolveDbConfigOpts = {}): ResolvedDbConfi
   const sqlite = resolveSqlite(env, file?.sqlite);
 
   if (driver === 'postgres') {
-    return { driver, sqlite, postgres: resolveServer(env, file?.postgres, DEFAULT_PG_PORT) };
+    return {
+      driver,
+      sqlite,
+      postgres: decryptServerPassword(resolveServer(env, file?.postgres, DEFAULT_PG_PORT)),
+    };
   }
   if (driver === 'mysql') {
-    return { driver, sqlite, mysql: resolveServer(env, file?.mysql, DEFAULT_MYSQL_PORT) };
+    return {
+      driver,
+      sqlite,
+      mysql: decryptServerPassword(resolveServer(env, file?.mysql, DEFAULT_MYSQL_PORT)),
+    };
   }
   return { driver: 'sqlite', sqlite };
 }
@@ -197,4 +234,28 @@ export async function writeDbConfig(
   const tmp = `${configPath}.tmp-${process.pid}`;
   await writeFile(tmp, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   await rename(tmp, configPath);
+}
+
+/** One-time, best-effort: encrypt a legacy plaintext DB password left in
+ * database.json by a version that predates at-rest encryption. Idempotent. */
+export async function migrateDbConfigSecretAtRest(configPath = configFilePath()): Promise<void> {
+  const file = readConfigFile(configPath);
+  if (!file) return;
+  if (
+    file.driver === 'postgres' &&
+    file.postgres?.password &&
+    !isEncryptedString(file.postgres.password)
+  ) {
+    const key = await getSecretKey();
+    file.postgres.password = encryptSecretToString(file.postgres.password, key);
+    await writeDbConfig(file, configPath);
+  } else if (
+    file.driver === 'mysql' &&
+    file.mysql?.password &&
+    !isEncryptedString(file.mysql.password)
+  ) {
+    const key = await getSecretKey();
+    file.mysql.password = encryptSecretToString(file.mysql.password, key);
+    await writeDbConfig(file, configPath);
+  }
 }
