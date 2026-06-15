@@ -75,21 +75,6 @@ services:
       # - ${HOME}/.ssh/id_homelab:/home/node/.ssh/id_homelab:ro
     ulimits:
       nofile: 65536
-    labels:
-      com.centurylinklabs.watchtower.enable: 'true'
-
-  # Optional auto-updater. Remove this service to update by hand instead
-  # (docker compose pull && docker compose up -d).
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: homelab-watchtower
-    restart: unless-stopped
-    environment:
-      WATCHTOWER_LABEL_ENABLE: 'true'
-      WATCHTOWER_POLL_INTERVAL: '300'
-      WATCHTOWER_CLEANUP: 'true'
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
 ```
 
 </details>
@@ -180,18 +165,15 @@ wizard; the app reads it from the environment and never stores it.
 
 ## Staying updated
 
-`docker-compose.yml` includes an optional
-[Watchtower](https://containrrr.dev/watchtower/) that watches only this
-container and pulls a new image when a release is published. To update by hand
-instead, delete the `watchtower` service and run:
+Updating is a manual pull, so you stay in control of when it happens:
 
 ```bash
 docker compose pull && docker compose up -d
 ```
 
-The dashboard also checks GitHub for newer releases and shows admins an update
-badge in the top bar, plus a **Settings → About** tab with the current version
-and release notes. It only notifies; you (or Watchtower) choose when to pull.
+The dashboard checks GitHub for newer releases and shows admins an update badge
+in the top bar, plus a **Settings → About** tab with the current version and
+release notes. It only notifies; you choose when to run the pull above.
 Switch the check off with `UPDATE_CHECK_ENABLED=false`.
 
 Two image tracks are published to the GitHub Container Registry:

@@ -68,7 +68,7 @@ jobs:
           images: ghcr.io/duresa7/homelab-dashboard-aio
           # main publishes immutable :sha-<short> builds for testing/rollback only.
           # :latest and semver tags are owned by release.yml (pushed on a v* tag),
-          # so Watchtower and `docker pull :latest` track releases, not main HEAD.
+          # so `docker pull :latest` tracks releases, not main HEAD.
           tags: |
             type=sha
 
