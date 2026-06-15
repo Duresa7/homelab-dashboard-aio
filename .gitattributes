@@ -1,0 +1,4 @@
+# Shell scripts must keep LF endings so they run inside the Linux container
+# regardless of the platform the repo was checked out on.
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
