@@ -1,7 +1,7 @@
 # Two-tier branch promotion: feature → Dev → main
 
-`main` is not just the public branch — every push to it publishes `:latest` to
-GHCR and Watchtower auto-deploys it to end users ([ADR
+`main` is not just the public branch: every push to it publishes a Docker image
+to GHCR, and at the time was auto-deployed to end users ([ADR
 0005](0005-cd-via-ghcr-watchtower.md)). As the project grew past single-commit
 features, "anything on main is live" stopped being a comfortable place for
 work-in-progress to land directly.
