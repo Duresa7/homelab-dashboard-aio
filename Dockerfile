@@ -28,7 +28,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssh-client ca-certificates tini \
+  && apt-get install -y --no-install-recommends openssh-client ca-certificates tini gosu \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
@@ -42,11 +42,16 @@ COPY --from=builder /app/server ./server
 # copy it so the runtime tree mirrors the source layout).
 COPY --from=builder /app/shared ./shared
 
+# Privilege-dropping entrypoint: as root it makes the bind-mounted data dir
+# writable, then runs the app as the unprivileged node user.
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
 RUN mkdir -p /app/data /home/node/.ssh \
   && chown -R node:node /app /home/node/.ssh \
   && chmod 700 /home/node/.ssh
 
-USER node
+# No USER directive: the container starts as root so the entrypoint can fix the
+# data-dir ownership on a fresh bind mount, then drops to the node user via gosu.
 
 # Build metadata, injected by CI on release (see .github/workflows/release.yml).
 # Left empty for local/dev builds — the server treats a missing APP_VERSION as a
@@ -68,6 +73,6 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Run the TypeScript server directly via tsx's loader (tsx is a prod dependency).
 CMD ["node", "--import", "tsx", "server/src/index.ts"]
