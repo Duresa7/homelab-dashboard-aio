@@ -14,8 +14,8 @@ Decision: introduce real releases and a notify-only in-app update check.
   `:latest`, and creates a GitHub Release with generated notes. `package.json`
   `version` stays the single source of truth (`npm version` bumps + tags it).
 - **`:latest` now means the latest release.** Main pushes publish only
-  `:sha-<short>` (testing/rollback). So `docker pull :latest`, Watchtower, and the
-  update indicator all agree on "latest release." Prerelease tags
+  `:sha-<short>` (testing/rollback). So `docker pull :latest` and the update
+  indicator agree on "latest release." Prerelease tags
   (`vX.Y.Z-rc.1`) publish as prereleases and never move `:latest`.
 - **The running version is baked into the image.** `release.yml` passes
   `APP_VERSION`/`APP_COMMIT`/`APP_BUILD_TIME` build args (also OCI labels);
@@ -29,9 +29,9 @@ Decision: introduce real releases and a notify-only in-app update check.
   existing `DISABLE_ALL`).
 - **Notify-only.** The app never touches the Docker socket. Admins see a top-bar
   badge and a Settings → About tab (current vs latest, release notes, the `pull`
-  commands); they (or Watchtower) perform the update. Self-update from inside the
-  container — killing/recreating itself over a privileged socket — was rejected as
-  fragile and a needless attack surface.
+  commands); they perform the update with `docker compose pull`. Self-update from
+  inside the container (killing/recreating itself over a privileged socket) was
+  rejected as fragile and a needless attack surface.
 - **Multi-arch.** Release images build for `linux/amd64,linux/arm64` (QEMU on the
   runner; `better-sqlite3` compiles per-arch in the builder stage) so ARM homelab
   hardware can run the published image.

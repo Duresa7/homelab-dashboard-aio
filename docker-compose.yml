@@ -3,6 +3,8 @@
 #
 #   docker compose up -d
 #
+# Update later with:  docker compose pull && docker compose up -d
+#
 # No .env or extra setup is required to start — integrations are off by default
 # and configured later from the UI. Contributors who build from source use
 # docker-compose.dev.yml instead.
@@ -30,22 +32,3 @@ services:
       # - ${HOME}/.ssh/id_homelab:/home/node/.ssh/id_homelab:ro
     ulimits:
       nofile: 65536
-    labels:
-      # Only containers with this label are watched (see WATCHTOWER_LABEL_ENABLE).
-      com.centurylinklabs.watchtower.enable: 'true'
-
-  # Optional auto-updater: pulls a new image when you publish a release and
-  # recreates only the labelled dashboard container. Remove this service to
-  # update by hand (docker compose pull && docker compose up -d).
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: homelab-watchtower
-    restart: unless-stopped
-    environment:
-      WATCHTOWER_LABEL_ENABLE: 'true'
-      WATCHTOWER_POLL_INTERVAL: '300'
-      WATCHTOWER_CLEANUP: 'true'
-    volumes:
-      # Read-only socket: Watchtower needs to inspect/pull/recreate, but mounting
-      # ro limits the blast radius of a compromised image.
-      - /var/run/docker.sock:/var/run/docker.sock:ro
