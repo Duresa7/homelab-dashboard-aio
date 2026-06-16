@@ -26,7 +26,7 @@ description = "Private/internal IPv6 — ULA (fc00::/7) or link-local (fe80::/10
 # Scoped to private ranges (like private-ipv4) on purpose: a broad IPv6 pattern
 # also matches loopback (::1), IPv4-mapped (::ffff:…), docs ranges, public DNS,
 # and CSS '::' pseudo-elements — none of which are a home/LAN leak.
-regex = '''(?i)\b(f[cd][0-9a-f]{2}:[0-9a-f:]+|fe[89ab][0-9a-f]:[0-9a-f:]+)\b'''
+regex = '''(?i)\b(?:f[cd][0-9a-f]{2}:[0-9a-f:]+|fe[89ab][0-9a-f]:[0-9a-f:]+)\b'''
 tags = ["pii", "network"]
 
   [rules.allowlist]
@@ -40,7 +40,10 @@ tags = ["pii", "network"]
 [[rules]]
 id = "mac-address"
 description = "MAC address — likely a real device hardware identifier. Use the AA:BB:CC:DD:EE:FF placeholder in examples instead."
-regex = '''\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\b'''
+# Non-capturing groups so gitleaks treats the whole MAC as the secret; with a
+# capturing group it would use the last group (e.g. "EE:") and the placeholder
+# allowlist below — which matches the full address — would never apply.
+regex = '''\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b'''
 tags = ["pii", "network"]
 
   [rules.allowlist]

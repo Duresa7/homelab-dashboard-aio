@@ -58,15 +58,15 @@ jobs:
             detect --source /repo --no-git --config /config.toml --redact --verbose
 
       # History scan: catches a secret added then removed within the PR's own
-      # commits, which the working-tree pass alone would miss. safe.directory is
-      # set because the mounted repo is owned by a different uid inside the image.
+      # commits, which the working-tree pass alone would miss. (The gitleaks image
+      # already sets git safe.directory '*', so the mounted repo's uid is fine.)
       - name: gitleaks — PR commit range (history)
         if: github.event_name == 'pull_request'
         run: |
-          docker run --rm -v "$PWD:/repo:ro" -v "$GITLEAKS_CONFIG:/config.toml:ro" \
-            --entrypoint sh \
+          docker run --rm -v "$PWD:/repo" -v "$GITLEAKS_CONFIG:/config.toml:ro" \
             ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
-            -c 'git config --global --add safe.directory /repo && exec gitleaks detect --source /repo --config /config.toml --redact --verbose --log-opts "--no-merges ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"'
+            detect --source /repo --config /config.toml --redact --verbose \
+            --log-opts "--no-merges ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
 
   dependency-review:
     name: Dependency review
