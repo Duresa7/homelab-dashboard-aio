@@ -54,6 +54,11 @@ const ENV_KEYS = [
   'SENSORS_ENABLED',
   'SENSORS_MODE',
   'SENSORS_SSH_HOST',
+  'AMT_ENABLED',
+  'AMT_DEFAULT_PORT',
+  'AMT_USE_TLS',
+  'AMT_DEFAULT_USERNAME',
+  'AMT_POLL_INTERVAL',
 ];
 
 export async function loadServerApp(env: Record<string, string> = {}) {

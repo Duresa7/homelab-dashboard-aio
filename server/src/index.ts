@@ -31,6 +31,8 @@ import { unasStatus } from './integrations/unas.js';
 import { unifiStatus } from './integrations/unifi.js';
 import { gpuStatus } from './integrations/gpu.js';
 import { registerWol, wolStatus } from './integrations/wol.js';
+import { registerAmtRoutes, amtStatus } from './amt/index.js';
+import { createDeviceRegistry } from './amt/device-registry.js';
 import { createProviderCatalog, type ProviderCatalog } from './integrations/registry.js';
 import {
   readProviderStatus,
@@ -376,6 +378,12 @@ if (stores) {
   });
 }
 
+// Intel AMT: per-device credentials live encrypted in the state store, so the
+// registry needs both the store and the at-rest secret key. The provider's
+// fetch/probe (registered via the catalog) read this same registry.
+const amtRegistry = stores ? createDeviceRegistry(stores.state, await getSecretKey()) : null;
+registerAmtRoutes(app, amtRegistry);
+
 const runtimeConfig: IntegrationConfig = stores
   ? await readIntegrationConfig(stores.state).catch((err) => {
       console.warn(`Setup: runtime config read failed - ${errorMessage(err)}`);
@@ -572,6 +580,11 @@ if (process.env.NODE_ENV !== 'test') {
       console.log(
         'SIEM: DISABLED (set SIEM_ENABLED=true in .env to enable syslog ingestion on UDP 514)',
       );
+    }
+    if (amtStatus.enabled) {
+      console.log('Intel AMT: enabled — manage devices in Setup');
+    } else {
+      console.log('Intel AMT: DISABLED (set AMT_ENABLED=true in .env to enable)');
     }
     console.log(`State: db ${DB_CONFIG.sqlite.statePath}`);
   });
