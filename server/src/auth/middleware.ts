@@ -70,6 +70,12 @@ export function requiredRoleFor(method: string, path: string): UserRole {
 
   if (path === '/api/wol/wake') return 'member';
 
+  // AMT power + device writes require member; reads (device list, inventory) viewer.
+  if (path === '/api/amt/power') return 'member';
+  if (path === '/api/amt/devices' || path.startsWith('/api/amt/devices/')) {
+    return m === 'GET' ? 'viewer' : 'member';
+  }
+
   if (path === '/api/images/gc') return 'admin';
   if (path === '/api/images' || path.startsWith('/api/images/')) {
     return m === 'GET' ? 'viewer' : 'member';

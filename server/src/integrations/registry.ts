@@ -1,3 +1,4 @@
+import { amtProvider } from '../amt/index.js';
 import { dockerProvider } from './docker.js';
 import { gpuProvider } from './gpu.js';
 import { proxmoxProvider } from './proxmox.js';
@@ -11,6 +12,7 @@ export const baseIntegrationProviders = [
   proxmoxProvider,
   gpuProvider,
   unasProvider,
+  amtProvider,
 ] as const satisfies readonly Provider<unknown>[];
 
 export interface ProviderCatalog {
