@@ -16,13 +16,57 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      # gitleaks: generic secret rules + a private-IPv4 (RFC1918) rule.
-      # Pinned by digest for reproducibility. Fails the job on any finding.
-      - name: gitleaks (secrets + private-IP/PII)
+        with:
+          # Full history so the PR commit-range scan can see every commit a PR
+          # introduces — a secret added and then deleted within the PR still trips.
+          fetch-depth: 0
+
+      # The committed rules are generic (secrets, keys, private IPv4/IPv6, MAC,
+      # email). Operator-private values (real hostnames, home WAN IP, real domain)
+      # are NOT in the repo — putting them in this public config would be the leak.
+      # They are injected here from the PII_DENYLIST secret, if it is set.
+      - name: Assemble gitleaks config (+ optional private PII denylist)
+        env:
+          PII_DENYLIST: ${{ secrets.PII_DENYLIST }}
         run: |
-          docker run --rm -v "$PWD:/repo" \
+          set -euo pipefail
+          cfg="$RUNNER_TEMP/gitleaks.toml"
+          cp .gitleaks.toml "$cfg"
+          if [ -n "${PII_DENYLIST:-}" ]; then
+            alt=$(printf '%s\n' "$PII_DENYLIST" \
+              | sed '/^[[:space:]]*$/d' \
+              | sed -E 's#[][(){}.^$*+?|\\/]#\\&#g' \
+              | paste -sd '|' -)
+            if [ -n "$alt" ]; then
+              {
+                printf '\n[[rules]]\n'
+                printf 'id = "pii-denylist"\n'
+                printf 'description = "Operator-private value (real hostname/IP/domain) via the PII_DENYLIST secret."\n'
+                printf "regex = '''(?i)(%s)'''\n" "$alt"
+                printf 'tags = ["pii", "private"]\n'
+              } >> "$cfg"
+            fi
+          fi
+          echo "GITLEAKS_CONFIG=$cfg" >> "$GITHUB_ENV"
+
+      # Working-tree scan: catches anything present in the current files. Pinned by
+      # digest for reproducibility; fails the job on any finding.
+      - name: gitleaks — working tree (secrets + PII)
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" -v "$GITLEAKS_CONFIG:/config.toml:ro" \
             ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
-            detect --source /repo --no-git --config /repo/.gitleaks.toml --redact --verbose
+            detect --source /repo --no-git --config /config.toml --redact --verbose
+
+      # History scan: catches a secret added then removed within the PR's own
+      # commits, which the working-tree pass alone would miss. safe.directory is
+      # set because the mounted repo is owned by a different uid inside the image.
+      - name: gitleaks — PR commit range (history)
+        if: github.event_name == 'pull_request'
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" -v "$GITLEAKS_CONFIG:/config.toml:ro" \
+            --entrypoint sh \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            -c 'git config --global --add safe.directory /repo && exec gitleaks detect --source /repo --config /config.toml --redact --verbose --log-opts "--no-merges ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"'
 
   dependency-review:
     name: Dependency review
@@ -33,7 +77,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - name: Review dependency changes
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
         with:
           # Block PRs that introduce a High+ severity advisory in a new/updated dep.
           fail-on-severity: high

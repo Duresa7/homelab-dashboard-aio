@@ -1,6 +1,10 @@
 # gitleaks configuration — generic secret + PII/network-leak scanning.
 # Rules are intentionally general (no project-specific values) so they protect
-# every contributor: any real secret, key, or private/home IP is flagged.
+# every contributor: any real secret, key, private/home IPv4, IPv6, MAC, or email
+# is flagged. Operator-specific values (real hostnames, home WAN IP, real domain)
+# are deliberately NOT listed here — putting them in this public file would itself
+# be the leak. They are injected at CI time from the PII_DENYLIST repo secret
+# (see .github/workflows/security.yml).
 title = "homelab-dashboard secret & PII scan"
 
 [extend]
@@ -15,6 +19,42 @@ tags = ["pii", "network"]
   [rules.allowlist]
   # The Bookmarks tile shows a realistic LAN URL as placeholder text — intentional UX, not a leak.
   paths = ['''client/src/components/widgets/BookmarksTile\.tsx''']
+
+[[rules]]
+id = "private-ipv6"
+description = "Private/internal IPv6 — ULA (fc00::/7) or link-local (fe80::/10), the IPv6 analog of an RFC1918 leak. A leaked global prefix is caught via the PII_DENYLIST secret; use the RFC3849 2001:db8::/32 range in examples."
+# Scoped to private ranges (like private-ipv4) on purpose: a broad IPv6 pattern
+# also matches loopback (::1), IPv4-mapped (::ffff:…), docs ranges, public DNS,
+# and CSS '::' pseudo-elements — none of which are a home/LAN leak.
+regex = '''(?i)\b(f[cd][0-9a-f]{2}:[0-9a-f:]+|fe[89ab][0-9a-f]:[0-9a-f:]+)\b'''
+tags = ["pii", "network"]
+
+  [rules.allowlist]
+  # net-guard implements the SSRF filter, so it legitimately carries a link-local
+  # literal (fe80::1) as logic and as a test fixture.
+  paths = [
+    '''server/src/lib/net-guard\.ts''',
+    '''server/src/lib/net-guard\.test\.ts''',
+  ]
+
+[[rules]]
+id = "mac-address"
+description = "MAC address — likely a real device hardware identifier. Use the AA:BB:CC:DD:EE:FF placeholder in examples instead."
+regex = '''\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\b'''
+tags = ["pii", "network"]
+
+  [rules.allowlist]
+  # Canonical placeholder MACs used throughout the UI copy and tests.
+  regexes = ['''(?i)\b(aa[:-]bb[:-]cc[:-]dd[:-]ee[:-]ff|01:23:45:67:89:ab)\b''']
+
+[[rules]]
+id = "email-address"
+description = "Email address — possible personal contact info. Use example.com / example.test addresses in examples instead."
+regex = '''\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'''
+tags = ["pii"]
+
+  [rules.allowlist]
+  regexes = ['''@(example\.(com|org|net|test)|test\.example|localhost)''']
 
 # Lockfiles / vendored deps / this config: never scanned.
 [[allowlists]]
