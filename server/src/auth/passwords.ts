@@ -1,5 +1,5 @@
 import { hash as argon2Hash, verify as argon2Verify } from '@node-rs/argon2';
-import { zxcvbn, zxcvbnOptions } from '@zxcvbn-ts/core';
+import { ZxcvbnFactory } from '@zxcvbn-ts/core';
 import * as zxcvbnCommon from '@zxcvbn-ts/language-common';
 import * as zxcvbnEn from '@zxcvbn-ts/language-en';
 
@@ -8,15 +8,14 @@ export const PASSWORD_MAX_LENGTH = 128;
 
 export const PASSWORD_MIN_SCORE = 3;
 
-let zxcvbnReady = false;
-function ensureZxcvbn(): void {
-  if (zxcvbnReady) return;
-  zxcvbnOptions.setOptions({
+let zxcvbn: ZxcvbnFactory | null = null;
+function getZxcvbn(): ZxcvbnFactory {
+  zxcvbn ??= new ZxcvbnFactory({
     translations: zxcvbnEn.translations,
     graphs: zxcvbnCommon.adjacencyGraphs,
     dictionary: { ...zxcvbnCommon.dictionary, ...zxcvbnEn.dictionary },
   });
-  zxcvbnReady = true;
+  return zxcvbn;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -40,8 +39,7 @@ export function validatePassword(password: string, userInputs: string[] = []): P
   if (password.length > PASSWORD_MAX_LENGTH) {
     return { ok: false, reason: `Password must be at most ${PASSWORD_MAX_LENGTH} characters.` };
   }
-  ensureZxcvbn();
-  const result = zxcvbn(password, userInputs.filter(Boolean));
+  const result = getZxcvbn().check(password, userInputs.filter(Boolean));
   if (result.score < PASSWORD_MIN_SCORE) {
     const hint =
       result.feedback.warning ||
