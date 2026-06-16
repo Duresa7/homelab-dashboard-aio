@@ -2,6 +2,7 @@ import {
   Activity,
   Boxes,
   Container,
+  Cpu,
   FlaskConical,
   HardDrive,
   LayoutDashboard,
@@ -34,6 +35,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
       { section: 'network', icon: Network, hasSubs: true },
       { section: 'docker', icon: Container, hasSubs: true },
       { section: 'nas', icon: HardDrive, hasSubs: true },
+      { section: 'amt', icon: Cpu, hasSubs: true },
     ],
   },
   {
