@@ -72,6 +72,40 @@ jobs:
           tags: |
             type=sha
 
+      # Build once and load locally so the next step can scan it. This also proves
+      # the Dockerfile still builds on every PR (the previous PR behavior).
+      - name: Build image (load for scanning)
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          load: true
+          tags: homelab-dashboard:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Scan the built image for known-fixable OS/library CVEs. --ignore-unfixed so
+      # the gate only blocks on vulnerabilities that actually have a fix available.
+      - name: Scan image for CVEs (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: homelab-dashboard:scan
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          vuln-type: os,library
+          exit-code: '1'
+
+      # Defense-in-depth publish gate: re-scan for secrets/PII in the same job that
+      # pushes, so even a direct push to main (an admin branch-protection bypass)
+      # cannot publish a secret-bearing image. Covers every pattern-detectable rule
+      # in the committed config.
+      - name: gitleaks gate before publish
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            detect --source /repo --no-git --config /repo/.gitleaks.toml --redact --verbose
+
       # Only authenticate (and thus only ever push) on a real merge to main.
       # Fork PRs never reach this step, and their GITHUB_TOKEN is read-only anyway.
       - name: Log in to GHCR
@@ -82,13 +116,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # PRs build only (push:false) to prove the Dockerfile still works.
-      # Pushes to main build + publish :latest and :sha-<short> to GHCR.
-      - name: Build (and push on main)
+      # Reuses the build cache from the scan step above, so this is an export + push,
+      # not a recompile. Publishes :sha-<short> to GHCR.
+      - name: Push to GHCR (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

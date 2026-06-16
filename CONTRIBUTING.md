@@ -106,6 +106,13 @@ LAN) is in [docs/adr/0005-cd-via-ghcr-watchtower.md](docs/adr/0005-cd-via-ghcr-w
 the release and versioning model is in
 [docs/adr/0009-versioned-releases-and-update-check.md](docs/adr/0009-versioned-releases-and-update-check.md).
 
+## Dependency updates
+
+Dependabot opens npm and GitHub-Actions update PRs against **`Dev`**, so they run
+through the same gate as any other change. A _critical_ security bump can be
+promoted out of the normal cadence by opening a `Dev → main` release PR for it
+directly, rather than waiting for the next scheduled release.
+
 ## Issues
 
 Bug reports and feature requests live in

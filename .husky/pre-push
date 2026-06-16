@@ -1,0 +1,16 @@
+# Scan for secrets/PII before anything leaves this machine. This mirrors the CI
+# "Secret & PII scan" and matters specifically because an admin can bypass branch
+# protection on push — this hook is the only check a bypassed push still passes
+# through. Prefers a local gitleaks binary, falls back to the same pinned Docker
+# image CI uses, and no-ops (does not block) if neither a gitleaks binary nor a
+# running docker daemon is available — an unreachable daemon is an environment
+# problem, not a leak, so it must not wedge your ability to push.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks detect --source . --no-git --config .gitleaks.toml --redact --verbose || exit 1
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  docker run --rm -v "$PWD:/repo:ro" \
+    ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+    detect --source /repo --no-git --config /repo/.gitleaks.toml --redact --verbose || exit 1
+else
+  echo "pre-push: no gitleaks binary and no reachable docker daemon — skipping local secret scan (CI still scans)." >&2
+fi
