@@ -178,6 +178,7 @@ function buildInit(): DashboardState {
     },
     sensorNodes: [],
     sensorsUnavailable: [],
+    amt: { devices: [], total: 0, online: 0, offline: 0, unreachable: 0 },
   };
 }
 

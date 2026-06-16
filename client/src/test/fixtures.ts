@@ -233,6 +233,7 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
     },
     sensorNodes: [],
     sensorsUnavailable: [],
+    amt: { devices: [], total: 0, online: 0, offline: 0, unreachable: 0 },
   };
 
   return { ...state, ...overrides };

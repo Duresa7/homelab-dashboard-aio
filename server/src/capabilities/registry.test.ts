@@ -10,6 +10,7 @@ const EXPECTED_CAPABILITIES: CapabilityId[] = [
   'gpu',
   'sensors',
   'logs',
+  'amt',
 ];
 
 describe('capability registry', () => {
