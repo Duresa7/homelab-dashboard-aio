@@ -35,7 +35,8 @@ export type CapabilityId =
   | 'containers'
   | 'gpu'
   | 'sensors'
-  | 'logs';
+  | 'logs'
+  | 'amt';
 
 export interface CapabilityPresentation {
   id: CapabilityId;
@@ -55,6 +56,7 @@ export const SECTION_CAPABILITY: Partial<Record<Section, CapabilityId>> = {
   network: 'network',
   docker: 'containers',
   nas: 'nas',
+  amt: 'amt',
 };
 
 const FALLBACK_CAPABILITIES: Capability[] = [
@@ -163,6 +165,21 @@ const FALLBACK_CAPABILITIES: Capability[] = [
       },
     ],
   },
+  {
+    id: 'amt',
+    label: 'AMT',
+    integrationKey: 'amt',
+    providers: [
+      {
+        id: 'intel-amt',
+        label: 'Intel AMT',
+        icon: 'intel-amt',
+        adapter: 'amt',
+        status: 'available',
+        configSchema: [],
+      },
+    ],
+  },
 ];
 
 const CURRENT_PROVIDER_BY_CAPABILITY: Record<CapabilityId, string> = {
@@ -173,6 +190,7 @@ const CURRENT_PROVIDER_BY_CAPABILITY: Record<CapabilityId, string> = {
   gpu: 'nvidia',
   sensors: 'lm-sensors',
   logs: 'syslog',
+  amt: 'intel-amt',
 };
 
 const GENERIC_ICON: Record<CapabilityId, LucideIcon> = {
@@ -183,6 +201,7 @@ const GENERIC_ICON: Record<CapabilityId, LucideIcon> = {
   gpu: Cpu,
   sensors: Thermometer,
   logs: ScrollText,
+  amt: Cpu,
 };
 
 const PROVIDER_ICON: Record<string, { kind: 'dashboard'; name: string }> = {

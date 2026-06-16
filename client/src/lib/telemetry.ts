@@ -3,6 +3,8 @@ import { getConnectivity } from './connectivity';
 import { apiFetch, readApiError } from './http';
 import { effectiveIntervalMs } from './refresh-rate';
 import type {
+  AmtApiResponse,
+  AmtData,
   DashboardState,
   Disk,
   DockerApiResponse,
@@ -23,9 +25,10 @@ const DOCKER_POLL_MS = 10000;
 const GPU_POLL_MS = 5000;
 const SENSORS_POLL_MS = 5000;
 const UNAS_POLL_MS = 30000;
+const AMT_POLL_MS = 15000;
 const OFFLINE_BACKOFF_MS = 15000;
 
-export type IntegrationKey = 'unifi' | 'proxmox' | 'docker' | 'gpu' | 'sensors' | 'unas';
+export type IntegrationKey = 'unifi' | 'proxmox' | 'docker' | 'gpu' | 'sensors' | 'unas' | 'amt';
 
 type PollerPayloads = {
   unifi: UnifiApiResponse;
@@ -34,6 +37,7 @@ type PollerPayloads = {
   gpu: GpuApiResponse;
   sensors: SensorsApiResponse;
   unas: UnasApiResponse;
+  amt: AmtApiResponse;
 };
 
 type ApiEnvelope<T extends object> = T | { disabled: true } | { error: string };
@@ -68,6 +72,10 @@ function emptyUnifi(): UnifiData {
     dnsRecords: [],
     appVersion: null,
   };
+}
+
+function emptyAmt(): AmtData {
+  return { devices: [], total: 0, online: 0, offline: 0, unreachable: 0 };
 }
 
 function emptyNetwork(): NetworkData {
@@ -178,7 +186,7 @@ function buildInit(): DashboardState {
     },
     sensorNodes: [],
     sensorsUnavailable: [],
-    amt: { devices: [], total: 0, online: 0, offline: 0, unreachable: 0 },
+    amt: emptyAmt(),
   };
 }
 
@@ -201,6 +209,7 @@ const telemetryState: Record<IntegrationKey, TelemetryIntegrationState> = {
   gpu: { ...initialTelemetryState },
   sensors: { ...initialTelemetryState },
   unas: { ...initialTelemetryState },
+  amt: { ...initialTelemetryState },
 };
 
 function notify(): void {
@@ -456,6 +465,12 @@ function applySensors(payload: SensorsApiResponse): boolean {
   return true;
 }
 
+function applyAmt(payload: AmtApiResponse): boolean {
+  if (!payload.amt) return false;
+  state.amt = payload.amt;
+  return true;
+}
+
 const POLLERS: { [K in IntegrationKey]: PollerConfig<K> } = {
   unifi: {
     id: 'unifi',
@@ -534,6 +549,16 @@ const POLLERS: { [K in IntegrationKey]: PollerConfig<K> } = {
       state.storage = buildInit().storage;
     },
   },
+  amt: {
+    id: 'amt',
+    capabilityId: 'amt',
+    url: '/api/amt',
+    intervalMs: AMT_POLL_MS,
+    apply: applyAmt,
+    reset: () => {
+      state.amt = emptyAmt();
+    },
+  },
 };
 
 export const INTEGRATION_KEYS = Object.keys(POLLERS) as IntegrationKey[];
@@ -547,6 +572,7 @@ const POLLER_STARTERS: Record<IntegrationKey, () => () => void> = {
   gpu: () => startPoller(POLLERS.gpu),
   sensors: () => startPoller(POLLERS.sensors),
   unas: () => startPoller(POLLERS.unas),
+  amt: () => startPoller(POLLERS.amt),
 };
 
 export function setIntegrationEnabled(key: IntegrationKey, enabled: boolean): void {
@@ -584,6 +610,7 @@ export function getTelemetryState(): Record<IntegrationKey, TelemetryIntegration
     gpu: { ...telemetryState.gpu },
     sensors: { ...telemetryState.sensors },
     unas: { ...telemetryState.unas },
+    amt: { ...telemetryState.amt },
   };
 }
 

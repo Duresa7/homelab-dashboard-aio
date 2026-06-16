@@ -7,6 +7,7 @@ export type Section =
   | 'docker'
   | 'nas'
   | 'observability'
+  | 'amt'
   | 'inventory'
   | 'tools'
   | 'playground'
@@ -68,6 +69,10 @@ export const SUBS: Partial<Record<Section, SubDef[]>> = {
     { id: 'siem', label: 'SIEM' },
     { id: 'health', label: 'API Health' },
   ],
+  amt: [
+    { id: 'overview', label: 'Overview' },
+    { id: 'devices', label: 'Devices' },
+  ],
 };
 
 export const DEFAULT_SUB: Record<Section, string | undefined> = {
@@ -77,6 +82,7 @@ export const DEFAULT_SUB: Record<Section, string | undefined> = {
   docker: 'overview',
   nas: 'overview',
   observability: 'alerts',
+  amt: 'overview',
   inventory: undefined,
   tools: undefined,
   playground: undefined,
@@ -90,6 +96,7 @@ export const SECTION_LABEL: Record<Section, string> = {
   docker: 'Docker',
   nas: 'NAS',
   observability: 'Observability',
+  amt: 'AMT',
   inventory: 'Inventory',
   tools: 'Tools',
   playground: 'Playground',
