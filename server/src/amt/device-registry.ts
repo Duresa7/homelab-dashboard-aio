@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 
-import { assertAllowedHost } from '../lib/net-guard.js';
+import { assertAllowedHost, BlockedHostError, hostFromInput } from '../lib/net-guard.js';
 import { encryptSecret, isEncryptedValue, type EncryptedValue } from '../lib/secrets.js';
 import type { StateStore } from '../storage/types.js';
 
@@ -45,6 +47,37 @@ export interface DeviceRegistry {
   remove(id: string): Promise<boolean>;
 }
 
+function isLoopbackIp(ip: string): boolean {
+  const kind = isIP(ip);
+  if (kind === 4) return ip.startsWith('127.');
+  if (kind !== 6) return false;
+  const addr = ip.toLowerCase().split('%')[0];
+  if (addr === '::1' || addr === '0:0:0:0:0:0:0:1') return true;
+  const mapped = /(?:^|:)((?:\d{1,3}\.){3}\d{1,3})$/.exec(addr);
+  return mapped ? isLoopbackIp(mapped[1]) : false;
+}
+
+async function assertAllowedAmtHost(input: string): Promise<void> {
+  await assertAllowedHost(input);
+
+  const host = hostFromInput(input);
+  if (isLoopbackIp(host)) {
+    throw new BlockedHostError(`AMT device host ${host} is not allowed`);
+  }
+  if (isIP(host)) return;
+
+  try {
+    const resolved = await lookup(host, { all: true });
+    for (const { address } of resolved) {
+      if (isLoopbackIp(address)) {
+        throw new BlockedHostError(`AMT device host "${host}" resolves to a loopback address`);
+      }
+    }
+  } catch (err) {
+    if (err instanceof BlockedHostError) throw err;
+  }
+}
+
 /** Narrow an arbitrary stored value to a well-formed device, dropping anything
  * that doesn't match (e.g. a hand-edited or partially-written blob). */
 function isDeviceConfig(value: unknown): value is AmtDeviceConfig {
@@ -83,8 +116,9 @@ export function createDeviceRegistry(store: StateStore, secretKey: Buffer): Devi
     },
 
     async upsert(input, defaults) {
-      // SSRF guard: block loopback/link-local/metadata before persisting.
-      await assertAllowedHost(input.host);
+      // AMT endpoints must be real out-of-band controllers, not this dashboard
+      // process or cloud-metadata/link-local addresses.
+      await assertAllowedAmtHost(input.host);
 
       const devices = await readAll();
       const idx = input.id ? devices.findIndex((d) => d.id === input.id) : -1;
