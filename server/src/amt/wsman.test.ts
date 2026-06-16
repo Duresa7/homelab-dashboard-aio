@@ -157,7 +157,11 @@ describe('AMT WSMAN digest transport', () => {
     await createAmtClient(CONN).getPowerState();
     expect(httpMock.insecureFetch).toHaveBeenCalledWith(
       'https://amt.test:16993/wsman',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/soap+xml; charset=UTF-8' },
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 
@@ -177,6 +181,15 @@ describe('AMT WSMAN digest transport', () => {
   it('throws a redacted error on a non-401 failure', async () => {
     httpMock.insecureFetch.mockResolvedValue(makeResponse(500, 'boom'));
     await expect(createAmtClient(CONN).getPowerState()).rejects.toThrow(/WSMAN request failed/);
+    await expect(createAmtClient(CONN).getPowerState()).rejects.not.toThrow(/S3cr3t/);
+  });
+
+  it('wraps network failures without leaking credentials', async () => {
+    httpMock.insecureFetch.mockRejectedValue(new Error('connect ECONNREFUSED'));
+
+    await expect(createAmtClient(CONN).getPowerState()).rejects.toThrow(
+      /AMT amt\.test: WSMAN connection failed \(connect ECONNREFUSED\)/,
+    );
     await expect(createAmtClient(CONN).getPowerState()).rejects.not.toThrow(/S3cr3t/);
   });
 });

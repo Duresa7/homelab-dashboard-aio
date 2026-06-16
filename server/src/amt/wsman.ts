@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { AMT, CIM } from '@open-amt-cloud-toolkit/wsman-messages';
 
 import { insecureFetch } from '../lib/http.js';
+import { errorMessage } from '../lib/errors.js';
 import {
   buildAuthorizationHeader,
   parseWwwAuthenticate,
@@ -148,12 +149,18 @@ export function createAmtClient(conn: AmtConnection): AmtClient {
       'Content-Type': 'application/soap+xml; charset=UTF-8',
     };
     if (authHeader) headers.Authorization = authHeader;
-    return insecureFetch(url, {
-      method: 'POST',
-      headers,
-      body: xml,
-      signal: AbortSignal.timeout(WSMAN_TIMEOUT_MS),
-    });
+    try {
+      return await insecureFetch(url, {
+        method: 'POST',
+        headers,
+        body: xml,
+        signal: AbortSignal.timeout(WSMAN_TIMEOUT_MS),
+      });
+    } catch (err) {
+      throw new Error(`AMT ${conn.host}: WSMAN connection failed (${errorMessage(err)})`, {
+        cause: err,
+      });
+    }
   }
 
   /** Send a WSMAN envelope, performing the digest challenge/response dance. */

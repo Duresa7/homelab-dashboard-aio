@@ -15,6 +15,16 @@ import {
 const hoisted = vi.hoisted(() => ({
   behaviors: new Map<string, { unreachable?: boolean; powerState?: string; amtVersion?: string }>(),
   lastConn: null as { host: string; password: string } | null,
+  connections: [] as Array<{
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    useTls: boolean;
+  }>,
+  powerActions: [] as Array<{ host: string; action: string }>,
+  generalSettingsHosts: [] as string[],
+  powerStateCalls: new Map<string, number>(),
 }));
 
 const DEFAULT_HW = {
@@ -33,19 +43,34 @@ const DEFAULT_HW = {
 };
 
 vi.mock('./wsman.js', () => ({
-  createAmtClient: (conn: { host: string; password: string }) => {
+  createAmtClient: (conn: {
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    useTls: boolean;
+  }) => {
     hoisted.lastConn = { host: conn.host, password: conn.password };
+    hoisted.connections.push({
+      host: conn.host,
+      port: conn.port,
+      username: conn.username,
+      password: conn.password,
+      useTls: conn.useTls,
+    });
     const b = hoisted.behaviors.get(conn.host) ?? {};
     const guard = () => {
       if (b.unreachable) throw new Error('connect ECONNREFUSED');
     };
     return {
       async getPowerState() {
+        hoisted.powerStateCalls.set(conn.host, (hoisted.powerStateCalls.get(conn.host) ?? 0) + 1);
         guard();
         return (b.powerState as 'on' | 'off' | 'sleep' | 'hibernate' | 'unknown') ?? 'on';
       },
-      async requestPowerAction() {
+      async requestPowerAction(action: string) {
         guard();
+        hoisted.powerActions.push({ host: conn.host, action });
         return { returnValue: 0 };
       },
       async getHardwareInventory() {
@@ -54,6 +79,7 @@ vi.mock('./wsman.js', () => ({
       },
       async getGeneralSettings() {
         guard();
+        hoisted.generalSettingsHosts.push(conn.host);
         return { hostname: conn.host, amtVersion: b.amtVersion ?? '15.0.0' };
       },
     };
@@ -100,6 +126,10 @@ let registry: DeviceRegistry;
 beforeEach(async () => {
   hoisted.behaviors.clear();
   hoisted.lastConn = null;
+  hoisted.connections.length = 0;
+  hoisted.powerActions.length = 0;
+  hoisted.generalSettingsHosts.length = 0;
+  hoisted.powerStateCalls.clear();
   resetSecretKeyCache();
   configureAmt({ enabled: true, vendor: 'intel-amt', config: {} });
   clearAmtCache();
@@ -150,8 +180,85 @@ describe('AMT provider fetch', () => {
     expect(on.hardware?.amtVersion).toBe('15.0.0');
   });
 
+  it('uses the TTL cache to avoid re-polling inside the configured interval', async () => {
+    vi.useFakeTimers();
+    try {
+      await registry.upsert({ name: 'cached', host: '10.0.0.30', password: 'pw' }, DEFAULTS);
+      hoisted.behaviors.set('10.0.0.30', { powerState: 'on' });
+      clearAmtCache();
+
+      const first = await amtProvider.fetch!();
+      hoisted.behaviors.set('10.0.0.30', { powerState: 'off' });
+      const second = await amtProvider.fetch!();
+
+      expect(second).toBe(first);
+      expect(second.amt.devices[0].powerState).toBe('on');
+      expect(hoisted.powerStateCalls.get('10.0.0.30')).toBe(1);
+
+      vi.advanceTimersByTime(15001);
+      const third = await amtProvider.fetch!();
+      expect(third.amt.devices[0].powerState).toBe('off');
+      expect(hoisted.powerStateCalls.get('10.0.0.30')).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('rejects probe when no devices are configured', async () => {
     await expect(amtProvider.probe!(1000)).rejects.toThrow(/No AMT devices/);
+  });
+
+  it('probes the first configured device by reading AMT general settings', async () => {
+    await registry.upsert({ name: 'first', host: 'amt-first.test', password: 'pw' }, DEFAULTS);
+    await registry.upsert({ name: 'second', host: 'amt-second.test', password: 'pw' }, DEFAULTS);
+    hoisted.behaviors.set('amt-first.test', { amtVersion: '16.1.25' });
+
+    await expect(amtProvider.probe!(1000)).resolves.toEqual({
+      hostname: 'amt-first.test',
+      amtVersion: '16.1.25',
+    });
+    expect(hoisted.generalSettingsHosts).toEqual(['amt-first.test']);
+  });
+
+  it('configure updates runtime defaults and clears cached data', async () => {
+    await registry.upsert({ name: 'cached', host: '10.0.0.31', password: 'pw' }, DEFAULTS);
+    hoisted.behaviors.set('10.0.0.31', { powerState: 'on' });
+    clearAmtCache();
+    expect((await amtProvider.fetch!()).amt.devices[0].powerState).toBe('on');
+
+    hoisted.behaviors.set('10.0.0.31', { powerState: 'off' });
+    configureAmt({
+      enabled: true,
+      vendor: 'intel-amt',
+      config: {
+        defaultPort: 16992,
+        defaultUsername: 'operator',
+        useTls: false,
+        pollInterval: 30000,
+      },
+    });
+
+    const afterConfigure = await amtProvider.fetch!();
+    expect(afterConfigure.amt.devices[0].powerState).toBe('off');
+
+    const debug = (await amtProvider.debug!()) as { config: Record<string, unknown> };
+    expect(debug.config).toMatchObject({
+      enabled: true,
+      defaultPort: 16992,
+      defaultUsername: 'operator',
+      useTls: false,
+      pollInterval: 30000,
+    });
+
+    const created = await request(app)
+      .post('/api/amt/devices')
+      .send({ name: 'defaults', host: '203.0.113.45', password: 'pw' })
+      .expect(201);
+    expect(created.body.device).toMatchObject({
+      port: 16992,
+      username: 'operator',
+      useTls: false,
+    });
   });
 });
 
@@ -235,17 +342,20 @@ describe('AMT device CRUD routes', () => {
 });
 
 describe('AMT power route', () => {
-  it('executes a power action against the decrypted device credentials', async () => {
-    const created = await registry.upsert(
-      { name: 'p', host: '10.0.0.11', password: 'topsecret' },
+  it('routes a power action to the selected device with decrypted credentials', async () => {
+    await registry.upsert({ name: 'first', host: '10.0.0.11', password: 'firstsecret' }, DEFAULTS);
+    const selected = await registry.upsert(
+      { name: 'selected', host: '10.0.0.12', password: 'topsecret' },
       DEFAULTS,
     );
-    hoisted.behaviors.set('10.0.0.11', { powerState: 'on' });
+    hoisted.behaviors.set('10.0.0.12', { powerState: 'on' });
     const res = await request(app)
       .post('/api/amt/power')
-      .send({ deviceId: created.id, action: 'cycle' })
+      .send({ deviceId: selected.id, action: 'cycle' })
       .expect(200);
     expect(res.body).toEqual({ ok: true, returnValue: 0 });
+    expect(hoisted.powerActions).toEqual([{ host: '10.0.0.12', action: 'cycle' }]);
+    expect(hoisted.lastConn?.host).toBe('10.0.0.12');
     expect(hoisted.lastConn?.password).toBe('topsecret');
   });
 
