@@ -82,6 +82,12 @@ paths = [
   '''(^|/)data/''',
   '''(^|/)dist/''',
   '''(^|/).*\.log$''',
+  # Tool caches (e.g. Trivy's vuln DB, which embeds thousands of Debian
+  # maintainer emails) get written into the workspace during the CI publish job,
+  # before the gitleaks gate scans the tree. They are downloaded artifacts, not
+  # repo content — scanning them is meaningless and floods the gate with false
+  # positives.
+  '''(^|/)\.cache/''',
 ]
 
 # .env.example is a template of blank placeholders by design — exempt it from the
