@@ -1,0 +1,407 @@
+import express, { type Express } from 'express';
+import request from 'supertest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getSecretKey, resetSecretKeyCache } from '../lib/secrets.js';
+import type { StateEntry, StateSnapshot, StateStore, StateStoreStats } from '../storage/types.js';
+import {
+  createDeviceRegistry,
+  type AmtDeviceDefaults,
+  type DeviceRegistry,
+} from './device-registry.js';
+
+// Per-host behavior the fake WSMAN client reads, plus a record of the last
+// connection so tests can assert the password was decrypted before dialing.
+const hoisted = vi.hoisted(() => ({
+  behaviors: new Map<string, { unreachable?: boolean; powerState?: string; amtVersion?: string }>(),
+  lastConn: null as { host: string; password: string } | null,
+  connections: [] as Array<{
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    useTls: boolean;
+  }>,
+  powerActions: [] as Array<{ host: string; action: string }>,
+  generalSettingsHosts: [] as string[],
+  powerStateCalls: new Map<string, number>(),
+}));
+
+const DEFAULT_HW = {
+  cpu: { model: 'Core i7', cores: 8, maxSpeedMhz: 3600 },
+  memory: [
+    {
+      bankLabel: 'BANK 0',
+      capacityBytes: 8 * 1024 ** 3,
+      speedMhz: 3200,
+      memoryType: 'DDR4',
+      formFactor: 'DIMM',
+    },
+  ],
+  bios: { vendor: 'Dell', version: '1.2.3', releaseDate: '2024-01-01' },
+  nics: [{ mac: 'AA:BB:CC:DD:EE:FF', linkUp: true }],
+};
+
+vi.mock('./wsman.js', () => ({
+  createAmtClient: (conn: {
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    useTls: boolean;
+  }) => {
+    hoisted.lastConn = { host: conn.host, password: conn.password };
+    hoisted.connections.push({
+      host: conn.host,
+      port: conn.port,
+      username: conn.username,
+      password: conn.password,
+      useTls: conn.useTls,
+    });
+    const b = hoisted.behaviors.get(conn.host) ?? {};
+    const guard = () => {
+      if (b.unreachable) throw new Error('connect ECONNREFUSED');
+    };
+    return {
+      async getPowerState() {
+        hoisted.powerStateCalls.set(conn.host, (hoisted.powerStateCalls.get(conn.host) ?? 0) + 1);
+        guard();
+        return (b.powerState as 'on' | 'off' | 'sleep' | 'hibernate' | 'unknown') ?? 'on';
+      },
+      async requestPowerAction(action: string) {
+        guard();
+        hoisted.powerActions.push({ host: conn.host, action });
+        return { returnValue: 0 };
+      },
+      async getHardwareInventory() {
+        guard();
+        return DEFAULT_HW;
+      },
+      async getGeneralSettings() {
+        guard();
+        hoisted.generalSettingsHosts.push(conn.host);
+        return { hostname: conn.host, amtVersion: b.amtVersion ?? '15.0.0' };
+      },
+    };
+  },
+}));
+
+// Imported after the mock so the provider closes over the fake createAmtClient.
+const { amtProvider, registerAmtRoutes, clearAmtCache, configureAmt } = await import('./index.js');
+
+/** Minimal in-memory StateStore (mirrors device-registry.test.ts). */
+class MemoryStore implements StateStore {
+  private values = new Map<string, unknown>();
+  async getAll(): Promise<StateSnapshot> {
+    return { values: Object.fromEntries(this.values), updatedAt: {} };
+  }
+  async get(key: string): Promise<StateEntry | null> {
+    if (!this.values.has(key)) return null;
+    return { value: this.values.get(key), updatedAt: 0 };
+  }
+  async put(key: string, value: unknown): Promise<number> {
+    this.values.set(key, value);
+    return 0;
+  }
+  async delete(key: string): Promise<number> {
+    return this.values.delete(key) ? 1 : 0;
+  }
+  async importBulk(entries: Record<string, unknown>): Promise<number> {
+    for (const [k, v] of Object.entries(entries)) this.values.set(k, v);
+    return Object.keys(entries).length;
+  }
+  async stats(): Promise<StateStoreStats> {
+    return { path: null, fileSize: null, keys: this.values.size, schemaVersion: 1 };
+  }
+  async close(): Promise<void> {}
+}
+
+const DEFAULTS: AmtDeviceDefaults = { port: 16993, username: 'admin', useTls: true };
+const FAKE_UUID = '00000000-0000-0000-0000-000000000000';
+
+let app: Express;
+let store: MemoryStore;
+let registry: DeviceRegistry;
+
+beforeEach(async () => {
+  hoisted.behaviors.clear();
+  hoisted.lastConn = null;
+  hoisted.connections.length = 0;
+  hoisted.powerActions.length = 0;
+  hoisted.generalSettingsHosts.length = 0;
+  hoisted.powerStateCalls.clear();
+  resetSecretKeyCache();
+  configureAmt({ enabled: true, vendor: 'intel-amt', config: {} });
+  clearAmtCache();
+
+  const key = await getSecretKey();
+  store = new MemoryStore();
+  registry = createDeviceRegistry(store, key);
+  app = express();
+  registerAmtRoutes(app, registry);
+});
+
+describe('AMT provider fetch', () => {
+  it('returns empty aggregate data when no devices are registered', async () => {
+    clearAmtCache();
+    const { amt } = await amtProvider.fetch!();
+    expect(amt).toEqual({ devices: [], total: 0, online: 0, offline: 0, unreachable: 0 });
+  });
+
+  it('polls all devices in parallel and aggregates counts', async () => {
+    await registry.upsert({ name: 'on', host: '192.0.2.1', password: 'pw' }, DEFAULTS);
+    await registry.upsert({ name: 'off', host: '192.0.2.2', password: 'pw' }, DEFAULTS);
+    await registry.upsert({ name: 'dead', host: '192.0.2.3', password: 'pw' }, DEFAULTS);
+    hoisted.behaviors.set('192.0.2.1', { powerState: 'on' });
+    hoisted.behaviors.set('192.0.2.2', { powerState: 'off' });
+    hoisted.behaviors.set('192.0.2.3', { unreachable: true });
+    clearAmtCache();
+
+    const { amt } = await amtProvider.fetch!();
+    expect(amt.total).toBe(3);
+    expect(amt.online).toBe(1);
+    expect(amt.offline).toBe(1);
+    expect(amt.unreachable).toBe(1);
+
+    const dead = amt.devices.find((d) => d.host === '192.0.2.3')!;
+    expect(dead.reachable).toBe(false);
+    expect(dead.error).toBeTruthy();
+    expect(dead.lastSeenAt).toBeNull();
+    expect(dead.hardware).toBeNull();
+
+    const on = amt.devices.find((d) => d.host === '192.0.2.1')!;
+    expect(on.reachable).toBe(true);
+    expect(on.powerState).toBe('on');
+    expect(on.lastSeenAt).not.toBeNull();
+    expect(on.hardware?.cpu?.model).toBe('Core i7');
+    expect(on.hardware?.cpu?.maxSpeedMHz).toBe(3600);
+    expect(on.hardware?.memory?.totalMB).toBe(8192);
+    expect(on.hardware?.nics?.[0]?.linkStatus).toBe('up');
+    expect(on.hardware?.amtVersion).toBe('15.0.0');
+  });
+
+  it('uses the TTL cache to avoid re-polling inside the configured interval', async () => {
+    vi.useFakeTimers();
+    try {
+      await registry.upsert({ name: 'cached', host: '192.0.2.30', password: 'pw' }, DEFAULTS);
+      hoisted.behaviors.set('192.0.2.30', { powerState: 'on' });
+      clearAmtCache();
+
+      const first = await amtProvider.fetch!();
+      hoisted.behaviors.set('192.0.2.30', { powerState: 'off' });
+      const second = await amtProvider.fetch!();
+
+      expect(second).toBe(first);
+      expect(second.amt.devices[0].powerState).toBe('on');
+      expect(hoisted.powerStateCalls.get('192.0.2.30')).toBe(1);
+
+      vi.advanceTimersByTime(15001);
+      const third = await amtProvider.fetch!();
+      expect(third.amt.devices[0].powerState).toBe('off');
+      expect(hoisted.powerStateCalls.get('192.0.2.30')).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects probe when no devices are configured', async () => {
+    await expect(amtProvider.probe!(1000)).rejects.toThrow(/No AMT devices/);
+  });
+
+  it('probes the first configured device by reading AMT general settings', async () => {
+    await registry.upsert({ name: 'first', host: 'amt-first.test', password: 'pw' }, DEFAULTS);
+    await registry.upsert({ name: 'second', host: 'amt-second.test', password: 'pw' }, DEFAULTS);
+    hoisted.behaviors.set('amt-first.test', { amtVersion: '16.1.25' });
+
+    await expect(amtProvider.probe!(1000)).resolves.toEqual({
+      hostname: 'amt-first.test',
+      amtVersion: '16.1.25',
+    });
+    expect(hoisted.generalSettingsHosts).toEqual(['amt-first.test']);
+  });
+
+  it('configure updates runtime defaults and clears cached data', async () => {
+    await registry.upsert({ name: 'cached', host: '192.0.2.31', password: 'pw' }, DEFAULTS);
+    hoisted.behaviors.set('192.0.2.31', { powerState: 'on' });
+    clearAmtCache();
+    expect((await amtProvider.fetch!()).amt.devices[0].powerState).toBe('on');
+
+    hoisted.behaviors.set('192.0.2.31', { powerState: 'off' });
+    configureAmt({
+      enabled: true,
+      vendor: 'intel-amt',
+      config: {
+        defaultPort: 16992,
+        defaultUsername: 'operator',
+        useTls: false,
+        pollInterval: 30000,
+      },
+    });
+
+    const afterConfigure = await amtProvider.fetch!();
+    expect(afterConfigure.amt.devices[0].powerState).toBe('off');
+
+    const debug = (await amtProvider.debug!()) as { config: Record<string, unknown> };
+    expect(debug.config).toMatchObject({
+      enabled: true,
+      defaultPort: 16992,
+      defaultUsername: 'operator',
+      useTls: false,
+      pollInterval: 30000,
+    });
+
+    const created = await request(app)
+      .post('/api/amt/devices')
+      .send({ name: 'defaults', host: '203.0.113.45', password: 'pw' })
+      .expect(201);
+    expect(created.body.device).toMatchObject({
+      port: 16992,
+      username: 'operator',
+      useTls: false,
+    });
+  });
+});
+
+describe('AMT device CRUD routes', () => {
+  it('lists devices with passwords redacted', async () => {
+    const created = await registry.upsert(
+      { name: 'rack', host: '192.0.2.5', password: 'sekret' },
+      DEFAULTS,
+    );
+    const res = await request(app).get('/api/amt/devices').expect(200);
+    expect(res.body.devices).toHaveLength(1);
+    expect(res.body.devices[0].id).toBe(created.id);
+    expect(res.body.devices[0].password).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toContain('sekret');
+  });
+
+  it('creates a device with defaults and redacts the password in the response', async () => {
+    const res = await request(app)
+      .post('/api/amt/devices')
+      .send({ name: 'new', host: '192.0.2.6', password: 'pw' })
+      .expect(201);
+    expect(res.body.device.port).toBe(16993);
+    expect(res.body.device.username).toBe('admin');
+    expect(res.body.device.useTls).toBe(true);
+    expect(res.body.device.password).toBeUndefined();
+    expect(await registry.list()).toHaveLength(1);
+  });
+
+  it('rejects creates missing required fields with 400', async () => {
+    await request(app)
+      .post('/api/amt/devices')
+      .send({ host: '192.0.2.6', password: 'pw' })
+      .expect(400);
+    await request(app).post('/api/amt/devices').send({ name: 'n', password: 'pw' }).expect(400);
+    await request(app).post('/api/amt/devices').send({ name: 'n', host: '192.0.2.6' }).expect(400);
+  });
+
+  it('rejects creates pointing at a blocked host with 400', async () => {
+    await request(app)
+      .post('/api/amt/devices')
+      .send({ name: 'meta', host: '169.254.169.254', password: 'pw' })
+      .expect(400);
+    expect(await registry.list()).toEqual([]);
+  });
+
+  it('updates a device in place, preserving its id', async () => {
+    const created = await registry.upsert(
+      { name: 'old', host: '192.0.2.7', password: 'pw' },
+      DEFAULTS,
+    );
+    const res = await request(app)
+      .put(`/api/amt/devices/${created.id}`)
+      .send({ name: 'new', host: '192.0.2.8', password: 'pw2' })
+      .expect(200);
+    expect(res.body.device.id).toBe(created.id);
+    expect(res.body.device.name).toBe('new');
+    expect(res.body.device.host).toBe('192.0.2.8');
+    expect(await registry.list()).toHaveLength(1);
+  });
+
+  it('rejects updates with an invalid id (400) or unknown id (404)', async () => {
+    await request(app)
+      .put('/api/amt/devices/not-a-uuid')
+      .send({ name: 'n', host: '192.0.2.1', password: 'pw' })
+      .expect(400);
+    await request(app)
+      .put(`/api/amt/devices/${FAKE_UUID}`)
+      .send({ name: 'n', host: '192.0.2.1', password: 'pw' })
+      .expect(404);
+  });
+
+  it('removes a device, returning 404 on a second delete and 400 for bad ids', async () => {
+    const created = await registry.upsert(
+      { name: 'gone', host: '192.0.2.9', password: 'pw' },
+      DEFAULTS,
+    );
+    await request(app).delete(`/api/amt/devices/${created.id}`).expect(200, { ok: true });
+    await request(app).delete(`/api/amt/devices/${created.id}`).expect(404);
+    await request(app).delete('/api/amt/devices/bad').expect(400);
+  });
+});
+
+describe('AMT power route', () => {
+  it('routes a power action to the selected device with decrypted credentials', async () => {
+    await registry.upsert({ name: 'first', host: '192.0.2.11', password: 'firstsecret' }, DEFAULTS);
+    const selected = await registry.upsert(
+      { name: 'selected', host: '192.0.2.12', password: 'topsecret' },
+      DEFAULTS,
+    );
+    hoisted.behaviors.set('192.0.2.12', { powerState: 'on' });
+    const res = await request(app)
+      .post('/api/amt/power')
+      .send({ deviceId: selected.id, action: 'cycle' })
+      .expect(200);
+    expect(res.body).toEqual({ ok: true, returnValue: 0 });
+    expect(hoisted.powerActions).toEqual([{ host: '192.0.2.12', action: 'cycle' }]);
+    expect(hoisted.lastConn?.host).toBe('192.0.2.12');
+    expect(hoisted.lastConn?.password).toBe('topsecret');
+  });
+
+  it('validates the action and the device id', async () => {
+    const created = await registry.upsert(
+      { name: 'p', host: '192.0.2.12', password: 'pw' },
+      DEFAULTS,
+    );
+    await request(app)
+      .post('/api/amt/power')
+      .send({ deviceId: created.id, action: 'explode' })
+      .expect(400);
+    await request(app).post('/api/amt/power').send({ deviceId: 'bad', action: 'on' }).expect(400);
+    await request(app)
+      .post('/api/amt/power')
+      .send({ deviceId: FAKE_UUID, action: 'on' })
+      .expect(404);
+  });
+});
+
+describe('AMT inventory route', () => {
+  it('returns mapped hardware inventory on demand', async () => {
+    const created = await registry.upsert(
+      { name: 'inv', host: '192.0.2.13', password: 'pw' },
+      DEFAULTS,
+    );
+    hoisted.behaviors.set('192.0.2.13', {});
+    const res = await request(app).get(`/api/amt/devices/${created.id}/inventory`).expect(200);
+    expect(res.body.inventory.cpu.model).toBe('Core i7');
+    expect(res.body.inventory.memory.totalMB).toBe(8192);
+    expect(res.body.inventory.bios.vendor).toBe('Dell');
+    expect(res.body.inventory.nics[0].linkStatus).toBe('up');
+    expect(res.body.inventory.amtVersion).toBe('15.0.0');
+  });
+
+  it('rejects invalid ids (400) and unknown devices (404)', async () => {
+    await request(app).get('/api/amt/devices/not-a-uuid/inventory').expect(400);
+    await request(app).get(`/api/amt/devices/${FAKE_UUID}/inventory`).expect(404);
+  });
+});
+
+describe('AMT routes without a registry', () => {
+  it('returns 503 for every route when the registry is unavailable', async () => {
+    const bare = express();
+    registerAmtRoutes(bare, null);
+    await request(bare).get('/api/amt/devices').expect(503);
+    await request(bare).post('/api/amt/devices').send({}).expect(503);
+  });
+});

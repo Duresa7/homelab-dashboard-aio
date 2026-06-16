@@ -8,7 +8,8 @@ body:
         Thanks for the report! A heads-up before you start:
         **please redact anything private** — real IP addresses, hostnames,
         MAC addresses, serial numbers, API keys. Use placeholders like
-        `192.0.2.10` or `node-a` instead.
+        `192.168.255.10` or `node-a` instead (see the
+        [placeholder conventions](https://github.com/Duresa7/homelab-dashboard-aio/blob/main/CONTRIBUTING.md#placeholder--redaction-conventions)).
   - type: textarea
     id: what-happened
     attributes:

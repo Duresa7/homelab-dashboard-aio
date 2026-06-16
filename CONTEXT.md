@@ -110,6 +110,24 @@ A Docker workload running on a Docker host. Distinct from a Proxmox VM/LXC.
 **Stack**:
 A Docker Compose project grouping related Containers.
 
+### Intel AMT
+
+**AMT device**:
+A bare-metal machine with Intel Active Management Technology provisioned and accessible via
+WSMAN over the network. Distinct from Proxmox VMs/LXCs.
+
+**WSMAN**:
+WS-Management — SOAP-over-HTTP protocol used by Intel AMT for out-of-band management. All
+communication goes through `POST /wsman` on port 16992 (HTTP) or 16993 (HTTPS).
+
+**Digest auth**:
+HTTP Digest Authentication (RFC 7616) — challenge-response authentication required by AMT
+endpoints. Uses MD5 hashing.
+
+**Power state**:
+AMT reports CIM power states (2=On, 4=Sleep, 7=Hibernate, 8=Off). The dashboard maps these
+to friendly strings (`on`, `off`, `sleep`, `hibernate`, `unknown`).
+
 ### Network
 
 **Network appliance**:

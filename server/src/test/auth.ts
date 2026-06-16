@@ -3,7 +3,7 @@ import request from 'supertest';
 
 import type { UserRole } from '../auth/types.js';
 
-export const TEST_PASSWORD = 'plasma otter veranda 9 quilt';
+export const TEST_PASSWORD = 'change-me-soon-purple-otter-42';
 
 export type AuthedAgent = ReturnType<typeof request.agent>;
 

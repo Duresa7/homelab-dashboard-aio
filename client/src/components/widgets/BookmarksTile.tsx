@@ -546,7 +546,7 @@ export function BookmarksTile({ span = 12 }: Props) {
                 value={form.url}
                 onChange={(event) => updateForm({ url: event.target.value })}
                 onBlur={suggestIconIfEmpty}
-                placeholder="http://192.168.1.10:32400"
+                placeholder="http://192.168.255.10:32400"
                 aria-invalid={error?.includes('URL') ? true : undefined}
               />
             </div>

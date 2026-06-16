@@ -12,13 +12,15 @@ useDefault = true # include gitleaks' full built-in secret ruleset
 
 [[rules]]
 id = "private-ipv4"
-description = "RFC1918 private IPv4 address — likely a leaked home/LAN address in a public repo. Use RFC5737 docs ranges (192.0.2.x / 198.51.100.x / 203.0.113.x) in examples instead."
+description = "RFC1918 private IPv4 address — likely a leaked home/LAN address in a public repo. For a private/LAN example use 192.168.255.x; for a public/external address use an RFC5737 docs range (192.0.2.x / 198.51.100.x / 203.0.113.x). See CONTRIBUTING.md."
 regex = '''\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b'''
 tags = ["pii", "network"]
 
   [rules.allowlist]
-  # The Bookmarks tile shows a realistic LAN URL as placeholder text — intentional UX, not a leak.
-  paths = ['''client/src/components/widgets/BookmarksTile\.tsx''']
+  # 192.168.255.x is the canonical private/LAN placeholder (see CONTRIBUTING.md): the
+  # familiar 192.168 shape, but a .255 subnet almost nobody really runs — so every other
+  # RFC1918 address (a likely real leak) still trips the rule.
+  regexes = ['''\b192\.168\.255\.\d{1,3}\b''']
 
 [[rules]]
 id = "private-ipv6"
@@ -59,6 +61,11 @@ tags = ["pii"]
   [rules.allowlist]
   regexes = ['''@(example\.(com|org|net|test)|test\.example|localhost)''']
 
+[[allowlists]]
+description = "RFC 2617 digest-auth test vector realm"
+targetRules = ["email-address"]
+regexes = ['''\btestrealm@host\.com\b''']
+
 # Lockfiles / vendored deps / this config: never scanned.
 [[allowlists]]
 description = "lockfiles and vendored code"
@@ -66,6 +73,15 @@ paths = [
   '''package-lock\.json''',
   '''(^|/)node_modules/''',
   '''(^|/)\.gitleaks\.toml$''',
+]
+
+[[allowlists]]
+description = "local-only ignored runtime artifacts"
+paths = [
+  '''(^|/)\.env(\..*)?$''',
+  '''(^|/)data/''',
+  '''(^|/)dist/''',
+  '''(^|/).*\.log$''',
 ]
 
 # .env.example is a template of blank placeholders by design — exempt it from the

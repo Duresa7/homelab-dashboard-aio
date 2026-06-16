@@ -8,9 +8,18 @@
 if command -v gitleaks >/dev/null 2>&1; then
   gitleaks detect --source . --no-git --config .gitleaks.toml --redact --verbose || exit 1
 elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-  docker run --rm -v "$PWD:/repo:ro" \
-    ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
-    detect --source /repo --no-git --config /repo/.gitleaks.toml --redact --verbose || exit 1
+  docker_mount_source="$PWD"
+
+  if command -v uname >/dev/null 2>&1 && uname -s | grep -Eq '^(MINGW|MSYS|CYGWIN)'; then
+    docker_mount_source="$(pwd -W)"
+    MSYS_NO_PATHCONV=1 docker run --rm -v "$docker_mount_source:/repo:ro" \
+      ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+      detect --source /repo --no-git --config /repo/.gitleaks.toml --redact --verbose || exit 1
+  else
+    docker run --rm -v "$docker_mount_source:/repo:ro" \
+      ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+      detect --source /repo --no-git --config /repo/.gitleaks.toml --redact --verbose || exit 1
+  fi
 else
   echo "pre-push: no gitleaks binary and no reachable docker daemon — skipping local secret scan (CI still scans)." >&2
 fi

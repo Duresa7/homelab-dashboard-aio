@@ -8,10 +8,10 @@ describe('resolveNodeTargets', () => {
   it('builds one target per map entry, inheriting defaults and parsing jump/overrides', () => {
     const targets = resolveNodeTargets({
       targetsJson: JSON.stringify({
-        'node-a': { host: '192.0.2.10' },
+        'node-a': { host: '192.168.255.10' },
         'node-c': {
-          host: '192.0.2.12',
-          jumpHost: '192.0.2.10',
+          host: '192.168.255.12',
+          jumpHost: '192.168.255.10',
           user: 'admin',
           port: '2222',
         },
@@ -24,7 +24,7 @@ describe('resolveNodeTargets', () => {
     expect(targets[0]).toEqual({
       node: 'node-a',
       mode: 'ssh',
-      host: '192.0.2.10',
+      host: '192.168.255.10',
       user: 'root',
       port: 22,
       keyPath: '/key',
@@ -34,10 +34,10 @@ describe('resolveNodeTargets', () => {
     });
     expect(targets[1]).toMatchObject({
       node: 'node-c',
-      host: '192.0.2.12',
+      host: '192.168.255.12',
       user: 'admin',
       port: 2222,
-      jumpHost: '192.0.2.10',
+      jumpHost: '192.168.255.10',
     });
   });
 
@@ -61,7 +61,7 @@ describe('resolveNodeTargets', () => {
 
   it('skips a map entry that resolves to no host, but keeps others', () => {
     const targets = resolveNodeTargets({
-      targetsJson: JSON.stringify({ ghost: { user: 'a' }, real: { host: '192.0.2.5' } }),
+      targetsJson: JSON.stringify({ ghost: { user: 'a' }, real: { host: '192.168.255.5' } }),
       defaults: { ...DEFAULTS, host: '' },
     });
     expect(targets.map((t) => t.node)).toEqual(['real']);

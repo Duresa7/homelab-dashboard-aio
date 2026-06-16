@@ -37,6 +37,7 @@ const ENABLE_ENV: Record<string, string> = {
   gpu: 'GPU_ENABLED',
   sensors: 'SENSORS_ENABLED',
   logs: 'SIEM_ENABLED',
+  amt: 'AMT_ENABLED',
 };
 
 class ConfigError extends Error {}

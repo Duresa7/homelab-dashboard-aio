@@ -24,6 +24,7 @@ import { SettingsPage, type SettingsTabId } from './pages/SettingsPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { ToolsPage } from './pages/ToolsPage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
+import { AmtPage } from './pages/AmtPage';
 
 import {
   INTEGRATION_KEYS,
@@ -72,6 +73,7 @@ const DEFAULTS: TweakState = {
     gpu: true,
     sensors: true,
     unas: true,
+    amt: true,
   },
 };
 
@@ -82,6 +84,7 @@ const BACKEND_BACKED_SECTIONS = new Set<Section>([
   'docker',
   'nas',
   'observability',
+  'amt',
   'inventory',
   'tools',
   'playground',
@@ -244,6 +247,13 @@ function DashboardApp() {
           onDismissAlert={dismiss}
           sub={activeSub ?? 'alerts'}
           onSelectSub={(s) => setRoute('observability', s)}
+        />
+      )}
+      {route.section === 'amt' && (
+        <AmtPage
+          data={data}
+          sub={activeSub ?? 'overview'}
+          onSelectSub={(s) => setRoute('amt', s)}
         />
       )}
       {route.section === 'inventory' && (
