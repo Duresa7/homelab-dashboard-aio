@@ -4,6 +4,9 @@ updates:
   # (verify + the PR Docker build) before it can be merged.
   - package-ecosystem: npm
     directory: /
+    # Updates enter through Dev like every other change (CONTRIBUTING.md branch
+    # model); a critical security bump can be hand-promoted Dev -> main early.
+    target-branch: Dev
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
@@ -18,6 +21,7 @@ updates:
   # updates the trailing version comment in lock-step.
   - package-ecosystem: github-actions
     directory: /
+    target-branch: Dev
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
