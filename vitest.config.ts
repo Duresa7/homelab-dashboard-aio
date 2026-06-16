@@ -7,7 +7,22 @@ import { fileURLToPath } from 'node:url';
 // `test.projects` array in the root config. Two projects: a Node project for the
 // Express server and a jsdom project for the React client.
 const here = path.dirname(fileURLToPath(import.meta.url));
-const alias = { '@': path.resolve(here, 'client/src') };
+
+// zxcvbn-ts v4's CJS builds are broken under a Node test runner: the language
+// `.cjs` files call `require('@zxcvbn-ts/dictionary-compression/decompress')(...)`,
+// but that resolves to `{ default: fn }` (esbuild interop) and throws "decompress is
+// not a function". Vitest externalizes node_modules and loads each package's `main`
+// (the .cjs), so it hits the bug. Pinning each package to its ESM `.mjs` entry makes
+// Vitest load the working ESM graph instead. Tests only — the browser build already
+// resolves the `module`/.mjs entry.
+const zxcvbnEsm = (pkg: string) =>
+  path.resolve(here, `node_modules/@zxcvbn-ts/${pkg}/dist/index.mjs`);
+const alias = {
+  '@': path.resolve(here, 'client/src'),
+  '@zxcvbn-ts/core': zxcvbnEsm('core'),
+  '@zxcvbn-ts/language-common': zxcvbnEsm('language-common'),
+  '@zxcvbn-ts/language-en': zxcvbnEsm('language-en'),
+};
 
 export default defineConfig({
   test: {
