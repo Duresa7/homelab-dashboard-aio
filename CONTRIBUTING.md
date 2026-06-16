@@ -67,11 +67,37 @@ your-branch ──PR──▶ Dev ──release PR──▶ main
 5. CI must pass before merging:
    - **Typecheck, lint, test, build**
    - **Secret & PII scan**: no real IP addresses, hostnames, credentials,
-     or personal data in code, tests, or docs. Use placeholder values
-     (`192.0.2.x`, `node-a`, `example.test`) instead.
+     or personal data in code, tests, or docs. Use the canonical placeholders
+     below ([Placeholder & redaction conventions](#placeholder--redaction-conventions)).
    - **Dependency review** (when dependencies change)
    - **CodeQL** security analysis
 6. Keep your branch up to date with `Dev`; the merge button requires it.
+
+## Placeholder & redaction conventions
+
+Never put real IPs, hostnames, MAC addresses, credentials, or personal data in
+code, tests, or docs — the public repo and its scanners reject them. Use these
+canonical placeholders everywhere instead:
+
+| Thing                       | Use                                            | Notes                                                                                                            |
+| --------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Private / LAN IPv4          | `192.168.255.x`                                | The everyday "my device's IP" placeholder.                                                                       |
+| Public / external IPv4      | `192.0.2.x`, `198.51.100.x`, `203.0.113.x`     | RFC5737 docs ranges. Use these for WAN/public IPs and any test that needs several distinct subnets (CIDR, SSRF). |
+| IPv6                        | `2001:db8::/32`                                | RFC3849 docs range.                                                                                              |
+| MAC address                 | `AA:BB:CC:DD:EE:FF`                            |                                                                                                                  |
+| Hostname / cluster nodes    | `example.test`, `node-a` / `node-b` / `node-c` |                                                                                                                  |
+| Username                    | `changeme-user`                                |                                                                                                                  |
+| Password                    | `change-me-soon-purple-otter-42`               | A deliberately fake passphrase that still clears the strength check.                                             |
+| Email                       | `changeme@example.com`                         | An `example.*` / `.test` domain — not a real one like `email.com`.                                               |
+| API keys / tokens / secrets | leave blank                                    | `.env.example` ships these empty so a blank is the "you must fill this in" signal.                               |
+
+**Why two IPv4 ranges?** `192.168.255.x` is the friendly placeholder for a LAN
+device — it has the familiar `192.168` shape, but a `.255` subnet is one almost
+nobody actually runs, so every _other_ RFC1918 address (a likely real leak) is
+still blocked. The RFC5737 ranges are for public/external addresses and for tests
+that need multiple distinct networks, which a single subnet can't express. The
+rationale is recorded in
+[docs/adr/0011-placeholder-conventions.md](docs/adr/0011-placeholder-conventions.md).
 
 ## Commit messages
 

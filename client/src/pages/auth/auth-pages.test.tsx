@@ -26,10 +26,10 @@ describe('LoginPage', () => {
     render(<LoginPage />);
 
     await user.type(screen.getByLabelText('Username'), 'admin');
-    await user.type(screen.getByLabelText('Password'), 'plasma otter veranda 9 quilt');
+    await user.type(screen.getByLabelText('Password'), 'change-me-soon-purple-otter-42');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(authMock.login).toHaveBeenCalledWith('admin', 'plasma otter veranda 9 quilt', true);
+    expect(authMock.login).toHaveBeenCalledWith('admin', 'change-me-soon-purple-otter-42', true);
   });
 
   it('shows the server error on rejected credentials', async () => {
@@ -51,7 +51,7 @@ describe('LoginPage', () => {
     render(<LoginPage />);
 
     await user.type(screen.getByLabelText('Username'), 'admin');
-    await user.type(screen.getByLabelText('Password'), 'plasma otter veranda 9 quilt');
+    await user.type(screen.getByLabelText('Password'), 'change-me-soon-purple-otter-42');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     const codeInput = await screen.findByLabelText('Verification code');
@@ -87,7 +87,7 @@ describe('PasswordStrengthField', () => {
     expect(latest.acceptable).toBe(false);
 
     await user.clear(input);
-    await user.type(input, 'plasma otter veranda 9 quilt');
+    await user.type(input, 'change-me-soon-purple-otter-42');
     await waitFor(() => expect(latest.acceptable).toBe(true), { timeout: 10_000 });
   }, 30_000);
 

@@ -54,7 +54,7 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
         {
           id: '1',
           name: 'container-host',
-          addr: '198.51.100.10',
+          addr: '192.168.255.10',
           os: 'Debian',
           engine: '27.0',
           cpu: 10,
@@ -99,7 +99,7 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
       },
       node: {
         name: 'compute-node',
-        ip: '198.51.100.10',
+        ip: '192.168.255.10',
         cpu: 25,
         ram: 50,
         ramUsedGB: 32,
@@ -148,7 +148,7 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
       topTalkers: [
         {
           name: 'Example Workstation',
-          ip: '198.51.100.50',
+          ip: '192.168.255.50',
           type: 'WIRED',
           access: 'DEFAULT',
           connectedAt: '',

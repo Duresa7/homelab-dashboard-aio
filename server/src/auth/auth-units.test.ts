@@ -40,7 +40,7 @@ describe('passwords', () => {
   });
 
   it('accepts strong passphrases', () => {
-    expect(validatePassword('plasma otter veranda 9 quilt').ok).toBe(true);
+    expect(validatePassword('change-me-soon-purple-otter-42').ok).toBe(true);
   });
 });
 
