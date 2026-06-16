@@ -1,6 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest';
 
 import type {
+  AmtApiResponse,
   DashboardState,
   DockerApiResponse,
   GpuApiResponse,
@@ -18,6 +19,7 @@ describe('shared wire contract', () => {
     expectTypeOf<UnasApiResponse['unas']>().toEqualTypeOf<DashboardState['unas']>();
     expectTypeOf<SensorsApiResponse['sensors']>().toEqualTypeOf<DashboardState['sensors']>();
     expectTypeOf<UnifiApiResponse['unifi']>().toEqualTypeOf<DashboardState['unifi']>();
+    expectTypeOf<AmtApiResponse['amt']>().toEqualTypeOf<DashboardState['amt']>();
 
     expectTypeOf<UnifiApiResponse['network']>().toMatchTypeOf<
       Omit<NetworkData, 'downHistory' | 'upHistory' | 'latencyHistory'>

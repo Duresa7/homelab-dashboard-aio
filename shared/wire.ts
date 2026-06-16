@@ -577,6 +577,8 @@ export interface DashboardState {
   sensorNodes: NodeSensors[];
 
   sensorsUnavailable: NodeUnavailable[];
+
+  amt: AmtData;
 }
 
 export interface UnifiApiResponse {
@@ -636,4 +638,43 @@ export interface UpdateStatus {
   enabled: boolean;
   isDevBuild: boolean;
   error: string | null;
+}
+
+// ── Intel AMT ──────────────────────────────────────────────
+
+export type AmtPowerState = 'on' | 'off' | 'sleep' | 'hibernate' | 'unknown';
+export type AmtPowerAction = 'on' | 'off' | 'cycle' | 'reset' | 'shutdown' | 'graceful-reset';
+
+export interface AmtDeviceHardware {
+  cpu: { model: string; cores: number; maxSpeedMHz: number } | null;
+  memory: {
+    totalMB: number;
+    slots: { sizeMB: number; speedMHz: number; type: string; manufacturer: string }[];
+  } | null;
+  bios: { vendor: string; version: string; date: string } | null;
+  nics: { mac: string; linkStatus: string }[];
+  amtVersion: string | null;
+}
+
+export interface AmtDeviceStatus {
+  id: string;
+  name: string;
+  host: string;
+  powerState: AmtPowerState;
+  reachable: boolean;
+  error: string | null;
+  hardware: AmtDeviceHardware | null;
+  lastSeenAt: number | null;
+}
+
+export interface AmtData {
+  devices: AmtDeviceStatus[];
+  total: number;
+  online: number;
+  offline: number;
+  unreachable: number;
+}
+
+export interface AmtApiResponse {
+  amt: AmtData;
 }

@@ -5,7 +5,8 @@ export type CapabilityId =
   | 'containers'
   | 'gpu'
   | 'sensors'
-  | 'logs';
+  | 'logs'
+  | 'amt';
 
 export type ConfigFieldType = 'text' | 'url' | 'password' | 'number' | 'boolean' | 'select';
 
@@ -357,6 +358,54 @@ export const CAPABILITIES: Capability[] = [
             required: false,
             default: 30,
             env: 'SIEM_RETENTION_DAYS',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'amt',
+    label: 'AMT',
+    integrationKey: 'amt',
+    providers: [
+      {
+        id: 'intel-amt',
+        label: 'Intel AMT',
+        icon: 'cpu',
+        adapter: 'amt',
+        status: 'available',
+        configSchema: [
+          {
+            name: 'defaultPort',
+            label: 'Default port',
+            type: 'number',
+            required: false,
+            default: 16993,
+            env: 'AMT_DEFAULT_PORT',
+          },
+          {
+            name: 'useTls',
+            label: 'Use TLS',
+            type: 'boolean',
+            required: false,
+            default: true,
+            env: 'AMT_USE_TLS',
+          },
+          {
+            name: 'defaultUsername',
+            label: 'Default username',
+            type: 'text',
+            required: false,
+            default: 'admin',
+            env: 'AMT_DEFAULT_USERNAME',
+          },
+          {
+            name: 'pollInterval',
+            label: 'Poll interval (ms)',
+            type: 'number',
+            required: false,
+            default: 15000,
+            env: 'AMT_POLL_INTERVAL',
           },
         ],
       },
