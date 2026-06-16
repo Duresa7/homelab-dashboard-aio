@@ -17,12 +17,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // resolves the `module`/.mjs entry.
 const zxcvbnEsm = (pkg: string) =>
   path.resolve(here, `node_modules/@zxcvbn-ts/${pkg}/dist/index.mjs`);
-const alias = {
-  '@': path.resolve(here, 'client/src'),
-  '@zxcvbn-ts/core': zxcvbnEsm('core'),
-  '@zxcvbn-ts/language-common': zxcvbnEsm('language-common'),
-  '@zxcvbn-ts/language-en': zxcvbnEsm('language-en'),
-};
+const alias = [
+  { find: '@', replacement: path.resolve(here, 'client/src') },
+  { find: /^@zxcvbn-ts\/core$/, replacement: zxcvbnEsm('core') },
+  { find: /^@zxcvbn-ts\/language-common$/, replacement: zxcvbnEsm('language-common') },
+  { find: /^@zxcvbn-ts\/language-en$/, replacement: zxcvbnEsm('language-en') },
+];
 
 export default defineConfig({
   test: {

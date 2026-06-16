@@ -149,12 +149,12 @@ describe('AMT provider fetch', () => {
   });
 
   it('polls all devices in parallel and aggregates counts', async () => {
-    await registry.upsert({ name: 'on', host: '10.0.0.1', password: 'pw' }, DEFAULTS);
-    await registry.upsert({ name: 'off', host: '10.0.0.2', password: 'pw' }, DEFAULTS);
-    await registry.upsert({ name: 'dead', host: '10.0.0.3', password: 'pw' }, DEFAULTS);
-    hoisted.behaviors.set('10.0.0.1', { powerState: 'on' });
-    hoisted.behaviors.set('10.0.0.2', { powerState: 'off' });
-    hoisted.behaviors.set('10.0.0.3', { unreachable: true });
+    await registry.upsert({ name: 'on', host: '192.0.2.1', password: 'pw' }, DEFAULTS);
+    await registry.upsert({ name: 'off', host: '192.0.2.2', password: 'pw' }, DEFAULTS);
+    await registry.upsert({ name: 'dead', host: '192.0.2.3', password: 'pw' }, DEFAULTS);
+    hoisted.behaviors.set('192.0.2.1', { powerState: 'on' });
+    hoisted.behaviors.set('192.0.2.2', { powerState: 'off' });
+    hoisted.behaviors.set('192.0.2.3', { unreachable: true });
     clearAmtCache();
 
     const { amt } = await amtProvider.fetch!();
@@ -163,13 +163,13 @@ describe('AMT provider fetch', () => {
     expect(amt.offline).toBe(1);
     expect(amt.unreachable).toBe(1);
 
-    const dead = amt.devices.find((d) => d.host === '10.0.0.3')!;
+    const dead = amt.devices.find((d) => d.host === '192.0.2.3')!;
     expect(dead.reachable).toBe(false);
     expect(dead.error).toBeTruthy();
     expect(dead.lastSeenAt).toBeNull();
     expect(dead.hardware).toBeNull();
 
-    const on = amt.devices.find((d) => d.host === '10.0.0.1')!;
+    const on = amt.devices.find((d) => d.host === '192.0.2.1')!;
     expect(on.reachable).toBe(true);
     expect(on.powerState).toBe('on');
     expect(on.lastSeenAt).not.toBeNull();
@@ -183,22 +183,22 @@ describe('AMT provider fetch', () => {
   it('uses the TTL cache to avoid re-polling inside the configured interval', async () => {
     vi.useFakeTimers();
     try {
-      await registry.upsert({ name: 'cached', host: '10.0.0.30', password: 'pw' }, DEFAULTS);
-      hoisted.behaviors.set('10.0.0.30', { powerState: 'on' });
+      await registry.upsert({ name: 'cached', host: '192.0.2.30', password: 'pw' }, DEFAULTS);
+      hoisted.behaviors.set('192.0.2.30', { powerState: 'on' });
       clearAmtCache();
 
       const first = await amtProvider.fetch!();
-      hoisted.behaviors.set('10.0.0.30', { powerState: 'off' });
+      hoisted.behaviors.set('192.0.2.30', { powerState: 'off' });
       const second = await amtProvider.fetch!();
 
       expect(second).toBe(first);
       expect(second.amt.devices[0].powerState).toBe('on');
-      expect(hoisted.powerStateCalls.get('10.0.0.30')).toBe(1);
+      expect(hoisted.powerStateCalls.get('192.0.2.30')).toBe(1);
 
       vi.advanceTimersByTime(15001);
       const third = await amtProvider.fetch!();
       expect(third.amt.devices[0].powerState).toBe('off');
-      expect(hoisted.powerStateCalls.get('10.0.0.30')).toBe(2);
+      expect(hoisted.powerStateCalls.get('192.0.2.30')).toBe(2);
     } finally {
       vi.useRealTimers();
     }
@@ -221,12 +221,12 @@ describe('AMT provider fetch', () => {
   });
 
   it('configure updates runtime defaults and clears cached data', async () => {
-    await registry.upsert({ name: 'cached', host: '10.0.0.31', password: 'pw' }, DEFAULTS);
-    hoisted.behaviors.set('10.0.0.31', { powerState: 'on' });
+    await registry.upsert({ name: 'cached', host: '192.0.2.31', password: 'pw' }, DEFAULTS);
+    hoisted.behaviors.set('192.0.2.31', { powerState: 'on' });
     clearAmtCache();
     expect((await amtProvider.fetch!()).amt.devices[0].powerState).toBe('on');
 
-    hoisted.behaviors.set('10.0.0.31', { powerState: 'off' });
+    hoisted.behaviors.set('192.0.2.31', { powerState: 'off' });
     configureAmt({
       enabled: true,
       vendor: 'intel-amt',
@@ -265,7 +265,7 @@ describe('AMT provider fetch', () => {
 describe('AMT device CRUD routes', () => {
   it('lists devices with passwords redacted', async () => {
     const created = await registry.upsert(
-      { name: 'rack', host: '10.0.0.5', password: 'sekret' },
+      { name: 'rack', host: '192.0.2.5', password: 'sekret' },
       DEFAULTS,
     );
     const res = await request(app).get('/api/amt/devices').expect(200);
@@ -278,7 +278,7 @@ describe('AMT device CRUD routes', () => {
   it('creates a device with defaults and redacts the password in the response', async () => {
     const res = await request(app)
       .post('/api/amt/devices')
-      .send({ name: 'new', host: '10.0.0.6', password: 'pw' })
+      .send({ name: 'new', host: '192.0.2.6', password: 'pw' })
       .expect(201);
     expect(res.body.device.port).toBe(16993);
     expect(res.body.device.username).toBe('admin');
@@ -290,10 +290,10 @@ describe('AMT device CRUD routes', () => {
   it('rejects creates missing required fields with 400', async () => {
     await request(app)
       .post('/api/amt/devices')
-      .send({ host: '10.0.0.6', password: 'pw' })
+      .send({ host: '192.0.2.6', password: 'pw' })
       .expect(400);
     await request(app).post('/api/amt/devices').send({ name: 'n', password: 'pw' }).expect(400);
-    await request(app).post('/api/amt/devices').send({ name: 'n', host: '10.0.0.6' }).expect(400);
+    await request(app).post('/api/amt/devices').send({ name: 'n', host: '192.0.2.6' }).expect(400);
   });
 
   it('rejects creates pointing at a blocked host with 400', async () => {
@@ -306,33 +306,33 @@ describe('AMT device CRUD routes', () => {
 
   it('updates a device in place, preserving its id', async () => {
     const created = await registry.upsert(
-      { name: 'old', host: '10.0.0.7', password: 'pw' },
+      { name: 'old', host: '192.0.2.7', password: 'pw' },
       DEFAULTS,
     );
     const res = await request(app)
       .put(`/api/amt/devices/${created.id}`)
-      .send({ name: 'new', host: '10.0.0.8', password: 'pw2' })
+      .send({ name: 'new', host: '192.0.2.8', password: 'pw2' })
       .expect(200);
     expect(res.body.device.id).toBe(created.id);
     expect(res.body.device.name).toBe('new');
-    expect(res.body.device.host).toBe('10.0.0.8');
+    expect(res.body.device.host).toBe('192.0.2.8');
     expect(await registry.list()).toHaveLength(1);
   });
 
   it('rejects updates with an invalid id (400) or unknown id (404)', async () => {
     await request(app)
       .put('/api/amt/devices/not-a-uuid')
-      .send({ name: 'n', host: '10.0.0.1', password: 'pw' })
+      .send({ name: 'n', host: '192.0.2.1', password: 'pw' })
       .expect(400);
     await request(app)
       .put(`/api/amt/devices/${FAKE_UUID}`)
-      .send({ name: 'n', host: '10.0.0.1', password: 'pw' })
+      .send({ name: 'n', host: '192.0.2.1', password: 'pw' })
       .expect(404);
   });
 
   it('removes a device, returning 404 on a second delete and 400 for bad ids', async () => {
     const created = await registry.upsert(
-      { name: 'gone', host: '10.0.0.9', password: 'pw' },
+      { name: 'gone', host: '192.0.2.9', password: 'pw' },
       DEFAULTS,
     );
     await request(app).delete(`/api/amt/devices/${created.id}`).expect(200, { ok: true });
@@ -343,25 +343,25 @@ describe('AMT device CRUD routes', () => {
 
 describe('AMT power route', () => {
   it('routes a power action to the selected device with decrypted credentials', async () => {
-    await registry.upsert({ name: 'first', host: '10.0.0.11', password: 'firstsecret' }, DEFAULTS);
+    await registry.upsert({ name: 'first', host: '192.0.2.11', password: 'firstsecret' }, DEFAULTS);
     const selected = await registry.upsert(
-      { name: 'selected', host: '10.0.0.12', password: 'topsecret' },
+      { name: 'selected', host: '192.0.2.12', password: 'topsecret' },
       DEFAULTS,
     );
-    hoisted.behaviors.set('10.0.0.12', { powerState: 'on' });
+    hoisted.behaviors.set('192.0.2.12', { powerState: 'on' });
     const res = await request(app)
       .post('/api/amt/power')
       .send({ deviceId: selected.id, action: 'cycle' })
       .expect(200);
     expect(res.body).toEqual({ ok: true, returnValue: 0 });
-    expect(hoisted.powerActions).toEqual([{ host: '10.0.0.12', action: 'cycle' }]);
-    expect(hoisted.lastConn?.host).toBe('10.0.0.12');
+    expect(hoisted.powerActions).toEqual([{ host: '192.0.2.12', action: 'cycle' }]);
+    expect(hoisted.lastConn?.host).toBe('192.0.2.12');
     expect(hoisted.lastConn?.password).toBe('topsecret');
   });
 
   it('validates the action and the device id', async () => {
     const created = await registry.upsert(
-      { name: 'p', host: '10.0.0.12', password: 'pw' },
+      { name: 'p', host: '192.0.2.12', password: 'pw' },
       DEFAULTS,
     );
     await request(app)
@@ -379,10 +379,10 @@ describe('AMT power route', () => {
 describe('AMT inventory route', () => {
   it('returns mapped hardware inventory on demand', async () => {
     const created = await registry.upsert(
-      { name: 'inv', host: '10.0.0.13', password: 'pw' },
+      { name: 'inv', host: '192.0.2.13', password: 'pw' },
       DEFAULTS,
     );
-    hoisted.behaviors.set('10.0.0.13', {});
+    hoisted.behaviors.set('192.0.2.13', {});
     const res = await request(app).get(`/api/amt/devices/${created.id}/inventory`).expect(200);
     expect(res.body.inventory.cpu.model).toBe('Core i7');
     expect(res.body.inventory.memory.totalMB).toBe(8192);

@@ -48,7 +48,7 @@ describe('computeDigestResponse', () => {
     const response = computeDigestResponse({
       username: 'Mufasa',
       password: 'Circle Of Life',
-      realm: 'testrealm@example.com',
+      realm: 'testrealm@host.com',
       nonce: 'dcd98b7102dd2f0e8b11d0f600bfb0c093',
       nc: '00000001',
       cnonce: '0a4f113b',

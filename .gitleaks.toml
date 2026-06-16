@@ -59,6 +59,11 @@ tags = ["pii"]
   [rules.allowlist]
   regexes = ['''@(example\.(com|org|net|test)|test\.example|localhost)''']
 
+[[allowlists]]
+description = "RFC 2617 digest-auth test vector realm"
+targetRules = ["email-address"]
+regexes = ['''\btestrealm@host\.com\b''']
+
 # Lockfiles / vendored deps / this config: never scanned.
 [[allowlists]]
 description = "lockfiles and vendored code"
@@ -66,6 +71,15 @@ paths = [
   '''package-lock\.json''',
   '''(^|/)node_modules/''',
   '''(^|/)\.gitleaks\.toml$''',
+]
+
+[[allowlists]]
+description = "local-only ignored runtime artifacts"
+paths = [
+  '''(^|/)\.env(\..*)?$''',
+  '''(^|/)data/''',
+  '''(^|/)dist/''',
+  '''(^|/).*\.log$''',
 ]
 
 # .env.example is a template of blank placeholders by design — exempt it from the

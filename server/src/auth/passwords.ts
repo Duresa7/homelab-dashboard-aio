@@ -1,7 +1,11 @@
 import { hash as argon2Hash, verify as argon2Verify } from '@node-rs/argon2';
-import { ZxcvbnFactory } from '@zxcvbn-ts/core';
-import * as zxcvbnCommon from '@zxcvbn-ts/language-common';
-import * as zxcvbnEn from '@zxcvbn-ts/language-en';
+// zxcvbn-ts v4 publishes CJS as its package main, but those CJS language
+// builds currently fail while loading compressed dictionaries under Node. The
+// server runs directly in Node via tsx, so pin runtime imports to the package
+// ESM bundles instead of relying on test-only Vitest aliases.
+import { ZxcvbnFactory } from '@zxcvbn-ts/core/dist/index.mjs';
+import * as zxcvbnCommon from '@zxcvbn-ts/language-common/dist/index.mjs';
+import * as zxcvbnEn from '@zxcvbn-ts/language-en/dist/index.mjs';
 
 export const PASSWORD_MIN_LENGTH = 10;
 export const PASSWORD_MAX_LENGTH = 128;

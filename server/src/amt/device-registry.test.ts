@@ -176,7 +176,7 @@ describe('AMT device registry', () => {
   });
 
   it('persists devices as a JSON array under amt.devices', async () => {
-    await registry.upsert({ name: 'a', host: '10.0.0.5', password: 'pw' }, DEFAULTS);
+    await registry.upsert({ name: 'a', host: '192.0.2.5', password: 'pw' }, DEFAULTS);
     expect(rawDeviceBlob()).toHaveLength(1);
   });
 
