@@ -29,7 +29,11 @@ ENV NODE_ENV=production
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssh-client ca-certificates tini gosu \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  # The runtime never runs npm (deps are copied from the builder; the app launches
+  # via `node`). Drop the bundled npm CLI so its vendored undici can't fail the
+  # release CVE gate and to shrink the runtime attack surface.
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 COPY package.json package-lock.json ./
 
