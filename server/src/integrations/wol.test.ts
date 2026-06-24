@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dgramMock = vi.hoisted(() => {
   const socket = {
+    bind: vi.fn((cb: () => void) => cb()),
+    once: vi.fn(),
     setBroadcast: vi.fn(),
     send: vi.fn((_packet: Buffer, _port: number, _broadcast: string, cb: (err?: Error) => void) =>
       cb(),
@@ -41,6 +43,8 @@ function makeApp() {
 describe('Wake-on-LAN integration', () => {
   beforeEach(() => {
     dgramMock.createSocket.mockClear();
+    dgramMock.socket.bind.mockClear();
+    dgramMock.socket.once.mockClear();
     dgramMock.socket.setBroadcast.mockClear();
     dgramMock.socket.send.mockClear();
     dgramMock.socket.close.mockClear();
@@ -89,6 +93,12 @@ describe('Wake-on-LAN integration', () => {
       port: 9,
     });
     expect(dgramMock.createSocket).toHaveBeenCalledWith('udp4');
+    // Regression: setBroadcast() throws EBADF on an unbound socket, so bind()
+    // must run first.
+    expect(dgramMock.socket.bind).toHaveBeenCalled();
+    expect(dgramMock.socket.bind.mock.invocationCallOrder[0]).toBeLessThan(
+      dgramMock.socket.setBroadcast.mock.invocationCallOrder[0],
+    );
     expect(dgramMock.socket.setBroadcast).toHaveBeenCalledWith(true);
     expect(dgramMock.socket.send).toHaveBeenCalledWith(
       expect.any(Buffer),

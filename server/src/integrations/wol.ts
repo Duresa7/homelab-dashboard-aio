@@ -85,17 +85,27 @@ export function normalizeWolPort(port: unknown): number {
 function sendMagicPacket(packet: Buffer, broadcast: string, port: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const socket = dgram.createSocket('udp4');
-    try {
-      socket.setBroadcast(true);
-      socket.send(packet, port, broadcast, (err) => {
-        socket.close();
-        if (err) reject(err);
-        else resolve();
-      });
-    } catch (err) {
+    let settled = false;
+    const finish = (err?: Error) => {
+      if (settled) return;
+      settled = true;
       socket.close();
-      reject(err);
-    }
+      if (err) reject(err);
+      else resolve();
+    };
+    // bind() must come first: setBroadcast() acts on the socket's underlying
+    // handle, which Node only creates on bind — calling it on a fresh socket
+    // throws EBADF. A bound ephemeral socket is also what lets the OS pick the
+    // egress interface for the (often directed) broadcast.
+    socket.once('error', finish);
+    socket.bind(() => {
+      try {
+        socket.setBroadcast(true);
+        socket.send(packet, port, broadcast, (err) => finish(err ?? undefined));
+      } catch (err) {
+        finish(err as Error);
+      }
+    });
   });
 }
 
