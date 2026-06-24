@@ -140,7 +140,7 @@ function HostMeta({ host }: { host: ComputeHost }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
       <span className="font-mono">{host.mac}</span>
-      {hasCustomBroadcast ? <span>broadcast {host.broadcast}</span> : null}
+      {hasCustomBroadcast ? <span>target {host.broadcast}</span> : null}
       {hasCustomPort ? <span>port {host.port}</span> : null}
     </div>
   );
@@ -308,13 +308,17 @@ export function ComputeWakeCard() {
           {form.advanced ? (
             <div className="grid gap-3 rounded-md border border-border bg-background/60 p-3">
               <div className="grid gap-2">
-                <Label htmlFor="compute-host-broadcast">Broadcast</Label>
+                <Label htmlFor="compute-host-broadcast">Broadcast or host IP</Label>
                 <Input
                   id="compute-host-broadcast"
                   value={form.broadcast}
                   onChange={(event) => updateForm({ broadcast: event.target.value })}
                   placeholder={DEFAULT_BROADCAST}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Defaults to the local broadcast. Use the subnet broadcast (e.g. 198.51.100.255) or
+                  the host&apos;s unicast IP to wake a machine on another VLAN.
+                </p>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="compute-host-port">Port</Label>

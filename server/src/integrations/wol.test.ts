@@ -71,10 +71,12 @@ describe('Wake-on-LAN integration', () => {
     expect(() => buildMagicPacket('AA:BB-CC:DD:EE:FF')).toThrow(/invalid MAC/i);
   });
 
-  it('allows only IPv4 broadcast-style WOL targets and ports', () => {
+  it('allows any IPv4 WOL target (broadcast or unicast host IP) and validates ports', () => {
     expect(normalizeBroadcast(undefined)).toBe('255.255.255.255');
     expect(normalizeBroadcast('198.51.100.255')).toBe('198.51.100.255');
-    expect(() => normalizeBroadcast('198.51.100.10')).toThrow(/subnet broadcast/i);
+    // Unicast host IP is accepted: required for cross-VLAN wake where the gateway
+    // drops directed broadcasts.
+    expect(normalizeBroadcast('198.51.100.10')).toBe('198.51.100.10');
     expect(() => normalizeBroadcast('wake.example.test')).toThrow(/IPv4/i);
     expect(normalizeWolPort(undefined)).toBe(9);
     expect(normalizeWolPort(7)).toBe(7);
@@ -118,12 +120,34 @@ describe('Wake-on-LAN integration', () => {
     expect(dgramMock.createSocket).not.toHaveBeenCalled();
   });
 
-  it('rejects arbitrary WOL route targets before sending UDP', async () => {
+  it('wakes a unicast host IP target (cross-VLAN where directed broadcast is dropped)', async () => {
+    const api = makeApp();
+
+    const res = await api
+      .post('/api/wol/wake')
+      .send({ mac: 'aa-bb-cc-dd-ee-ff', broadcast: '198.51.100.241' })
+      .expect(200);
+
+    expect(res.body).toEqual({
+      ok: true,
+      mac: 'AA:BB:CC:DD:EE:FF',
+      broadcast: '198.51.100.241',
+      port: 9,
+    });
+    expect(dgramMock.socket.send).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      9,
+      '198.51.100.241',
+      expect.any(Function),
+    );
+  });
+
+  it('rejects a non-IPv4 target and a disallowed port before sending UDP', async () => {
     const api = makeApp();
 
     await api
       .post('/api/wol/wake')
-      .send({ mac: 'AA:BB:CC:DD:EE:FF', broadcast: '198.51.100.10', port: 53 })
+      .send({ mac: 'AA:BB:CC:DD:EE:FF', broadcast: 'not-an-ip', port: 53 })
       .expect(400);
 
     expect(dgramMock.createSocket).not.toHaveBeenCalled();
@@ -247,8 +271,8 @@ describe('Wake-on-LAN validation helpers', () => {
     expect(normalizeBroadcast(null)).toBe('255.255.255.255');
     expect(normalizeBroadcast('')).toBe('255.255.255.255');
     expect(normalizeBroadcast('  198.51.100.255  ')).toBe('198.51.100.255');
+    expect(normalizeBroadcast('198.51.100.241')).toBe('198.51.100.241');
     expect(() => normalizeBroadcast(123)).toThrow(/broadcast must be a string/i);
-    expect(() => normalizeBroadcast('198.51.100.0')).toThrow(/subnet broadcast/i);
     expect(() => normalizeBroadcast('::1')).toThrow(/IPv4/i);
     expect(() => normalizeBroadcast('not-an-ip')).toThrow(/IPv4/i);
   });
