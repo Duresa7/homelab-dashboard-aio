@@ -59,14 +59,11 @@ export function normalizeBroadcast(broadcast: unknown): string {
   if (broadcast === undefined || broadcast === null || broadcast === '') return DEFAULT_BROADCAST;
   if (typeof broadcast !== 'string') throw new Error('broadcast must be a string');
   const value = broadcast.trim();
+  // Accept any IPv4 target: a subnet broadcast (e.g. 198.51.100.255) or a unicast
+  // host IP. Unicast is required to wake a host across a VLAN whose gateway drops
+  // directed broadcasts — the magic packet then routes to the host like normal
+  // traffic. net.isIP validates the dotted-quad form and 0-255 octet range.
   if (net.isIP(value) !== 4) throw new Error('broadcast must be an IPv4 address');
-  const octets = value.split('.').map((part) => Number(part));
-  if (octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
-    throw new Error('broadcast must be an IPv4 address');
-  }
-  if (value !== DEFAULT_BROADCAST && octets[3] !== 255) {
-    throw new Error('broadcast must be an IPv4 subnet broadcast address');
-  }
   return value;
 }
 
