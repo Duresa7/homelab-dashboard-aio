@@ -71,6 +71,20 @@ describe('setup API client', () => {
     });
   });
 
+  it('returns discovery patches from successful setup tests', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ok: true, message: 'Detected cluster.', configPatch: { node: 'pve1' } }),
+    );
+    const setup = await loadSetup();
+
+    await expect(setup.testIntegration({ capability: 'datacenter', config: {} })).resolves.toEqual({
+      ok: true,
+      message: 'Detected cluster.',
+      configPatch: { node: 'pve1' },
+    });
+  });
+
   it('throws the server error string on non-2xx responses', async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(

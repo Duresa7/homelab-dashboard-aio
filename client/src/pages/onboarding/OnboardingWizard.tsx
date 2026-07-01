@@ -91,7 +91,7 @@ function presentationCapabilityId(id: string): CapabilityId | null {
 
 function selectionSummary(selection: CapabilitySelection): string {
   if (!selection.enabled) return 'Skipped';
-  if (selection.testState.status === 'ok') return 'Test passed';
+  if (selection.testState.status === 'ok') return selection.testState.message ?? 'Test passed';
   if (selection.testState.status === 'untestable') return "Can't test automatically";
   if (selection.testState.status === 'error') return selection.testState.message;
   return 'Ready';
@@ -175,6 +175,13 @@ export function OnboardingWizard({ onDone }: Props) {
           capability: capability.id,
           config: selection.config,
         });
+        if (result.ok && result.configPatch) {
+          dispatch({
+            type: 'applyConfigPatch',
+            capabilityId: capability.id,
+            patch: result.configPatch,
+          });
+        }
         dispatch({
           type: 'setTestState',
           capabilityId: capability.id,

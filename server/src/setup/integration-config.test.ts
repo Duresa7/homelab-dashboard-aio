@@ -27,6 +27,7 @@ const ENV = {
   PROXMOX_TOKEN_ID: 'root@pam!tok',
   PROXMOX_TOKEN_SECRET: 'super-secret',
   PROXMOX_NODE: 'pve1',
+  PROXMOX_NODE_TARGETS: '{"pve1":{"host":"192.168.255.11"}}',
   UNIFI_ENABLED: 'true',
   UNIFI_BASE_URL: 'https://unifi.example.test',
   UNIFI_API_KEY: 'unifi-key',
@@ -58,6 +59,7 @@ describe('importConfigFromEnv', () => {
         baseUrl: 'https://pve.example.test',
         tokenId: 'root@pam!tok',
         node: 'pve1',
+        nodeTargets: '{"pve1":{"host":"192.168.255.11"}}',
       },
     });
     expect(JSON.stringify(out)).not.toContain('super-secret');

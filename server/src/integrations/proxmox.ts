@@ -8,6 +8,7 @@ import { errorMessage } from '../lib/errors.js';
 import type { Upstream } from '../types.js';
 import type { ProxmoxApiResponse } from '../../../shared/wire.ts';
 import { selectionConfig, text, type Provider } from './provider.js';
+import { configureSetupNodeTargets } from './node-targets.js';
 
 const PVE_CACHE_TTL = Number(process.env.PROXMOX_POLL_INTERVAL) || 5000;
 const GB = 1024 ** 3;
@@ -19,6 +20,7 @@ export interface ProxmoxRuntimeConfig {
   tokenId?: string;
   tokenSecret?: string;
   node?: string;
+  nodeTargets?: string;
 }
 
 function configFromEnv(): ProxmoxRuntimeConfig {
@@ -414,6 +416,10 @@ export function configureProxmox(next: ProxmoxRuntimeConfig): void {
   proxmoxStatus.configured =
     config.enabled && !!(config.baseUrl && config.tokenId && config.tokenSecret);
   proxmoxStatus.baseUrl = config.baseUrl;
+  configureSetupNodeTargets({
+    primaryNode: config.node,
+    targetsJson: next.enabled ? next.nodeTargets : undefined,
+  });
 }
 
 export function probeProxmox() {
@@ -435,6 +441,7 @@ export const proxmoxProvider: Provider<ProxmoxApiResponse> = {
       tokenId: text(cfg.tokenId),
       tokenSecret: text(cfg.tokenSecret),
       node: text(cfg.node) || '',
+      nodeTargets: text(cfg.nodeTargets),
     });
   },
   fetch: fetchProxmoxData,

@@ -29,6 +29,17 @@ export interface ResolveNodeTargetsOpts {
   defaults: TargetDefaults;
 }
 
+let setupTargetsJson: string | undefined;
+let setupPrimaryNode: string | undefined;
+
+export function configureSetupNodeTargets(opts: {
+  targetsJson?: string;
+  primaryNode?: string;
+}): void {
+  setupTargetsJson = opts.targetsJson?.trim() || undefined;
+  setupPrimaryNode = opts.primaryNode?.trim() || undefined;
+}
+
 type RawTarget = {
   mode?: unknown;
   host?: unknown;
@@ -61,7 +72,9 @@ function parseTargetsMap(json?: string): Record<string, RawTarget> | null {
 }
 
 export function resolveNodeTargets(opts: ResolveNodeTargetsOpts): NodeTarget[] {
-  const { targetsJson, primaryNode, defaults } = opts;
+  const { defaults } = opts;
+  const targetsJson = opts.targetsJson?.trim() || setupTargetsJson;
+  const primaryNode = opts.primaryNode?.trim() || setupPrimaryNode;
   const map = parseTargetsMap(targetsJson);
 
   if (map) {

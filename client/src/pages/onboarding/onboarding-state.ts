@@ -28,6 +28,7 @@ export type WizardAction =
   | { type: 'setEnabled'; capabilityId: string; enabled: boolean }
   | { type: 'setVendor'; capabilityId: string; vendor: string; capability: Capability }
   | { type: 'setField'; capabilityId: string; field: string; value: unknown }
+  | { type: 'applyConfigPatch'; capabilityId: string; patch: Record<string, unknown> }
   | { type: 'setSecretSource'; capabilityId: string; secretSource: 'db' | 'env' }
   | { type: 'setTestState'; capabilityId: string; testState: TestState };
 
@@ -119,6 +120,20 @@ export function onboardingReducer(state: WizardState, action: WizardAction): Wiz
           },
         },
       };
+    case 'applyConfigPatch':
+      return {
+        ...state,
+        selections: {
+          ...state.selections,
+          [action.capabilityId]: {
+            ...state.selections[action.capabilityId],
+            config: {
+              ...state.selections[action.capabilityId].config,
+              ...action.patch,
+            },
+          },
+        },
+      };
     case 'setSecretSource':
       return {
         ...state,
@@ -186,6 +201,7 @@ export function hasMissingRequiredFields(
 
 export function testStateFromResult(result: TestResult): TestState {
   if (result.untestable) return { status: 'untestable', message: result.error };
-  if (result.ok) return { status: 'ok' };
+  if (result.ok)
+    return result.message ? { status: 'ok', message: result.message } : { status: 'ok' };
   return { status: 'error', message: result.error ?? 'Connection test failed' };
 }
