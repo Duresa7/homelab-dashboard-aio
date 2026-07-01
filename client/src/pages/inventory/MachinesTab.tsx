@@ -8,7 +8,7 @@ import {
   type Inventory,
   type Machine,
 } from '../../lib/inventory';
-import { BrandGlyph, componentIcon, roleIcon } from '../../lib/inventoryIcons';
+import { componentIcon, InventoryIcon, roleIcon } from '../../lib/inventoryIcons';
 import { ListRow, SectionCard } from '@/components/common';
 import { cn } from '@/lib/utils';
 
@@ -126,6 +126,13 @@ function MachineBrowseCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
+            <InventoryIcon
+              icon={m.icon}
+              brandText={[m.name, m.role]}
+              fallback={RoleIcon}
+              label={m.name}
+              size={18}
+            />
             <span
               className="size-2 shrink-0 rounded-full"
               style={{ background: `var(--${statusKind(m.status ?? 'working')})` }}
@@ -361,7 +368,14 @@ function MachineCard({
                   <span className="truncate">{c.label}</span>
                 </span>
                 <span className="flex min-w-0 items-center gap-2 text-sm text-foreground">
-                  <BrandGlyph text={componentTitle(c)} size={16} reserveSpace />
+                  <InventoryIcon
+                    icon={c.icon}
+                    brandText={[componentTitle(c), c.rawSpec]}
+                    fallback={CompIcon}
+                    label={componentTitle(c)}
+                    size={16}
+                    reserveSpace
+                  />
                   <span className="truncate">{componentTitle(c)}</span>
                 </span>
               </li>

@@ -1,4 +1,4 @@
-import type { ItemImage } from './inventory';
+import type { ItemIcon, ItemImage } from './inventory';
 import { apiFetch } from './http';
 
 export function imageUrl(id: string, thumb = false): string {
@@ -24,4 +24,14 @@ export async function deleteImage(id: string): Promise<void> {
 
 export function deleteImages(images: { id: string }[] | undefined): void {
   for (const img of images ?? []) void deleteImage(img.id);
+}
+
+export function deleteIcon(icon: ItemIcon | undefined): void {
+  if (icon?.kind === 'image') void deleteImage(icon.id);
+}
+
+export function deleteItemMedia(item: { icon?: ItemIcon; images?: { id: string }[] } | undefined) {
+  if (!item) return;
+  deleteIcon(item.icon);
+  deleteImages(item.images);
 }

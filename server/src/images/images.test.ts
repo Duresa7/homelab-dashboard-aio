@@ -177,7 +177,12 @@ describe('image upload pipeline', () => {
 describe('orphan GC', () => {
   it('keeps image files referenced anywhere in the inventory shape', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'homelab-gc-test-'));
-    const referenced = ['aaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', 'cccccccccccccccc'];
+    const referenced = [
+      'aaaaaaaaaaaaaaaa',
+      'bbbbbbbbbbbbbbbb',
+      'cccccccccccccccc',
+      'eeeeeeeeeeeeeeee',
+    ];
     const orphan = 'dddddddddddddddd';
     try {
       for (const id of [...referenced, orphan]) {
@@ -189,7 +194,13 @@ describe('orphan GC', () => {
             v: 10,
             data: {
               machines: [{ id: 'm1', images: [{ id: referenced[0], w: 1, h: 1 }] }],
-              components: [{ id: 'c1', images: [{ id: referenced[1], w: 1, h: 1 }] }],
+              components: [
+                {
+                  id: 'c1',
+                  icon: { kind: 'image', id: referenced[3], w: 1, h: 1 },
+                  images: [{ id: referenced[1], w: 1, h: 1 }],
+                },
+              ],
               devices: [{ items: [{ images: [{ id: referenced[2], w: 1, h: 1 }] }] }],
             },
           },

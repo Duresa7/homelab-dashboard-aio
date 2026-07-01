@@ -23,8 +23,12 @@ function collectImageIds(value: unknown, out = new Set<string>()): Set<string> {
       if (isRecord(img) && typeof img.id === 'string') out.add(img.id);
     }
   }
+  const icon = value.icon;
+  if (isRecord(icon) && icon.kind === 'image' && typeof icon.id === 'string') {
+    out.add(icon.id);
+  }
   for (const key of Object.keys(value)) {
-    if (key !== 'images') collectImageIds(value[key], out);
+    if (key !== 'images' && key !== 'icon') collectImageIds(value[key], out);
   }
   return out;
 }

@@ -418,6 +418,60 @@ describe('migrateInventory (v9 → v10 images)', () => {
   });
 });
 
+describe('migrateInventory (v11 icons)', () => {
+  it('preserves valid custom icons and drops malformed ones', () => {
+    const migrated = migrateInventory({
+      lastUpdated: '2026-07-01',
+      machines: [
+        {
+          id: 'm1',
+          name: 'Proxmox host',
+          role: 'Hypervisor',
+          deployment: 'in-service' as const,
+          meta: [],
+          icon: { kind: 'dashboard', name: ' Proxmox ' },
+        },
+      ],
+      components: [
+        {
+          id: 'c1',
+          type: 'gpu' as const,
+          label: 'GPU',
+          fields: [],
+          assignment: SPARE,
+          icon: { kind: 'image', id: ' aaaaaaaaaaaaaaaa ', w: 24, h: 24 },
+        },
+      ],
+      devices: [
+        {
+          id: 'cat_net',
+          name: 'Network',
+          deviceType: 'network' as const,
+          prefix: '04',
+          columns: [],
+          items: [
+            {
+              id: 'd1',
+              deployment: 'in-service' as const,
+              values: {},
+              icon: { kind: 'image', id: '', w: 1, h: 1 },
+            },
+          ],
+        },
+      ],
+    } as never);
+
+    expect(migrated.machines[0].icon).toEqual({ kind: 'dashboard', name: 'proxmox' });
+    expect(migrated.components[0].icon).toEqual({
+      kind: 'image',
+      id: 'aaaaaaaaaaaaaaaa',
+      w: 24,
+      h: 24,
+    });
+    expect(migrated.devices[0].items[0].icon).toBeUndefined();
+  });
+});
+
 describe('empty inventory defaults', () => {
   it('resets to an empty inventory shape', () => {
     const fresh = resetInventory();
