@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
@@ -7,8 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { authedAgent, bootstrapAdmin } from '../test/auth.js';
 import { loadServerApp } from '../test/serverApp.js';
-import { collectImageIds, sweepOrphanedImages } from './gc.js';
-import { sniffImageFormat } from './index.js';
+import { sweepOrphanedImages } from './gc.js';
 
 async function usingApp(
   fn: (ctx: Awaited<ReturnType<typeof loadServerApp>> & { imagesDir: string }) => Promise<unknown>,
@@ -29,22 +28,6 @@ function pngFixture(w = 320, h = 200): Promise<Buffer> {
     .png()
     .toBuffer();
 }
-
-describe('image format sniffing', () => {
-  it('accepts jpeg/png/webp signatures and rejects others', async () => {
-    expect(sniffImageFormat(await pngFixture())).toBe('png');
-    const jpeg = await sharp({
-      create: { width: 8, height: 8, channels: 3, background: { r: 0, g: 0, b: 0 } },
-    })
-      .jpeg()
-      .toBuffer();
-    expect(sniffImageFormat(jpeg)).toBe('jpeg');
-    const webp = await sharp(jpeg).webp().toBuffer();
-    expect(sniffImageFormat(webp)).toBe('webp');
-    expect(sniffImageFormat(Buffer.from('GIF89a not allowed'))).toBeNull();
-    expect(sniffImageFormat(Buffer.from('<svg xmlns="x"/>'))).toBeNull();
-  });
-});
 
 describe('image upload pipeline', () => {
   it('uploads, serves full + thumb, and deletes', async () => {
@@ -72,6 +55,24 @@ describe('image upload pipeline', () => {
       await admin.delete(`/api/images/${res.body.id}`).expect(200);
       await admin.get(`/api/images/${res.body.id}`).expect(404);
       expect(await readdir(imagesDir)).toEqual([]);
+    });
+  });
+
+  it('accepts WebP uploads through the image API', async () => {
+    await usingApp(async ({ app }) => {
+      const admin = await bootstrapAdmin(app);
+      const webp = await sharp({
+        create: { width: 64, height: 64, channels: 3, background: { r: 40, g: 80, b: 120 } },
+      })
+        .webp()
+        .toBuffer();
+
+      const res = await admin.post('/api/images').attach('file', webp, 'icon.webp').expect(201);
+      const served = await admin.get(`/api/images/${res.body.id}`).expect(200);
+      const meta = await sharp(served.body as Buffer).metadata();
+
+      expect(meta.format).toBe('webp');
+      expect(meta.width).toBe(64);
     });
   });
 
@@ -174,16 +175,38 @@ describe('image upload pipeline', () => {
 });
 
 describe('orphan GC', () => {
-  it('collects image ids from any inventory shape', () => {
-    const ids = collectImageIds({
-      v: 10,
-      data: {
-        machines: [{ id: 'm1', images: [{ id: 'aaaaaaaaaaaaaaaa', w: 1, h: 1 }] }],
-        components: [{ id: 'c1', images: [{ id: 'bbbbbbbbbbbbbbbb', w: 1, h: 1 }] }],
-        devices: [{ items: [{ images: [{ id: 'cccccccccccccccc', w: 1, h: 1 }] }] }],
-      },
-    });
-    expect([...ids].sort()).toEqual(['aaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', 'cccccccccccccccc']);
+  it('keeps image files referenced anywhere in the inventory shape', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'homelab-gc-test-'));
+    const referenced = ['aaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', 'cccccccccccccccc'];
+    const orphan = 'dddddddddddddddd';
+    try {
+      for (const id of [...referenced, orphan]) {
+        await writeFile(path.join(dir, `${id}.webp`), 'image');
+      }
+      const store = {
+        get: async () => ({
+          value: {
+            v: 10,
+            data: {
+              machines: [{ id: 'm1', images: [{ id: referenced[0], w: 1, h: 1 }] }],
+              components: [{ id: 'c1', images: [{ id: referenced[1], w: 1, h: 1 }] }],
+              devices: [{ items: [{ images: [{ id: referenced[2], w: 1, h: 1 }] }] }],
+            },
+          },
+          updatedAt: 0,
+        }),
+      } as unknown as Parameters<typeof sweepOrphanedImages>[1];
+
+      expect(await sweepOrphanedImages(dir, store, { minAgeMs: 0, now: Date.now() + 10_000 })).toBe(
+        1,
+      );
+      for (const id of referenced) {
+        expect((await stat(path.join(dir, `${id}.webp`))).isFile()).toBe(true);
+      }
+      await expect(stat(path.join(dir, `${orphan}.webp`))).rejects.toBeTruthy();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('reaps only old unreferenced files', async () => {

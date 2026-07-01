@@ -12,19 +12,19 @@ import { makeSameOriginGuard } from '../state/index.js';
 import type { StateStore } from '../storage/types.js';
 import { sweepOrphanedImages } from './gc.js';
 
-export const IMAGE_ID_RE = /^[0-9a-f]{16}$/;
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const IMAGE_ID_RE = /^[0-9a-f]{16}$/;
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const FULL_MAX_PX = 2048;
 const THUMB_PX = 256;
 const WEBP_QUALITY = 82;
 
 const MAX_INPUT_PIXELS = 64_000_000;
 
-export function imagePath(dir: string, id: string, thumb = false): string {
+function imagePath(dir: string, id: string, thumb = false): string {
   return path.join(dir, `${id}${thumb ? '.thumb' : ''}.webp`);
 }
 
-export function sniffImageFormat(buf: Buffer): 'jpeg' | 'png' | 'webp' | null {
+function sniffImageFormat(buf: Buffer): 'jpeg' | 'png' | 'webp' | null {
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
   if (
     buf.length >= 8 &&

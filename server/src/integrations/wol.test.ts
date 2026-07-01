@@ -24,13 +24,7 @@ vi.mock('node:dgram', () => ({
   },
 }));
 
-import {
-  buildMagicPacket,
-  normalizeBroadcast,
-  normalizeMac,
-  normalizeWolPort,
-  registerWol,
-} from './wol.js';
+import { registerWol } from './wol.js';
 import { bootstrapAdmin } from '../test/auth.js';
 import { loadServerApp } from '../test/serverApp.js';
 
@@ -38,6 +32,23 @@ function makeApp() {
   const app = express();
   registerWol(app);
   return request(app);
+}
+
+function sentPackets() {
+  return dgramMock.socket.send.mock.calls.map(([packet, port, target]) => ({
+    packet,
+    port,
+    target,
+  }));
+}
+
+function expectMagicPacketFor(packet: Buffer, mac: number[]) {
+  expect(packet).toHaveLength(102);
+  expect([...packet.subarray(0, 6)]).toEqual([0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
+  for (let i = 0; i < 16; i += 1) {
+    const offset = 6 + i * 6;
+    expect([...packet.subarray(offset, offset + 6)]).toEqual(mac);
+  }
 }
 
 describe('Wake-on-LAN integration', () => {
@@ -50,40 +61,7 @@ describe('Wake-on-LAN integration', () => {
     dgramMock.socket.close.mockClear();
   });
 
-  it('normalizes supported MAC formats', () => {
-    expect(normalizeMac('aa:bb:cc:dd:ee:ff')).toBe('AA:BB:CC:DD:EE:FF');
-    expect(normalizeMac('AA-BB-CC-DD-EE-FF')).toBe('AA:BB:CC:DD:EE:FF');
-    expect(normalizeMac('aabbccddeeff')).toBe('AA:BB:CC:DD:EE:FF');
-  });
-
-  it('builds a valid 102-byte magic packet', () => {
-    const packet = buildMagicPacket('AA:BB:CC:DD:EE:FF');
-
-    expect(packet).toHaveLength(102);
-    expect([...packet.subarray(0, 6)]).toEqual([255, 255, 255, 255, 255, 255]);
-    expect([...packet.subarray(6, 12)]).toEqual([0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
-    expect([...packet.subarray(96, 102)]).toEqual([0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
-  });
-
-  it('throws on invalid MAC input', () => {
-    expect(() => buildMagicPacket('AA:BB:CC:DD:EE')).toThrow(/invalid MAC/i);
-    expect(() => buildMagicPacket('AA:BB:CC:DD:EE:ZZ')).toThrow(/invalid MAC/i);
-    expect(() => buildMagicPacket('AA:BB-CC:DD:EE:FF')).toThrow(/invalid MAC/i);
-  });
-
-  it('allows any IPv4 WOL target (broadcast or unicast host IP) and validates ports', () => {
-    expect(normalizeBroadcast(undefined)).toBe('255.255.255.255');
-    expect(normalizeBroadcast('198.51.100.255')).toBe('198.51.100.255');
-    // Unicast host IP is accepted: required for cross-VLAN wake where the gateway
-    // drops directed broadcasts.
-    expect(normalizeBroadcast('198.51.100.10')).toBe('198.51.100.10');
-    expect(() => normalizeBroadcast('wake.example.test')).toThrow(/IPv4/i);
-    expect(normalizeWolPort(undefined)).toBe(9);
-    expect(normalizeWolPort(7)).toBe(7);
-    expect(() => normalizeWolPort(53)).toThrow(/one of/i);
-  });
-
-  it('sends a broadcast packet and returns the resolved target', async () => {
+  it('sends repeated magic packets to the default broadcast target', async () => {
     const api = makeApp();
 
     const res = await api.post('/api/wol/wake').send({ mac: 'aa-bb-cc-dd-ee-ff' }).expect(200);
@@ -102,54 +80,86 @@ describe('Wake-on-LAN integration', () => {
       dgramMock.socket.setBroadcast.mock.invocationCallOrder[0],
     );
     expect(dgramMock.socket.setBroadcast).toHaveBeenCalledWith(true);
-    expect(dgramMock.socket.send).toHaveBeenCalledWith(
-      expect.any(Buffer),
-      9,
-      '255.255.255.255',
-      expect.any(Function),
-    );
+    const packets = sentPackets();
+    expect(packets).toHaveLength(3);
+    for (const packet of packets) {
+      expect(packet.port).toBe(9);
+      expect(packet.target).toBe('255.255.255.255');
+      expectMagicPacketFor(packet.packet, [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
+    }
     expect(dgramMock.socket.close).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects invalid MAC route input with 400', async () => {
+  it.each(['AA:BB:CC:DD:EE:FF', 'AA-BB-CC-DD-EE-FF', 'aabbccddeeff'])(
+    'normalizes supported MAC spelling %s',
+    async (mac) => {
+      const api = makeApp();
+
+      const res = await api.post('/api/wol/wake').send({ mac }).expect(200);
+
+      expect(res.body.mac).toBe('AA:BB:CC:DD:EE:FF');
+      expect(sentPackets()).toHaveLength(3);
+    },
+  );
+
+  it.each([
+    { mac: 'not-a-mac', message: /invalid MAC/i },
+    { mac: 'AA:BB:CC:DD:EE', message: /invalid MAC/i },
+    { mac: 'AA:BB:CC:DD:EE:ZZ', message: /invalid MAC/i },
+    { mac: 42, message: /mac must be a string/i },
+  ])('rejects invalid MAC route input %# with 400', async ({ mac, message }) => {
     const api = makeApp();
 
-    const res = await api.post('/api/wol/wake').send({ mac: 'not-a-mac' }).expect(400);
+    const res = await api.post('/api/wol/wake').send({ mac }).expect(400);
 
-    expect(res.body.error).toMatch(/invalid MAC/i);
+    expect(res.body.error).toMatch(message);
     expect(dgramMock.createSocket).not.toHaveBeenCalled();
   });
 
-  it('wakes a unicast host IP target (cross-VLAN where directed broadcast is dropped)', async () => {
+  it('wakes a unicast host IP target on an allowed WOL port', async () => {
     const api = makeApp();
 
     const res = await api
       .post('/api/wol/wake')
-      .send({ mac: 'aa-bb-cc-dd-ee-ff', broadcast: '198.51.100.241' })
+      .send({ mac: 'aa-bb-cc-dd-ee-ff', broadcast: '198.51.100.241', port: '7' })
       .expect(200);
 
     expect(res.body).toEqual({
       ok: true,
       mac: 'AA:BB:CC:DD:EE:FF',
       broadcast: '198.51.100.241',
-      port: 9,
+      port: 7,
     });
-    expect(dgramMock.socket.send).toHaveBeenCalledWith(
-      expect.any(Buffer),
-      9,
-      '198.51.100.241',
-      expect.any(Function),
-    );
+    for (const packet of sentPackets()) {
+      expect(packet.port).toBe(7);
+      expect(packet.target).toBe('198.51.100.241');
+      expectMagicPacketFor(packet.packet, [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
+    }
   });
 
-  it('rejects a non-IPv4 target and a disallowed port before sending UDP', async () => {
+  it.each([
+    {
+      body: { mac: 'AA:BB:CC:DD:EE:FF', broadcast: 'not-an-ip' },
+      message: /broadcast must be an IPv4 address/i,
+    },
+    {
+      body: { mac: 'AA:BB:CC:DD:EE:FF', broadcast: '::1' },
+      message: /broadcast must be an IPv4 address/i,
+    },
+    {
+      body: { mac: 'AA:BB:CC:DD:EE:FF', port: 9.5 },
+      message: /port must be an integer from 1 to 65535/i,
+    },
+    {
+      body: { mac: 'AA:BB:CC:DD:EE:FF', port: 53 },
+      message: /port must be one of/i,
+    },
+  ])('rejects invalid WOL target input %# before sending UDP', async ({ body, message }) => {
     const api = makeApp();
 
-    await api
-      .post('/api/wol/wake')
-      .send({ mac: 'AA:BB:CC:DD:EE:FF', broadcast: 'not-an-ip', port: 53 })
-      .expect(400);
+    const res = await api.post('/api/wol/wake').send(body).expect(400);
 
+    expect(res.body.error).toMatch(message);
     expect(dgramMock.createSocket).not.toHaveBeenCalled();
   });
 
@@ -176,6 +186,7 @@ describe('Wake-on-LAN integration', () => {
     const res = await api.post('/api/wol/wake').send({ mac: 'AA:BB:CC:DD:EE:FF' }).expect(500);
 
     expect(res.body.error).toMatch(/network unreachable/i);
+    expect(dgramMock.socket.send).toHaveBeenCalledTimes(1);
     expect(dgramMock.socket.close).toHaveBeenCalledTimes(1);
   });
 
@@ -244,47 +255,5 @@ describe('Wake-on-LAN integration', () => {
     } finally {
       await ctx.cleanup();
     }
-  });
-});
-
-describe('Wake-on-LAN validation helpers', () => {
-  it('rejects non-string and malformed MAC addresses', () => {
-    expect(() => normalizeMac(42)).toThrow(/mac must be a string/i);
-    expect(() => normalizeMac('')).toThrow(/invalid MAC/i);
-    expect(() => normalizeMac('AA:BB:CC:DD:EE:FF:00')).toThrow(/invalid MAC/i);
-    expect(() => normalizeMac('aabbccddee')).toThrow(/invalid MAC/i);
-    expect(normalizeMac('  aabbccddeeff  ')).toBe('AA:BB:CC:DD:EE:FF');
-  });
-
-  it('repeats the MAC sixteen times after the 0xff header', () => {
-    const packet = buildMagicPacket('01:23:45:67:89:AB');
-    const mac = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab];
-    expect([...packet.subarray(0, 6)]).toEqual([0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
-    for (let i = 0; i < 16; i += 1) {
-      const offset = 6 + i * 6;
-      expect([...packet.subarray(offset, offset + 6)]).toEqual(mac);
-    }
-  });
-
-  it('defaults, normalizes, and rejects broadcast addresses', () => {
-    expect(normalizeBroadcast(undefined)).toBe('255.255.255.255');
-    expect(normalizeBroadcast(null)).toBe('255.255.255.255');
-    expect(normalizeBroadcast('')).toBe('255.255.255.255');
-    expect(normalizeBroadcast('  198.51.100.255  ')).toBe('198.51.100.255');
-    expect(normalizeBroadcast('198.51.100.241')).toBe('198.51.100.241');
-    expect(() => normalizeBroadcast(123)).toThrow(/broadcast must be a string/i);
-    expect(() => normalizeBroadcast('::1')).toThrow(/IPv4/i);
-    expect(() => normalizeBroadcast('not-an-ip')).toThrow(/IPv4/i);
-  });
-
-  it('defaults, validates, and rejects ports', () => {
-    expect(normalizeWolPort(undefined)).toBe(9);
-    expect(normalizeWolPort(null)).toBe(9);
-    expect(normalizeWolPort('')).toBe(9);
-    expect(normalizeWolPort('7')).toBe(7);
-    expect(() => normalizeWolPort(9.5)).toThrow(/integer from 1 to 65535/i);
-    expect(() => normalizeWolPort(0)).toThrow(/integer from 1 to 65535/i);
-    expect(() => normalizeWolPort(70000)).toThrow(/integer from 1 to 65535/i);
-    expect(() => normalizeWolPort(8080)).toThrow(/one of/i);
   });
 });

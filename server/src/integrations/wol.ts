@@ -14,6 +14,7 @@ function isWolEnabled(value: string | undefined | null): boolean {
 const WOL_ENABLED = isWolEnabled(process.env.WOL_ENABLED);
 const DEFAULT_BROADCAST = '255.255.255.255';
 const DEFAULT_PORT = 9;
+const MAGIC_PACKET_REPETITIONS = 3;
 const ALLOWED_WOL_PORTS = new Set(
   String(process.env.WOL_ALLOWED_PORTS || '7,9')
     .split(',')
@@ -26,7 +27,7 @@ export const wolStatus = {
   configured: WOL_ENABLED,
 };
 
-export function normalizeMac(mac: unknown): string {
+function normalizeMac(mac: unknown): string {
   if (typeof mac !== 'string') throw new Error('mac must be a string');
   const value = mac.trim();
   const colonOrHyphen =
@@ -47,7 +48,7 @@ function macBytes(mac: string): number[] {
     .map((part) => Number.parseInt(part, 16));
 }
 
-export function buildMagicPacket(mac: string): Buffer {
+function buildMagicPacket(mac: string): Buffer {
   const bytes = macBytes(mac);
   return Buffer.from([
     ...Array.from({ length: 6 }, () => 0xff),
@@ -55,7 +56,7 @@ export function buildMagicPacket(mac: string): Buffer {
   ]);
 }
 
-export function normalizeBroadcast(broadcast: unknown): string {
+function normalizeBroadcast(broadcast: unknown): string {
   if (broadcast === undefined || broadcast === null || broadcast === '') return DEFAULT_BROADCAST;
   if (typeof broadcast !== 'string') throw new Error('broadcast must be a string');
   const value = broadcast.trim();
@@ -67,7 +68,7 @@ export function normalizeBroadcast(broadcast: unknown): string {
   return value;
 }
 
-export function normalizeWolPort(port: unknown): number {
+function normalizeWolPort(port: unknown): number {
   if (port === undefined || port === null || port === '') return DEFAULT_PORT;
   const value = Number(port);
   if (!Number.isInteger(value) || value < 1 || value > 65535) {
@@ -95,10 +96,22 @@ function sendMagicPacket(packet: Buffer, broadcast: string, port: number): Promi
     // throws EBADF. A bound ephemeral socket is also what lets the OS pick the
     // egress interface for the (often directed) broadcast.
     socket.once('error', finish);
+    const sendNext = (remaining: number) => {
+      if (settled) return;
+      if (remaining <= 0) {
+        finish();
+        return;
+      }
+      socket.send(packet, port, broadcast, (err) => {
+        if (settled) return;
+        if (err) finish(err);
+        else sendNext(remaining - 1);
+      });
+    };
     socket.bind(() => {
       try {
         socket.setBroadcast(true);
-        socket.send(packet, port, broadcast, (err) => finish(err ?? undefined));
+        sendNext(MAGIC_PACKET_REPETITIONS);
       } catch (err) {
         finish(err as Error);
       }

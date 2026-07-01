@@ -127,7 +127,7 @@ describe('ComputeWakeCard', () => {
     await user.type(screen.getByLabelText('Name'), 'Example Host');
     await user.type(screen.getByLabelText('MAC address'), 'AA:BB:CC:DD:EE:FF');
     await user.click(screen.getByRole('checkbox', { name: 'Advanced' }));
-    await user.type(screen.getByLabelText('Broadcast or host IP'), '198.51.100.255');
+    await user.type(screen.getByLabelText('Target IP'), '198.51.100.255');
     await user.type(screen.getByLabelText('Port'), '7');
     await user.click(screen.getByRole('button', { name: 'Add host' }));
 
@@ -273,5 +273,16 @@ describe('ComputeWakeCard', () => {
 
     expect(await screen.findByText('health unknown')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Wake' })).toBeEnabled();
+  });
+
+  it('warns that host IP targets can fail after router cache expiry', async () => {
+    const user = userEvent.setup();
+    renderCard();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Advanced' }));
+
+    expect(
+      screen.getByText(/Host IP targets need static ARP\/neighbor support/i),
+    ).toBeInTheDocument();
   });
 });

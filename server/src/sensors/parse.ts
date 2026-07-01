@@ -163,7 +163,7 @@ const CRUCIAL_FAMILY_REGEX = new RegExp(
     ')SSD\\d?',
 );
 
-export function detectCrucial(token: string): DetectedDisk | null {
+function detectCrucial(token: string): DetectedDisk | null {
   const m = token.match(CRUCIAL_FAMILY_REGEX);
   if (!m) return null;
   const sizeGb = Number(m[1]);
@@ -176,7 +176,7 @@ export function detectCrucial(token: string): DetectedDisk | null {
   };
 }
 
-export function detectWesternDigital(token: string): DetectedDisk | null {
+function detectWesternDigital(token: string): DetectedDisk | null {
   if (!/WD/.test(token)) return null;
   const m = token.match(/(?:WDC)?WD(\d{2,4})([A-Z]+)/);
   if (!m) return null;
@@ -206,7 +206,7 @@ export function detectWesternDigital(token: string): DetectedDisk | null {
   };
 }
 
-export function detectSeagate(token: string): DetectedDisk | null {
+function detectSeagate(token: string): DetectedDisk | null {
   const m = token.match(/ST(\d{3,5})([A-Z]{2})\d/);
   if (!m) return null;
   const gb = Number(m[1]);
@@ -218,7 +218,7 @@ export function detectSeagate(token: string): DetectedDisk | null {
   };
 }
 
-export function detectSamsung(token: string, rawModel: string): DetectedDisk | null {
+function detectSamsung(token: string, rawModel: string): DetectedDisk | null {
   if (!/SAMSUNG|^MZ[VN]|^MZQL/.test(token)) return null;
 
   const cleaned = String(rawModel || '')
@@ -228,7 +228,7 @@ export function detectSamsung(token: string, rawModel: string): DetectedDisk | n
   return { vendor: 'Samsung', model: cleaned || rawModel || '' };
 }
 
-export function detectKingston(token: string, rawModel: string): DetectedDisk | null {
+function detectKingston(token: string, rawModel: string): DetectedDisk | null {
   if (!/KINGSTON|^(KC|SKC|SA400|SNV|NV[12])/.test(token)) return null;
   const cleaned = String(rawModel || '')
     .replace(/^kingston[\s_]*/i, '')
@@ -236,7 +236,7 @@ export function detectKingston(token: string, rawModel: string): DetectedDisk | 
   return { vendor: 'Kingston', model: cleaned || rawModel || '' };
 }
 
-export function detectToshibaKioxia(token: string, rawModel: string): DetectedDisk | null {
+function detectToshibaKioxia(token: string, rawModel: string): DetectedDisk | null {
   if (!/TOSHIBA|KIOXIA|^MG\d|^MQ\d|^DT\d/.test(token)) return null;
   const isKioxia = /KIOXIA/.test(token);
   const cleaned = String(rawModel || '')
@@ -246,7 +246,7 @@ export function detectToshibaKioxia(token: string, rawModel: string): DetectedDi
   return { vendor: isKioxia ? 'Kioxia' : 'Toshiba', model: cleaned || rawModel || '' };
 }
 
-export function detectHgstHitachi(token: string, rawModel: string): DetectedDisk | null {
+function detectHgstHitachi(token: string, rawModel: string): DetectedDisk | null {
   if (!/HITACHI|HGST|^HUS|^HDN/.test(token)) return null;
   const cleaned = String(rawModel || '')
     .replace(/^(hitachi|hgst)[\s_]*/i, '')
@@ -274,7 +274,7 @@ export function normalizeDiskParts(disk: Upstream): DetectedDisk {
   return { vendor, model: rawModel };
 }
 
-export function diskDisplayName(disk: Upstream): string | null {
+function diskDisplayName(disk: Upstream): string | null {
   const { model, vendor } = normalizeDiskParts(disk);
   if (!model) return vendor || null;
   if (!vendor || model.toLowerCase().includes(vendor.toLowerCase())) return model;

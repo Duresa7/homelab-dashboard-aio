@@ -308,7 +308,7 @@ export function ComputeWakeCard() {
           {form.advanced ? (
             <div className="grid gap-3 rounded-md border border-border bg-background/60 p-3">
               <div className="grid gap-2">
-                <Label htmlFor="compute-host-broadcast">Broadcast or host IP</Label>
+                <Label htmlFor="compute-host-broadcast">Target IP</Label>
                 <Input
                   id="compute-host-broadcast"
                   value={form.broadcast}
@@ -316,8 +316,8 @@ export function ComputeWakeCard() {
                   placeholder={DEFAULT_BROADCAST}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Defaults to the local broadcast. Use the subnet broadcast (e.g. 198.51.100.255) or
-                  the host&apos;s unicast IP to wake a machine on another VLAN.
+                  Defaults to the local broadcast. Prefer the subnet broadcast. Host IP targets need
+                  static ARP/neighbor support or they can fail after the router cache expires.
                 </p>
               </div>
               <div className="grid gap-2">
