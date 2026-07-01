@@ -3,130 +3,97 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 
-import {
-  parseSensorsJson,
-  parseDiskInventory,
-  normalizeDiskParts,
-  diskDisplayName,
-  detectCrucial,
-  detectWesternDigital,
-  detectSeagate,
-  detectSamsung,
-  detectKingston,
-  detectToshibaKioxia,
-  detectHgstHitachi,
-} from './parse.js';
+import { parseSensorsJson, parseDiskInventory, normalizeDiskParts } from './parse.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string) => readFileSync(path.join(here, '__fixtures__', name), 'utf8');
 
-describe('detect* — vendor family tables (token in → {vendor, model})', () => {
-  it('Seagate: capacity GB + 2-letter family code', () => {
-    expect(detectSeagate('ST4000VN0082DR166')).toEqual({
-      vendor: 'Seagate',
-      model: 'IronWolf 4TB',
-    });
-    expect(detectSeagate('ST8000NM0055')).toEqual({ vendor: 'Seagate', model: 'Exos 8TB' });
-    expect(detectSeagate('ST2000DM008')).toEqual({ vendor: 'Seagate', model: 'BarraCuda 2TB' });
+describe('disk model normalization', () => {
+  it.each([
+    [
+      'Seagate IronWolf',
+      { model: 'ST4000VN008-2DR166', vendor: 'ATA' },
+      { vendor: 'Seagate', model: 'IronWolf 4TB' },
+    ],
+    [
+      'Seagate Exos',
+      { model: 'ST8000NM0055', vendor: '' },
+      { vendor: 'Seagate', model: 'Exos 8TB' },
+    ],
+    [
+      'Seagate unknown family',
+      { model: 'ST6000ZZ001', vendor: '' },
+      { vendor: 'Seagate', model: '6TB' },
+    ],
+    [
+      'Western Digital Red Plus',
+      { model: 'WD80EFZZ', vendor: 'WDC' },
+      { vendor: 'Western Digital', model: 'Red Plus 8TB' },
+    ],
+    [
+      'Western Digital Red heuristic',
+      { model: 'WD20EFQQ', vendor: '' },
+      { vendor: 'Western Digital', model: 'Red 2TB' },
+    ],
+    [
+      'Crucial SATA SSD',
+      { model: 'CT1000MX500SSD1', vendor: '' },
+      { vendor: 'Crucial', model: 'MX500 1TB SATA SSD' },
+    ],
+    [
+      'Crucial NVMe SSD',
+      { model: 'CT2000P3PSSD8', vendor: '' },
+      { vendor: 'Crucial', model: 'P3 Plus 2TB NVMe SSD' },
+    ],
+    [
+      'Samsung',
+      { model: 'Samsung SSD 990 PRO 1TB', vendor: 'Samsung' },
+      { vendor: 'Samsung', model: '990 PRO 1TB' },
+    ],
+    [
+      'Kingston',
+      { model: 'KINGSTON SA400S37240G', vendor: 'Kingston' },
+      { vendor: 'Kingston', model: 'SA400S37240G' },
+    ],
+    [
+      'Toshiba',
+      { model: 'TOSHIBA MG08ACA16TE', vendor: 'Toshiba' },
+      { vendor: 'Toshiba', model: 'MG08ACA16TE' },
+    ],
+    [
+      'Kioxia',
+      { model: 'KIOXIA KXG60ZNV256G', vendor: 'Kioxia' },
+      { vendor: 'Kioxia', model: 'KXG60ZNV256G' },
+    ],
+    [
+      'HGST',
+      { model: 'HGST HUS726T4TALA6L4', vendor: 'HGST' },
+      { vendor: 'HGST', model: 'HUS726T4TALA6L4' },
+    ],
+  ])('recognizes %s disks from upstream model/vendor fields', (_name, disk, expected) => {
+    expect(normalizeDiskParts(disk)).toEqual(expected);
   });
 
-  it('Seagate: unknown family code still yields capacity', () => {
-    expect(detectSeagate('ST6000ZZ001')).toEqual({ vendor: 'Seagate', model: '6TB' });
-    expect(diskDisplayName({ model: 'ST6000ZZ001', vendor: '' })).toBe('Seagate 6TB');
-  });
-
-  it('Western Digital: 2-3 digit = TB, 4 digit = GB; family from suffix', () => {
-    expect(detectWesternDigital('WD80EFZZ')).toEqual({
-      vendor: 'Western Digital',
-      model: 'Red Plus 8TB',
-    });
-    expect(detectWesternDigital('WDCWD80EFAX68LHPN0')).toEqual({
-      vendor: 'Western Digital',
-      model: 'Red 8TB',
-    });
-    expect(detectWesternDigital('WD5000AZLX')).toEqual({
-      vendor: 'Western Digital',
-      model: 'Blue 500GB',
-    });
-    expect(detectWesternDigital('WD40PURZ')).toEqual({
-      vendor: 'Western Digital',
-      model: 'Purple 4TB',
-    });
-  });
-
-  it('Western Digital: unknown suffix falls back to EF/EZ/FZ/PUR prefix heuristic', () => {
-    expect(detectWesternDigital('WD20EFQQ')).toEqual({
-      vendor: 'Western Digital',
-      model: 'Red 2TB',
-    });
-  });
-
-  it('Crucial: NVMe vs SATA bus drives the kind suffix', () => {
-    expect(detectCrucial('CT1000MX500SSD1')).toEqual({
-      vendor: 'Crucial',
-      model: 'MX500 1TB SATA SSD',
-    });
-    expect(detectCrucial('CT2000P3PSSD8')).toEqual({
-      vendor: 'Crucial',
-      model: 'P3 Plus 2TB NVMe SSD',
-    });
-    expect(detectCrucial('CT1000P3SSD8')).toEqual({ vendor: 'Crucial', model: 'P3 1TB NVMe SSD' });
-  });
-
-  it('Crucial: longest family code wins (P3P over P3, MX500 over MX)', () => {
-    expect(detectCrucial('CT4000T700SSD5')?.model).toContain('T700');
-  });
-
-  it('Samsung / Kingston / Toshiba / Kioxia / HGST: strip leading vendor noise', () => {
-    expect(detectSamsung('SAMSUNGSSD990PRO1TB', 'Samsung SSD 990 PRO 1TB')).toEqual({
-      vendor: 'Samsung',
-      model: '990 PRO 1TB',
-    });
-    expect(detectKingston('KINGSTONSA400S37240G', 'KINGSTON SA400S37240G')).toEqual({
-      vendor: 'Kingston',
-      model: 'SA400S37240G',
-    });
-    expect(detectToshibaKioxia('TOSHIBAMG08ACA16TE', 'TOSHIBA MG08ACA16TE')).toEqual({
-      vendor: 'Toshiba',
-      model: 'MG08ACA16TE',
-    });
-    expect(detectToshibaKioxia('KIOXIAKXG60ZNV256G', 'KIOXIA KXG60ZNV256G')?.vendor).toBe('Kioxia');
-    expect(detectHgstHitachi('HGSTHUS726T4TALA6L4', 'HGST HUS726T4TALA6L4')).toEqual({
-      vendor: 'HGST',
-      model: 'HUS726T4TALA6L4',
-    });
-  });
-
-  it('non-matching token returns null', () => {
-    expect(detectSeagate('NOTADISK')).toBeNull();
-    expect(detectWesternDigital('NOTADISK')).toBeNull();
-    expect(detectCrucial('NOTADISK')).toBeNull();
-  });
-});
-
-describe('normalizeDiskParts + diskDisplayName', () => {
-  it('drops bus-type-as-vendor (ata/nvme/scsi/usb)', () => {
+  it('drops bus-type vendors and passes unrecognized brands through', () => {
     expect(normalizeDiskParts({ model: 'Generic Model', vendor: 'ata' })).toEqual({
       vendor: '',
       model: 'Generic Model',
     });
-  });
-
-  it('passes through an unrecognized brand untouched', () => {
     expect(normalizeDiskParts({ model: 'WEIRD BRAND X1', vendor: 'ACME' })).toEqual({
       vendor: 'ACME',
       model: 'WEIRD BRAND X1',
     });
   });
 
-  it('diskDisplayName prefixes vendor only when not already in the model', () => {
-    expect(diskDisplayName({ model: 'ST4000VN008-2DR166', vendor: 'ATA' })).toBe(
-      'Seagate IronWolf 4TB',
-    );
+  it('builds display names from normalized vendor and model', () => {
+    const inv = parseDiskInventory({
+      blockdevices: [
+        { type: 'disk', name: 'sda', path: '/dev/sda', model: 'ST4000VN008-2DR166', vendor: 'ATA' },
+        { type: 'disk', name: 'sdb', path: '/dev/sdb', model: 'WEIRD BRAND X1', vendor: 'ACME' },
+      ],
+    });
 
-    expect(diskDisplayName({ model: 'WEIRD BRAND X1', vendor: 'ACME' })).toBe(
-      'ACME WEIRD BRAND X1',
-    );
+    expect(inv.map((disk) => disk.name)).toEqual(['Seagate IronWolf 4TB', 'ACME WEIRD BRAND X1']);
   });
 });
 

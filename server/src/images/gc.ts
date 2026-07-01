@@ -11,7 +11,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function collectImageIds(value: unknown, out = new Set<string>()): Set<string> {
+function collectImageIds(value: unknown, out = new Set<string>()): Set<string> {
   if (Array.isArray(value)) {
     for (const item of value) collectImageIds(item, out);
     return out;

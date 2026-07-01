@@ -4,15 +4,6 @@ import type { Express } from 'express';
 const remoteMock = vi.hoisted(() => ({ runRemote: vi.fn() }));
 vi.mock('../lib/remote.js', () => ({ runRemote: remoteMock.runRemote }));
 
-const parseMock = vi.hoisted(() => ({
-  parseSensorsJson: vi.fn(),
-  parseDiskInventory: vi.fn(() => []),
-}));
-vi.mock('./parse.js', () => ({
-  parseSensorsJson: parseMock.parseSensorsJson,
-  parseDiskInventory: parseMock.parseDiskInventory,
-}));
-
 import { initSensors } from './index.js';
 
 type StoredHandler = (req: unknown, res: unknown) => unknown;
@@ -50,17 +41,12 @@ const CONFIG = {
   cacheTtl: 0,
 };
 
-const NODE_A_SENSORS = {
-  cpuTempC: 45,
-  systemTempC: null,
-  systemTempLabel: null,
-  cores: [{ name: 'Core 0', tempC: 45 }],
-  disks: [],
-  memory: [],
-  network: [],
-  fans: [],
-  other: [],
-};
+const NODE_A_SENSORS_RAW = JSON.stringify({
+  'k10temp-pci-00c3': {
+    Tctl: { temp1_input: 45 },
+    Tccd1: { temp3_input: 44 },
+  },
+});
 
 async function callSensors() {
   const app = makeApp();
@@ -72,8 +58,6 @@ async function callSensors() {
 
 beforeEach(() => {
   remoteMock.runRemote.mockReset();
-  parseMock.parseSensorsJson.mockReset();
-  parseMock.parseDiskInventory.mockReturnValue([]);
   process.env.PROXMOX_NODE_TARGETS = JSON.stringify({
     'node-a': { host: '10' },
     'node-c': { host: '12' },
@@ -87,38 +71,42 @@ afterEach(() => {
 
 describe('sensors per-node collection', () => {
   it('attributes readings per node; an empty `sensors -j` is a reachable no-data node', async () => {
-    parseMock.parseSensorsJson.mockReturnValue(NODE_A_SENSORS);
     remoteMock.runRemote.mockImplementation(async (opts: { host?: string; remoteCmd?: string }) => {
-      if (opts.remoteCmd?.startsWith('sensors')) return opts.host === '10' ? '{"chip":{}}' : '';
-      return '{}';
+      if (opts.remoteCmd?.startsWith('sensors'))
+        return opts.host === '10' ? NODE_A_SENSORS_RAW : '';
+      return '{"blockdevices":[]}';
     });
 
     const res = await callSensors();
 
     expect(res.statusCode).toBe(200);
     expect(res.body.nodes).toHaveLength(2);
-    const nodeA = res.body.nodes!.find((n) => n.node === 'node-a') as typeof NODE_A_SENSORS & {
+    const nodeA = res.body.nodes!.find((n) => n.node === 'node-a') as {
       node: string;
+      cpuTempC: number | null;
+      cores: Array<{ name: string; tempC: number }>;
     };
-    const nodeC = res.body.nodes!.find((n) => n.node === 'node-c') as typeof NODE_A_SENSORS & {
+    const nodeC = res.body.nodes!.find((n) => n.node === 'node-c') as {
       node: string;
+      cpuTempC: number | null;
+      cores: Array<{ name: string; tempC: number }>;
     };
     expect(nodeA.cpuTempC).toBe(45);
+    expect(nodeA.cores).toEqual([{ name: 'Tccd1', tempC: 44 }]);
     expect(nodeC.cores).toEqual([]);
     expect(nodeC.cpuTempC).toBeNull();
     expect(res.body.unavailable).toBeUndefined();
 
-    expect((res.body.sensors as typeof NODE_A_SENSORS).cpuTempC).toBe(45);
+    expect((res.body.sensors as { cpuTempC: number | null }).cpuTempC).toBe(45);
   });
 
   it('treats a missing `sensors` command as no-data, not unavailable', async () => {
-    parseMock.parseSensorsJson.mockReturnValue(NODE_A_SENSORS);
     remoteMock.runRemote.mockImplementation(async (opts: { host?: string; remoteCmd?: string }) => {
       if (opts.remoteCmd?.startsWith('sensors')) {
-        if (opts.host === '10') return '{"chip":{}}';
+        if (opts.host === '10') return NODE_A_SENSORS_RAW;
         throw new Error('bash: sensors: command not found');
       }
-      return '{}';
+      return '{"blockdevices":[]}';
     });
 
     const res = await callSensors();
@@ -128,13 +116,12 @@ describe('sensors per-node collection', () => {
   });
 
   it('records an unreachable node under unavailable', async () => {
-    parseMock.parseSensorsJson.mockReturnValue(NODE_A_SENSORS);
     remoteMock.runRemote.mockImplementation(async (opts: { host?: string; remoteCmd?: string }) => {
       if (opts.remoteCmd?.startsWith('sensors')) {
-        if (opts.host === '10') return '{"chip":{}}';
+        if (opts.host === '10') return NODE_A_SENSORS_RAW;
         throw new Error('ssh: connect to host 12 port 22: Connection timed out');
       }
-      return '{}';
+      return '{"blockdevices":[]}';
     });
 
     const res = await callSensors();

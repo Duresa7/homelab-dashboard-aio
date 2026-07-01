@@ -84,7 +84,7 @@ function comparePrerelease(a: string[], b: string[]): number {
 }
 
 /** True when `latest` is a strictly newer version than `current`. */
-export function isNewer(latest: string, current: string): boolean {
+function isNewer(latest: string, current: string): boolean {
   const a = parseSemver(latest);
   const b = parseSemver(current);
   if (!a || !b) return false;
