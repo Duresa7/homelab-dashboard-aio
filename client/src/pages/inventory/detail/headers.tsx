@@ -7,7 +7,7 @@ import {
   type DeviceCategory,
   type Device,
 } from '../../../lib/inventory';
-import { BrandGlyph, categoryIcon, componentIcon, roleIcon } from '../../../lib/inventoryIcons';
+import { categoryIcon, componentIcon, InventoryIcon, roleIcon } from '../../../lib/inventoryIcons';
 
 import { Editable } from '../Editable';
 
@@ -23,6 +23,13 @@ export function MachineHeader({
   const RoleIcon = roleIcon(machine.role, machine.name);
   return (
     <div className="flex min-w-0 items-center gap-4">
+      <InventoryIcon
+        icon={machine.icon}
+        brandText={[machine.name, machine.role]}
+        fallback={RoleIcon}
+        label={machine.name}
+        size={34}
+      />
       <div className="flex w-14 shrink-0 flex-col items-center">
         <span className="font-display text-2xl font-semibold tabular-nums leading-none text-brand">
           {machine.ordinal ?? '—'}
@@ -85,7 +92,13 @@ export function DeviceHeader({
         ) : null}
       </div>
       <h2 className="flex min-w-0 items-center gap-2 font-display text-xl font-semibold tracking-tight text-foreground">
-        {brand ? <BrandGlyph text={brand} size={18} /> : null}
+        <InventoryIcon
+          icon={item.icon}
+          brandText={[brand, item.values.model, title]}
+          fallback={CatIcon}
+          label={title}
+          size={18}
+        />
         {isEditing ? (
           <Editable
             value={item.name ?? ''}
@@ -113,6 +126,7 @@ export function ComponentHeader({
   onChange: (mut: (c: Component) => Component) => void;
 }) {
   const CompIcon = componentIcon(component.label) ?? Cpu;
+  const title = componentTitle(component);
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -138,8 +152,14 @@ export function ComponentHeader({
         ) : null}
       </div>
       <h2 className="flex min-w-0 items-center gap-2 font-display text-xl font-semibold tracking-tight text-foreground">
-        <BrandGlyph text={componentTitle(component)} size={18} />
-        <span className="truncate">{componentTitle(component)}</span>
+        <InventoryIcon
+          icon={component.icon}
+          brandText={[title, component.rawSpec]}
+          fallback={CompIcon}
+          label={title}
+          size={18}
+        />
+        <span className="truncate">{title}</span>
       </h2>
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <span className="text-xs uppercase tracking-wide text-muted-foreground/70">

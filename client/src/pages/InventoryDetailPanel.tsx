@@ -27,6 +27,7 @@ import { ComponentHeader, DeviceHeader, MachineHeader } from './inventory/detail
 import { ComponentSpecsSection, DeviceSpecsSection } from './inventory/detail/specs';
 import { AssignmentSection, DeviceSection } from './inventory/detail/assignment';
 import { ComponentsSection } from './inventory/detail/ComponentsSection';
+import { IconSection } from './inventory/detail/IconSection';
 import { ImagesSection } from './inventory/detail/ImagesSection';
 import { ProblemLogSection } from './inventory/detail/ProblemLogSection';
 import { ProvenanceSection } from './inventory/detail/ProvenanceSection';
@@ -118,6 +119,13 @@ export function InventoryDetailPanel({
         : found.component.label;
 
   const setImages = (next: typeof images) => mutDetail((cur) => ({ ...cur, images: next }));
+  const setIcon = (icon: typeof detail.icon) => mutDetail((cur) => ({ ...cur, icon }));
+  const autoIconText =
+    found.kind === 'machine'
+      ? [found.machine.name, found.machine.role]
+      : found.kind === 'spare'
+        ? [found.item.values.brand, found.item.values.model, found.item.name, found.category.name]
+        : [found.component.label, found.component.rawSpec];
 
   const header =
     found.kind === 'machine' ? (
@@ -222,6 +230,14 @@ export function InventoryDetailPanel({
           {found.kind === 'machine' ? (
             <ComponentsSection machine={found.machine} components={components} />
           ) : null}
+
+          <IconSection
+            icon={detail.icon}
+            isEditing={isEditing}
+            label={itemLabel}
+            autoBrandText={autoIconText}
+            onChange={setIcon}
+          />
 
           <ImagesSection
             images={images}

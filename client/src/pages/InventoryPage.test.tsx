@@ -18,6 +18,7 @@ function inventoryFixture(): Inventory {
         deployment: 'in-service',
         meta: [{ id: 'meta-1', label: 'IP', value: '198.51.100.10' }],
         ids: { uid: '0801' },
+        icon: { kind: 'dashboard', name: 'proxmox' },
       },
     ],
     components: [
@@ -53,7 +54,7 @@ function inventoryFixture(): Inventory {
             id: 'network-1',
             name: 'Gateway',
             deployment: 'in-service',
-            values: { brand: 'Example', model: 'Gateway' },
+            values: { brand: 'Ubiquiti', model: 'Gateway' },
             ids: { uid: '0401' },
           },
         ],
@@ -96,9 +97,17 @@ describe('InventoryPage', () => {
 
     expect(screen.getByText('Inventory')).toBeInTheDocument();
     expect(screen.getByText('Example Workstation')).toBeInTheDocument();
+    expect(screen.getByAltText('Example Workstation icon')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/proxmox.svg'),
+    );
 
     await user.click(screen.getByRole('tab', { name: /Network/i }));
     expect(screen.getAllByText('Gateway').length).toBeGreaterThan(0);
+    expect(screen.getAllByAltText('ubiquiti')[0]).toHaveAttribute(
+      'src',
+      expect.stringContaining('/ubiquiti.svg'),
+    );
 
     await user.click(screen.getByRole('tab', { name: /Spare parts/i }));
     expect(screen.getByRole('heading', { name: 'Laptops' })).toBeInTheDocument();

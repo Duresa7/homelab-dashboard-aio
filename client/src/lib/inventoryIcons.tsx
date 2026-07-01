@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 
 import { BrandIcon } from '../components/icons/BrandIcon';
+import { imageUrl } from './images';
+import type { ItemIcon } from './inventory';
 
 type BrandSource =
   | { kind: 'dashboard'; name: string }
@@ -33,6 +35,8 @@ type BrandSource =
   | { kind: 'wvl'; slug: string };
 
 const BRAND_MAP: Array<[RegExp, BrandSource]> = [
+  [/proxmox/i, { kind: 'dashboard', name: 'proxmox' }],
+  [/portainer/i, { kind: 'dashboard', name: 'portainer' }],
   [/western[\s-]?digital|^wd\b|\bwd\s/i, { kind: 'dashboard', name: 'western-digital' }],
   [/wd[\s-]?(blue|purple|red|black|green|gold)/i, { kind: 'dashboard', name: 'western-digital' }],
   [/tp[\s-]?link/i, { kind: 'dashboard', name: 'tp-link' }],
@@ -55,7 +59,7 @@ const BRAND_MAP: Array<[RegExp, BrandSource]> = [
   [/seagate/i, { kind: 'simple', slug: 'seagate' }],
   [/nzxt/i, { kind: 'simple', slug: 'nzxt' }],
 
-  [/g[\s.\-]?skill/i, { kind: 'wvl', slug: 'gskill' }],
+  [/g[\s.-]?skill/i, { kind: 'wvl', slug: 'gskill' }],
   [/sk[\s-]?hynix|\bhynix\b/i, { kind: 'wvl', slug: 'sk-hynix' }],
   [/crucial/i, { kind: 'wvl', slug: 'crucial' }],
   [/gigabyte|aorus/i, { kind: 'wvl', slug: 'gigabyte' }],
@@ -72,6 +76,15 @@ export function resolveBrand(text: string | null | undefined): BrandSource | nul
   return null;
 }
 
+function resolveBrandFrom(text: string | null | undefined | Array<string | null | undefined>) {
+  const values = Array.isArray(text) ? text : [text];
+  for (const value of values) {
+    const hit = resolveBrand(value);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 const SIMPLE_BASE = 'https://cdn.simpleicons.org';
 const WVL_BASE = 'https://cdn.worldvectorlogo.com/logos';
 
@@ -83,7 +96,7 @@ interface BrandGlyphProps {
 }
 
 export function BrandGlyph({ text, size = 18, reserveSpace = false }: BrandGlyphProps) {
-  const hit = resolveBrand(text);
+  const hit = resolveBrandFrom(text);
   if (!hit) {
     return reserveSpace ? (
       <span
@@ -126,6 +139,59 @@ export function BrandGlyph({ text, size = 18, reserveSpace = false }: BrandGlyph
       />
     </span>
   );
+}
+
+interface InventoryIconProps {
+  icon?: ItemIcon;
+  brandText?: string | null | undefined | Array<string | null | undefined>;
+  fallback?: LucideIcon | null;
+  label: string;
+  size?: number;
+  reserveSpace?: boolean;
+}
+
+export function InventoryIcon({
+  icon,
+  brandText,
+  fallback: Fallback,
+  label,
+  size = 18,
+  reserveSpace = false,
+}: InventoryIconProps) {
+  if (icon?.kind === 'image') {
+    return (
+      <span className="inv-brand inv-brand-upload" style={{ width: size, height: size }}>
+        <img src={imageUrl(icon.id, true)} alt={`${label} icon`} draggable={false} loading="lazy" />
+      </span>
+    );
+  }
+  if (icon?.kind === 'dashboard') {
+    return (
+      <span className="inv-brand" style={{ width: size, height: size }}>
+        <BrandIcon name={icon.name} size={size} alt={`${label} icon`} />
+      </span>
+    );
+  }
+
+  const brand = resolveBrandFrom(brandText);
+  if (brand)
+    return (
+      <BrandGlyph text={Array.isArray(brandText) ? brandText.join(' ') : brandText} size={size} />
+    );
+
+  if (Fallback) {
+    return (
+      <span
+        className="inv-brand inv-brand-lucide text-muted-foreground"
+        style={{ width: size, height: size }}
+      >
+        <Fallback size={Math.max(12, size - 2)} strokeWidth={1.75} aria-hidden />
+      </span>
+    );
+  }
+  return reserveSpace ? (
+    <span className="inv-brand inv-brand-empty" style={{ width: size, height: size }} aria-hidden />
+  ) : null;
 }
 
 export function componentIcon(label: string): LucideIcon | null {
