@@ -1,10 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { collectPerNode, resolveNodeTargets, type NodeTarget } from './node-targets.js';
+import {
+  collectPerNode,
+  configureSetupNodeTargets,
+  resolveNodeTargets,
+  type NodeTarget,
+} from './node-targets.js';
 
 const DEFAULTS = { mode: 'ssh', host: 'fallback.host', user: 'root', port: 22, keyPath: '/key' };
 
 describe('resolveNodeTargets', () => {
+  beforeEach(() => {
+    configureSetupNodeTargets({});
+  });
+
   it('builds one target per map entry, inheriting defaults and parsing jump/overrides', () => {
     const targets = resolveNodeTargets({
       targetsJson: JSON.stringify({
@@ -45,6 +54,21 @@ describe('resolveNodeTargets', () => {
     expect(
       resolveNodeTargets({ primaryNode: 'pve', defaults: { ...DEFAULTS, host: 'h', keyPath: '' } }),
     ).toEqual([{ node: 'pve', mode: 'ssh', host: 'h', user: 'root', port: 22, keyPath: '' }]);
+  });
+
+  it('uses setup-discovered targets when environment targets are absent', () => {
+    configureSetupNodeTargets({
+      primaryNode: 'pve1',
+      targetsJson: JSON.stringify({
+        pve1: { host: '192.168.255.11' },
+        pve2: { host: '192.168.255.12' },
+      }),
+    });
+
+    expect(resolveNodeTargets({ defaults: { ...DEFAULTS, host: '' } }).map((t) => t.node)).toEqual([
+      'pve1',
+      'pve2',
+    ]);
   });
 
   it('falls back when the map is malformed JSON', () => {

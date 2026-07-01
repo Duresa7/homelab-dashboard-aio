@@ -8,7 +8,14 @@ export type CapabilityId =
   | 'logs'
   | 'amt';
 
-export type ConfigFieldType = 'text' | 'url' | 'password' | 'number' | 'boolean' | 'select';
+export type ConfigFieldType =
+  | 'text'
+  | 'textarea'
+  | 'url'
+  | 'password'
+  | 'number'
+  | 'boolean'
+  | 'select';
 
 export interface ConfigField {
   name: string;
@@ -85,6 +92,14 @@ export const CAPABILITIES: Capability[] = [
             env: 'PROXMOX_TOKEN_SECRET',
           },
           { name: 'node', label: 'Node name', type: 'text', required: true, env: 'PROXMOX_NODE' },
+          {
+            name: 'nodeTargets',
+            label: 'Node targets JSON',
+            type: 'textarea',
+            required: false,
+            help: 'Optional per-node SSH target map for GPU and sensor collection.',
+            env: 'PROXMOX_NODE_TARGETS',
+          },
         ],
       },
       {
