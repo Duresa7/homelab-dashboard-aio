@@ -74,6 +74,10 @@ export interface ItemImage {
   h: number;
 }
 
+export type ItemIcon =
+  | { kind: 'image'; id: string; w: number; h: number }
+  | { kind: 'dashboard'; name: string };
+
 export const MAX_IMAGES_PER_ITEM = 6;
 
 export interface ItemDetail {
@@ -82,6 +86,7 @@ export interface ItemDetail {
   ids?: ItemIds;
   problemLog?: ProblemLogEntry[];
 
+  icon?: ItemIcon;
   images?: ItemImage[];
 }
 
@@ -238,7 +243,7 @@ export function emptyInventory(): Inventory {
 
 const STORAGE_KEY = 'inventory';
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 interface Persisted {
   v: number;
@@ -250,11 +255,28 @@ function cloneInventory<T>(data: T): T {
   return JSON.parse(JSON.stringify(data));
 }
 
+function normalizeIcon(icon: unknown): ItemIcon | undefined {
+  if (typeof icon !== 'object' || icon === null || Array.isArray(icon)) return undefined;
+  const record = icon as Record<string, unknown>;
+  if (record.kind === 'image' && typeof record.id === 'string' && record.id.trim()) {
+    const id = record.id.trim();
+    const w = typeof record.w === 'number' && Number.isFinite(record.w) ? record.w : 0;
+    const h = typeof record.h === 'number' && Number.isFinite(record.h) ? record.h : 0;
+    return { kind: 'image', id, w, h };
+  }
+  if (record.kind === 'dashboard' && typeof record.name === 'string') {
+    const name = record.name.trim().toLowerCase();
+    if (name) return { kind: 'dashboard', name };
+  }
+  return undefined;
+}
+
 function ensureDetail<T extends ItemDetail>(item: T): void {
   if (!item.status) item.status = 'working';
   if (!item.purchase) item.purchase = {};
   if (!item.ids) item.ids = {};
   if (!item.problemLog) item.problemLog = [];
+  item.icon = normalizeIcon(item.icon);
   if (!Array.isArray(item.images)) item.images = [];
 }
 

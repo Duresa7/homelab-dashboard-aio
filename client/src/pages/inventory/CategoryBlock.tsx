@@ -1,8 +1,8 @@
 import { Plus, Trash2, X } from 'lucide-react';
 
-import { deleteImages } from '../../lib/images';
+import { deleteItemMedia } from '../../lib/images';
 import { genId, nextDeviceUid, type DeviceCategory, type Device } from '../../lib/inventory';
-import { BrandGlyph, categoryIcon } from '../../lib/inventoryIcons';
+import { categoryIcon, InventoryIcon } from '../../lib/inventoryIcons';
 import {
   Table,
   TableBody,
@@ -80,7 +80,7 @@ export function CategoryBlock({
     }));
   const removeItem = (itemId: string) =>
     onChange((cur) => {
-      deleteImages(cur.items.find((it) => it.id === itemId)?.images);
+      deleteItemMedia(cur.items.find((it) => it.id === itemId));
       return { ...cur, items: cur.items.filter((it) => it.id !== itemId) };
     });
 
@@ -94,7 +94,7 @@ export function CategoryBlock({
     category.deviceType === 'network' ||
     category.deviceType === 'laptop' ||
     items.some((it) => it.name);
-  const colSpan = category.columns.length + 1 + (hasName ? 1 : 0) + (isEditing ? 1 : 0);
+  const colSpan = category.columns.length + 2 + (hasName ? 1 : 0) + (isEditing ? 1 : 0);
 
   return (
     <SectionCard flush>
@@ -144,6 +144,7 @@ export function CategoryBlock({
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-16">UID</TableHead>
+            <TableHead className="w-10" aria-label="Icon" />
             {hasName ? <TableHead>Name</TableHead> : null}
             {category.columns.map((col) => (
               <TableHead key={col.id} className={col.align === 'right' ? 'text-right' : ''}>
@@ -185,6 +186,16 @@ export function CategoryBlock({
                 <TableCell className="font-mono tabular-nums text-muted-foreground">
                   {it.ids?.uid ?? '—'}
                 </TableCell>
+                <TableCell>
+                  <InventoryIcon
+                    icon={it.icon}
+                    brandText={[it.values.brand, it.values.model, it.name, category.name]}
+                    fallback={CatIcon}
+                    label={it.name ?? it.values.model ?? category.name}
+                    size={18}
+                    reserveSpace
+                  />
+                </TableCell>
                 {hasName ? (
                   <TableCell className="font-medium text-foreground">
                     <Editable
@@ -206,7 +217,6 @@ export function CategoryBlock({
                     >
                       {isBrand ? (
                         <span className="flex items-center gap-2">
-                          <BrandGlyph text={value} size={16} reserveSpace />
                           <Editable
                             value={value}
                             editing={isEditing}

@@ -2,7 +2,7 @@ import { X } from 'lucide-react';
 
 import { imageUrl } from '../../lib/images';
 import { componentTitle, type Component } from '../../lib/inventory';
-import { BrandGlyph } from '../../lib/inventoryIcons';
+import { componentIcon, InventoryIcon } from '../../lib/inventoryIcons';
 import { StatusBadge } from '@/components/common';
 import {
   Table,
@@ -64,7 +64,14 @@ export function ComponentTable({
               <TableCell className="text-muted-foreground">{c.label}</TableCell>
               <TableCell>
                 <span className="flex items-center gap-2 text-foreground">
-                  <BrandGlyph text={title} size={16} reserveSpace />
+                  <InventoryIcon
+                    icon={c.icon}
+                    brandText={[title, c.rawSpec]}
+                    fallback={componentIcon(c.label)}
+                    label={title}
+                    size={16}
+                    reserveSpace
+                  />
                   <span className="font-medium">{title}</span>
                   {c.images?.[0] ? (
                     <img

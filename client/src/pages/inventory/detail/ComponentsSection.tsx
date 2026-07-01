@@ -2,7 +2,7 @@ import { Boxes, Cpu } from 'lucide-react';
 
 import { imageUrl } from '../../../lib/images';
 import { componentTitle, type Component, type Machine } from '../../../lib/inventory';
-import { BrandGlyph, componentIcon } from '../../../lib/inventoryIcons';
+import { componentIcon, InventoryIcon } from '../../../lib/inventoryIcons';
 
 import { Section, STATUS_KIND } from './primitives';
 
@@ -34,7 +34,14 @@ export function ComponentsSection({
                 <CompIcon size={12} strokeWidth={1.75} />
                 <span className="truncate">{c.label}</span>
               </span>
-              <BrandGlyph text={componentTitle(c)} size={14} reserveSpace />
+              <InventoryIcon
+                icon={c.icon}
+                brandText={[componentTitle(c), c.rawSpec]}
+                fallback={CompIcon}
+                label={componentTitle(c)}
+                size={14}
+                reserveSpace
+              />
               <div className="min-w-0 flex-1">
                 <div className="text-sm text-foreground">{componentTitle(c)}</div>
                 <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">

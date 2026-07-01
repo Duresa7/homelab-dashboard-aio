@@ -26,7 +26,7 @@ import {
   type Device,
 } from '../lib/inventory';
 import { canEdit, useAuth } from '../lib/auth';
-import { deleteImages } from '../lib/images';
+import { deleteItemMedia } from '../lib/images';
 import { getState, subscribe } from '../lib/store';
 import { InventoryDetailPanel } from './InventoryDetailPanel';
 import { toast } from 'sonner';
@@ -184,7 +184,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
   const deleteMachine = (id: string) => {
     if (!confirm('Delete this machine? Its components will be moved to Spare.')) return;
     patch((prev) => {
-      deleteImages(prev.machines.find((m) => m.id === id)?.images);
+      deleteItemMedia(prev.machines.find((m) => m.id === id));
       return {
         ...prev,
         machines: prev.machines.filter((m) => m.id !== id),
@@ -218,7 +218,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
 
   const deleteComponent = (id: string) => {
     patch((prev) => {
-      deleteImages(prev.components.find((c) => c.id === id)?.images);
+      deleteItemMedia(prev.components.find((c) => c.id === id));
       return {
         ...prev,
         components: prev.components.filter((c) => c.id !== id),
@@ -263,7 +263,7 @@ export function InventoryPage({ selectedItemId, onSelectItem }: InventoryPagePro
     if (!confirm('Delete this entire category and all its items?')) return;
     patch((prev) => {
       for (const item of prev.devices.find((c) => c.id === id)?.items ?? []) {
-        deleteImages(item.images);
+        deleteItemMedia(item);
       }
       return {
         ...prev,
