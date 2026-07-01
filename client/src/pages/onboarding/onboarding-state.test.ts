@@ -75,6 +75,10 @@ describe('onboarding reducer', () => {
 
   it('maps setup test results into display state', () => {
     expect(testStateFromResult({ ok: true })).toEqual({ status: 'ok' });
+    expect(testStateFromResult({ ok: true, message: 'Detected cluster.' })).toEqual({
+      status: 'ok',
+      message: 'Detected cluster.',
+    });
     expect(testStateFromResult({ ok: true, untestable: true })).toEqual({
       status: 'untestable',
       message: undefined,
@@ -83,5 +87,25 @@ describe('onboarding reducer', () => {
       status: 'error',
       message: 'HTTP 401',
     });
+  });
+
+  it('applies discovered config without resetting test status', () => {
+    let state = createWizardState(capabilities);
+    state = onboardingReducer(state, {
+      type: 'setTestState',
+      capabilityId: 'network',
+      testState: { status: 'ok', message: 'previous' },
+    });
+    state = onboardingReducer(state, {
+      type: 'applyConfigPatch',
+      capabilityId: 'network',
+      patch: { site: 'default', baseUrl: 'https://gateway.local' },
+    });
+
+    expect(state.selections.network.config).toMatchObject({
+      baseUrl: 'https://gateway.local',
+      site: 'default',
+    });
+    expect(state.selections.network.testState).toEqual({ status: 'ok', message: 'previous' });
   });
 });

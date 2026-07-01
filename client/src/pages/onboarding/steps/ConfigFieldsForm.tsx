@@ -129,6 +129,25 @@ export function ConfigFieldsForm({
           );
         }
 
+        if (field.type === 'textarea') {
+          return (
+            <div key={field.name} className="flex flex-col gap-1.5 sm:col-span-2">
+              <Label htmlFor={id}>
+                {field.label}
+                {field.required ? <span className="text-bad"> *</span> : null}
+              </Label>
+              <textarea
+                id={id}
+                value={fieldValue(values[field.name])}
+                rows={5}
+                className="min-h-28 rounded-md border border-input bg-background px-3 py-2 font-mono text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+                onChange={(event) => onChange(field.name, event.target.value)}
+              />
+              {help ? <p className="text-xs text-muted-foreground">{help}</p> : null}
+            </div>
+          );
+        }
+
         return (
           <div key={field.name} className="flex flex-col gap-1.5">
             <Label htmlFor={id}>

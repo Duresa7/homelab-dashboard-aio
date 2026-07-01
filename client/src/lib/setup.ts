@@ -3,7 +3,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiJson, jsonRequest } from './http';
 
 export type CapabilityId = string;
-export type ConfigFieldType = 'text' | 'url' | 'password' | 'number' | 'boolean' | 'select';
+export type ConfigFieldType =
+  | 'text'
+  | 'textarea'
+  | 'url'
+  | 'password'
+  | 'number'
+  | 'boolean'
+  | 'select';
 export type DbDriver = 'sqlite' | 'postgres' | 'mysql';
 
 export interface ConfigField {
@@ -83,6 +90,8 @@ export type DbConfigView =
 export interface TestResult {
   ok: boolean;
   error?: string;
+  message?: string;
+  configPatch?: Record<string, unknown>;
   untestable?: boolean;
 }
 

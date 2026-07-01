@@ -368,6 +368,57 @@ describe('connection test API', () => {
     );
   });
 
+  it('discovers Proxmox nodes and returns onboarding config suggestions', async () => {
+    await withJsonUpstream(
+      {
+        '/api2/json/version': { data: { version: '8.0' } },
+        '/api2/json/nodes': {
+          data: [
+            { node: 'pve1', status: 'online' },
+            { node: 'pve2', status: 'online' },
+          ],
+        },
+        '/api2/json/cluster/status': {
+          data: [
+            { type: 'cluster', name: 'homelab' },
+            { type: 'node', name: 'pve1', ip: '127.0.0.1', online: 1 },
+            { type: 'node', name: 'pve2', online: 1 },
+          ],
+        },
+        '/api2/json/nodes/pve1/network': {
+          data: [{ iface: 'vmbr0', type: 'bridge', active: 1, address: '127.0.0.1/24' }],
+        },
+        '/api2/json/nodes/pve2/network': { data: [] },
+      },
+      async (baseUrl) => {
+        const ctx = await loadServerApp();
+        try {
+          const api = await bootstrapAdmin(ctx.app);
+          const res = await api
+            .post('/api/setup/test')
+            .send({
+              capability: 'datacenter',
+              config: { baseUrl, tokenId: 'id', tokenSecret: 's' },
+            })
+            .expect(200);
+
+          expect(res.body.ok).toBe(true);
+          expect(res.body.message).toBe('Detected 2-node cluster; primary node pve1.');
+          expect(res.body.configPatch.node).toBe('pve1');
+          const targets = JSON.parse(res.body.configPatch.nodeTargets);
+          expect(targets.pve1).toMatchObject({ mode: 'ssh', host: '127.0.0.1' });
+          expect(targets.pve2).toMatchObject({
+            mode: 'ssh',
+            host: 'pve2',
+            jumpHost: '127.0.0.1',
+          });
+        } finally {
+          await ctx.cleanup();
+        }
+      },
+    );
+  });
+
   it('reports a failed connection as ok:false', async () => {
     const ctx = await loadServerApp();
     try {
