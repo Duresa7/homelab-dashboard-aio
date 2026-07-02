@@ -425,25 +425,21 @@ function applyUnas(payload: UnasApiResponse): boolean {
   state.unas = payload.unas;
 
   state.storage = {
-    pools: payload.unas.pools.map(
-      (p): StoragePool => ({
-        name: p.name,
-        type: p.type,
-        totalTB: p.totalTB,
-        usedTB: p.usedTB,
-        status: storageStatus(p.status),
-        scrub: p.scrub?.lastRun ? p.scrub.lastRun : 'never',
-      }),
-    ),
-    disks: payload.unas.disks.map(
-      (d): Disk => ({
-        name: `Slot ${d.slot}`,
-        model: d.model,
-        tempC: d.tempC,
-        smart: d.smart,
-        ageHours: d.powerOnHours || 0,
-      }),
-    ),
+    pools: payload.unas.pools.map((p): StoragePool => ({
+      name: p.name,
+      type: p.type,
+      totalTB: p.totalTB,
+      usedTB: p.usedTB,
+      status: storageStatus(p.status),
+      scrub: p.scrub?.lastRun ? p.scrub.lastRun : 'never',
+    })),
+    disks: payload.unas.disks.map((d): Disk => ({
+      name: `Slot ${d.slot}`,
+      model: d.model,
+      tempC: d.tempC,
+      smart: d.smart,
+      ageHours: d.powerOnHours || 0,
+    })),
   };
   return true;
 }

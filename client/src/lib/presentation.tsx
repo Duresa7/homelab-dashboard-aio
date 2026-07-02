@@ -29,14 +29,7 @@ import {
 import type { Section } from './route';
 
 export type CapabilityId =
-  | 'datacenter'
-  | 'network'
-  | 'nas'
-  | 'containers'
-  | 'gpu'
-  | 'sensors'
-  | 'logs'
-  | 'amt';
+  'datacenter' | 'network' | 'nas' | 'containers' | 'gpu' | 'sensors' | 'logs' | 'amt';
 
 export interface CapabilityPresentation {
   id: CapabilityId;

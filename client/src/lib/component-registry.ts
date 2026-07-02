@@ -1,14 +1,5 @@
 export type ComponentType =
-  | 'cpu'
-  | 'gpu'
-  | 'motherboard'
-  | 'ram'
-  | 'storage'
-  | 'psu'
-  | 'cooler'
-  | 'case'
-  | 'nic'
-  | 'other';
+  'cpu' | 'gpu' | 'motherboard' | 'ram' | 'storage' | 'psu' | 'cooler' | 'case' | 'nic' | 'other';
 
 export interface ComponentTypeDefinition {
   block: number;

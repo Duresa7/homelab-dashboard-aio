@@ -75,8 +75,7 @@ export interface ItemImage {
 }
 
 export type ItemIcon =
-  | { kind: 'image'; id: string; w: number; h: number }
-  | { kind: 'dashboard'; name: string };
+  { kind: 'image'; id: string; w: number; h: number } | { kind: 'dashboard'; name: string };
 
 export const MAX_IMAGES_PER_ITEM = 6;
 
@@ -115,14 +114,7 @@ export interface Machine extends ItemDetail {
 }
 
 export type DeviceCategoryType =
-  | 'laptop'
-  | 'phone'
-  | 'printer'
-  | 'network'
-  | 'peripheral'
-  | 'monitor'
-  | 'camera'
-  | 'other';
+  'laptop' | 'phone' | 'printer' | 'network' | 'peripheral' | 'monitor' | 'camera' | 'other';
 
 export interface Device extends ItemDetail {
   id: string;

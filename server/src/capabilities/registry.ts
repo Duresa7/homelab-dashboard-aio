@@ -1,21 +1,8 @@
 export type CapabilityId =
-  | 'datacenter'
-  | 'network'
-  | 'nas'
-  | 'containers'
-  | 'gpu'
-  | 'sensors'
-  | 'logs'
-  | 'amt';
+  'datacenter' | 'network' | 'nas' | 'containers' | 'gpu' | 'sensors' | 'logs' | 'amt';
 
 export type ConfigFieldType =
-  | 'text'
-  | 'textarea'
-  | 'url'
-  | 'password'
-  | 'number'
-  | 'boolean'
-  | 'select';
+  'text' | 'textarea' | 'url' | 'password' | 'number' | 'boolean' | 'select';
 
 export interface ConfigField {
   name: string;
