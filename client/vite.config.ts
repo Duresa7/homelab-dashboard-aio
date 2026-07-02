@@ -8,6 +8,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..');
 
 export default defineConfig(({ mode }) => {
+  // PORT in the process env is Vite's own port (dev harnesses assign one when
+  // spawning the dev server). Strip it before loadEnv — which merges process.env
+  // over the .env files — so only a repo .env PORT can mean "API server port";
+  // otherwise the /api proxy would target Vite itself and every request hangs.
+  const vitePort = process.env.PORT;
+  delete process.env.PORT;
   const env = loadEnv(mode, repoRoot, '');
   const serverPort = env.PORT || '3001';
 
@@ -21,7 +27,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: Number(process.env.PORT) || 5173,
+      port: Number(vitePort) || 5173,
       host: true,
       fs: {
         allow: [repoRoot],
