@@ -9,6 +9,7 @@ import {
   Network,
   Server,
   Settings,
+  SquareKanban,
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
@@ -46,6 +47,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
     label: 'Utilities',
     items: [
       { section: 'inventory', icon: Boxes },
+      { section: 'productivity', icon: SquareKanban, hasSubs: true },
       { section: 'tools', icon: Wrench },
       { section: 'playground', icon: FlaskConical },
     ],

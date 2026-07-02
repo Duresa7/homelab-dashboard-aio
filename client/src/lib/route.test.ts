@@ -42,4 +42,22 @@ describe('route persistence', () => {
       sub: 'summary',
     });
   });
+
+  it('keeps Kanban as the default Productivity subsection', async () => {
+    const { store, route } = await loadRouteModules();
+
+    store.setState('route', { section: 'productivity', sub: 'subscriptions' });
+    expect(route.loadRoute()).toEqual({
+      section: 'productivity',
+      sub: 'subscriptions',
+      itemId: undefined,
+    });
+
+    store.setState('route', { section: 'productivity', sub: 'missing' });
+    expect(route.loadRoute()).toEqual({
+      section: 'productivity',
+      sub: 'kanban',
+      itemId: undefined,
+    });
+  });
 });

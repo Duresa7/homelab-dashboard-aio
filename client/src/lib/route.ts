@@ -9,6 +9,7 @@ export type Section =
   | 'observability'
   | 'amt'
   | 'inventory'
+  | 'productivity'
   | 'tools'
   | 'playground'
   | 'settings';
@@ -73,6 +74,10 @@ export const SUBS: Partial<Record<Section, SubDef[]>> = {
     { id: 'overview', label: 'Overview' },
     { id: 'devices', label: 'Devices' },
   ],
+  productivity: [
+    { id: 'kanban', label: 'Kanban' },
+    { id: 'subscriptions', label: 'Subscriptions' },
+  ],
 };
 
 export const DEFAULT_SUB: Record<Section, string | undefined> = {
@@ -84,6 +89,7 @@ export const DEFAULT_SUB: Record<Section, string | undefined> = {
   observability: 'alerts',
   amt: 'overview',
   inventory: undefined,
+  productivity: 'kanban',
   tools: undefined,
   playground: undefined,
   settings: undefined,
@@ -98,6 +104,7 @@ export const SECTION_LABEL: Record<Section, string> = {
   observability: 'Observability',
   amt: 'AMT',
   inventory: 'Inventory',
+  productivity: 'Productivity',
   tools: 'Tools',
   playground: 'Playground',
   settings: 'Settings',

@@ -15,6 +15,8 @@ const RESERVED_KEYS = new Set([
   'sidebarExpanded',
   'bookmarks',
   'bookmarkGroups',
+  'kanban.boards',
+  'subscriptions',
 ]);
 const RETIRED_KEYS = new Set(['bookmarksOrder']);
 

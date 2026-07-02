@@ -22,6 +22,7 @@ import { NasPage } from './pages/NasPage';
 import { ObservabilityPage } from './pages/ObservabilityPage';
 import { SettingsPage, type SettingsTabId } from './pages/SettingsPage';
 import { InventoryPage } from './pages/InventoryPage';
+import { ProductivityPage } from './pages/ProductivityPage';
 import { ToolsPage } from './pages/ToolsPage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
 import { AmtPage } from './pages/AmtPage';
@@ -86,6 +87,7 @@ const BACKEND_BACKED_SECTIONS = new Set<Section>([
   'observability',
   'amt',
   'inventory',
+  'productivity',
   'tools',
   'playground',
 ]);
@@ -258,6 +260,12 @@ function DashboardApp() {
       )}
       {route.section === 'inventory' && (
         <InventoryPage selectedItemId={route.itemId} onSelectItem={setInventoryItemId} />
+      )}
+      {route.section === 'productivity' && (
+        <ProductivityPage
+          sub={activeSub ?? 'kanban'}
+          onSelectSub={(s) => setRoute('productivity', s)}
+        />
       )}
       {route.section === 'tools' && <ToolsPage />}
       {route.section === 'playground' && <PlaygroundPage />}
