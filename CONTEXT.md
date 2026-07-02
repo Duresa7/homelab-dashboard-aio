@@ -85,6 +85,52 @@ one Group; a default Group always exists so none are orphaned.
 _Avoid_: category (reserved for syslog event types), section (reserved for dashboard sections),
 folder.
 
+### Productivity
+
+**Board**:
+A named Kanban workspace (e.g. "Homelab projects") made of ordered Columns. Multiple
+Boards exist; all are shared dashboard-wide, not per-user.
+_Avoid_: project, workspace.
+
+**Column**:
+An ordered, user-defined stage on a Board (e.g. To Do / In Progress / Done) holding Cards.
+Columns can be added, renamed, reordered, recolored, and deleted — nothing is fixed.
+_Avoid_: lane, list, status (Status is an inventory term).
+
+**Card**:
+A single task on a Board — a title, optional description, Labels, an optional due date,
+and a Priority. Lives in exactly one Column; moving it between Columns is how work
+progresses. Distinct from UI cards (SectionCard etc.), which are presentation, not domain.
+_Avoid_: task, ticket, item.
+
+**Label** (Kanban):
+A named, colored marker attached to Cards for visual grouping and filtering. Belongs to
+the Productivity domain; not the same thing as a Subscription Tag.
+_Avoid_: tag (reserved for Subscriptions).
+
+**Priority**:
+A Card's urgency indicator — low / medium / high.
+
+**Subscription**:
+A recurring paid service being tracked — name, cost (USD), Billing interval, one
+Subscription category, optional Tags, next renewal date, manage URL, notes, and an
+active/cancelled flag. Cancelled Subscriptions are kept, not deleted.
+
+**Subscription category**:
+The single kind a Subscription belongs to (IT, Cybersecurity, Entertainment, …) from a
+user-editable list. Exactly one per Subscription; drives cost-by-category breakdowns.
+Always qualified — bare "category" means syslog event types.
+
+**Tag** (Subscription):
+An optional freeform label on a Subscription for cross-cutting grouping (e.g. "work",
+"annual-review"). Many per Subscription. Distinct from a Kanban Label.
+
+**Billing interval**:
+How often a Subscription charges — every N days, months, or years (covers monthly, yearly,
+and oddities like 3-year domain renewals). Costs are normalized to a monthly equivalent so
+totals are comparable.
+_Avoid_: cycle, frequency (informal aliases).
+
 ### Compute
 
 **Node** (Proxmox):

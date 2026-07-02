@@ -83,6 +83,7 @@ async function loadApp({
   vi.doMock('./pages/HealthPage', () => ({ HealthPage: pageMock('Health') }));
   vi.doMock('./pages/SiemPage', () => ({ SiemPage: pageMock('SIEM') }));
   vi.doMock('./pages/InventoryPage', () => ({ InventoryPage: pageMock('Inventory') }));
+  vi.doMock('./pages/ProductivityPage', () => ({ ProductivityPage: pageMock('Productivity') }));
   vi.doMock('./pages/PlaygroundPage', () => ({ PlaygroundPage: pageMock('Playground') }));
 
   return import('./App');
