@@ -99,6 +99,21 @@ describe('state API contract', () => {
     });
   });
 
+  it('accepts the shared subscription ledger key', async () => {
+    await api
+      .put('/api/state/subscriptions')
+      .send({
+        categories: [{ id: 'other', name: 'Other' }],
+        subscriptions: [],
+      })
+      .expect(200);
+
+    expect((await api.get('/api/state/subscriptions').expect(200)).body.value).toEqual({
+      categories: [{ id: 'other', name: 'Other' }],
+      subscriptions: [],
+    });
+  });
+
   it('enforces same-origin writes for browser-originated requests', async () => {
     await api
       .put('/api/state/tempUnit')
