@@ -74,7 +74,10 @@ export const SUBS: Partial<Record<Section, SubDef[]>> = {
     { id: 'overview', label: 'Overview' },
     { id: 'devices', label: 'Devices' },
   ],
-  productivity: [{ id: 'kanban', label: 'Kanban' }],
+  productivity: [
+    { id: 'kanban', label: 'Kanban' },
+    { id: 'subscriptions', label: 'Subscriptions' },
+  ],
 };
 
 export const DEFAULT_SUB: Record<Section, string | undefined> = {
