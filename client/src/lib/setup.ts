@@ -4,13 +4,7 @@ import { apiJson, jsonRequest } from './http';
 
 export type CapabilityId = string;
 export type ConfigFieldType =
-  | 'text'
-  | 'textarea'
-  | 'url'
-  | 'password'
-  | 'number'
-  | 'boolean'
-  | 'select';
+  'text' | 'textarea' | 'url' | 'password' | 'number' | 'boolean' | 'select';
 export type DbDriver = 'sqlite' | 'postgres' | 'mysql';
 
 export interface ConfigField {
