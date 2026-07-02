@@ -79,6 +79,26 @@ describe('state API contract', () => {
     await api.put('/api/state/bookmarksOrder').send(['plex']).expect(400);
   });
 
+  it('accepts kanban board index and compact per-board keys', async () => {
+    await api
+      .put('/api/state/kanban.boards')
+      .send({ boards: [{ id: 'babc123', name: 'Homelab', order: 1000 }] })
+      .expect(200);
+    await api
+      .put('/api/state/kanban.board.babc123')
+      .send({ columns: [], cards: [], labels: [] })
+      .expect(200);
+
+    expect((await api.get('/api/state/kanban.boards').expect(200)).body.value.boards).toHaveLength(
+      1,
+    );
+    expect((await api.get('/api/state/kanban.board.babc123').expect(200)).body.value).toEqual({
+      columns: [],
+      cards: [],
+      labels: [],
+    });
+  });
+
   it('enforces same-origin writes for browser-originated requests', async () => {
     await api
       .put('/api/state/tempUnit')
