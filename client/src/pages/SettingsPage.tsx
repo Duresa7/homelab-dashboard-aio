@@ -102,13 +102,7 @@ import { toast } from 'sonner';
 type ThemeChoice = 'light' | 'dark' | 'system';
 type Density = 'compact' | 'regular' | 'comfy';
 export type SettingsTabId =
-  | 'preferences'
-  | 'integrations'
-  | 'setup'
-  | 'severity'
-  | 'account'
-  | 'users'
-  | 'about';
+  'preferences' | 'integrations' | 'setup' | 'severity' | 'account' | 'users' | 'about';
 
 export interface SettingsPreferences {
   theme: ThemeChoice;

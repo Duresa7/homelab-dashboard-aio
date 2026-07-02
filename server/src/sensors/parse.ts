@@ -327,14 +327,12 @@ export function parseDiskInventory(lsblkRaw: string | object): DiskInfo[] {
   const devices = Array.isArray(json.blockdevices) ? json.blockdevices : [];
   const disks = devices
     .filter((d: Upstream) => d?.type === 'disk')
-    .map(
-      (d: Upstream): DiskInfo => ({
-        kind: diskKind(d),
-        name: diskDisplayName(d) ?? '',
-        path: d.path || (d.name ? `/dev/${d.name}` : null),
-        serial: d.serial || null,
-      }),
-    )
+    .map((d: Upstream): DiskInfo => ({
+      kind: diskKind(d),
+      name: diskDisplayName(d) ?? '',
+      path: d.path || (d.name ? `/dev/${d.name}` : null),
+      serial: d.serial || null,
+    }))
     .filter((d: DiskInfo) => d.name);
   return withUniqueDiskDisplayNames(disks);
 }
