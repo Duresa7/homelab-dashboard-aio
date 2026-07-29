@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-const BASE = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg';
+import { brandIconUrl } from '../../lib/brand-icons';
 
 interface Props {
   name: string;
@@ -11,9 +11,12 @@ interface Props {
 }
 
 export function BrandIcon({ name, size = 18, alt, className, style }: Props) {
+  const src = brandIconUrl(name);
+  if (!src) return null;
+
   return (
     <img
-      src={`${BASE}/${name}.svg`}
+      src={src}
       width={size}
       height={size}
       alt={alt ?? name}
