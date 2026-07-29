@@ -4,6 +4,7 @@ import {
   detectComponentType,
   type ComponentType,
 } from './component-registry';
+import { isBrandIconName } from './brand-icons';
 import { genId } from './inventory-id';
 import {
   createSpecField,
@@ -258,7 +259,7 @@ function normalizeIcon(icon: unknown): ItemIcon | undefined {
   }
   if (record.kind === 'dashboard' && typeof record.name === 'string') {
     const name = record.name.trim().toLowerCase();
-    if (name) return { kind: 'dashboard', name };
+    if (isBrandIconName(name)) return { kind: 'dashboard', name };
   }
   return undefined;
 }

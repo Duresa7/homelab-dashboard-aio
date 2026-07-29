@@ -431,6 +431,14 @@ describe('migrateInventory (v11 icons)', () => {
           meta: [],
           icon: { kind: 'dashboard', name: ' Proxmox ' },
         },
+        {
+          id: 'm2',
+          name: 'Imported host',
+          role: 'Server',
+          deployment: 'in-service' as const,
+          meta: [],
+          icon: { kind: 'dashboard', name: 'proxmox.svg"><svg onload="alert(1)' },
+        },
       ],
       components: [
         {
@@ -462,6 +470,7 @@ describe('migrateInventory (v11 icons)', () => {
     } as never);
 
     expect(migrated.machines[0].icon).toEqual({ kind: 'dashboard', name: 'proxmox' });
+    expect(migrated.machines[1].icon).toBeUndefined();
     expect(migrated.components[0].icon).toEqual({
       kind: 'image',
       id: 'aaaaaaaaaaaaaaaa',
